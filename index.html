@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
+<title>Petty Cash Management System</title>
+<style>html,body{margin:0;padding:0;height:100%;background:#F6F4EF;}#root{min-height:100vh;}</style>
+
+<!-- In-browser React transpiler (no build step needed) -->
+<script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+
+<!-- Where the bare "react"/"recharts"/... imports resolve to -->
+<script type="importmap">
+{
+  "imports": {
+    "react": "https://esm.sh/react@18.3.1",
+    "react/": "https://esm.sh/react@18.3.1/",
+    "react-dom": "https://esm.sh/react-dom@18.3.1?deps=react@18.3.1",
+    "react-dom/client": "https://esm.sh/react-dom@18.3.1/client?deps=react@18.3.1",
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs",
+    "recharts": "https://esm.sh/recharts@2.13.3?deps=react@18.3.1,react-dom@18.3.1",
+    "lucide-react": "https://esm.sh/lucide-react@0.454.0?deps=react@18.3.1"
+  }
+}
+</script>
+</head>
+<body>
+<div id="root"></div>
+
+<!-- ============================================================
+     DATA STORAGE + LOGIN
+     By default the app stores data in THIS browser only (localStorage),
+     with no login. To share ONE secured database across all devices/users
+     for free (works on GitHub Pages — no server needed):
+       1. Create a free project at https://supabase.com
+       2. In the Supabase SQL editor, run the SQL shown in chat / the README
+          (creates the pcp_state + pcp_records tables + authenticated-only RLS
+          policies). pcp_records stores each transaction in its own row so
+          concurrent users can no longer overwrite each other's records.
+       3. In Authentication > Providers, turn OFF "Allow new users to sign up"
+          (so only you can add accounts), then add your ~10 users under
+          Authentication > Users > Add user (email + password).
+       4. In Project Settings > API, copy the Project URL and the
+          "anon public" key, and paste them below.
+     When these are filled in, the app shows a login screen and only
+     signed-in users can read/write. The anon key is safe to commit
+     (it is protected by Row Level Security). Leave blank for local mode.
+     ============================================================ -->
+<script>
+  window.PCP_SUPABASE_URL = "https://cyizlubajqottkadpibk.supabase.co";
+  window.PCP_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5aXpsdWJhanFvdHRrYWRwaWJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzNzU3MjIsImV4cCI6MjA5OTk1MTcyMn0.Ay8K-2qy0INM8OAsbBigTP2I42dl0-oc6X3s_rKBKAM";
+  window.PCP_TABLE = "pcp_state";
+  window.PCP_RECORDS_TABLE = "pcp_records";
+
+  /* ---- Access control (Role-Based Access Control) ----
+     Each account below is matched by full email (case-insensitive). "Accounting"
+     is the full super-admin. Plant access limits which plants a user can see:
+       "ALL"            = every plant (Accounting, Finance)
+       ["D1","RG"]      = Disney + RG and Co. (Pura Barloso)
+       ["WARNER"]       = Warner only (Angelita Bayani)
+       ["A1+"]          = Manila only (Maureen Felix)
+     Create these SAME accounts (email + password) in Supabase > Authentication
+     > Users. To reset a password, use the Supabase dashboard; each user can also
+     change their own password from the app sidebar. */
+  window.PCP_ADMIN_EMAILS = ["accounting@a1plus.com", "a1plusadmin@a1plus.com"];   // full super access
+  window.PCP_DEFAULT_ROLE = "Custodian";                 // fallback for unlisted signed-in users
+  window.PCP_USERS = {
+    "a1plusadmin@a1plus.com": { name: "Grace Gan",             role: "SuperAdmin", plants: "ALL" },
+    "accounting@a1plus.com": { name: "Accounting Department", role: "Accounting", plants: "ALL" },
+    "finance@a1plus.com":    { name: "Finance Department",    role: "Finance",    plants: "ALL" },
+    "puradr@a1plus.com":     { name: "Pura Barloso",          role: "Custodian",  plants: ["D1", "RG"] },
+    "lita@a1plus.com":       { name: "Angelita Bayani",       role: "Custodian",  plants: ["WARNER"] },
+    "mauwi@a1plus.com":      { name: "Maureen Felix",         role: "Custodian",  plants: ["A1+"] },
+    "pcfrequestordisney@a1plus.com":  { name: "PCF REQUESTOR - Disney",      role: "Requestor", plants: ["D1"] },
+    "pcfrequestormanila@a1plus.com":  { name: "PCF REQUESTOR - Manila",      role: "Requestor", plants: ["A1+"] },
+    "pcfrequestorrgandco@a1plus.com": { name: "PCF REQUESTOR - RG and Co.",  role: "Requestor", plants: ["RG"] },
+  };
+
+  /* ---- Built-in login (fallback only) ----
+     Not used while Supabase is configured above — login/logout is handled by
+     Supabase email accounts. Kept empty on purpose so no passwords live in the
+     source. (If you ever clear the Supabase keys, add accounts here to restore
+     an offline username/password login.) */
+  window.PCP_LOCAL_USERS = [];
+
+  /* Storage adapter: Supabase (shared) when configured, else localStorage.
+     window.storage is defined synchronously so the app can call it
+     immediately; cloud calls await the client via the sbReady promise. */
+  (function () {
+    var TABLE = window.PCP_TABLE || "pcp_state";
+    var RECORD_TABLE = window.PCP_RECORDS_TABLE || "pcp_records";
+    // Known synchronously, unlike the client itself — lets set()/put() queue
+    // writes immediately instead of waiting a microtask for sbReady.
+    var CLOUD = !!(window.PCP_SUPABASE_URL && window.PCP_SUPABASE_ANON_KEY);
+
+    // The whole-state blob key and the transaction collections inside it. The
+    // blob is written with a concurrency-safe UNION merge (below) so a stale or
+    // partial write can never drop another user's transactions — this is the
+    // safety net that stops the multi-user data loss even when the per-record
+    // table (pcp_records) is unavailable.
+    var STATE_KEY = "petty-cash-portal-state";
+    var MERGE_COLLECTIONS = [
+      "funds", "requests", "disbursements", "liquidations",
+      "replenishments", "auditLog", "documents", "reimbursements",
+    ];
+
+    // Records the fact that the per-record store is missing/unreachable so the
+    // app can warn operators to run the pcp_records SQL. Loud + idempotent.
+    window.PCP_RECORDS_UNAVAILABLE = false;
+    function noteRecordsUnavailable(err) {
+      var missing = err && (err.code === "PGRST205" ||
+        (err.message && String(err.message).indexOf("Could not find the table") !== -1));
+      if (!missing) return;
+      if (!window.PCP_RECORDS_UNAVAILABLE) {
+        window.PCP_RECORDS_UNAVAILABLE = true;
+        console.error(
+          "Petty Cash: the 'pcp_records' table is MISSING in Supabase. The app is " +
+          "running on the shared blob only, which is NOT concurrency-safe. Create the " +
+          "table by running the SQL in README.md (Data Storage & Login) — no existing " +
+          "data will be touched. Until then a union-merge safety net protects saves."
+        );
+      }
+    }
+
+    // Union two whole-state JSON blobs, keying transaction collections by id so
+    // the result is the SUPERSET of both (local wins on identical ids). Deletes
+    // are still honoured on load via the per-record tombstones (records win),
+    // so this never resurrects an intentionally deleted record once pcp_records
+    // exists — but it does guarantee no transaction is ever lost to a race.
+    function mergeStateValues(remoteStr, localStr) {
+      var remote, local;
+      try { local = JSON.parse(localStr); } catch (e) { return localStr; }
+      if (!local || typeof local !== "object") return localStr;
+      try { remote = JSON.parse(remoteStr); } catch (e) { remote = null; }
+      if (!remote || typeof remote !== "object") return localStr;
+      var out = Object.assign({}, remote, local); // scalar fields: local wins
+      MERGE_COLLECTIONS.forEach(function (c) {
+        var byId = {}, order = [];
+        function add(list) {
+          (Array.isArray(list) ? list : []).forEach(function (r) {
+            if (!r || r.id == null) return;
+            if (!(r.id in byId)) order.push(r.id);
+            byId[r.id] = r;
+          });
+        }
+        add(remote[c]); add(local[c]); // local overrides remote on same id
+        out[c] = order.map(function (id) { return byId[id]; });
+      });
+      return JSON.stringify(out);
+    }
+
+    // Collections whose records embed uploaded files as base64 data URLs:
+    // liquidations/reimbursements in attachments[].data, documents in dataUrl.
+    var PAYLOAD_COLLECTIONS = ["liquidations", "reimbursements", "documents"];
+
+    // Strips file bytes out of a whole-state JSON string.
+    // WHY: the bytes are already stored per-row in pcp_records, which is read
+    // once per load. The whole-state blob, by contrast, is re-read on EVERY save
+    // to do the union merge above, and copied wholesale into all 12 rolling
+    // backups — so a single 4 MB receipt in the blob turned into hundreds of
+    // megabytes of egress and a database full of duplicate copies.
+    // Bytes are restored on load from pcp_records (records win by id), so the
+    // app is unaffected. Trade-off: a blob-only recovery (pcp_records missing)
+    // brings back every transaction and all receipt METADATA but not the file
+    // bytes. Those belong in Supabase Storage — see README.
+    function stripPayloadsJSON(str) {
+      var s;
+      try { s = JSON.parse(str); } catch (e) { return str; }
+      if (!s || typeof s !== "object") return str;
+      var touched = false;
+      PAYLOAD_COLLECTIONS.forEach(function (c) {
+        if (!Array.isArray(s[c])) return;
+        s[c] = s[c].map(function (r) {
+          if (!r || typeof r !== "object") return r;
+          var out = r;
+          if (Array.isArray(r.attachments) && r.attachments.some(function (a) { return a && a.data; })) {
+            touched = true;
+            out = Object.assign({}, out, {
+              attachments: r.attachments.map(function (a) {
+                return (a && a.data) ? Object.assign({}, a, { data: "" }) : a;
+              })
+            });
+          }
+          if (out.dataUrl) { touched = true; out = Object.assign({}, out, { dataUrl: "" }); }
+          return out;
+        });
+      });
+      if (!touched) return str;
+      try { return JSON.stringify(s); } catch (e) { return str; }
+    }
+
+    var local = {
+      get: function (k) {
+        try { var v = localStorage.getItem(k); return v == null ? null : { value: v }; }
+        catch (e) { return null; }
+      },
+      set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+    };
+
+    // Resolves to a Supabase client, or null when not configured / on failure.
+    var sbReady = (function () {
+      var url = window.PCP_SUPABASE_URL, key = window.PCP_SUPABASE_ANON_KEY;
+      if (!url || !key) return Promise.resolve(null);
+      return import("https://esm.sh/@supabase/supabase-js@2")
+        .then(function (m) { return m.createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true } }); })
+        .catch(function (e) { console.warn("Supabase init failed — using local storage:", e); return null; });
+    })();
+
+    // Auth surface for the React app. When enabled, the app requires sign-in
+    // and every DB request carries the signed-in user's token (enforced by the
+    // table's Row Level Security policies). Uses the SAME client as storage.
+    window.PCP_AUTH = {
+      enabled: !!(window.PCP_SUPABASE_URL && window.PCP_SUPABASE_ANON_KEY),
+      ready: sbReady,
+      getUser: function () {
+        return sbReady.then(function (c) { return c ? c.auth.getUser().then(function (r) { return r.data ? r.data.user : null; }) : null; });
+      },
+      signIn: function (email, password) {
+        return sbReady.then(function (c) {
+          if (!c) return { error: { message: "Cloud database not configured." } };
+          return c.auth.signInWithPassword({ email: email, password: password });
+        });
+      },
+      resetPassword: function (email) {
+        return sbReady.then(function (c) {
+          if (!c) return { error: { message: "Cloud database not configured." } };
+          return c.auth.resetPasswordForEmail(email, { redirectTo: window.location.href });
+        });
+      },
+      updatePassword: function (newPassword) {
+        return sbReady.then(function (c) {
+          if (!c) return { error: { message: "Cloud database not configured." } };
+          return c.auth.updateUser({ password: newPassword });
+        });
+      },
+      signOut: function () { return sbReady.then(function (c) { return c ? c.auth.signOut() : null; }); },
+      onChange: function (cb) { sbReady.then(function (c) { if (c) c.auth.onAuthStateChange(function (_e, session) { cb(session); }); }); }
+    };
+
+    // Debounced writes so rapid state changes don't hammer the free tier.
+    // pending is a MAP keyed by storage key, so several different keys written
+    // in the same debounce window (e.g. state + a backup + the backup index) are
+    // all flushed instead of only the last one.
+    var timer = null, pending = {}, client = null;
+    // Per-record write queue (keyed by record id) for the pcp_records table.
+    var recTimer = null, recPending = {};
+    // Cached access token, kept fresh by onAuthStateChange. The unload-time
+    // keepalive write below needs it synchronously and cannot await getSession().
+    var authToken = null;
+    sbReady.then(function (c) {
+      client = c;
+      if (!c) return;
+      console.info("Petty Cash: connected to shared Supabase database.");
+      c.auth.getSession().then(function (r) {
+        authToken = (r && r.data && r.data.session) ? r.data.session.access_token : null;
+      }).catch(function () {});
+      c.auth.onAuthStateChange(function (_e, session) { authToken = session ? session.access_token : null; });
+      flush(); flushRecords();
+    });
+    // flush/flushRecords return promises so flushNow() can await them.
+    function flush() {
+      if (!client) return Promise.resolve();
+      var keys = Object.keys(pending); if (!keys.length) return Promise.resolve();
+      var snapshot = pending; pending = {};
+      return Promise.all(keys.map(function (k) {
+        var value = snapshot[k];
+        if (k !== STATE_KEY) {
+          // Backups / index / misc keys are immutable snapshots — plain upsert.
+          return client.from(TABLE).upsert([{ key: k, value: value, updated_at: new Date().toISOString() }])
+            .then(function (r) { if (r && r.error) console.warn("Cloud save failed:", r.error.message); });
+        }
+        // Whole-state blob: read the current cloud copy and UNION transaction
+        // records by id before writing, so a stale/partial save can never wipe
+        // another user's transactions (the root cause of the system-wide loss).
+        return client.from(TABLE).select("value").eq("key", k).maybeSingle()
+          .then(function (res) {
+            var merged = (res && !res.error && res.data && res.data.value != null)
+              ? mergeStateValues(res.data.value, value) : value;
+            return client.from(TABLE).upsert([{ key: k, value: merged, updated_at: new Date().toISOString() }]);
+          })
+          .then(function (r) { if (r && r.error) console.warn("Cloud save failed:", r.error.message); })
+          .catch(function () {
+            // On any read/merge failure, still persist the local copy directly.
+            return client.from(TABLE).upsert([{ key: k, value: value, updated_at: new Date().toISOString() }]);
+          });
+      }));
+    }
+    // Flush queued per-record changes as a single batched upsert. On failure the
+    // rows are requeued so a transient error never silently drops a record.
+    function flushRecords() {
+      if (!client) return Promise.resolve();
+      var ids = Object.keys(recPending); if (!ids.length) return Promise.resolve();
+      var rows = ids.map(function (id) { return recPending[id]; });
+      recPending = {};
+      return client.from(RECORD_TABLE).upsert(rows, { onConflict: "id" })
+        .then(function (r) {
+          if (r.error) {
+            noteRecordsUnavailable(r.error);
+            console.warn("Cloud record save failed:", r.error.message);
+            // Don't requeue forever when the table is missing — the union-merged
+            // blob is already persisting the data safely in that case.
+            if (!window.PCP_RECORDS_UNAVAILABLE) {
+              rows.forEach(function (row) { if (!recPending[row.id]) recPending[row.id] = row; });
+              clearTimeout(recTimer); recTimer = setTimeout(flushRecords, 4000);
+            }
+          }
+        });
+    }
+
+    // Writes the queued per-record rows with fetch({ keepalive: true }), which
+    // the browser completes even after the tab is closed. The Supabase client
+    // cannot set keepalive, so this calls the REST endpoint directly.
+    // Only pcp_records is written here: it is keyed per row, so it needs no
+    // read-merge round trip and can never clobber another user's work.
+    function keepaliveFlushRecords() {
+      var url = window.PCP_SUPABASE_URL, key = window.PCP_SUPABASE_ANON_KEY;
+      var ids = Object.keys(recPending);
+      if (!url || !key || !authToken || !ids.length) return;
+      var rows = ids.map(function (id) { return recPending[id]; });
+      // recPending is deliberately NOT cleared: a keepalive request gives no
+      // usable response, so the rows stay queued and the normal debounced flush
+      // re-upserts them if the page survives. Upserts are idempotent by id, so a
+      // redundant write costs nothing — losing a record costs a lot.
+      try {
+        fetch(url.replace(/\/+$/, "") + "/rest/v1/" + RECORD_TABLE + "?on_conflict=id", {
+          method: "POST",
+          headers: {
+            "apikey": key,
+            "Authorization": "Bearer " + authToken,
+            "Content-Type": "application/json",
+            "Prefer": "resolution=merge-duplicates,return=minimal"
+          },
+          body: JSON.stringify(rows),
+          keepalive: true
+        }).catch(function () {});
+      } catch (e) { /* best effort — localStorage still holds the copy */ }
+      clearTimeout(recTimer); recTimer = setTimeout(flushRecords, 1500);
+    }
+
+    // Fires queued writes immediately instead of waiting out the debounce.
+    // Awaited before sign-out so the session is still valid when the rows land:
+    // previously signOut() invalidated the token mid-debounce, RLS rejected the
+    // write, and the user's last entries never left the browser. Waits on
+    // sbReady so a flush requested before the client connected still lands.
+    function flushNow() {
+      clearTimeout(timer); clearTimeout(recTimer);
+      return sbReady
+        .then(function () { return Promise.all([flush(), flushRecords()]); })
+        .catch(function () {});
+    }
+
+    // A closing or backgrounded tab gets no debounce grace, so flush on the way
+    // out. pagehide covers close/navigate; visibilitychange covers mobile
+    // task-switching, often the only event a phone fires before discarding the page.
+    window.addEventListener("pagehide", keepaliveFlushRecords);
+    document.addEventListener("visibilitychange", function () {
+      if (document.visibilityState === "hidden") keepaliveFlushRecords();
+    });
+
+    window.storage = {
+      get: function (key) {
+        return sbReady.then(function (c) {
+          if (!c) return local.get(key);
+          return c.from(TABLE).select("value").eq("key", key).maybeSingle()
+            .then(function (res) {
+              if (!res.error && res.data && res.data.value != null) { local.set(key, res.data.value); return { value: res.data.value }; }
+              return local.get(key); // nothing in cloud yet → seed from local
+            })
+            .catch(function () { return local.get(key); });
+        });
+      },
+      set: function (key, value) {
+        // The LOCAL copy keeps the file bytes: it is the offline cache, and in
+        // local-only mode (no Supabase) it is the only store there is.
+        local.set(key, value);
+        // Queue SYNCHRONOUSLY. This used to happen inside sbReady.then(), which
+        // made it a microtask — so a flushNow() on the very next line saw an
+        // empty queue and skipped the write entirely. flush() already no-ops
+        // until the client exists, and the sbReady handler calls flush() once it
+        // does, so anything queued before connect is still written.
+        // The CLOUD copy drops the bytes (see stripPayloadsJSON).
+        if (CLOUD) { pending[key] = stripPayloadsJSON(value); clearTimeout(timer); timer = setTimeout(flush, 800); }
+        return Promise.resolve(true);
+      },
+      // Forces the debounced queues out now, resolving once they land. Await
+      // this before anything that ends the session or tears down the page.
+      flushNow: flushNow,
+      // Per-record cloud store (pcp_records). Each transaction lives in its own
+      // row keyed by its id, so concurrent users only touch the rows they change
+      // and can no longer overwrite each other's records.
+      records: {
+        // Reads every record row, paging past Supabase's 1000-row default limit.
+        // .order("id") is REQUIRED: Postgres guarantees no row order without an
+        // ORDER BY, and an UPDATE relocates the row in the heap — so paging with
+        // .range() alone silently repeated some rows and skipped others once the
+        // table passed 1000 rows, and the skipped records simply never loaded.
+        // Tombstones are fetched separately WITHOUT the data column, since
+        // mergeRecordsIntoState only needs their id in order to drop the record.
+        // Otherwise a deleted document's base64 payload downloads on every load.
+        getAll: function () {
+          return sbReady.then(function (c) {
+            if (!c) return [];
+            var all = [], size = 1000;
+            function page(cols, isDeleted, from) {
+              return c.from(RECORD_TABLE).select(cols)
+                .eq("deleted", isDeleted).order("id", { ascending: true })
+                .range(from, from + size - 1)
+                .then(function (res) {
+                  if (res.error) { noteRecordsUnavailable(res.error); console.warn("Cloud record load failed:", res.error.message); return null; }
+                  var batch = res.data || [];
+                  batch.forEach(function (r) { r.deleted = isDeleted; all.push(r); });
+                  if (batch.length < size) return null;
+                  return page(cols, isDeleted, from + size);
+                });
+            }
+            return page("id,collection,data", false, 0)
+              .then(function () { return page("id,collection", true, 0); })
+              .then(function () { return all; })
+              .catch(function () { return all; });
+          });
+        },
+        // Queues an array of { id, collection, data, deleted } rows for upsert.
+        // Queued synchronously so an immediately-following flushNow() sees them.
+        put: function (rows) {
+          (rows || []).forEach(function (row) { if (row && row.id != null) recPending[row.id] = row; });
+          if (CLOUD) { clearTimeout(recTimer); recTimer = setTimeout(flushRecords, 800); }
+          return Promise.resolve(true);
+        }
+      }
+    };
+  })();
+</script>
+
+<!-- ============================================================
+     THE PORTAL (modular source)
+     The app source lives in the src/ folder, split into readable files
+     (see src/README.md). There is still NO build step: the loader below
+     fetches every fragment, joins them in order, transpiles the whole thing
+     once with Babel, and runs the result as a single ES module (so the
+     importmap above still resolves react / recharts / xlsx / lucide-react).
+
+     Deploy note: upload the WHOLE src/ folder together with index.html.
+     Cache note: bump PCP_SRC_VERSION whenever you deploy a change so
+     browsers reload the fragments. The order of PCP_SRC_FILES matters and
+     must not be rearranged (later files rely on earlier definitions). -->
+<script>
+  window.PCP_SRC_VERSION = "20260916b";
+  window.PCP_SRC_FILES = [
+    "src/01-imports.jsx",
+    "src/02-helpers.jsx",
+    "src/03-report-engine.jsx",
+    "src/04-acumatica-export.jsx",
+    "src/05-master-data.jsx",
+    "src/06-logos.jsx",
+    "src/07-styles.jsx",
+    "src/08-dashboard.jsx",
+    "src/09-requests.jsx",
+    "src/10-disbursements.jsx",
+    "src/11-liquidation.jsx",
+    "src/12-masterdata-tab.jsx",
+    "src/13-reports-aging.jsx",
+    "src/14-report-center.jsx",
+    "src/15-replenishment.jsx",
+    "src/16-history.jsx",
+    "src/17-audit.jsx",
+    "src/18-account-admin.jsx",
+    "src/18b-pcf-documents.jsx",
+    "src/22-reimbursement.jsx",
+    "src/19-app.jsx",
+    "src/20-auth-gate.jsx",
+    "src/21-root-mount.jsx"
+  ];
+  (function () {
+    var V = window.PCP_SRC_VERSION;
+    function fail(msg) {
+      console.error("PCF loader:", msg);
+      var el = document.getElementById("root");
+      if (el) el.innerHTML =
+        '<div style="font:14px/1.5 system-ui,Segoe UI,Arial;max-width:640px;margin:60px auto;padding:24px;'
+        + 'border:1px solid #f0c0c0;border-radius:12px;color:#8a1020;background:#fff5f5">'
+        + '<b>The Petty Cash Portal failed to load.</b><br><br>' + msg
+        + '<br><br>Check that the whole <code>src/</code> folder was uploaded next to '
+        + '<code>index.html</code>, then hard-refresh (Ctrl+F5).</div>';
+    }
+    if (!window.Babel) { fail("Babel (in-browser transpiler) did not load. Check your internet connection."); return; }
+    Promise.all(window.PCP_SRC_FILES.map(function (f) {
+      return fetch(f + "?v=" + V).then(function (r) {
+        if (!r.ok) throw new Error("Could not fetch " + f + " (HTTP " + r.status + ")");
+        return r.text();
+      }).then(function (t) { return "/* ===================== " + f + " ===================== */\n" + t; });
+    })).then(function (parts) {
+      var code = parts.join("\n\n");
+      var out;
+      try {
+        out = window.Babel.transform(code, { presets: ["react"], filename: "PettyCashPortal.jsx" }).code;
+      } catch (e) {
+        fail("Transpile error: " + (e && e.message ? e.message : e)); return;
+      }
+      var url = URL.createObjectURL(new Blob([out], { type: "text/javascript" }));
+      import(url).catch(function (e) { fail("Runtime error: " + (e && e.message ? e.message : e)); });
+    }).catch(function (e) { fail(e && e.message ? e.message : String(e)); });
+  })();
+</script>
+</body>
+</html>
