@@ -41,15 +41,22 @@
        3. In Authentication > Providers, turn OFF "Allow new users to sign up"
           (so only you can add accounts), then add your ~10 users under
           Authentication > Users > Add user (email + password).
-       4. In Project Settings > API, copy the Project URL and the
-          "anon public" key, and paste them below.
+       4. In Project Settings > API Keys, copy the Project URL and the
+          publishable key ("sb_publishable_..."; older projects show an
+          "anon public" JWT instead), and paste them below.
      When these are filled in, the app shows a login screen and only
-     signed-in users can read/write. The anon key is safe to commit
+     signed-in users can read/write. The publishable/anon key is safe to commit
      (it is protected by Row Level Security). Leave blank for local mode.
      ============================================================ -->
 <script>
-  window.PCP_SUPABASE_URL = "https://cyizlubajqottkadpibk.supabase.co";
-  window.PCP_SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImN5aXpsdWJhanFvdHRrYWRwaWJrIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQzNzU3MjIsImV4cCI6MjA5OTk1MTcyMn0.Ay8K-2qy0INM8OAsbBigTP2I42dl0-oc6X3s_rKBKAM";
+  window.PCP_SUPABASE_URL = "https://soyxjaqshuunweqbvjzb.supabase.co";
+  /* New-format Supabase API key ("sb_publishable_..."), which replaces the
+     legacy "anon public" JWT. It is still safe to commit — Row Level Security
+     is what actually protects the data. PCP_SUPABASE_ANON_KEY is kept as an
+     alias because the storage adapter, PCP_AUTH and the keepalive REST write
+     further down all read that name. */
+  window.PCP_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_4DaKPkhmDZNr0sbie8WgDw_MHuvTcjB";
+  window.PCP_SUPABASE_ANON_KEY = window.PCP_SUPABASE_PUBLISHABLE_KEY;
   window.PCP_TABLE = "pcp_state";
   window.PCP_RECORDS_TABLE = "pcp_records";
 
@@ -445,7 +452,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20260916b";
+  window.PCP_SRC_VERSION = "20260917a";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",

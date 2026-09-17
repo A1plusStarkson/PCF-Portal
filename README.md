@@ -67,7 +67,8 @@ Pages — no server required), configure Supabase in `index.html`:
 
 1. Create a free project at [supabase.com](https://supabase.com).
 2. Create the `pcp_state` and `pcp_records` tables with authenticated-only Row
-   Level Security policies. Run this in the Supabase **SQL editor**:
+   Level Security policies — run [`supabase-setup.sql`](supabase-setup.sql) in
+   the Supabase **SQL editor** (idempotent, safe to re-run). For reference it is:
 
    ```sql
    -- Coarse whole-state blob (offline cache + recovery snapshots).
@@ -102,11 +103,14 @@ Pages — no server required), configure Supabase in `index.html`:
    `pcp_records` automatically (idempotent), then keeps them in sync.
 3. In **Authentication → Providers**, turn off public sign-up, then add your
    users manually.
-4. Copy the Project URL and the `anon public` key into
-   `window.PCP_SUPABASE_URL` and `window.PCP_SUPABASE_ANON_KEY`.
+4. In **Project Settings → API Keys**, copy the Project URL and the
+   **publishable key** (`sb_publishable_…`) into `window.PCP_SUPABASE_URL` and
+   `window.PCP_SUPABASE_PUBLISHABLE_KEY` in `index.html`. (Projects created
+   before the new key format show an `anon public` JWT instead — it goes in
+   the same place.)
 
 When configured, the app shows a login screen and only signed-in users can read
-or write. The anon key is safe to commit because it is protected by Row Level
+or write. The publishable/anon key is safe to commit because it is protected by Row Level
 Security.
 
 ## Running Locally
