@@ -40,12 +40,18 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     return Array.from(new Set(userPlants));
   }, [userPlants, funds]);
   /* Plant selector options in canonical order, then any additional master-data
-     plants appended so new plants surface automatically. */
+     plants appended so new plants surface automatically, then any remaining
+     granted branch. That last pass matters: a branch the user is allowed to see
+     but which has no fund row of its own (e.g. Disney 2..9 under the single
+     Disney fund) would otherwise get no sidebar tab, so its records stayed
+     unreachable even though inScope() admitted them. For "ALL" users the pass is
+     a no-op, since their scope is already derived from PLANTS + funds. */
   const plantOptions = useMemo(() => {
     const seen = new Set();
     const out = [];
     PLANTS.forEach((p) => { if (allowedPlants.includes(p.code) && !seen.has(p.code)) { seen.add(p.code); out.push({ code: p.code, label: p.label }); } });
     funds.forEach((f) => { if (allowedPlants.includes(f.branchCode) && !seen.has(f.branchCode)) { seen.add(f.branchCode); out.push({ code: f.branchCode, label: f.label || plantLabel(f.branchCode) || f.branchCode }); } });
+    allowedPlants.forEach((code) => { if (code && !seen.has(code)) { seen.add(code); out.push({ code, label: plantLabel(code) || code }); } });
     return out;
   }, [allowedPlants, funds]);
   const inScope = useCallback((code) => allowedPlants.includes(code), [allowedPlants]);

@@ -138,9 +138,18 @@ const PLANTS = [
   { key: "RG", code: "RG", label: "RG and Co.", custodian: "Pura Barloso" },
 ];
 const PLANT_CODES = PLANTS.map((p) => p.code);
-const plantLabel = (code) => (PLANTS.find((p) => p.code === code) || {}).label || code;
-/* Resolve a user's allowed plant list ("ALL" -> every plant code). */
-const resolvePlants = (plants) => (plants === "ALL" || !plants) ? PLANT_CODES.slice() : plants.filter((c) => PLANT_CODES.includes(c));
+/* Display name for a branch code: the plant label when it is one of the four
+   fund-holding plants, else the branch master's name (so D2 reads "Disney 2"
+   rather than a bare code), else the code itself. */
+const plantLabel = (code) => (PLANTS.find((p) => p.code === code) || {}).label
+  || (BRANCHES.find((b) => b.code === code) || {}).name
+  || code;
+/* Resolve a user's allowed branch list ("ALL" -> every plant code). A grant may
+   name any branch from BRANCHES (e.g. Disney is D1..D9), not just the four
+   fund-holding plant codes, so validate against the full branch master — a
+   narrower check here silently hid the extra branches in User Management. */
+const BRANCH_CODE_SET = new Set(BRANCHES.map((b) => b.code).concat(PLANT_CODES));
+const resolvePlants = (plants) => (plants === "ALL" || !plants) ? PLANT_CODES.slice() : plants.filter((c) => BRANCH_CODE_SET.has(c));
 
 /* ---------------------------------------------------------------------------
    PETTY CASH REQUEST — approved Plant / Branch dropdown (Section 24)
