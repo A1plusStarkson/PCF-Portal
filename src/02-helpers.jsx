@@ -70,6 +70,13 @@ const DATA_VERSION = "2026-clean-1";
    deployment or accidental wipe can always be rolled back. */
 const BACKUP_PREFIX = "petty-cash-portal-backup-";
 const BACKUP_INDEX_KEY = "petty-cash-portal-backups";
+/* Retention is primarily by AGE: snapshots older than this are pruned. */
+const BACKUP_RETENTION_DAYS = 3;
+/* ...but never prune below this many, or a quiet long weekend would leave the
+   database with zero recovery points — the opposite of what backups are for. */
+const MIN_BACKUPS = 3;
+/* Hard ceiling, so a day with hundreds of page loads can't grow the index
+   without bound while everything is still inside the retention window. */
 const MAX_BACKUPS = 12;
 
 /* The transaction stores whose loss would destroy financial history. Used to
@@ -152,7 +159,16 @@ async function backupState(state, tag) {
     try { const r = await window.storage.get(BACKUP_INDEX_KEY, false); if (r && r.value) index = JSON.parse(r.value); } catch (e) { /* fresh index */ }
     index = index.filter((b) => b && b.key !== key);
     index.push({ key, at: snapshot._backupAt, txCount: count, tag: tag || "" });
-    while (index.length > MAX_BACKUPS) {
+    /* Prune oldest-first: drop anything past the retention window, plus
+       anything over the hard ceiling, but always keep MIN_BACKUPS. Sorted
+       first because a clock skew or a hand-edited index could otherwise leave
+       the newest snapshot at the front and get it pruned. */
+    index.sort((a, b) => String(a.at || "").localeCompare(String(b.at || "")));
+    const cutoff = Date.now() - BACKUP_RETENTION_DAYS * 24 * 60 * 60 * 1000;
+    while (index.length > MIN_BACKUPS) {
+      const at = Date.parse(index[0] && index[0].at);
+      const expired = !isNaN(at) && at < cutoff;
+      if (!expired && index.length <= MAX_BACKUPS) break;
       const old = index.shift();
       try { await window.storage.set(old.key, "", false); } catch (e) { /* best effort */ }
       try { localStorage.removeItem(old.key); } catch (e) { /* best effort */ }

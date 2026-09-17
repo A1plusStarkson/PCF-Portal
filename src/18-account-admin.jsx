@@ -283,7 +283,8 @@ function DataIntegrityPanel({ requests, disbursements, liquidations, replenishme
       </div>
       <div style={{ marginTop: 10, fontSize: 12, color: "var(--text-mut)", lineHeight: 1.6 }}>
         Snapshots are stored in the shared database and this browser. The system also keeps a snapshot automatically
-        every time the portal loads, and never overwrites existing history with an empty database.
+        every time the portal loads, and never overwrites existing history with an empty database. Snapshots are kept
+        for {BACKUP_RETENTION_DAYS} days (the {MIN_BACKUPS} most recent are always kept, even if older than that).
       </div>
     </div>
   );
