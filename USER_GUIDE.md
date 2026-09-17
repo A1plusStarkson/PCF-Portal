@@ -44,7 +44,8 @@ flowchart LR
 | **Receipt / Official Receipt (OR)** | The proof of purchase you attach. |
 | **Replenishment** | Refilling the fund back to its normal amount. |
 | **Reimbursement** | Paying an employee back for expenses they paid themselves. |
-| **Plant** | A company/branch (Manila, Warner, Disney, RG and Co.). |
+| **Plant** | A site that holds a petty cash fund (Manila, Warner, Disney, RG and Co.). |
+| **Branch** | A location inside a plant that spends from the plant's fund (Hasbro, Disney 5, …). |
 | **Custodian** | The person who takes care of the cash for a plant. |
 | **Aging** | A report that shows advances not liquidated on time. |
 | **Dashboard** | The home screen with balances and alerts. |
@@ -94,6 +95,31 @@ and which plants you'll see.
 | `pcfrequestormanila@a1plus.com` | PCF Requestor – Manila | Requestor | Manila |
 | `pcfrequestorrgandco@a1plus.com` | PCF Requestor – RG and Co. | Requestor | RG and Co. |
 
+### What "a plant" includes
+
+A plant is the site that **holds the cash**. The branches under it all spend
+from that same fund, so being given a plant always gives you the whole family:
+
+| Plant | Branches it covers | Company |
+|-------|--------------------|---------|
+| **Manila** | A1+, Eurasia, Hasbro, Sitio, Mattel, Perulandia | A1+ Paper and Plastic Inc. |
+| **Warner** | Warner | A1+ Paper and Plastic Inc. |
+| **Disney** | Starkson (ST), Disney 1–9 | Starkson Paper and Plastic Corporation |
+| **RG and Co.** | RG | RG & Co. Property Management Corporation |
+
+So the **Disney requestor covers all of Starkson Paper and Plastic
+Corporation**, and the **Manila requestor covers the A1+ Paper and Plastic
+branches** under Manila. Warner keeps its own fund and its own custodian, so it
+is not part of the Manila requestor's plant.
+
+Everyone sees the **same four plants** in the sidebar — you just see only the
+ones you're assigned. Inside a plant, the row of tabs above the table lets you
+narrow to a single branch (for example Disney 5).
+
+> ⭐ This is also why a request filed against a branch like Hasbro or Disney 5
+> now appears on Accounting's and Finance's dashboard. Before, those records
+> were visible only to the person who filed them and their custodian.
+
 ---
 
 ## Step 3 — What can I do? (simple version)
@@ -125,6 +151,7 @@ Here's the same thing as a checklist:
 | See reports & aging | ❌ | ✅ | ✅ | ✅ | ✅ |
 | Edit master data | ❌ | ❌ | ✅ | ✅ | ✅ |
 | Manage users/settings | ❌ | ❌ | ❌ | ✅ | ✅ |
+| **Edit a Request No.** | ❌ | ❌ | ❌ | ✅ | ❌ |
 | Delete a record | ❌ | ❌ | ❌ | ❌ | ✅ *(only Grace Gan)* |
 
 > ⭐ **Important:** Only **Grace Gan** can approve receipts. A liquidation cannot
@@ -176,6 +203,26 @@ Data** (plants, custodians, chart of accounts). You don't manage user accounts.
 ### 🗂️ If you are Accounting
 You can do everything Finance can, **plus User Management and System Settings**
 (including backup/recovery tools). You see all plants.
+
+You are also the **only** role that can type over a **Request No.**
+
+The number is always filled in for you (`PCR-2026-0001`, `PCR-2026-0002`, …) and
+for every other role it is greyed out. The portal takes the highest number
+already in use and adds one, so deleting a request never causes the next one to
+repeat a number that already exists.
+
+In **Petty Cash Requests → New Request**, or behind the ✏️ **Edit** button, that
+box is yours to change — useful when the number must match a pre-printed form or
+a wrong one was keyed in. Two rules still apply:
+
+- it cannot be left blank, and
+- it cannot duplicate a number another request already uses — including one in a
+  plant you don't normally see, and regardless of upper/lower case.
+
+The portal tells you which rule you hit and keeps **Save** disabled until it is
+fixed. Every change is written to the **Audit Trail** as *"Request No. Changed"*,
+showing the old and the new number. A released (Disbursed) request has no Edit
+button, so its number stays fixed.
 
 ### 👑 If you are the Administrator (Grace Gan)
 You have full control and are the **only** person who can:

@@ -40,6 +40,25 @@ Until then, the Requestor restrictions are UX/workflow controls, not a hard
 security boundary.
 
 
+### Related: document numbers are unique per client, not per database
+`nextSeriesNo()` in `src/02-helpers.jsx` derives the next number from the
+highest one already in use and steps past anything taken, so a single client
+can no longer hand out a duplicate (the old `list.length + 1` pattern did, as
+soon as a record was deleted). Request No. uses it; **the remaining series still
+use `list.length + 1`** and carry the old flaw:
+- `nextVoucherNo` — `src/19-app.jsx`
+- `nextReimbNo` — `src/19-app.jsx`, `src/22-reimbursement.jsx`
+- replenishment `nextNo` — `src/15-replenishment.jsx`
+
+Switching them over is a one-line change each (`nextSeriesNo(prefix, list)`).
+
+Separately, uniqueness is still only as good as the data the client has loaded:
+two people creating a request at the same moment on different machines can both
+be handed the same number. `computeIntegrityReport()` surfaces that after the
+fact (System Settings → Data Integrity → "Duplicate request numbers"). A real
+fix needs a database sequence or a unique index, which depends on the
+per-record-table refactor above.
+
 ## 3. Automated Supabase backups + audit-log integrity
 **Now:** Backups rely on the in-app snapshot mechanism
 (`src/02-helpers.jsx`), and the audit log lives in the same mutable blob a

@@ -1,6 +1,6 @@
 /* ============================= AUDIT TRAIL ============================= */
 
-const AUDIT_ACTIONS = ["Signed In", "Signed Out", "Request Created", "Edited", "Approved", "Rejected", "Released", "Liquidated", "Replenished", "Deleted", "Password Changed", "Audit Entry Deleted"];
+const AUDIT_ACTIONS = ["Signed In", "Signed Out", "Request Created", "Edited", "Request No. Changed", "Approved", "Rejected", "Released", "Liquidated", "Replenished", "Deleted", "Password Changed", "Audit Entry Deleted"];
 
 function AuditTrailTab({ auditLog, canDelete, onDelete }) {
   const [search, setSearch] = useState("");

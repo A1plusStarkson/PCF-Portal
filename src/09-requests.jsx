@@ -1,17 +1,19 @@
 /* ============================= REQUESTS ============================= */
 
-function RequestFormModal({ onClose, onSave, nextRequestNo, request, plantOptions }) {
+function RequestFormModal({ onClose, onSave, nextRequestNo, request, plantOptions, canEditRequestNo, isRequestNoTaken }) {
   const isEdit = !!request;
   const defaultBranch = (plantOptions && plantOptions[0]) ? plantOptions[0].code : PCR_BRANCH_OPTIONS[0].code;
   const [form, setForm] = useState(
     request
       ? {
+          requestNo: request.requestNo || "",
           date: request.date, employee: request.employee, department: request.department,
           branchCode: request.branchCode, purpose: request.purpose,
           purposeJustification: request.purposeJustification || "",
           amount: request.amount, approver: request.approver || "",
         }
       : {
+          requestNo: nextRequestNo || "",
           date: todayISO(), employee: "", department: SUBACCOUNTS[1].code,
           branchCode: defaultBranch, purpose: "", purposeJustification: "", amount: "", approver: "",
         }
@@ -19,7 +21,14 @@ function RequestFormModal({ onClose, onSave, nextRequestNo, request, plantOption
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const isOthers = form.purpose === OTHERS_PURPOSE;
   const validPurpose = !!form.purpose && (!isOthers || form.purposeJustification.trim());
-  const valid = form.employee.trim() && !!form.branchCode && validPurpose && Number(form.amount) > 0 && form.approver.trim();
+  /* Request No. is system-generated and locked for every role except Accounting.
+     When Accounting overrides it, it must stay present and unique — a duplicated
+     series breaks the reference the audit trail and integrity report rely on. */
+  const typedRequestNo = String(form.requestNo || "").trim();
+  const requestNoDuplicate = !!canEditRequestNo && !!typedRequestNo && !!isRequestNoTaken
+    && isRequestNoTaken(typedRequestNo, request ? request.id : null);
+  const validRequestNo = !canEditRequestNo || (!!typedRequestNo && !requestNoDuplicate);
+  const valid = validRequestNo && form.employee.trim() && !!form.branchCode && validPurpose && Number(form.amount) > 0 && form.approver.trim();
 
   return (
     <div className="pcp-modal-backdrop" onClick={onClose}>
@@ -31,8 +40,24 @@ function RequestFormModal({ onClose, onSave, nextRequestNo, request, plantOption
         <div className="pcp-modal-body">
           <div className="pcp-field-row">
             <div className="pcp-field">
-              <label>Request No.</label>
-              <input className="pcp-input" value={isEdit ? request.requestNo : nextRequestNo} disabled />
+              <label>Request No.{canEditRequestNo && <span style={{ color: "var(--brand)" }}> *</span>}</label>
+              {canEditRequestNo ? (
+                <input
+                  className="pcp-input"
+                  value={form.requestNo}
+                  onChange={(e) => set("requestNo", e.target.value)}
+                  placeholder={REQUEST_NO_PREFIX + "0001"}
+                  title="Accounting Department only — overrides the system-generated series"
+                />
+              ) : (
+                <input className="pcp-input" value={isEdit ? request.requestNo : nextRequestNo} disabled />
+              )}
+              {canEditRequestNo && !typedRequestNo && (
+                <div style={{ fontSize: 11.5, color: "var(--brand)" }}>Request No. is required.</div>
+              )}
+              {requestNoDuplicate && (
+                <div style={{ fontSize: 11.5, color: "var(--brand)" }}>{typedRequestNo} is already used by another request.</div>
+              )}
             </div>
             <div className="pcp-field">
               <label>Date</label>
@@ -95,21 +120,24 @@ function RequestFormModal({ onClose, onSave, nextRequestNo, request, plantOption
         </div>
         <div className="pcp-modal-foot">
           <button className="pcp-btn" onClick={onClose}>Cancel</button>
-          <button className="pcp-btn pcp-btn-primary" disabled={!valid} onClick={() => onSave(form)}>{isEdit ? "Save Changes" : "Submit Request"}</button>
+          <button className="pcp-btn pcp-btn-primary" disabled={!valid} onClick={() => onSave({ ...form, requestNo: typedRequestNo })}>{isEdit ? "Save Changes" : "Submit Request"}</button>
         </div>
       </div>
     </div>
   );
 }
 
-function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, onDisburse, plantOptions, canApprove, canRelease, plantTitle, canDelete, onDelete }) {
+function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, onDisburse, plantOptions, canApprove, canRelease, plantTitle, canDelete, onDelete, canEditRequestNo, isRequestNoTaken, nextRequestNo: nextRequestNoProp }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [plant, setPlant] = useState("ALL");
 
-  const nextRequestNo = "PCR-2026-" + String(requests.length + 1).padStart(4, "0");
+  /* Always supplied by App, which sees every plant's numbers. The local
+     fallback only exists for the plant-scoped `requests` prop and is therefore
+     a last resort — App is the single source of the series. */
+  const nextRequestNo = nextRequestNoProp || nextSeriesNo(REQUEST_NO_PREFIX, requests.map((r) => r.requestNo));
 
   const filtered = requests.filter((r) => {
     if (plant !== "ALL" && r.branchCode !== plant) return false;
@@ -198,14 +226,18 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
         <RequestFormModal
           nextRequestNo={nextRequestNo}
           plantOptions={formPlantOptions}
+          canEditRequestNo={canEditRequestNo}
+          isRequestNoTaken={isRequestNoTaken}
           onClose={() => setShowForm(false)}
-          onSave={(form) => { onCreate({ ...form, requestNo: nextRequestNo }); setShowForm(false); }}
+          onSave={(form) => { onCreate({ ...form, requestNo: (canEditRequestNo && form.requestNo) ? form.requestNo : nextRequestNo }); setShowForm(false); }}
         />
       )}
       {editing && (
         <RequestFormModal
           request={editing}
           plantOptions={formPlantOptions}
+          canEditRequestNo={canEditRequestNo}
+          isRequestNoTaken={isRequestNoTaken}
           onClose={() => setEditing(null)}
           onSave={(form) => { onEdit(editing.id, form); setEditing(null); }}
         />

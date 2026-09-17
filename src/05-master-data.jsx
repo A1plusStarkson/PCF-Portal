@@ -144,12 +144,65 @@ const PLANT_CODES = PLANTS.map((p) => p.code);
 const plantLabel = (code) => (PLANTS.find((p) => p.code === code) || {}).label
   || (BRANCHES.find((b) => b.code === code) || {}).name
   || code;
-/* Resolve a user's allowed branch list ("ALL" -> every plant code). A grant may
-   name any branch from BRANCHES (e.g. Disney is D1..D9), not just the four
-   fund-holding plant codes, so validate against the full branch master — a
-   narrower check here silently hid the extra branches in User Management. */
+/* Resolve a user's allowed branch list: "ALL" -> every branch, an explicit
+   grant -> the full plant family of each code named (see resolvePlants below).
+   A grant may name any branch from BRANCHES (e.g. Disney is D1..D9), not just
+   the four fund-holding plant codes, so validate against the full branch
+   master — a narrower check silently hid the extra branches in User
+   Management. */
 const BRANCH_CODE_SET = new Set(BRANCHES.map((b) => b.code).concat(PLANT_CODES));
-const resolvePlants = (plants) => (plants === "ALL" || !plants) ? PLANT_CODES.slice() : plants.filter((c) => BRANCH_CODE_SET.has(c));
+/* Every branch code the system knows about. "ALL" resolves to this, NOT to the
+   four plant codes: a grant of only the fund-holding codes meant a record filed
+   against a sub-branch (HASBRO, D5, …) fell outside inScope() for management,
+   so Accounting and Finance could not see records their own requestors had
+   filed — the same database showing two different dashboards. */
+const ALL_BRANCH_CODES = Array.from(new Set(BRANCHES.map((b) => b.code).concat(PLANT_CODES)));
+
+/* ---- Plant families ----
+   A plant is a site that HOLDS a petty cash fund; the branches listed under it
+   are sub-locations that draw on that same fund (Disney 2..9 all settle against
+   the single Disney fund, Hasbro/Sitio/Mattel/Perulandia against Manila's).
+
+   Access, the sidebar and the per-plant dashboard all work on the FAMILY, so
+   granting someone a plant always grants the whole family. That is what keeps
+   every user's view of the same data identical: a sub-branch can never hold a
+   record that is visible to one member of a plant and hidden from another.
+
+   Note the families line up with the company master: the Disney family is
+   exactly the branch list of Starkson Paper and Plastic Corporation, and the
+   Manila family is A1+ Paper and Plastic Inc. minus Warner, which holds its own
+   fund and its own custodian. */
+const PLANT_FAMILIES = [
+  { plant: "A1+",    branches: ["A1+", "EURASIA", "HASBRO", "SITIO", "MATTEL", "PERULANDIA"] },
+  { plant: "WARNER", branches: ["WARNER"] },
+  { plant: "D1",     branches: ["ST", "D1", "D2", "D3", "D5", "D6", "D7", "D8", "D9"] },
+  { plant: "RG",     branches: ["RG"] },
+];
+const PLANT_OF_BRANCH = (() => {
+  const m = new Map();
+  PLANT_FAMILIES.forEach((f) => f.branches.forEach((b) => m.set(b, f.plant)));
+  return m;
+})();
+/* The plant a branch rolls up to. A branch in no family stands on its own, so
+   it still gets a sidebar group and its records stay reachable. */
+const plantOfBranch = (code) => PLANT_OF_BRANCH.get(code) || code;
+/* Every branch that rolls up to a plant, itself included. */
+const branchesOfPlant = (plant) => {
+  const f = PLANT_FAMILIES.find((x) => x.plant === plant);
+  return f ? f.branches.slice() : [plant];
+};
+/* Widen a branch grant to the full family of every plant it touches, so a
+   partial grant cannot create a blind spot. */
+const expandPlantFamilies = (codes) => {
+  const out = [];
+  (codes || []).forEach((c) => {
+    branchesOfPlant(plantOfBranch(c)).forEach((b) => { if (out.indexOf(b) < 0) out.push(b); });
+  });
+  return out;
+};
+const resolvePlants = (plants) => ((plants === "ALL" || !plants)
+  ? ALL_BRANCH_CODES.slice()
+  : expandPlantFamilies(plants.filter((c) => BRANCH_CODE_SET.has(c))));
 
 /* ---------------------------------------------------------------------------
    PETTY CASH REQUEST — approved Plant / Branch dropdown (Section 24)

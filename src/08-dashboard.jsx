@@ -928,11 +928,19 @@ function Dashboard({ funds, requests, disbursements, liquidations, replenishment
 /* Single-branch dashboard (Manila / Warner / Disney) — same KPI set as the
    consolidated view, scoped to one branch's funds, requests, disbursements
    and liquidations. */
-function BranchDashboard({ label, branchCode, funds, requests, disbursements, liquidations, replenishments, onNavigate }) {
-  const fundsForBranch = useMemo(() => funds.filter((f) => f.branchCode === branchCode), [funds, branchCode]);
-  const requestsForBranch = useMemo(() => requests.filter((r) => r.branchCode === branchCode), [requests, branchCode]);
-  const disbForBranch = useMemo(() => disbursements.filter((d) => d.branchCode === branchCode), [disbursements, branchCode]);
-  const repForBranch = useMemo(() => (replenishments || []).filter((r) => r.branchCode === branchCode), [replenishments, branchCode]);
+/* `branchCodes` is the plant's whole family (Disney = D1..D9 + ST), so the
+   per-plant dashboard counts every record that settles against this plant's
+   fund. Filtering on the single plant code used to drop the sub-branches. */
+function BranchDashboard({ label, branchCode, branchCodes, funds, requests, disbursements, liquidations, replenishments, onNavigate }) {
+  const codes = useMemo(
+    () => ((branchCodes && branchCodes.length) ? branchCodes : [branchCode]),
+    [branchCodes, branchCode]
+  );
+  const inBranch = useCallback((code) => codes.indexOf(code) >= 0, [codes]);
+  const fundsForBranch = useMemo(() => funds.filter((f) => inBranch(f.branchCode)), [funds, inBranch]);
+  const requestsForBranch = useMemo(() => requests.filter((r) => inBranch(r.branchCode)), [requests, inBranch]);
+  const disbForBranch = useMemo(() => disbursements.filter((d) => inBranch(d.branchCode)), [disbursements, inBranch]);
+  const repForBranch = useMemo(() => (replenishments || []).filter((r) => inBranch(r.branchCode)), [replenishments, inBranch]);
   const liqForBranch = useMemo(() => {
     const disbIds = new Set(disbForBranch.map((d) => d.id));
     return liquidations.filter((l) => disbIds.has(l.disbursementId));

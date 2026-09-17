@@ -24,29 +24,33 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
      the cloud database. Surfaces a banner so an admin runs the setup SQL. */
   const [recordsUnavailable, setRecordsUnavailable] = useState(false);
 
-  /* Plant-level access scope for this user (list of allowed branch codes).
-     For management (userPlants === "ALL") the scope is derived LIVE from the
-     funds master data, so any plant newly created in Funds & Master Data is
-     automatically included across the dashboard, aging report, notifications
-     and management reports — with no code change. */
+  /* Branch-level access scope for this user (list of allowed branch codes).
+     For management (userPlants === "ALL") it is every branch in the master plus,
+     LIVE, any branch appearing in the funds data — so a plant newly created in
+     Funds & Master Data is automatically included across the dashboard, aging
+     report, notifications and management reports with no code change. */
   const allowedPlants = useMemo(() => {
     if (userPlants === "ALL" || !userPlants) {
-      const codes = new Set(PLANT_CODES);
+      /* EVERY branch, not just the four fund-holding plant codes. Those four
+         alone left management blind to anything filed against a sub-branch
+         (HASBRO, D5, …) — records its own requestors had created. */
+      const codes = new Set(ALL_BRANCH_CODES);
       funds.forEach((f) => { if (f.branchCode) codes.add(f.branchCode); });
       return Array.from(codes);
     }
-    /* Explicitly granted plants (custodians) — trusted as configured, including
-       any new plant codes assigned to them. */
-    return Array.from(new Set(userPlants));
+    /* Explicitly granted plants (custodians, requestors) — widened to the whole
+       plant family, so a grant can never cover part of a plant and leave the
+       rest of it visible only to somebody else. */
+    return Array.from(new Set(expandPlantFamilies(userPlants)));
   }, [userPlants, funds]);
-  /* Plant selector options in canonical order, then any additional master-data
-     plants appended so new plants surface automatically, then any remaining
-     granted branch. That last pass matters: a branch the user is allowed to see
-     but which has no fund row of its own (e.g. Disney 2..9 under the single
-     Disney fund) would otherwise get no sidebar tab, so its records stayed
-     unreachable even though inScope() admitted them. For "ALL" users the pass is
-     a no-op, since their scope is already derived from PLANTS + funds. */
-  const plantOptions = useMemo(() => {
+  /* ---- Branch-level options ----
+     Every branch the user may file a record against, in canonical order: the
+     plants first, then any additional master-data plant so new plants surface
+     automatically, then every remaining granted branch. That last pass matters:
+     a branch with no fund row of its own (Disney 2..9 under the single Disney
+     fund) still needs to be selectable, or records could never be filed against
+     it. These feed the module forms and the in-page branch tabs. */
+  const branchOptions = useMemo(() => {
     const seen = new Set();
     const out = [];
     PLANTS.forEach((p) => { if (allowedPlants.includes(p.code) && !seen.has(p.code)) { seen.add(p.code); out.push({ code: p.code, label: p.label }); } });
@@ -54,6 +58,32 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     allowedPlants.forEach((code) => { if (code && !seen.has(code)) { seen.add(code); out.push({ code, label: plantLabel(code) || code }); } });
     return out;
   }, [allowedPlants, funds]);
+  /* ---- Plant-level options ----
+     The same branches rolled up to their parent plant. This is what builds the
+     sidebar, so every user sees the SAME plants (Manila, Warner, Disney, RG)
+     and a sub-branch never becomes a plant of its own in one person's sidebar
+     and not another's. Branches outside every family keep their own entry. */
+  const plantOptions = useMemo(() => {
+    /* A branch that heads no family and holds no fund only earns a group once it
+       actually carries a record. Without that, every unused code in the branch
+       master (HAMFI, Starkson Industries) would add an empty plant to
+       management's sidebar. Nothing can hide either way: inScope() still admits
+       them, so the moment such a branch carries a record its group appears. */
+    const used = new Set();
+    [funds, requests, disbursements, replenishments, reimbursements].forEach((list) => {
+      (list || []).forEach((r) => { if (r && r.branchCode) used.add(r.branchCode); });
+    });
+    const seen = new Set();
+    const out = [];
+    branchOptions.forEach((b) => {
+      const p = plantOfBranch(b.code);
+      if (seen.has(p)) return;
+      if (PLANT_CODES.indexOf(p) < 0 && !used.has(b.code)) return;
+      seen.add(p);
+      out.push({ code: p, label: plantLabel(p) });
+    });
+    return out;
+  }, [branchOptions, funds, requests, disbursements, replenishments, reimbursements]);
   const inScope = useCallback((code) => allowedPlants.includes(code), [allowedPlants]);
   /* PCF Requestor prepares transactions only: full Requests + Liquidation (minus
      approval, already gated by isLiquidationApprover), but no approve/reject/
@@ -72,6 +102,16 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
      assigned role and the role currently being viewed, so an admin using
      "view as Custodian" sees an honest preview with the delete actions hidden. */
   const isSuperAdmin = (userRole || "") === "SuperAdmin" && role === "SuperAdmin";
+
+  /* ---- Request No. override ----
+     The Petty Cash Request No. is system-generated and locked for every role.
+     Only the Accounting Department may type over it (to match a pre-printed
+     form or correct a mis-keyed series). Gated on BOTH the assigned role and
+     the role being viewed, so an Accounting user previewing another role — or
+     an admin viewing as Accounting — sees an honest preview and gains no hidden
+     rights. In local (no-auth) mode the operator is the Accounting super-admin,
+     which is why the assigned role falls back to "Accounting" here. */
+  const canEditRequestNo = (userRole || "Accounting") === "Accounting" && role === "Accounting";
 
   /* The sole authorized Liquidation Approver — only Grace Gan may approve or
      reject a liquidation. Matched by display name or configured email, and
@@ -211,26 +251,58 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   }, [funds, requests, disbursements, liquidations, replenishments, auditLog, documents, reimbursements, loaded]);
 
   /* ---- Requests ---- */
+  /* True when another request already carries this number (case/space
+     insensitive). Checked against the FULL request list, not the plant-scoped
+     slice, so the series stays unique portal-wide. */
+  const isRequestNoTaken = useCallback((no, exceptId) => {
+    const key = String(no || "").trim().toUpperCase();
+    if (!key) return false;
+    return requests.some((r) => r.id !== exceptId && String(r.requestNo || "").trim().toUpperCase() === key);
+  }, [requests]);
+
+  /* The next auto-generated Request No., derived from every number in use
+     across ALL plants (the Requests screen only ever sees its own scope, so it
+     cannot generate this itself without colliding with another plant). */
+  const nextRequestNo = useMemo(
+    () => nextSeriesNo(REQUEST_NO_PREFIX, requests.map((r) => r.requestNo)),
+    [requests]
+  );
+
   const addRequest = useCallback((form) => {
+    /* The number is always system-assigned; Accounting may type over it. Either
+       way it is re-validated here rather than trusted from the form, and a
+       blank or already-taken number falls back to a freshly generated one — so
+       a new request can never enter the ledger with a duplicate number. */
+    const typedNo = String(form.requestNo || "").trim();
+    const requestNo = (typedNo && !isRequestNoTaken(typedNo, null))
+      ? typedNo
+      : nextSeriesNo(REQUEST_NO_PREFIX, requests.map((r) => r.requestNo));
     setRequests((rs) => [...rs, {
-      id: uid("req"), requestNo: form.requestNo, date: form.date, employee: form.employee,
+      id: uid("req"), requestNo, date: form.date, employee: form.employee,
       department: form.department, branchCode: form.branchCode, purpose: form.purpose,
       purposeJustification: form.purposeJustification || "",
       amount: Number(form.amount), approver: form.approver, status: "Pending",
     }]);
-    logAudit("Request Created", form.requestNo, `${form.employee} · ${peso(Number(form.amount))} · ${form.purpose}`);
-  }, [logAudit]);
+    logAudit("Request Created", requestNo, `${form.employee} · ${peso(Number(form.amount))} · ${form.purpose}`);
+  }, [logAudit, requests, isRequestNoTaken]);
 
   const editRequest = useCallback((id, form) => {
-    setRequests((rs) => rs.map((r) => (r.id === id ? {
-      ...r, date: form.date, employee: form.employee, department: form.department,
+    const r = requests.find((x) => x.id === id);
+    /* Request No. override — Accounting only, never blank and never onto a
+       number another request already uses. Re-checked here (not just in the
+       form) so a bypassed or stale UI still cannot break the series. */
+    const typedNo = String(form.requestNo || "").trim();
+    const renamed = !!canEditRequestNo && !!r && !!typedNo && typedNo !== r.requestNo && !isRequestNoTaken(typedNo, id);
+    setRequests((rs) => rs.map((x) => (x.id === id ? {
+      ...x, requestNo: renamed ? typedNo : x.requestNo,
+      date: form.date, employee: form.employee, department: form.department,
       branchCode: form.branchCode, purpose: form.purpose,
       purposeJustification: form.purposeJustification || "", amount: Number(form.amount),
       approver: form.approver,
-    } : r)));
-    const r = requests.find((x) => x.id === id);
+    } : x)));
     logAudit("Edited", r ? r.requestNo : id, `Request updated · ${form.employee} · ${peso(Number(form.amount))}`);
-  }, [logAudit, requests]);
+    if (renamed) logAudit("Request No. Changed", typedNo, `Request No. changed from ${r.requestNo} to ${typedNo} by Accounting`);
+  }, [logAudit, requests, canEditRequestNo, isRequestNoTaken]);
 
   /* Simple single-step approve / reject (the multi-level approval matrix was removed). */
   const approveRequest = useCallback((id) => {
@@ -892,10 +964,14 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   /* The active tab is either a global module key ("audit") or a plant-scoped
      key ("A1+::requests"). Parse it so each module renders only its own plant. */
   const { plant: activePlant, module: activeModule } = parseTab(tab);
-  const scopeCodes = useMemo(
-    () => (activePlant && allowedPlants.includes(activePlant)) ? [activePlant] : allowedPlants,
-    [activePlant, allowedPlants]
-  );
+  /* A plant tab scopes to that plant's WHOLE family (intersected with what the
+     user is allowed), not to the single plant code — otherwise the Disney tab
+     showed only the records filed against D1 and silently dropped D2..D9. */
+  const scopeCodes = useMemo(() => {
+    if (!activePlant) return allowedPlants;
+    const family = branchesOfPlant(activePlant).filter((c) => allowedPlants.includes(c));
+    return family.length ? family : allowedPlants;
+  }, [activePlant, allowedPlants]);
   const scopedFunds = useMemo(() => visibleFunds.filter((f) => scopeCodes.includes(f.branchCode)), [visibleFunds, scopeCodes]);
   const scopedRequests = useMemo(() => visibleRequests.filter((r) => scopeCodes.includes(r.branchCode)), [visibleRequests, scopeCodes]);
   const scopedDisbursements = useMemo(() => visibleDisbursements.filter((d) => scopeCodes.includes(d.branchCode)), [visibleDisbursements, scopeCodes]);
@@ -908,8 +984,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   /* Plant selector options limited to the active tab's plant so module forms
      default to the correct plant and the redundant in-page selector hides. */
   const scopedPlantOptions = useMemo(
-    () => plantOptions.filter((p) => scopeCodes.includes(p.code)),
-    [plantOptions, scopeCodes]
+    () => branchOptions.filter((p) => scopeCodes.includes(p.code)),
+    [branchOptions, scopeCodes]
   );
   const activePlantLabel = activePlant ? plantLabel(activePlant) : "";
   /* Resolve the per-plant dashboard header from the canonical list, falling back
@@ -1031,6 +1107,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
                 <BranchDashboard
                   label={activeBranch.label}
                   branchCode={activeBranch.branchCode}
+                  branchCodes={scopeCodes}
                   funds={scopedFunds} requests={scopedRequests} disbursements={scopedDisbursements} liquidations={scopedLiquidations} replenishments={scopedReplenishments}
                   onNavigate={navigate}
                 />
@@ -1059,6 +1136,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             plantOptions={scopedPlantOptions} canApprove={canApprove} canRelease={canRelease}
             plantTitle={activePlantLabel}
             canDelete={isSuperAdmin} onDelete={deleteRequest}
+            canEditRequestNo={canEditRequestNo} isRequestNoTaken={isRequestNoTaken}
+            nextRequestNo={nextRequestNo}
           />
         )}
         {activeModule === "disbursements" && (

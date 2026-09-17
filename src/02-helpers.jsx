@@ -23,6 +23,41 @@ const fmtDate = (iso) => {
 
 const uid = (prefix) => prefix + "-" + Math.random().toString(36).slice(2, 9).toUpperCase();
 
+/* Next number in a document series (e.g. "PCR-2026-" + 0007).
+
+   Derived from the HIGHEST sequence already in use — never from the record
+   count. Counting records hands out a duplicate the moment one is deleted
+   (5 records → "0006", delete one → 4 records → "0005", which already exists)
+   or the moment a number is set by hand. The final loop then steps past any
+   number that is still taken, which also covers hand-typed numbers that don't
+   parse as a plain sequence. Comparison is case/space insensitive.
+
+   `existing` is the list of numbers already used in that series. Pass the FULL
+   list, not a plant-scoped slice, or two plants will collide. */
+function nextSeriesNo(prefix, existing, width) {
+  const w = width || 4;
+  const pre = String(prefix || "").toUpperCase();
+  const used = new Set();
+  (existing || []).forEach((v) => { const k = String(v || "").trim().toUpperCase(); if (k) used.add(k); });
+  let max = 0;
+  used.forEach((v) => {
+    if (v.indexOf(pre) !== 0) return;
+    const n = parseInt(v.slice(pre.length), 10);
+    if (!isNaN(n) && n > max) max = n;
+  });
+  let n = max + 1;
+  let candidate = prefix + String(n).padStart(w, "0");
+  while (used.has(candidate.toUpperCase())) {
+    n++;
+    candidate = prefix + String(n).padStart(w, "0");
+  }
+  return candidate;
+}
+
+/* The Petty Cash Request series prefix. Kept in one place so the generator, the
+   form placeholder and any future series change stay in step. */
+const REQUEST_NO_PREFIX = "PCR-2026-";
+
 const branchByCode = (code) => BRANCHES.find((b) => b.code === code);
 const companyOfBranch = (code) => branchByCode(code)?.company || "—";
 const subaccountLabel = (code) => {

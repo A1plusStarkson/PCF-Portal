@@ -64,12 +64,19 @@
      Each account below is matched by full email (case-insensitive). "Accounting"
      is the full super-admin.
 
-     `plants` is an EXACT-MATCH list of BRANCH codes, not plant families. A user
-     sees a transaction only when its `branchCode` appears verbatim in this list
-     — there is no roll-up from "Disney" to D2..D9, so a site with several
-     branches must list every one of them. "ALL" is the only value that expands
-     automatically (to every branch found in the funds master data), which is why
-     Accounting/Finance saw records that the per-site accounts could not.
+     `plants` names BRANCH codes, and every code WIDENS to its whole plant
+     family (PLANT_FAMILIES in src/05-master-data.jsx). Granting "D1" therefore
+     grants ST + D1..D9 — the whole of Starkson Paper and Plastic Corporation —
+     and granting "A1+" grants A1+, EURASIA, HASBRO, SITIO, MATTEL and
+     PERULANDIA. Warner holds its own fund and stays its own plant, so it is NOT
+     included by the Manila grant even though it belongs to the same company.
+
+     The widening is deliberate. A grant that covered only part of a plant meant
+     a record filed against a sub-branch (HASBRO, D5, …) was visible to whoever
+     held that exact code and invisible to everyone else on the same plant —
+     including Accounting and Finance, whose "ALL" used to resolve to just the
+     four fund-holding codes. "ALL" now means every branch in the master, so
+     management always sees every record.
      Keep these groups in sync with BRANCHES in src/05-master-data.jsx. */
   var DISNEY_BRANCHES = ["D1", "D2", "D3", "D5", "D6", "D7", "D8", "D9"];
   var MANILA_BRANCHES = ["A1+", "HASBRO", "SITIO", "MATTEL", "PERULANDIA"];
@@ -459,7 +466,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20260917c";
+  window.PCP_SRC_VERSION = "20260917e";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",
