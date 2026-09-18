@@ -91,6 +91,29 @@ reorder `PCP_SRC_FILES`. If you add a new file, insert it in the right place.
 - That's Supabase config in `index.html` (`PCP_SUPABASE_URL` / `..._ANON_KEY`),
   independent of this split.
 
+**Two accounts see different data.**
+- Supabase `pcp_records` is the single source of truth and the portal keeps no
+  copy of its own, so the only legitimate difference is **plant access**
+  (`PLANT_FAMILIES` in `05-master-data.jsx`, `allowedPlants` in `19-app.jsx`).
+- Otherwise it's staleness: a tab converges when it **loads**. Live sync closes
+  that gap, but only when Supabase Realtime is working — check the console for
+  *"live sync is unavailable"*, and see below.
+
+**Live sync not working (`window.PCP_LIVE_SYNC === false`).**
+- The project's `realtime` schema must exist. Repeated
+  `42P01 relation "realtime.subscription" does not exist` in the Postgres logs
+  means it doesn't — ask Supabase support to re-run the realtime migrations.
+- `pcp_records` must be in the `supabase_realtime` publication (Table Editor →
+  `pcp_records` → enable Realtime).
+- Neither is required for correctness. Without live sync every account still
+  syncs on page load, exactly as before.
+
+**A deleted record came back.**
+- It can't any more, and the reason is worth knowing: the portal used to keep a
+  whole-state blob plus rolling snapshots in every browser, and a stale copy
+  could win a merge and re-seed the database. Both are gone — see
+  `TECH_DEBT.md` item 2.
+
 ---
 
 ## Reverting to a single file (if ever needed)

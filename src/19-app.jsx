@@ -144,12 +144,12 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     }]);
   }, [loaded]); // eslint-disable-line
 
-  /* Signing out MUST NOT outrun the pending save. saveState/syncRecords only
-     queue behind an 800ms debounce, but onSignOut() invalidates the Supabase
-     session immediately — so the queued write used to land without a valid
-     token, get rejected by RLS, and vanish. The local copy still showed it to
-     this browser, which is why the loss looked random and only ever affected
-     everyone ELSE. Flush to the cloud first, then drop the session. */
+  /* Signing out MUST NOT outrun the pending save. syncRecords only queues
+     behind an 800ms debounce, but onSignOut() invalidates the Supabase session
+     immediately — so the queued write used to land without a valid token, get
+     rejected by RLS, and vanish. There is no local copy to fall back on any
+     more, which makes flushing first not an optimisation but the only thing
+     standing between the last edit and losing it. */
   const handleSignOut = useCallback(async () => {
     const nextAudit = [...auditLog, {
       id: uid("aud"), ts: new Date().toISOString().slice(0, 19),
@@ -161,12 +161,11 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       dataVersion: DATA_VERSION, funds, requests, disbursements, liquidations,
       replenishments, auditLog: nextAudit, documents, reimbursements,
     };
-    try { saveState(next); } catch (e) { /* local copy is already written */ }
-    /* Guarded separately: syncedRef is null until the initial load finishes, and
-       a throw here must not skip the flush below. */
+    /* Guarded: syncedRef is null until the initial load finishes, and a throw
+       here must not skip the flush below. */
     try {
       if (syncedRef.current) syncRecords(diffSync(syncedRef.current, next));
-    } catch (e) { /* best effort — the blob write above still carries the data */ }
+    } catch (e) { /* best effort — the flush below is the last chance */ }
     try {
       if (window.storage && window.storage.flushNow) await window.storage.flushNow();
     } catch (e) { /* sign out regardless; nothing more we can do here */ }
@@ -176,12 +175,13 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
 
   useEffect(() => {
     (async () => {
-      /* Read the shared blob AND the per-record rows, then merge. Per-record
-         rows are authoritative (records win by id, soft-deletes drop the id), so
-         even if the coarse blob was clobbered by a concurrent user its records
-         are recovered from pcp_records — this is the fix for the multi-user
-         data loss where whole-blob "last write wins" erased others' entries. */
-      const [saved, rows] = await Promise.all([loadState(), loadRecords()]);
+      /* ---- Load: Supabase pcp_records, and nothing else ----
+         One store, one truth. The old path merged a whole-state blob with the
+         per-record rows and kept a browser copy besides, which meant three
+         stores could disagree — the reason two accounts could look at the same
+         database and see different data, and the reason deleted records came
+         back when a stale copy won a merge. */
+      const rows = await loadRecords();
       /* Always keep the four master plant funds available, adding any missing. */
       const ensureFunds = (fs) => {
         const list = (fs && fs.length) ? fs.map((f) => ({ ...f })) : seedFunds();
@@ -189,27 +189,29 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
         return list;
       };
 
-      /* CRITICAL: transactions are NEVER wiped on load. Whatever was previously
-         saved is migrated forward verbatim (IDs, reference numbers and links
-         preserved), regardless of the stored dataVersion. A version mismatch is
-         a schema tag only — completed financial records must always survive an
-         upgrade. (Previously a mismatch cleared every transaction, which is what
-         made past records disappear after a deployment.) */
-      const migrated = mergeRecordsIntoState(migrateState(saved), rows);
+      /* CRITICAL: transactions are NEVER wiped on load. Whatever is in
+         pcp_records is carried forward verbatim — IDs, reference numbers and
+         relationships preserved. Completed financial records must always
+         survive an upgrade. */
+      let source = stateFromRecords(rows);
 
-      /* Before touching the live record, snapshot whatever we found so any
-         future incident is recoverable. */
-      if (txnCount(migrated) > 0) { try { await backupState(migrated, "auto:on-load"); } catch (e) { /* best effort */ } }
-
-      /* Self-healing: if the live record somehow came back emptier than a known
-         backup (e.g. a prior bad wipe already ran), restore the richest copy. */
-      let source = migrated;
-      try {
-        if (txnCount(migrated) === 0) {
-          const best = await recoverBestState();
-          if (best && best.txCount > 0) source = migrateState(best.state);
-        }
-      } catch (e) { /* best effort */ }
+      /* ---- One-time migration off the legacy blob ----
+         Runs ONLY when pcp_records is completely empty, i.e. a project that
+         predates the per-record store. The read is cloud-only, so a browser's
+         leftover copy can never be the source. Once seeded, this never runs
+         again — which is also why the wipe script must clear the blob: a
+         non-empty blob left behind would be re-migrated the day pcp_records is
+         emptied. */
+      let seedFromBlob = null;
+      if (!rows.length) {
+        try {
+          const legacy = await loadLegacyBlob();
+          if (legacy && txnCount(migrateState(legacy)) > 0) {
+            seedFromBlob = migrateState(legacy);
+            source = seedFromBlob;
+          }
+        } catch (e) { /* no legacy blob — a clean project, nothing to do */ }
+      }
 
       const startFunds = ensureFunds(source.funds);
       setFunds(startFunds);
@@ -221,18 +223,23 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       setDocuments(source.documents || []);
       setReimbursements(source.reimbursements || []);
 
-      /* Baseline for per-record change detection. Seed the cloud rows from
-         whatever we loaded (idempotent upsert) so a first deploy migrates the
-         existing blob into per-record rows, then only real changes are synced. */
+      /* Baseline for per-record change detection. */
       const startState = {
         funds: startFunds, requests: source.requests || [], disbursements: source.disbursements || [],
         liquidations: source.liquidations || [], replenishments: source.replenishments || [],
         auditLog: source.auditLog || [], documents: source.documents || [], reimbursements: source.reimbursements || [],
       };
-      syncedRef.current = snapshotSync({});
-      if (!rows.length && txnCount(startState) > 0) {
+      if (seedFromBlob || !rows.length) {
+        /* Either a legacy migration, or an empty store that needs initialising.
+           Diff against an empty baseline so everything we hold — at minimum the
+           master funds — is written to pcp_records once. Initialising matters:
+           while the table has no rows at all, every load would re-read the
+           legacy blob looking for something to migrate. */
+        syncedRef.current = snapshotSync({});
         try { syncRecords(diffSync(syncedRef.current, startState)); } catch (e) { /* best effort */ }
       } else {
+        /* Normal path: what we loaded IS what the database holds, so nothing
+           needs writing back. Only real edits from here on are synced. */
         syncedRef.current = snapshotSync(startState);
       }
       setRecordsUnavailable(!!window.PCP_RECORDS_UNAVAILABLE);
@@ -243,12 +250,46 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   useEffect(() => {
     if (!loaded) return;
     const next = { dataVersion: DATA_VERSION, funds, requests, disbursements, liquidations, replenishments, auditLog, documents, reimbursements };
-    /* Coarse blob write (local cache + shared backup). Kept as a safety net. */
-    saveState(next);
-    /* Authoritative concurrency-safe write: sync only the records that actually
-       changed to their own rows, so concurrent users never overwrite each other. */
+    /* The only write path: sync the records that actually changed to their own
+       rows in Supabase. No blob, no browser copy — one store, so two accounts
+       cannot end up looking at different versions of the same database. */
     try { syncRecords(diffSync(syncedRef.current, next)); } catch (e) { /* best effort */ }
   }, [funds, requests, disbursements, liquidations, replenishments, auditLog, documents, reimbursements, loaded]);
+
+  /* ---- Live sync ----
+     Streams every change to pcp_records into this tab, so accounts converge
+     without a refresh. Each change is recorded in syncedRef BEFORE it is
+     applied to state, so the save effect sees it as already-synced and does
+     not echo it straight back — otherwise two open tabs would write to each
+     other forever.
+
+     Degrades silently: when Realtime is unavailable (a missing `realtime`
+     schema, pcp_records not in the supabase_realtime publication, a blocked
+     socket) subscribe() resolves to null and the portal behaves exactly as
+     before, converging on page load. Nothing here is load-bearing. */
+  useEffect(() => {
+    if (!loaded) return undefined;
+    if (!window.storage || !window.storage.records || !window.storage.records.subscribe) return undefined;
+    const setters = {
+      funds: setFunds, requests: setRequests, disbursements: setDisbursements,
+      liquidations: setLiquidations, replenishments: setReplenishments,
+      auditLog: setAuditLog, documents: setDocuments, reimbursements: setReimbursements,
+    };
+    let channel = null;
+    let stopped = false;
+    window.storage.records.subscribe((change) => {
+      if (stopped) return;
+      noteLiveChangeSynced(syncedRef.current, change);
+      applyLiveChange(change, setters);
+    }).then((ch) => {
+      if (stopped && ch && ch.unsubscribe) { try { ch.unsubscribe(); } catch (e) { /* ignore */ } return; }
+      channel = ch;
+    }).catch(() => { /* live sync unavailable — page-load sync still works */ });
+    return () => {
+      stopped = true;
+      if (channel && channel.unsubscribe) { try { channel.unsubscribe(); } catch (e) { /* ignore */ } }
+    };
+  }, [loaded]);
 
   /* ---- Requests ---- */
   /* True when another request already carries this number (case/space
@@ -720,19 +761,6 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   /* Restore a recovery snapshot (admin, from System Settings). Transactions are
      replaced wholesale from the snapshot; funds/audit are only replaced when the
      snapshot actually carries them, so a partial snapshot never blanks them. */
-  const restoreState = useCallback((snap) => {
-    if (!snap) return;
-    if (Array.isArray(snap.requests)) setRequests(snap.requests);
-    if (Array.isArray(snap.disbursements)) setDisbursements(snap.disbursements);
-    if (Array.isArray(snap.liquidations)) setLiquidations(snap.liquidations);
-    if (Array.isArray(snap.replenishments)) setReplenishments(snap.replenishments);
-    if (Array.isArray(snap.documents)) setDocuments(snap.documents);
-    if (Array.isArray(snap.reimbursements)) setReimbursements(snap.reimbursements);
-    if (Array.isArray(snap.funds) && snap.funds.length) setFunds(snap.funds);
-    logAudit("Data Restored", "recovery snapshot",
-      `${(snap.requests || []).length} request(s), ${(snap.disbursements || []).length} release(s), ${(snap.liquidations || []).length} liquidation(s) restored`);
-  }, [logAudit]);
-
   /* ---- PCF Documents ---- */
   const docTs = () => new Date().toISOString().slice(0, 19).replace("T", " ");
   const addDocuments = useCallback((docs) => {
@@ -1253,7 +1281,6 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             isAdmin={isAdmin}
             requests={requests} disbursements={disbursements}
             liquidations={liquidations} replenishments={replenishments}
-            onRestore={restoreState}
           />
         )}
       </div>

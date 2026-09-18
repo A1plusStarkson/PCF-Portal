@@ -100,22 +100,21 @@ const STORAGE_KEY = "petty-cash-portal-state";
    are always preserved and migrated forward (see migrateState). */
 const DATA_VERSION = "2026-clean-1";
 
-/* Keys used by the automatic backup / recovery system. Every load takes a
-   timestamped snapshot BEFORE the app touches the live record, so a bad
-   deployment or accidental wipe can always be rolled back. */
-const BACKUP_PREFIX = "petty-cash-portal-backup-";
-const BACKUP_INDEX_KEY = "petty-cash-portal-backups";
-/* Retention is primarily by AGE: snapshots older than this are pruned. */
-const BACKUP_RETENTION_DAYS = 3;
-/* ...but never prune below this many, or a quiet long weekend would leave the
-   database with zero recovery points — the opposite of what backups are for. */
-const MIN_BACKUPS = 3;
-/* Hard ceiling, so a day with hundreds of page loads can't grow the index
-   without bound while everything is still inside the retention window. */
-const MAX_BACKUPS = 12;
+/* ---- Recovery ----
+   The app no longer keeps its own rolling snapshots. It used to write a
+   timestamped copy of the whole database on every page load, to both the cloud
+   and localStorage, and auto-restore the richest one whenever the live state
+   loaded empty. That machinery caused more harm than it prevented: a single
+   browser holding a stale snapshot would silently re-seed the database for
+   everybody, which is how intentionally deleted records kept reappearing.
+
+   Recovery is now Supabase's job — daily backups with 7-day retention on the
+   Pro plan, restored from the Supabase dashboard. Point-in-time recovery is a
+   paid add-on if a finer recovery point is ever needed. */
 
 /* The transaction stores whose loss would destroy financial history. Used to
-   count records so backups/guards can tell a real database from an empty one. */
+   tell a real database from an empty one when deciding whether the legacy blob
+   still needs migrating into pcp_records. */
 const TXN_KEYS = ["requests", "disbursements", "liquidations", "replenishments", "documents", "reimbursements"];
 
 function txnCount(state) {
@@ -140,18 +139,20 @@ function stripFileBytes(rec) {
   return out;
 }
 
-async function loadState() {
+/* ---- Legacy whole-state blob: READ ONLY, and only to migrate ----
+   pcp_records is the store. This reads the old pcp_state blob for exactly one
+   purpose: seeding pcp_records on a project that predates it (see the load
+   effect in 19-app.jsx, which only calls this when pcp_records is empty).
+
+   Nothing writes the blob any more. The `false` makes the read CLOUD-ONLY —
+   the browser's leftover copy is never consulted, because reading a stale
+   local blob as truth is precisely what used to resurrect deleted records. */
+async function loadLegacyBlob() {
   try {
     const res = await window.storage.get(STORAGE_KEY, false);
     if (res && res.value) return JSON.parse(res.value);
   } catch (e) { /* not found or storage unavailable */ }
   return null;
-}
-
-async function saveState(state) {
-  try {
-    await window.storage.set(STORAGE_KEY, JSON.stringify(state), false);
-  } catch (e) { /* best effort */ }
 }
 
 /* ---- Forward-only migration ----
@@ -175,86 +176,6 @@ function migrateState(saved) {
   out._prevVersion = (saved && saved.dataVersion) || null;
   out._migrated = !!saved && saved.dataVersion !== DATA_VERSION;
   return out;
-}
-
-/* ---- Automatic backups ----
-   Snapshots a non-empty state under a timestamped key and keeps a pruned index.
-   Empty states are never snapshotted, so a backup can never overwrite good
-   history with nothing. */
-async function backupState(state, tag) {
-  try {
-    const count = txnCount(state);
-    if (count === 0) return null; // never back up an empty database
-    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-    const key = BACKUP_PREFIX + stamp;
-    const snapshot = { ...state, _backupAt: new Date().toISOString(), _txCount: count, _tag: tag || "" };
-    await window.storage.set(key, JSON.stringify(snapshot), false);
-
-    let index = [];
-    try { const r = await window.storage.get(BACKUP_INDEX_KEY, false); if (r && r.value) index = JSON.parse(r.value); } catch (e) { /* fresh index */ }
-    index = index.filter((b) => b && b.key !== key);
-    index.push({ key, at: snapshot._backupAt, txCount: count, tag: tag || "" });
-    /* Prune oldest-first: drop anything past the retention window, plus
-       anything over the hard ceiling, but always keep MIN_BACKUPS. Sorted
-       first because a clock skew or a hand-edited index could otherwise leave
-       the newest snapshot at the front and get it pruned. */
-    index.sort((a, b) => String(a.at || "").localeCompare(String(b.at || "")));
-    const cutoff = Date.now() - BACKUP_RETENTION_DAYS * 24 * 60 * 60 * 1000;
-    while (index.length > MIN_BACKUPS) {
-      const at = Date.parse(index[0] && index[0].at);
-      const expired = !isNaN(at) && at < cutoff;
-      if (!expired && index.length <= MAX_BACKUPS) break;
-      const old = index.shift();
-      try { await window.storage.set(old.key, "", false); } catch (e) { /* best effort */ }
-      try { localStorage.removeItem(old.key); } catch (e) { /* best effort */ }
-    }
-    await window.storage.set(BACKUP_INDEX_KEY, JSON.stringify(index), false);
-    return key;
-  } catch (e) { return null; }
-}
-
-/* Lists every recoverable snapshot (cloud index + any local-only copies),
-   richest first, so the most complete backup is easy to restore. */
-async function listBackups() {
-  const map = new Map();
-  try {
-    const r = await window.storage.get(BACKUP_INDEX_KEY, false);
-    if (r && r.value) JSON.parse(r.value).forEach((b) => { if (b && b.key) map.set(b.key, b); });
-  } catch (e) { /* ignore */ }
-  try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const k = localStorage.key(i);
-      if (k && k.indexOf(BACKUP_PREFIX) === 0 && !map.has(k)) {
-        try { const v = JSON.parse(localStorage.getItem(k)); map.set(k, { key: k, at: v._backupAt, txCount: v._txCount || txnCount(v), tag: v._tag || "" }); }
-        catch (e) { /* skip corrupt */ }
-      }
-    }
-  } catch (e) { /* ignore */ }
-  return Array.from(map.values()).sort((a, b) => (b.txCount || 0) - (a.txCount || 0) || String(b.at).localeCompare(String(a.at)));
-}
-
-async function readBackup(key) {
-  try {
-    const r = await window.storage.get(key, false);
-    if (r && r.value) return JSON.parse(r.value);
-  } catch (e) { /* ignore */ }
-  try { const v = localStorage.getItem(key); if (v) return JSON.parse(v); } catch (e) { /* ignore */ }
-  return null;
-}
-
-/* Scans the live record and every backup and returns the richest one. Used to
-   auto-recover when the live record is found emptier than a known backup. */
-async function recoverBestState() {
-  const candidates = [];
-  const live = await loadState();
-  if (live) candidates.push({ key: STORAGE_KEY, state: live, txCount: txnCount(live) });
-  const backups = await listBackups();
-  for (const b of backups) {
-    const s = await readBackup(b.key);
-    if (s) candidates.push({ key: b.key, state: s, txCount: txnCount(s) });
-  }
-  candidates.sort((a, b) => b.txCount - a.txCount);
-  return candidates[0] || null;
 }
 
 /* ---- Per-record cloud sync (concurrency-safe) ----
@@ -296,6 +217,60 @@ function mergeRecordsIntoState(blobState, rows) {
   SYNC_COLLECTIONS.forEach((c) => { out[c] = Array.from(cols[c].values()); });
   out.auditLog = out.auditLog || [];
   return out;
+}
+
+/* Builds the whole application state from the per-record rows alone — the
+   normal load path now that pcp_records is the single source of truth. Rows
+   marked deleted are dropped, so a deletion made by anyone is a deletion for
+   everyone, with no second store able to contradict it. */
+function stateFromRecords(rows) {
+  return mergeRecordsIntoState({}, rows);
+}
+
+/* Applies ONE live change streamed from the database to a state-setter map.
+   `change` is { id, collection, data, deleted } as delivered by
+   window.storage.records.subscribe.
+
+   A hard DELETE arrives with only the primary key, so `collection` is null and
+   the id is removed from every collection. Record ids are prefixed per type
+   (req-, dv-, liq-, aud-, …) and unique across collections, so that cannot
+   touch the wrong record.
+
+   Each updater returns the SAME array reference when the incoming value is one
+   we already hold. That matters twice over: React skips the re-render, and the
+   save effect's diff sees no change, so an echo of our own write is not sent
+   straight back to the database. */
+function applyLiveChange(change, setters) {
+  if (!change || change.id == null) return;
+  const targets = change.collection
+    ? (setters[change.collection] ? [change.collection] : [])
+    : Object.keys(setters);
+  targets.forEach((c) => {
+    setters[c]((list) => {
+      const arr = Array.isArray(list) ? list : [];
+      const at = arr.findIndex((r) => r && r.id === change.id);
+      if (change.deleted) return at < 0 ? arr : arr.filter((r) => !r || r.id !== change.id);
+      if (!change.data) return arr;
+      if (at >= 0 && JSON.stringify(arr[at]) === JSON.stringify(change.data)) return arr;
+      if (at >= 0) { const copy = arr.slice(); copy[at] = change.data; return copy; }
+      return [...arr, change.data];
+    });
+  });
+}
+
+/* Records a live change in the last-synced snapshot, so the save effect's diff
+   treats it as already-synced rather than as a local edit. Without this, every
+   record another user creates would be echoed straight back to the database by
+   every open tab — harmless in content, but an endless write loop. */
+function noteLiveChangeSynced(snap, change) {
+  if (!snap || !change || change.id == null) return;
+  const cols = change.collection ? [change.collection] : Object.keys(snap);
+  cols.forEach((c) => {
+    const map = snap[c];
+    if (!map) return;
+    if (change.deleted) map.delete(change.id);
+    else if (change.data) map.set(change.id, JSON.stringify(change.data));
+  });
 }
 
 /* Snapshots a state into { collection: Map(id -> JSON) } for change detection. */
@@ -349,7 +324,7 @@ function diffSync(snap, state) {
 function syncRecords(rows) {
   if (!rows || !rows.length) return;
   try { if (window.storage && window.storage.records) window.storage.records.put(rows); }
-  catch (e) { /* best effort — the blob write in saveState is the fallback */ }
+  catch (e) { /* best effort — the keepalive flush on pagehide is the backstop */ }
 }
 
 /* ---- Cross-module integrity / reconciliation ----

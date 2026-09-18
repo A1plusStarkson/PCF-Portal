@@ -14,15 +14,30 @@ and it all counts against the Supabase free-tier 500 MB limit.
 **Fix:** Upload files to Supabase Storage buckets and keep only a URL/reference
 in the state.
 
-## 2. Split the single state blob into per-record tables
-**Now:** All data (funds, requests, disbursements, liquidations, replenishments,
-reimbursements, audit log, documents) is saved as ONE JSON blob in one row of
-`pcp_state`, with debounced last-write-wins saves (`src/02-helpers.jsx`,
-`src/19-app.jsx`, `index.html`).
-**Problem:** Two users editing at the same time can silently overwrite each
-other's changes.
-**Fix:** Normalize into real tables (one row per record) so concurrent writes
-don't collide.
+## 2. ~~Split the single state blob into per-record tables~~ — DONE
+`pcp_records` is now the single source of truth: one row per record, and the
+portal keeps no copy of its own. The whole-state blob, the browser cache of the
+data and the rolling snapshot/auto-restore system are all gone.
+
+They were not merely redundant, they were actively harmful:
+- the blob's union merge kept the **superset** of the server's copy and any
+  blob a browser uploaded, so one stale tab re-seeded deleted records for
+  everybody;
+- the auto-restore refilled the database from a browser's own snapshot whenever
+  the live state loaded empty, which made a deliberate wipe impossible to
+  complete;
+- three stores meant three answers, which is why two accounts could look at the
+  same database and see different data.
+
+Backups are now Supabase's own (daily, 7-day retention on Pro; PITR is a paid
+add-on). Live sync is Supabase Realtime, failing soft to the previous
+converge-on-page-load behaviour.
+
+**Remaining cleanup:** `mergeStateValues`, `stripPayloadsJSON`, the snapshot
+pruning inside `storage.set`, and `MERGE_COLLECTIONS` in `index.html` are now
+dead. `loadLegacyBlob` (`src/02-helpers.jsx`) and the `pcp_state` read are kept
+for one purpose only — migrating a project whose `pcp_records` is empty. Once
+no such project exists, delete both and drop the `pcp_state` table.
 
 ### Related: PCF Requestor role is enforced at the CLIENT layer only
 The `Requestor` role (see `ROLES` in `src/05-master-data.jsx`, flags in

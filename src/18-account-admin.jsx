@@ -98,7 +98,7 @@ function UserManagementTab({ currentEmail, onChangePassword }) {
   );
 }
 
-function SystemSettingsTab({ userName, userEmail, role, plants, requests, disbursements, liquidations, replenishments, onRestore, isAdmin }) {
+function SystemSettingsTab({ userName, userEmail, role, plants, requests, disbursements, liquidations, replenishments, isAdmin }) {
   const cloud = !!(window.PCP_AUTH && window.PCP_AUTH.enabled);
   const plantsLabel = (plants && plants.length) ? plants.map(plantLabel).join(", ") : "All plants";
   return (
@@ -129,7 +129,6 @@ function SystemSettingsTab({ userName, userEmail, role, plants, requests, disbur
           <DataIntegrityPanel
             requests={requests} disbursements={disbursements}
             liquidations={liquidations} replenishments={replenishments}
-            onRestore={onRestore}
           />
         )}
       </div>
@@ -142,46 +141,11 @@ function SystemSettingsTab({ userName, userEmail, role, plants, requests, disbur
    lets an administrator take a manual backup or restore an earlier snapshot.
    This is the operator-facing side of the automatic backup system that protects
    completed financial records from ever disappearing. */
-function DataIntegrityPanel({ requests, disbursements, liquidations, replenishments, onRestore }) {
+function DataIntegrityPanel({ requests, disbursements, liquidations, replenishments }) {
   const report = useMemo(
     () => buildIntegrityReport(requests, disbursements, liquidations, replenishments),
     [requests, disbursements, liquidations, replenishments]
   );
-  const [backups, setBackups] = useState([]);
-  const [busy, setBusy] = useState("");
-  const [msg, setMsg] = useState("");
-
-  const refreshBackups = useCallback(async () => {
-    try { setBackups(await listBackups()); } catch (e) { /* ignore */ }
-  }, []);
-  useEffect(() => { refreshBackups(); }, [refreshBackups]);
-
-  const doBackup = async () => {
-    setBusy("backup"); setMsg("");
-    const key = await backupState({
-      dataVersion: DATA_VERSION, requests, disbursements, liquidations, replenishments,
-    }, "manual");
-    setMsg(key ? "Backup created." : "Nothing to back up (no transactions).");
-    await refreshBackups();
-    setBusy("");
-  };
-
-  const doRestore = async (key, txCount) => {
-    if (!window.confirm(
-      `Restore snapshot with ${txCount} transaction(s)?\n\n`
-      + "This replaces the current in-memory records with the snapshot. A safety "
-      + "backup of the current state is taken first. Continue?"
-    )) return;
-    setBusy(key); setMsg("");
-    try {
-      await backupState({ dataVersion: DATA_VERSION, requests, disbursements, liquidations, replenishments }, "pre-restore");
-      const snap = await readBackup(key);
-      if (snap && onRestore) { onRestore(migrateState(snap)); setMsg("Snapshot restored."); }
-      else setMsg("Could not read snapshot.");
-    } catch (e) { setMsg("Restore failed."); }
-    await refreshBackups();
-    setBusy("");
-  };
 
   const exportReconciliation = () => {
     const rows = report.rows.map((r) => ({
@@ -203,16 +167,11 @@ function DataIntegrityPanel({ requests, disbursements, liquidations, replenishme
 
   return (
     <div className="pcp-card pcp-card-pad" style={{ marginTop: 16 }}>
-      <div className="pcp-section-title"><Database size={15} color="#c8102e" /> Data Integrity, Reconciliation & Recovery</div>
+      <div className="pcp-section-title"><Database size={15} color="#c8102e" /> Data Integrity & Reconciliation</div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "6px 0 14px" }}>
-        <button className="pcp-btn" onClick={doBackup} disabled={busy === "backup"}>
-          <Archive size={14} /> {busy === "backup" ? "Backing up…" : "Backup now"}
-        </button>
         <button className="pcp-btn" onClick={exportReconciliation}><Download size={14} /> Export reconciliation</button>
-        <button className="pcp-btn" onClick={refreshBackups}><RefreshCw size={14} /> Refresh</button>
       </div>
-      {msg && <div className="pcp-login-ok" style={{ marginBottom: 12 }}>{msg}</div>}
 
       <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 14, fontSize: 13 }}>
         <span><strong>{c.requests}</strong> requests</span>
@@ -261,30 +220,16 @@ function DataIntegrityPanel({ requests, disbursements, liquidations, replenishme
         </table>
       </div>
 
-      <div className="pcp-section-title" style={{ fontSize: 13 }}><ArchiveRestore size={14} color="#c8102e" /> Recovery snapshots</div>
-      <div className="pcp-table-wrap" style={{ maxHeight: 240, overflow: "auto" }}>
-        <table className="pcp-table">
-          <thead><tr><th>Taken</th><th>Transactions</th><th>Tag</th><th></th></tr></thead>
-          <tbody>
-            {backups.length ? backups.map((b) => (
-              <tr key={b.key}>
-                <td>{b.at ? new Date(b.at).toLocaleString() : "—"}</td>
-                <td>{b.txCount}</td>
-                <td>{b.tag || "—"}</td>
-                <td style={{ textAlign: "right" }}>
-                  <button className="pcp-btn pcp-btn-sm" onClick={() => doRestore(b.key, b.txCount)} disabled={busy === b.key}>
-                    <ArchiveRestore size={13} /> {busy === b.key ? "Restoring…" : "Restore"}
-                  </button>
-                </td>
-              </tr>
-            )) : <tr><td colSpan={4} className="pcp-empty">No snapshots yet. A snapshot is taken automatically at each load.</td></tr>}
-          </tbody>
-        </table>
-      </div>
-      <div style={{ marginTop: 10, fontSize: 12, color: "var(--text-mut)", lineHeight: 1.6 }}>
-        Snapshots are stored in the shared database and this browser. The system also keeps a snapshot automatically
-        every time the portal loads, and never overwrites existing history with an empty database. Snapshots are kept
-        for {BACKUP_RETENTION_DAYS} days (the {MIN_BACKUPS} most recent are always kept, even if older than that).
+      <div className="pcp-section-title" style={{ fontSize: 13 }}><ArchiveRestore size={14} color="#c8102e" /> Backup &amp; recovery</div>
+      <div className="pcp-hint" style={{ lineHeight: 1.7 }}>
+        Every record lives in one place — the Supabase database — and backups are taken by Supabase itself:
+        a <strong>daily backup retained for 7 days</strong> on the current plan. To restore, use
+        <strong> Supabase dashboard → Database → Backups</strong>. Ask for point-in-time recovery to be added
+        if a finer recovery point is ever needed.
+        <br /><br />
+        The portal no longer keeps its own rolling snapshots in the browser. It used to, and a browser holding an
+        old snapshot could silently re-seed the shared database — which is how deleted records came back. Removing
+        that means what you see here is what the database holds, for every account.
       </div>
     </div>
   );

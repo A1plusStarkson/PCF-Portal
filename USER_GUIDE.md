@@ -202,7 +202,7 @@ Data** (plants, custodians, chart of accounts). You don't manage user accounts.
 
 ### 🗂️ If you are Accounting
 You can do everything Finance can, **plus User Management and System Settings**
-(including backup/recovery tools). You see all plants.
+(including User Management and System Settings). You see all plants.
 
 You are also the **only** role that can type over a **Request No.**
 
@@ -229,8 +229,9 @@ You have full control and are the **only** person who can:
 
 - **Approve or reject receipts and final liquidations.**
 - **Delete** a record.
-- **Restore** lost data from **System Settings → Data Integrity → Recovery
-  snapshots**.
+- Ask for lost data to be **restored from the Supabase daily backup**. The
+  portal no longer keeps its own snapshots — recovery is done in the Supabase
+  dashboard, so report a mistake the same day it happens.
 
 ---
 
@@ -271,7 +272,7 @@ flowchart LR
 | A button or tab is missing | It's simply not part of your role — that's normal. |
 | The numbers look old | Refresh the page: press **Ctrl + F5**. |
 | "Cloud database not configured" | The app lost its connection — tell the administrator. |
-| I deleted something by mistake | Ask Grace Gan — she can restore it from **System Settings → Data Integrity → Recovery snapshots**. |
+| I deleted something by mistake | Tell Grace Gan straight away. Restores come from the Supabase daily backup, so the sooner the better. |
 
 ---
 

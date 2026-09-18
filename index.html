@@ -30,9 +30,19 @@
 
 <!-- ============================================================
      DATA STORAGE + LOGIN
-     By default the app stores data in THIS browser only (localStorage),
-     with no login. To share ONE secured database across all devices/users
-     for free (works on GitHub Pages — no server needed):
+     Supabase is the single source of truth. Every record lives in one row of
+     pcp_records, and the portal keeps NO copy of its own — no browser cache of
+     the data, no rolling snapshots. That is deliberate: while it kept its own
+     copies, a stale device could re-seed the shared database and resurrect
+     deleted records, and two accounts could see different data.
+
+     Backups are Supabase's (daily, 7-day retention on Pro). Live sync is
+     Supabase Realtime, and it fails soft — without it the portal simply
+     converges on page load, as it always did. Realtime needs two things in the
+     project: the `realtime` schema present, and pcp_records added to the
+     supabase_realtime publication (Table Editor -> pcp_records -> Realtime on).
+
+     To set up a project from scratch (works on GitHub Pages — no server):
        1. Create a free project at https://supabase.com
        2. In the Supabase SQL editor, run the SQL shown in chat / the README
           (creates the pcp_state + pcp_records tables + authenticated-only RLS
@@ -115,11 +125,15 @@
     // writes immediately instead of waiting a microtask for sbReady.
     var CLOUD = !!(window.PCP_SUPABASE_URL && window.PCP_SUPABASE_ANON_KEY);
 
-    // The whole-state blob key and the transaction collections inside it. The
-    // blob is written with a concurrency-safe UNION merge (below) so a stale or
-    // partial write can never drop another user's transactions — this is the
-    // safety net that stops the multi-user data loss even when the per-record
-    // table (pcp_records) is unavailable.
+    // LEGACY, effectively dead. pcp_records is the store; the portal no longer
+    // writes this blob at all, and reads it in exactly one case — a project
+    // whose pcp_records table is completely empty, where it is migrated once.
+    //
+    // The union merge below used to be the safety net against whole-blob "last
+    // write wins". It became the problem instead: merging any blob a browser
+    // uploaded produced the SUPERSET of both, so one stale tab could re-seed
+    // deleted records for everybody. Kept only so an old project can still be
+    // migrated; see TECH_DEBT.md for removing it.
     var STATE_KEY = "petty-cash-portal-state";
     var MERGE_COLLECTIONS = [
       "funds", "requests", "disbursements", "liquidations",
@@ -380,15 +394,24 @@
     });
 
     window.storage = {
-      get: function (key) {
+      // allowLocal === false makes this CLOUD-ONLY: never fall back to the
+      // browser copy and never cache the answer locally. The portal passes
+      // false everywhere, because a stale local blob is exactly how deleted
+      // records used to come back from the dead — one browser's leftover copy
+      // would be read as truth and then re-shared with everybody.
+      get: function (key, allowLocal) {
+        var useLocal = allowLocal !== false;
         return sbReady.then(function (c) {
-          if (!c) return local.get(key);
+          if (!c) return useLocal ? local.get(key) : null;
           return c.from(TABLE).select("value").eq("key", key).maybeSingle()
             .then(function (res) {
-              if (!res.error && res.data && res.data.value != null) { local.set(key, res.data.value); return { value: res.data.value }; }
-              return local.get(key); // nothing in cloud yet → seed from local
+              if (!res.error && res.data && res.data.value != null) {
+                if (useLocal) local.set(key, res.data.value);
+                return { value: res.data.value };
+              }
+              return useLocal ? local.get(key) : null;
             })
-            .catch(function () { return local.get(key); });
+            .catch(function () { return useLocal ? local.get(key) : null; });
         });
       },
       set: function (key, value) {
@@ -447,6 +470,72 @@
           (rows || []).forEach(function (row) { if (row && row.id != null) recPending[row.id] = row; });
           if (CLOUD) { clearTimeout(recTimer); recTimer = setTimeout(flushRecords, 800); }
           return Promise.resolve(true);
+        },
+
+        // Live sync. Streams every insert/update/delete on pcp_records to
+        // onChange({ id, collection, data, deleted }) so open tabs converge
+        // without a refresh.
+        //
+        // FAILS SOFT BY DESIGN. If Realtime is unavailable — the project's
+        // realtime schema is missing, the table is not in the
+        // supabase_realtime publication, or the socket is blocked — this logs
+        // once and returns null. The portal then behaves exactly as it did
+        // before: every account still converges when the page loads. Nothing
+        // depends on this channel for correctness.
+        //
+        // Two things must be true in the project for it to work:
+        //   1. the `realtime` schema exists (a missing realtime.subscription
+        //      table shows up as repeated 42P01 errors in the Postgres logs)
+        //   2. pcp_records is in the supabase_realtime publication
+        //      (Table Editor -> pcp_records -> enable Realtime)
+        //
+        // A DELETE payload carries only the primary key, not `collection`, so
+        // the id is reported with collection null and the app drops that id
+        // from every collection. Record ids are prefixed per type and unique
+        // across collections, so that is unambiguous.
+        subscribe: function (onChange) {
+          if (!CLOUD || typeof onChange !== "function") return Promise.resolve(null);
+          return sbReady.then(function (c) {
+            if (!c) return null;
+            try {
+              var ch = c.channel("pcp_records_stream")
+                .on("postgres_changes",
+                    { event: "*", schema: "public", table: RECORD_TABLE },
+                    function (payload) {
+                      var row = payload["new"] || payload.old;
+                      if (!row || row.id == null) return;
+                      var gone = payload.eventType === "DELETE" || payload.type === "DELETE";
+                      try {
+                        onChange({
+                          id: row.id,
+                          collection: gone ? null : row.collection,
+                          data: gone ? null : row.data,
+                          deleted: gone ? true : !!row.deleted
+                        });
+                      } catch (e) { /* never let a render error kill the socket */ }
+                    })
+                .subscribe(function (status) {
+                  if (status === "SUBSCRIBED") {
+                    window.PCP_LIVE_SYNC = true;
+                  } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+                    window.PCP_LIVE_SYNC = false;
+                    if (!window.PCP_LIVE_SYNC_WARNED) {
+                      window.PCP_LIVE_SYNC_WARNED = true;
+                      console.warn(
+                        "Petty Cash: live sync is unavailable (" + status + "). Every account still " +
+                        "syncs when the page loads. To enable it, confirm the project's `realtime` " +
+                        "schema exists and that pcp_records has Realtime turned on in the Table Editor."
+                      );
+                    }
+                  }
+                });
+              return ch;
+            } catch (e) {
+              window.PCP_LIVE_SYNC = false;
+              console.warn("Petty Cash: live sync could not start:", e && e.message ? e.message : e);
+              return null;
+            }
+          }).catch(function () { return null; });
         }
       }
     };
@@ -466,7 +555,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20260917e";
+  window.PCP_SRC_VERSION = "20260918a";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",
