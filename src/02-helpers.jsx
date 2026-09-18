@@ -73,14 +73,27 @@ const deptDesc = (code) => {
 
 const branchesForCompany = (company) => BRANCHES.filter((b) => b.company === company);
 
+/* The expense description shown against a released voucher. Disburse Cash
+   Advance now captures free text ("Expense"); vouchers released before that
+   change stored a picked Expense Category, so fall back to it and history keeps
+   reading correctly. */
+const disbExpense = (d) => String((d && (d.expense || d.expenseCategory)) || "");
+
 /* ============================= SEED DATA ============================= */
 
-const seedFunds = () => ([
-  { id: "fund-MNL", branchCode: "A1+", label: "Manila", custodian: "Maureen Felix", beginningBalance: 600000 },
-  { id: "fund-DIS", branchCode: "D1", label: "Disney", custodian: "Pura Barloso", beginningBalance: 704035.23 },
-  { id: "fund-WAR", branchCode: "WARNER", label: "Warner", custodian: "Angelita Bayani", beginningBalance: 150000 },
-  { id: "fund-RG", branchCode: "RG", label: "RG and Co.", custodian: "Pura Barloso", beginningBalance: 300000 },
-]);
+/* The petty cash funds, built straight from the PLANTS master (05-master-data)
+   so the plant, branch, custodian and beginning balance are defined once.
+
+   This seeds a FRESH database only. Once a fund row exists it is the app's to
+   maintain — balances are changed through Dashboard -> Edit Beginning Balances,
+   never by editing this list, because an existing database is never re-seeded. */
+const seedFunds = () => PLANTS.map((p) => ({
+  id: p.fundId,
+  branchCode: p.code,
+  label: p.label,
+  custodian: p.custodian,
+  beginningBalance: p.beginningBalance,
+}));
 
 /* Transaction stores start EMPTY — the system begins with a clean database and
    only master data (plants, users, chart of accounts) is pre-seeded. */

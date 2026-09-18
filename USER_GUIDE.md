@@ -102,15 +102,15 @@ from that same fund, so being given a plant always gives you the whole family:
 
 | Plant | Branches it covers | Company |
 |-------|--------------------|---------|
-| **Manila** | A1+, Eurasia, Hasbro, Sitio, Mattel, Perulandia | A1+ Paper and Plastic Inc. |
-| **Warner** | Warner | A1+ Paper and Plastic Inc. |
-| **Disney** | Starkson (ST), Disney 1–9 | Starkson Paper and Plastic Corporation |
+| **Manila** | A1+, Eurasia, Hasbro, Sitio, Mattel, Perulandia | A1+ Multinational Packaging, Inc |
+| **Warner** | Warner | A1+ Multinational Packaging, Inc |
+| **Disney** | Starkson (ST), Disney 1–9 | Starkson Packaging, Inc. |
 | **RG and Co.** | RG | RG & Co. Property Management Corporation |
 
-So the **Disney requestor covers all of Starkson Paper and Plastic
-Corporation**, and the **Manila requestor covers the A1+ Paper and Plastic
-branches** under Manila. Warner keeps its own fund and its own custodian, so it
-is not part of the Manila requestor's plant.
+So the **Disney requestor covers all of Starkson Packaging, Inc.**, and the
+**Manila requestor covers the A1+ Multinational Packaging branches** under
+Manila. Warner keeps its own fund and its own custodian, so it is not part of
+the Manila requestor's plant.
 
 Everyone sees the **same four plants** in the sidebar — you just see only the
 ones you're assigned. Inside a plant, the row of tabs above the table lets you

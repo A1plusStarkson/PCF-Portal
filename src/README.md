@@ -33,12 +33,12 @@ reorder `PCP_SRC_FILES`. If you add a new file, insert it in the right place.
 | `03-report-engine.jsx` | The Report Center engine: `money()`, `REPORT_TYPES`, `buildReport()`, Excel/CSV/print builders, `printReportDocument()`. |
 | `04-acumatica-export.jsx` | Acumatica "Purchase Orders Template" export columns/logic. |
 | `05-master-data.jsx` | `BRANCHES`, `COMPANIES`, `PLANTS`, `SUBACCOUNTS`, `TAX_CATEGORIES`, `EXPENSE_CATEGORIES`, account map, user `ROLES` / access resolution. |
-| `06-logos.jsx` | The two embedded base64 logos only (`LOGO_SPI`, `LOGO_A1`). Isolated so the other files stay readable. |
-| `07-styles.jsx` | The global `CSS` string and the navigation constants. |
+| `06-logos.jsx` | The embedded base64 logos only (`LOGO_SPI`, `LOGO_A1`, `LOGO_HAMFI`). Isolated so the other files stay readable. Regenerate from the PNGs beside `index.html` whenever the branding changes. |
+| `07-styles.jsx` | The global `CSS` string, the navigation constants, and the shared UI widgets (`TopBar`, `Badge`, `Collapsible`, `SearchSelect`, `AttachmentGallery`). |
 | `08-dashboard.jsx` | Dashboard screen + KPI cards. |
 | `09-requests.jsx` | Petty Cash Requests screen. |
 | `10-disbursements.jsx` | Release Ledger / Disbursements screen. |
-| `11-liquidation.jsx` | Liquidation worksheet screen — per-document receipt amounts, reconciliation against the PCF released amount, and the Cash Settlement step that drives `LIQUIDATED`. |
+| `11-liquidation.jsx` | Liquidation worksheet screen — status filter (petty cash: Unliquidated / Partially / Fully Liquidated · reimbursement: For Liquidation / Liquidation Completed / For Payment / Completed), per-document receipt amounts, reconciliation against the PCF released amount, and the Cash Settlement step that drives `LIQUIDATED`. |
 | `12-masterdata-tab.jsx` | Funds & Master Data admin screen. |
 | `13-reports-aging.jsx` | Edit-balances modal, liquidation-aging engine + Liquidation Aging screen. |
 | `14-report-center.jsx` | `ManagementReportTab` — the print-ready Report Center screen. |
@@ -47,6 +47,7 @@ reorder `PCP_SRC_FILES`. If you add a new file, insert it in the right place.
 | `17-audit.jsx` | Audit Trail screen. |
 | `18-account-admin.jsx` | User management + system settings screens. |
 | `22-reimbursement.jsx` | Reimbursement Module (AF P16): policy config + validation engine, multi-step reimbursement form, approval/liquidation/payment workflow, dashboard, aging & Acumatica export. Loads **before** `19-app.jsx` so its constants exist when `App` renders. |
+| `23-approvals.jsx` | Approval Module — one cross-plant queue for checking/approving Petty Cash Advance liquidations (per-document approve/reject, reject liquidation) and Employee Reimbursements. Loads **after** `11-liquidation.jsx` and `22-reimbursement.jsx` because it reuses `RejectLiquidationModal` and `ReimbursementDetail`. |
 | `19-app.jsx` | The main `App` component (state, storage, navigation, wiring). |
 | `20-auth-gate.jsx` | Sign-in gate / local + Supabase auth. |
 | `21-root-mount.jsx` | `Root` component + `createRoot(...).render(...)`. |
@@ -85,7 +86,12 @@ reorder `PCP_SRC_FILES`. If you add a new file, insert it in the right place.
   the site.
 
 **Report logo missing.**
-- `SPI PAPER LOGO.png` must be deployed next to `index.html`.
+- The report logos are read from the PNGs beside `index.html`, so all three must
+  be deployed with it: `SPI PAPER LOGO.png` (Starkson Packaging, Inc.),
+  `A1 PAPER LOGO.png` (A1+ Multinational Packaging, Inc) and `HAMFI LOGO.png`
+  (Happy Alliance Mono Film, Inc.). RG & Co. falls back to a built-in SVG.
+- The sidebar logos come from the base64 copies in `06-logos.jsx` instead, so a
+  logo that shows on screen but not on a report means the PNG was not uploaded.
 
 **Data not shared between devices.**
 - That's Supabase config in `index.html` (`PCP_SUPABASE_URL` / `..._ANON_KEY`),

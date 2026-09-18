@@ -240,12 +240,12 @@ function emptyReimbLine() {
   return {
     id: uid("rln"), date: todayISO(), category: EXPENSE_CATEGORIES[0],
     description: "", vendor: "", department: SUBACCOUNTS[1].code,
-    costCenter: "", taxCategory: "", amount: "", businessPurpose: "", receiptNo: "",
+    taxCategory: "", amount: "", businessPurpose: "", receiptNo: "",
   };
 }
 
 /* Controlled, searchable Purpose picker. The value can only ever be one of the
-   56 approved ACTIVE purposes — the text box filters the list but is never the
+   approved ACTIVE purposes — the text box filters the list but is never the
    stored value, so free-text and injected values are impossible from the UI.
    A legacy/inactive value already on a record is shown (so it stays visible)
    but must be reselected before the form will validate. */
@@ -439,23 +439,28 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, reimb, nextRei
                 </div>
                 <div className="pcp-field">
                   <label>Company / Plant</label>
-                  <select className="pcp-select" value={form.branchCode} onChange={(e) => set("branchCode", e.target.value)}>
-                    {plantOptions
-                      ? plantOptions.map((p) => <option key={p.code} value={p.code}>{p.label} ({p.code})</option>)
-                      : COMPANIES.map((c) => (
-                          <optgroup label={c} key={c}>
-                            {branchesForCompany(c).map((b) => <option key={b.code} value={b.code}>{b.name} ({b.code})</option>)}
-                          </optgroup>
-                        ))}
-                  </select>
+                  <SearchSelect
+                    value={form.branchCode} onChange={(v) => set("branchCode", v)}
+                    options={plantOptions
+                      ? plantOptions.map((p) => ({ value: p.code, label: `${p.label} (${p.code})` }))
+                      : COMPANIES.map((c) => ({
+                          label: c,
+                          options: branchesForCompany(c).map((b) => ({ value: b.code, label: `${b.name} (${b.code})` })),
+                        }))}
+                    placeholder="— Select Company / Plant —"
+                    searchPlaceholder="Search company, plant or branch code…"
+                  />
                 </div>
               </div>
               <div className="pcp-field-row">
                 <div className="pcp-field">
                   <label>Department Charged</label>
-                  <select className="pcp-select" value={form.department} onChange={(e) => set("department", e.target.value)}>
-                    {SUBACCOUNTS.filter((s) => s.desc).map((s) => <option key={s.code} value={s.code}>{s.desc} ({s.code})</option>)}
-                  </select>
+                  <SearchSelect
+                    value={form.department} onChange={(v) => set("department", v)}
+                    options={DEPARTMENT_CHOICES}
+                    placeholder="— Select Department —"
+                    searchPlaceholder="Search department or sub-account…"
+                  />
                 </div>
                 <div className="pcp-field">
                   <label>Company</label>
@@ -488,7 +493,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, reimb, nextRei
                   <thead>
                     <tr>
                       <th>Date</th><th>Category</th><th>Description</th><th>Vendor</th>
-                      <th>Department</th><th>Cost Center</th><th>Tax</th><th>Business Purpose</th>
+                      <th>Department</th><th>Tax</th><th>Business Purpose</th>
                       <th>Receipt No.</th><th>Amount</th><th></th>
                     </tr>
                   </thead>
@@ -497,23 +502,33 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, reimb, nextRei
                       <tr key={l.id}>
                         <td><input type="date" className="pcp-input" style={{ minWidth: 130 }} value={l.date} onChange={(e) => setLine(l.id, { date: e.target.value })} /></td>
                         <td>
-                          <select className="pcp-select" style={{ minWidth: 150 }} value={l.category} onChange={(e) => setLine(l.id, { category: e.target.value })}>
-                            {EXPENSE_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-                          </select>
+                          <SearchSelect
+                            value={l.category} onChange={(v) => setLine(l.id, { category: v })}
+                            options={EXPENSE_CATEGORY_CHOICES}
+                            placeholder="— Select Expense Category —"
+                            searchPlaceholder="Search expense category / COA…"
+                            style={{ minWidth: 150 }} popStyle={{ minWidth: 340 }}
+                          />
                         </td>
                         <td><input className="pcp-input" style={{ minWidth: 140 }} value={l.description} onChange={(e) => setLine(l.id, { description: e.target.value })} /></td>
                         <td><input className="pcp-input" style={{ minWidth: 110 }} value={l.vendor} onChange={(e) => setLine(l.id, { vendor: e.target.value })} /></td>
                         <td>
-                          <select className="pcp-select" style={{ minWidth: 150 }} value={l.department} onChange={(e) => setLine(l.id, { department: e.target.value })}>
-                            {SUBACCOUNTS.filter((s) => s.desc).map((s) => <option key={s.code} value={s.code}>{s.desc}</option>)}
-                          </select>
+                          <SearchSelect
+                            value={l.department} onChange={(v) => setLine(l.id, { department: v })}
+                            options={DEPARTMENT_CHOICES}
+                            placeholder="— Select Department —"
+                            searchPlaceholder="Search department or sub-account…"
+                            style={{ minWidth: 150 }} popStyle={{ minWidth: 300 }}
+                          />
                         </td>
-                        <td><input className="pcp-input" style={{ minWidth: 90 }} placeholder="optional" value={l.costCenter} onChange={(e) => setLine(l.id, { costCenter: e.target.value })} /></td>
                         <td>
-                          <select className="pcp-select" style={{ minWidth: 90 }} value={l.taxCategory} onChange={(e) => setLine(l.id, { taxCategory: e.target.value })}>
-                            <option value="">—</option>
-                            {TAX_CATEGORIES.map((t) => <option key={t.code} value={t.code} title={t.desc}>{t.code}</option>)}
-                          </select>
+                          <SearchSelect
+                            value={l.taxCategory} onChange={(v) => setLine(l.id, { taxCategory: v })}
+                            options={TAX_CATEGORY_CHOICES}
+                            placeholder="—" emptyOptionLabel="—"
+                            searchPlaceholder="Search tax category…"
+                            style={{ minWidth: 100 }} popStyle={{ minWidth: 300 }}
+                          />
                         </td>
                         <td><input className="pcp-input" style={{ minWidth: 120 }} value={l.businessPurpose} onChange={(e) => setLine(l.id, { businessPurpose: e.target.value })} /></td>
                         <td><input className="pcp-input" style={{ minWidth: 90 }} value={l.receiptNo} onChange={(e) => setLine(l.id, { receiptNo: e.target.value })} /></td>
@@ -524,7 +539,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, reimb, nextRei
                   </tbody>
                   <tfoot>
                     <tr>
-                      <td colSpan={9} style={{ textAlign: "right", fontWeight: 600 }}>Total Reimbursement</td>
+                      <td colSpan={8} style={{ textAlign: "right", fontWeight: 600 }}>Total Reimbursement</td>
                       <td className="pcp-num" style={{ fontWeight: 700 }}>{peso(total)}</td>
                       <td></td>
                     </tr>
@@ -554,25 +569,26 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, reimb, nextRei
                 ))}
               </div>
               {uploadNote && <div style={{ fontSize: 12, color: "var(--brand)" }}>{uploadNote}</div>}
-              <div className="pcp-table-wrap">
-                <table className="pcp-table">
-                  <thead><tr><th>Document</th><th>Type</th><th>Size</th><th></th></tr></thead>
-                  <tbody>
-                    {form.attachments.length ? form.attachments.map((a) => (
-                      <tr key={a.id}>
-                        <td><a href={a.data} download={a.name} style={{ color: "var(--brand)" }}><Paperclip size={12} /> {a.name}</a></td>
-                        <td>
-                          <select className="pcp-select" value={a.docType} onChange={(e) => setAttType(a.id, e.target.value)}>
-                            {REIMB_DOC_TYPES.map((dt) => <option key={dt}>{dt}</option>)}
-                          </select>
-                        </td>
-                        <td>{(a.size / 1024).toFixed(0)} KB</td>
-                        <td><button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => removeAtt(a.id)}><Trash2 size={13} color="var(--brand)" /></button></td>
-                      </tr>
-                    )) : <tr><td colSpan={4} className="pcp-empty">No documents attached. An Original OR / Sales Invoice is required.</td></tr>}
-                  </tbody>
-                </table>
-              </div>
+              {/* Every attachment is shown as a live preview, so the employee
+                  sees exactly what the checker and approver will see. */}
+              <AttachmentGallery
+                attachments={form.attachments}
+                emptyLabel="No documents attached. An Original OR / Sales Invoice is required."
+                renderFooter={(a) => (
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 9px", borderTop: "1px solid var(--line)" }}>
+                    <select
+                      className="pcp-select" style={{ flex: 1 }}
+                      value={a.docType} onChange={(e) => setAttType(a.id, e.target.value)}
+                    >
+                      {REIMB_DOC_TYPES.map((dt) => <option key={dt}>{dt}</option>)}
+                    </select>
+                    <span style={{ fontSize: 10.5, color: "var(--text-mut)", whiteSpace: "nowrap" }}>{(a.size / 1024).toFixed(0)} KB</span>
+                    <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => removeAtt(a.id)} title="Remove document">
+                      <Trash2 size={13} color="var(--brand)" />
+                    </button>
+                  </div>
+                )}
+              />
             </div>
           )}
 
@@ -604,7 +620,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, reimb, nextRei
               </div>
               <div className="pcp-card" style={{ padding: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Attachments ({form.attachments.length})</div>
-                <div style={{ fontSize: 12, color: "var(--text-mut)" }}>{form.attachments.map((a) => `${a.name} (${a.docType})`).join(", ") || "None"}</div>
+                <AttachmentGallery attachments={form.attachments} emptyLabel="None" />
               </div>
               <div className="pcp-card" style={{ padding: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Applicable Approval Schedule</div>
@@ -718,16 +734,12 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
           </div>
 
           <div className="pcp-card" style={{ padding: 12, marginTop: 12 }}>
-            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Supporting Documents</div>
-            {(reimb.attachments || []).length ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                {reimb.attachments.map((a) => (
-                  <a key={a.id} href={a.data} download={a.name} style={{ fontSize: 12, color: "var(--brand)" }}>
-                    <Paperclip size={12} /> {a.name} · {a.docType}
-                  </a>
-                ))}
-              </div>
-            ) : <div style={{ fontSize: 12, color: "var(--text-mut)" }}>None</div>}
+            <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
+              Supporting Documents ({(reimb.attachments || []).length})
+            </div>
+            {/* Rendered inline so the checker and the approver can read every
+                receipt on this one screen — no per-file "View" click. */}
+            <AttachmentGallery attachments={reimb.attachments} emptyLabel="None" />
           </div>
 
           {reimb.payment && reimb.payment.date && (
@@ -965,6 +977,7 @@ function ReimbursementTab({
               <option value="All">All Categories</option>
               <option value="FOH">FOH</option>
               <option value="OE">OE</option>
+              <option value="OTHER">Other</option>
             </select>
             <select className="pcp-select" style={{ width: 220 }} value={purposeFilter} onChange={(e) => setPurposeFilter(e.target.value)} title="Filter by purpose">
               <option value="All">All Purposes</option>

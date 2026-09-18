@@ -12,7 +12,7 @@ function buildTransactionFeed(requests, disbursements, liquidations, replenishme
   disbursements.forEach((d) => rows.push({
     id: "t-rel-" + d.id, type: "Release", date: d.date, ref: d.voucherNo,
     party: d.employee, branchCode: d.branchCode, department: d.department,
-    category: d.expenseCategory, amount: Number(d.amount) || 0, status: liqStatusFor(d, liquidations),
+    category: disbExpense(d), amount: Number(d.amount) || 0, status: liqStatusFor(d, liquidations),
   }));
   disbursements.forEach((d) => {
     const liq = liquidationFor(d.id, liquidations);

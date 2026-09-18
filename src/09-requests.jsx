@@ -19,6 +19,12 @@ function RequestFormModal({ onClose, onSave, nextRequestNo, request, plantOption
         }
   );
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+  /* Option lists for the searchable pickers. Same values as the old <select>s —
+     only the way they are browsed changed (a search box over the list). */
+  const branchChoices = (plantOptions || PCR_BRANCH_OPTIONS)
+    .map((b) => ({ value: b.code, label: `${b.label} (${b.code})` }));
+  const purposeChoices = ALLOWABLE_PURPOSES.map((p) => ({ value: p, label: p }))
+    .concat([{ value: OTHERS_PURPOSE, label: `${OTHERS_PURPOSE} (requires justification)` }]);
   const isOthers = form.purpose === OTHERS_PURPOSE;
   const validPurpose = !!form.purpose && (!isOthers || form.purposeJustification.trim());
   /* Request No. is system-generated and locked for every role except Accounting.
@@ -77,29 +83,38 @@ function RequestFormModal({ onClose, onSave, nextRequestNo, request, plantOption
           <div className="pcp-field-row">
             <div className="pcp-field">
               <label>Plant / Branch <span style={{ color: "var(--brand)" }}>*</span></label>
-              <select className="pcp-select" value={form.branchCode} onChange={(e) => set("branchCode", e.target.value)} required>
-                <option value="">— Select Plant / Branch —</option>
-                {plantOptions ? (
-                  plantOptions.map((p) => <option key={p.code} value={p.code}>{p.label} ({p.code})</option>)
-                ) : (
-                  PCR_BRANCH_OPTIONS.map((b) => <option key={b.code} value={b.code}>{b.label} ({b.code})</option>)
-                )}
-              </select>
+              <SearchSelect
+                value={form.branchCode}
+                onChange={(v) => set("branchCode", v)}
+                options={branchChoices}
+                placeholder="— Select Plant / Branch —"
+                emptyOptionLabel="— Select Plant / Branch —"
+                searchPlaceholder="Search plant or branch code…"
+                invalid={!form.branchCode}
+              />
             </div>
             <div className="pcp-field">
               <label>Department</label>
-              <select className="pcp-select" value={form.department} onChange={(e) => set("department", e.target.value)}>
-                {SUBACCOUNTS.filter((s) => s.desc).map((s) => <option key={s.code} value={s.code}>{s.desc} ({s.code})</option>)}
-              </select>
+              <SearchSelect
+                value={form.department}
+                onChange={(v) => set("department", v)}
+                options={DEPARTMENT_CHOICES}
+                placeholder="— Select Department —"
+                searchPlaceholder="Search department or sub-account…"
+              />
             </div>
           </div>
           <div className="pcp-field">
             <label>Purpose</label>
-            <select className="pcp-select" value={form.purpose} onChange={(e) => set("purpose", e.target.value)}>
-              <option value="">— Select an allowable purpose —</option>
-              {ALLOWABLE_PURPOSES.map((p) => <option key={p} value={p}>{p}</option>)}
-              <option value={OTHERS_PURPOSE}>{OTHERS_PURPOSE} (requires justification)</option>
-            </select>
+            <SearchSelect
+              value={form.purpose}
+              onChange={(v) => set("purpose", v)}
+              options={purposeChoices}
+              placeholder="— Select an allowable purpose —"
+              emptyOptionLabel="— Select an allowable purpose —"
+              searchPlaceholder="Search allowable purpose…"
+              invalid={!form.purpose}
+            />
           </div>
           {isOthers && (
             <div className="pcp-field">

@@ -382,7 +382,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     setDisbursements((ds) => [...ds, {
       id: uid("dv"), voucherNo: nextVoucherNo, date: extra.date, requestId: req.id,
       employee: req.employee, branchCode: req.branchCode, department: req.department,
-      expenseCategory: extra.expenseCategory, amount: extra.amount, status: "Open",
+      expense: extra.expense || "", amount: extra.amount, status: "Open",
       remarks: extra.remarks, billed: false,
     }]);
     setRequests((rs) => rs.map((r) => (r.id === req.id ? { ...r, status: "Disbursed" } : r)));
@@ -1049,6 +1049,12 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
         items: plantMods.map((m) => ({ tabKey: plantTabKey(p.code, m.key), label: m.label, icon: m.icon })),
       });
     });
+    /* Approvals sit directly under the plants: it is the first place an approver
+       looks, and it already spans every plant, so it is not repeated per plant. */
+    const apprMods = APPROVAL_MODULES.filter((m) => roleModuleKeys.includes(m.key));
+    if (apprMods.length) {
+      groups.push({ key: "approvals", label: "Approvals", items: apprMods.map((m) => ({ tabKey: m.key, label: m.label, icon: m.icon })) });
+    }
     const monMods = MONITORING_MODULES.filter((m) => roleModuleKeys.includes(m.key));
     if (monMods.length) {
       groups.push({ key: "monitoring", label: "Monitoring", items: monMods.map((m) => ({ tabKey: m.key, label: m.label, icon: m.icon })) });
@@ -1248,6 +1254,22 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             funds={scopedFunds} requests={scopedRequests} disbursements={scopedDisbursements} liquidations={scopedLiquidations} replenishments={scopedReplenishments}
             auditLog={auditLog} generatedBy={userName || userEmail}
             plantTitle={activePlantLabel}
+          />
+        )}
+        {activeModule === "approvals" && (
+          <ApprovalModuleTab
+            disbursements={visibleDisbursements} liquidations={visibleLiquidations}
+            reimbursements={visibleReimbursements}
+            onDecideReceipt={decideReceipt}
+            onRejectLiquidation={rejectLiquidation}
+            onReopenLiquidation={reopenLiquidation}
+            onReimbursementAction={reimbursementAction}
+            onExportReimbursementAcumatica={exportReimbursementAcumatica}
+            canApproveLiquidation={isLiquidationApprover}
+            canApproveReimbursement={canApprove}
+            canFinance={["Accounting", "Finance", "SuperAdmin"].includes(role) || !!isAdmin}
+            currentUser={userName || role}
+            plantOptions={plantOptions}
           />
         )}
         {activeModule === "aging" && (

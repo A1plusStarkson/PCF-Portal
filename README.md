@@ -132,9 +132,10 @@ Then open `http://localhost:8000` in your browser.
 
 ## Deployment
 
-Deploy the whole [`src/`](src/) folder together with `index.html` (and
-`SPI PAPER LOGO.png` next to `index.html`). It is compatible with static hosts
-such as GitHub Pages.
+Deploy the whole [`src/`](src/) folder together with `index.html` and the company
+logo PNGs that sit next to it (`SPI PAPER LOGO.png`, `A1 PAPER LOGO.png`,
+`HAMFI LOGO.png` — the report header reads these by filename). It is compatible
+with static hosts such as GitHub Pages.
 
 When you change a `src/*.jsx` file, bump `window.PCP_SRC_VERSION` in `index.html`
 to bust the browser cache.

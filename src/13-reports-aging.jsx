@@ -116,7 +116,7 @@ function buildAgingRecords(disbursements, liquidations, funds, requests, today) 
       ageDays, overdueDays, isPastDue, isDueToday, isPending,
       agingBucket: agingStatusOf(ageDays, fullyLiquidated),
       liqStatus: fullyLiquidated ? "Completed" : (isPastDue ? "Overdue" : (isDueToday ? "Due Today" : "Pending")),
-      expenseCategory: d.expenseCategory || "",
+      expenseCategory: disbExpense(d),
     };
   });
 }
@@ -362,8 +362,8 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
       <div className="pcp-content">
         <div className="pcp-card pcp-card-pad" style={{ marginBottom: 16 }}>
           <div className="pcp-report-head">
-            <img src={LOGO_A1} alt="A1+ Paper and Plastic Inc." />
-            <img src={LOGO_SPI} alt="Starkson Paper and Plastic Corporation" />
+            <img src={LOGO_A1} alt="A1+ Multinational Packaging, Inc" />
+            <img src={LOGO_SPI} alt="Starkson Packaging, Inc." />
             <div style={{ marginLeft: "auto", textAlign: "right" }}>
               <div className="pcp-report-title">Liquidation &amp; Reimbursement Aging Report</div>
               <div className="pcp-report-sub">

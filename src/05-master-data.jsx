@@ -1,94 +1,104 @@
+/* ---------------------------------------------------------------------------
+   BRANCH MASTER
+   Branch ID / Branch Name / Company Name exactly as maintained by Accounting.
+   Company names were rebranded in Sept 2026 (Starkson Paper and Plastic
+   Corporation -> Starkson Packaging, Inc.; A1+ Paper and Plastic Inc. ->
+   A1+ Multinational Packaging, Inc). Records already filed keep their branch
+   CODE, so the rename flows through history, reports and Acumatica unchanged.
+--------------------------------------------------------------------------- */
 const BRANCHES = [
   {
     "code": "ST",
-    "name": "Starkson Paper And Plastic Corporation",
-    "company": "Starkson Paper and Plastic Corporation"
+    "name": "Starkson Packaging, Inc.",
+    "company": "Starkson Packaging, Inc."
   },
   {
     "code": "D1",
     "name": "Disney 1",
-    "company": "Starkson Paper and Plastic Corporation"
+    "company": "Starkson Packaging, Inc."
   },
   {
     "code": "D2",
     "name": "Disney 2",
-    "company": "Starkson Paper and Plastic Corporation"
+    "company": "Starkson Packaging, Inc."
   },
   {
     "code": "D3",
     "name": "Disney 3",
-    "company": "Starkson Paper and Plastic Corporation"
+    "company": "Starkson Packaging, Inc."
   },
   {
     "code": "D8",
     "name": "Disney 8",
-    "company": "Starkson Paper and Plastic Corporation"
+    "company": "Starkson Packaging, Inc."
   },
   {
     "code": "D5",
     "name": "Disney 5",
-    "company": "Starkson Paper and Plastic Corporation"
+    "company": "Starkson Packaging, Inc."
   },
   {
     "code": "D6",
     "name": "Disney 6",
-    "company": "Starkson Paper and Plastic Corporation"
+    "company": "Starkson Packaging, Inc."
   },
   {
     "code": "D7",
     "name": "Disney 7",
-    "company": "Starkson Paper and Plastic Corporation"
+    "company": "Starkson Packaging, Inc."
   },
   {
     "code": "D9",
     "name": "Disney 9",
-    "company": "Starkson Paper and Plastic Corporation"
+    "company": "Starkson Packaging, Inc."
   },
   {
     "code": "A1+",
-    "name": "A1+ Paper And Plastic Inc.",
-    "company": "A1+ Paper and Plastic Inc."
-  },
-  {
-    "code": "EURASIA",
-    "name": "Eurasia",
-    "company": "A1+ Paper and Plastic Inc."
+    "name": "A1+ Multinational Packaging, Inc",
+    "company": "A1+ Multinational Packaging, Inc"
   },
   {
     "code": "HASBRO",
     "name": "Hasbro",
-    "company": "A1+ Paper and Plastic Inc."
+    "company": "A1+ Multinational Packaging, Inc"
   },
   {
     "code": "SITIO",
     "name": "Sitio",
-    "company": "A1+ Paper and Plastic Inc."
+    "company": "A1+ Multinational Packaging, Inc"
   },
   {
     "code": "MATTEL",
     "name": "Mattel",
-    "company": "A1+ Paper and Plastic Inc."
+    "company": "A1+ Multinational Packaging, Inc"
   },
   {
     "code": "PERULANDIA",
     "name": "Perulandia",
-    "company": "A1+ Paper and Plastic Inc."
+    "company": "A1+ Multinational Packaging, Inc"
   },
   {
-    "code": "WARNER",
-    "name": "Warner",
-    "company": "A1+ Paper and Plastic Inc."
-  },
-  {
-    "code": "HAMFI(HO)",
-    "name": "Happy Alliance Mono Film, Inc.",
-    "company": "Happy Alliance Mono Film, Inc."
+    "code": "EURASIA",
+    "name": "Eurasia",
+    "company": "A1+ Multinational Packaging, Inc"
   },
   {
     "code": "STINDUSTRY",
     "name": "Starkson Industries Inc.",
     "company": "Starkson Industries Inc."
   },
+  {
+    "code": "WARNER",
+    "name": "Warner",
+    "company": "A1+ Multinational Packaging, Inc"
+  },
+  {
+    "code": "HAMFI(HO)",
+    "name": "Happy Alliance Mono Film, Inc.",
+    "company": "Happy Alliance Mono Film, Inc."
+  },
+  /* Not in the Accounting branch sheet, but the RG and Co. petty cash fund is
+     filed against this code — dropping it would orphan that whole plant. */
   {
     "code": "RG",
     "name": "RG and Co.",
@@ -97,8 +107,8 @@ const BRANCHES = [
 ];
 
 const COMPANIES = [
-  "A1+ Paper and Plastic Inc.",
-  "Starkson Paper and Plastic Corporation",
+  "A1+ Multinational Packaging, Inc",
+  "Starkson Packaging, Inc.",
   "Happy Alliance Mono Film, Inc.",
   "Starkson Industries Inc.",
   "RG & Co. Property Management Corporation"
@@ -115,14 +125,25 @@ const DEFAULT_REVIEWER = "Manager";
 const DEFAULT_APPROVER = "Grace P. Gan";
 const DEFAULT_APPROVER_ROLE = "Finance Director";
 const COMPANY_PROFILES = {
+  "A1+ Multinational Packaging, Inc": {
+    logo: REPORT_LOGO_A1, reviewer: DEFAULT_REVIEWER, approver: DEFAULT_APPROVER, approverRole: DEFAULT_APPROVER_ROLE,
+  },
+  "Starkson Packaging, Inc.": {
+    logo: REPORT_LOGO, reviewer: DEFAULT_REVIEWER, approver: DEFAULT_APPROVER, approverRole: DEFAULT_APPROVER_ROLE,
+  },
+  "Happy Alliance Mono Film, Inc.": {
+    logo: REPORT_LOGO_HAMFI, reviewer: DEFAULT_REVIEWER, approver: DEFAULT_APPROVER, approverRole: DEFAULT_APPROVER_ROLE,
+  },
+  "RG & Co. Property Management Corporation": {
+    logo: REPORT_LOGO_RG, reviewer: DEFAULT_REVIEWER, approver: DEFAULT_APPROVER, approverRole: DEFAULT_APPROVER_ROLE,
+  },
+  /* Pre-rename names kept so a report generated against a historical record
+     still finds the right branding instead of falling back to the heuristic. */
   "A1+ Paper and Plastic Inc.": {
     logo: REPORT_LOGO_A1, reviewer: DEFAULT_REVIEWER, approver: DEFAULT_APPROVER, approverRole: DEFAULT_APPROVER_ROLE,
   },
   "Starkson Paper and Plastic Corporation": {
     logo: REPORT_LOGO, reviewer: DEFAULT_REVIEWER, approver: DEFAULT_APPROVER, approverRole: DEFAULT_APPROVER_ROLE,
-  },
-  "RG & Co. Property Management Corporation": {
-    logo: REPORT_LOGO_RG, reviewer: DEFAULT_REVIEWER, approver: DEFAULT_APPROVER, approverRole: DEFAULT_APPROVER_ROLE,
   },
 };
 /* Resolve the branding/signatory profile for a company (null when unknown so
@@ -131,11 +152,18 @@ const companyProfile = (company) => COMPANY_PROFILES[company] || null;
 
 /* The four operating petty-cash plants used for plant-scoped access control,
    per-plant dashboards, and the plant selector shown inside each module. */
+/* This IS the "Petty Cash Funds (Plants)" master sheet: plant, branch, company
+   (via the branch master), custodian and beginning balance. seedFunds() in
+   02-helpers.jsx builds the fund rows straight from here, so the numbers live in
+   exactly one place. `fundId` is the stable record id — never renumber it, or a
+   database that already holds that fund would gain a duplicate. */
 const PLANTS = [
-  { key: "MNL", code: "A1+", label: "Manila", custodian: "Maureen Felix" },
-  { key: "WARNER", code: "WARNER", label: "Warner", custodian: "Angelita Bayani" },
-  { key: "DISNEY", code: "D1", label: "Disney", custodian: "Pura Barloso" },
-  { key: "RG", code: "RG", label: "RG and Co.", custodian: "Pura Barloso" },
+  { key: "MNL", fundId: "fund-MNL", code: "A1+", label: "Manila", custodian: "Maureen Felix", beginningBalance: 600000 },
+  { key: "WARNER", fundId: "fund-WAR", code: "WARNER", label: "Warner", custodian: "Angelita Bayani", beginningBalance: 150000 },
+  /* Disney's fund is filed against the Starkson company branch (ST), not D1 —
+     D1..D9 are sub-locations that draw on it (see PLANT_FAMILIES below). */
+  { key: "DISNEY", fundId: "fund-DIS", code: "ST", label: "Disney", custodian: "Pura Barloso", beginningBalance: 700000 },
+  { key: "RG", fundId: "fund-RG", code: "RG", label: "RG and Co.", custodian: "Pura Barloso", beginningBalance: 300000 },
 ];
 const PLANT_CODES = PLANTS.map((p) => p.code);
 /* Display name for a branch code: the plant label when it is one of the four
@@ -169,13 +197,17 @@ const ALL_BRANCH_CODES = Array.from(new Set(BRANCHES.map((b) => b.code).concat(P
    record that is visible to one member of a plant and hidden from another.
 
    Note the families line up with the company master: the Disney family is
-   exactly the branch list of Starkson Paper and Plastic Corporation, and the
-   Manila family is A1+ Paper and Plastic Inc. minus Warner, which holds its own
-   fund and its own custodian. */
+   exactly the branch list of Starkson Packaging, Inc., and the Manila family is
+   A1+ Multinational Packaging, Inc minus Warner, which holds its own fund and
+   its own custodian.
+
+   The Disney family is keyed on ST (the company branch that actually holds the
+   fund). D1 stays inside the family, so vouchers already filed against D1..D9
+   keep rolling up to the same plant and nothing goes missing. */
 const PLANT_FAMILIES = [
   { plant: "A1+",    branches: ["A1+", "EURASIA", "HASBRO", "SITIO", "MATTEL", "PERULANDIA"] },
   { plant: "WARNER", branches: ["WARNER"] },
-  { plant: "D1",     branches: ["ST", "D1", "D2", "D3", "D5", "D6", "D7", "D8", "D9"] },
+  { plant: "ST",     branches: ["ST", "D1", "D2", "D3", "D5", "D6", "D7", "D8", "D9"] },
   { plant: "RG",     branches: ["RG"] },
 ];
 const PLANT_OF_BRANCH = (() => {
@@ -214,9 +246,9 @@ const resolvePlants = (plants) => ((plants === "ALL" || !plants)
 --------------------------------------------------------------------------- */
 const PCR_BRANCH_CODES = ["D1", "D2", "D3", "D5", "D6", "D7", "D8", "D9", "HASBRO", "SITIO", "MATTEL", "PERULANDIA", "WARNER", "A1+", "RG", "ST"];
 const PCR_BRANCH_LABELS = {
-  "A1+": "A1+ Paper and Plastic Inc.",
+  "A1+": "A1+ Multinational Packaging, Inc",
   "RG": "RG & Co. Property Management Corporation",
-  "ST": "Starkson Paper and Plastic Corporation",
+  "ST": "Starkson Packaging, Inc.",
 };
 const PCR_BRANCH_OPTIONS = PCR_BRANCH_CODES.map((code) => {
   const b = BRANCHES.find((x) => x.code === code);
@@ -795,8 +827,22 @@ const SUBACCOUNTS = [
 ];
 
 /* Tax categories mirror Acumatica's Tax Category master file. Used in the
-   Liquidation worksheet and exported straight into the "Tax Category" column. */
+   Liquidation worksheet and exported straight into the "Tax Category" column.
+
+   Accounting narrowed the selectable list to the five petty-cash categories
+   below (Sept 2026 master data update). Everything that was previously
+   selectable lives on in TAX_CATEGORIES_LEGACY: it is no longer offered for new
+   entries, but taxCategoryLabel() still resolves it so a historical liquidation
+   keeps showing its real description instead of a bare code. */
 const TAX_CATEGORIES = [
+  { code: "VATEX", desc: "VAT – Exempt Goods" },
+  { code: "VATEXSS", desc: "VAT – Exempt Services" },
+  { code: "VATEXC", desc: "Vat Excluded" },
+  { code: "VATGD", desc: "VAT – Vatable Goods" },
+  { code: "VATSS", desc: "VAT – Vatable Services" },
+];
+
+const TAX_CATEGORIES_LEGACY = [
   { code: "CHN VAT8", desc: "CHN_VAT8%" },
   { code: "CHTX", desc: "CHINA TAXES" },
   { code: "LCBROKER", desc: "Landed Cost Brokerage - WC140" },
@@ -808,14 +854,9 @@ const TAX_CATEGORIES = [
   { code: "LCVATEXSS", desc: "Landed Cost VAT – Exempt Services" },
   { code: "LCWHARFAGE", desc: "Landed Cost Wharfage/Arrastre WC160" },
   { code: "VATCE", desc: "VAT- Capital Goods Exceeding 1M" },
-  { code: "VATEX", desc: "VAT – Exempt Goods" },
-  { code: "VATEXC", desc: "Vat Excluded" },
-  { code: "VATEXSS", desc: "VAT – Exempt Services" },
-  { code: "VATGD", desc: "VAT – Vatable Goods" },
   { code: "VATIM", desc: "VAT – Importation" },
   { code: "VATNC", desc: "VAT- Capital Goods not Exceeding 1M" },
   { code: "VATSG", desc: "VAT – Sale to Government" },
-  { code: "VATSS", desc: "VAT – Vatable Services" },
   { code: "VATWH", desc: "VAT - Withholding Tax Holiday" },
   { code: "VATXX", desc: "VAT - Exempt Transaction" },
   { code: "VATZR", desc: "VAT – Zero Rated" },
@@ -824,7 +865,8 @@ const TAX_CATEGORIES = [
 
 const taxCategoryLabel = (code) => {
   if (!code) return "—";
-  const t = TAX_CATEGORIES.find((x) => x.code === code);
+  const t = TAX_CATEGORIES.find((x) => x.code === code)
+    || TAX_CATEGORIES_LEGACY.find((x) => x.code === code);
   return t ? `${t.code} — ${t.desc}` : code;
 };
 
@@ -833,9 +875,9 @@ const taxCategoryLabel = (code) => {
 /* Each role only sees the nav tabs relevant to it. Plant-level data access is
    controlled separately (per user) so a custodian only sees their own plants. */
 const ROLES = {
-  "SuperAdmin": { label: "System Administrator", tabs: ["dashboard", "requests", "disbursements", "liquidation", "reimbursement", "replenishment", "history", "report", "aging", "documents", "audit", "masterdata", "users", "settings"] },
-  "Accounting": { label: "Accounting Department", tabs: ["dashboard", "requests", "disbursements", "liquidation", "reimbursement", "replenishment", "history", "report", "aging", "documents", "audit", "masterdata", "users", "settings"] },
-  "Finance":    { label: "Finance Department",    tabs: ["dashboard", "requests", "disbursements", "liquidation", "reimbursement", "replenishment", "history", "report", "aging", "documents", "audit", "masterdata"] },
+  "SuperAdmin": { label: "System Administrator", tabs: ["dashboard", "requests", "disbursements", "liquidation", "reimbursement", "replenishment", "history", "report", "approvals", "aging", "documents", "audit", "masterdata", "users", "settings"] },
+  "Accounting": { label: "Accounting Department", tabs: ["dashboard", "requests", "disbursements", "liquidation", "reimbursement", "replenishment", "history", "report", "approvals", "aging", "documents", "audit", "masterdata", "users", "settings"] },
+  "Finance":    { label: "Finance Department",    tabs: ["dashboard", "requests", "disbursements", "liquidation", "reimbursement", "replenishment", "history", "report", "approvals", "aging", "documents", "audit", "masterdata"] },
   "Custodian":  { label: "Custodian",             tabs: ["dashboard", "requests", "disbursements", "liquidation", "reimbursement", "replenishment", "history", "report", "aging", "documents"] },
   /* PCF Requestor: prepares transactions only. Full Petty Cash Requests + full
      Liquidation (except approval) + Reimbursement (prepare/submit, no approval);
@@ -1079,7 +1121,7 @@ const ALLOWABLE_PURPOSES = [
 
 /* ============================= REIMBURSEMENT PURPOSE MASTER =============================
    Controlled Accounting master-data classification for the Reimbursement module.
-   Exactly 56 approved FOH/OE expense purposes (25 FOH + 31 OE). Purpose is
+   57 approved purposes: 25 FOH + 31 OE + "Others: Multiple Expenses". Purpose is
    treated as master data, NOT free text: an employee selects ONE ACTIVE value,
    the backend validates the selection, and the classification travels with the
    transaction through its whole PCF lifecycle.
@@ -1149,11 +1191,21 @@ const REIMB_PURPOSE_MASTER = (() => {
     "OE Toll Fee",
     "OE Transportation and travel",
   ];
+  /* A claim that bundles several unrelated expenses onto one request has no
+     single FOH/OE purpose. Rather than force the employee to mis-classify it,
+     this is an explicit choice — the real classification then lives on each
+     expense line, where it belongs. */
+  const other = [
+    "Others: Multiple Expenses",
+  ];
   const now = "2026-01-01T00:00:00";
   const build = (names, category) => names.map((name, i) => ({
     id: 0, code: category, name, category, status: "ACTIVE", created_at: now, updated_at: now,
   }));
-  return build(foh, "FOH").concat(build(oe, "OE")).map((p, i) => ({ ...p, id: i + 1 }));
+  return build(foh, "FOH")
+    .concat(build(oe, "OE"))
+    .concat(build(other, "OTHER"))
+    .map((p, i) => ({ ...p, id: i + 1 }));
 })();
 
 /* Fast lookup + derived views used by the dropdown, validation and reporting. */
@@ -1162,6 +1214,7 @@ const REIMB_PURPOSE_ACTIVE = REIMB_PURPOSE_MASTER.filter((p) => p.status === "AC
 const REIMB_PURPOSE_GROUPS = [
   { category: "FOH", label: "FOH EXPENSES", purposes: REIMB_PURPOSE_ACTIVE.filter((p) => p.category === "FOH") },
   { category: "OE", label: "OE EXPENSES", purposes: REIMB_PURPOSE_ACTIVE.filter((p) => p.category === "OE") },
+  { category: "OTHER", label: "OTHER", purposes: REIMB_PURPOSE_ACTIVE.filter((p) => p.category === "OTHER") },
 ];
 /* Category (FOH/OE) of a stored purpose name, "" when unknown/legacy. */
 const purposeCategory = (name) => (REIMB_PURPOSE_BY_NAME[String(name || "").trim()] || {}).category || "";
@@ -1292,3 +1345,20 @@ function accountForCategory(category) {
   return EXPENSE_CATEGORY_ACCOUNTS[category] || "";
 }
 
+
+/* ---------------------------------------------------------------------------
+   SEARCHABLE-DROPDOWN OPTION LISTS
+   One source of truth for the option lists handed to <SearchSelect>, so the
+   Petty Cash Request form, the Liquidation worksheet and the Reimbursement form
+   all browse the same master data in the same shape.
+--------------------------------------------------------------------------- */
+const DEPARTMENT_CHOICES = SUBACCOUNTS.filter((s) => s.desc)
+  .map((s) => ({ value: s.code, label: s.desc, hint: s.code }));
+
+const EXPENSE_CATEGORY_CHOICES = EXPENSE_CATEGORIES
+  .map((c) => ({ value: c, label: c, hint: accountForCategory(c) }));
+
+/* Selectable tax categories only. A retired code already on a record still
+   renders through taxCategoryLabel(), it is simply no longer offered. */
+const TAX_CATEGORY_CHOICES = TAX_CATEGORIES
+  .map((t) => ({ value: t.code, label: t.code, hint: t.desc }));

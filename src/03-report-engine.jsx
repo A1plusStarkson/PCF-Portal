@@ -1,6 +1,6 @@
 /* ============================= REPORT ENGINE ============================= */
 
-const COMPANY_MAIN = "STARKSON PAPER AND PLASTIC CORPORATION";
+const COMPANY_MAIN = "STARKSON PACKAGING, INC.";
 const PORTAL_NAME = "PETTY CASH FUND (PCF) PORTAL";
 
 /* Company logo for the reports — resolved from the actual PNG that ships beside
@@ -14,6 +14,10 @@ const REPORT_LOGO = (() => {
 const REPORT_LOGO_A1 = (() => {
   try { return new URL(encodeURI("A1 PAPER LOGO.png"), document.baseURI).href; }
   catch (e) { return "A1 PAPER LOGO.png"; }
+})();
+const REPORT_LOGO_HAMFI = (() => {
+  try { return new URL(encodeURI("HAMFI LOGO.png"), document.baseURI).href; }
+  catch (e) { return "HAMFI LOGO.png"; }
 })();
 /* RG & Co. Property Management Corporation has no bundled PNG yet — prefer an
    "RG PAPER LOGO.png" if one is uploaded beside index.html, otherwise fall back
@@ -168,7 +172,7 @@ function buildReport(type, D, F) {
         let bal = Number(fund && fund.beginningBalance) || 0;
         const evts = [];
         disbursements.filter((d) => d.branchCode === code && okDate(d.date)).forEach((d) =>
-          evts.push({ d: d.date, ref: d.voucherNo, particulars: `${d.employee} — ${d.expenseCategory || deptDesc(d.department)}`, type: "Disbursement", in: 0, out: Number(d.amount) || 0 }));
+          evts.push({ d: d.date, ref: d.voucherNo, particulars: `${d.employee} — ${disbExpense(d) || deptDesc(d.department)}`, type: "Disbursement", in: 0, out: Number(d.amount) || 0 }));
         reps.filter((r) => r.branchCode === code && r.status === "Completed" && okDate(r.date)).forEach((r) =>
           evts.push({ d: r.date, ref: r.replenishmentNo, particulars: `Replenishment — ${r.preparedBy || ""}`, type: "Replenishment", in: Number(r.amount) || 0, out: 0 }));
         evts.sort((a, b) => (a.d || "").localeCompare(b.d || ""));
@@ -184,17 +188,17 @@ function buildReport(type, D, F) {
       const columns = [
         c("voucher", "Voucher No."), c("date", "Date"), c("employee", "Employee"),
         c("branch", "Branch"), c("company", "Company"), c("dept", "Department"),
-        c("category", "Expense Category", { width: "18%" }), c("status", "Liq. Status", { align: "center" }),
+        c("category", "Expense", { width: "18%" }), c("status", "Liq. Status", { align: "center" }),
         c("amount", "Amount", { money: true }),
       ];
       const arr = fDisb.filter((d) =>
-        (!F.category || d.expenseCategory === F.category) &&
-        (!F.account || accountForCategory(d.expenseCategory) === F.account) &&
+        (!F.category || disbExpense(d) === F.category) &&
+        (!F.account || accountForCategory(disbExpense(d)) === F.account) &&
         (!F.status || liqStatusFor(d, liquidations) === F.status)
       ).sort((a, b) => (a.date || "").localeCompare(b.date || ""));
       const rows = arr.map((d) => ({
         voucher: d.voucherNo, date: fmtDate(d.date), employee: d.employee, branch: d.branchCode,
-        company: companyOfBranch(d.branchCode), dept: deptDesc(d.department), category: d.expenseCategory,
+        company: companyOfBranch(d.branchCode), dept: deptDesc(d.department), category: disbExpense(d),
         status: liqStatusFor(d, liquidations), amount: Number(d.amount) || 0,
       }));
       return fin(columns, rows, rows.length, "GRAND TOTAL");
@@ -364,7 +368,7 @@ function buildReport(type, D, F) {
       ];
       const evts = [];
       fReq.forEach((r) => evts.push({ _d: r.date, date: fmtDate(r.date), type: "Request", ref: r.requestNo, branch: r.branchCode, description: `${r.employee} — ${r.purpose || ""}`, status: r.status || "—", amount: Number(r.amount) || 0 }));
-      fDisb.forEach((d) => evts.push({ _d: d.date, date: fmtDate(d.date), type: "Disbursement", ref: d.voucherNo, branch: d.branchCode, description: `${d.employee} — ${d.expenseCategory || ""}`, status: liqStatusFor(d, liquidations), amount: Number(d.amount) || 0 }));
+      fDisb.forEach((d) => evts.push({ _d: d.date, date: fmtDate(d.date), type: "Disbursement", ref: d.voucherNo, branch: d.branchCode, description: `${d.employee} — ${disbExpense(d)}`, status: liqStatusFor(d, liquidations), amount: Number(d.amount) || 0 }));
       fLiq.forEach((l) => { const d = disbursements.find((x) => x.id === l.disbursementId); if (!d) return; evts.push({ _d: (l.lines[0] && l.lines[0].date) || d.date, date: fmtDate((l.lines[0] && l.lines[0].date) || d.date), type: "Liquidation", ref: d.voucherNo, branch: d.branchCode, description: `${d.employee} — ${l.lines.length} line(s)`, status: "Liquidated", amount: liquidatedTotal(l) }); });
       fRepl.forEach((r) => evts.push({ _d: r.date, date: fmtDate(r.date), type: "Replenishment", ref: r.replenishmentNo, branch: r.branchCode, description: `Replenishment — ${r.preparedBy || ""}`, status: r.status || "—", amount: Number(r.amount) || 0 }));
       evts.sort((a, b) => (b._d || "").localeCompare(a._d || ""));

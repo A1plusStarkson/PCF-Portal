@@ -248,25 +248,48 @@ const CSS = `
   .pcp-appr-approved { background: var(--green-bg); color: var(--green); }
   .pcp-appr-pending { background: var(--amber-bg); color: var(--amber); }
   .pcp-appr-rejected { background: var(--red-bg); color: var(--brand); }
-  /* Searchable Purpose dropdown (controlled Accounting master data) */
-  .pcp-purpose-wrap { position: relative; }
-  .pcp-purpose-btn {
+  /* Searchable dropdown — every master-data picker (branch, department,
+     expense category, tax category, purpose) shares this one look. */
+  .pcp-purpose-wrap, .pcp-ss-wrap { position: relative; }
+  .pcp-purpose-btn, .pcp-ss-btn {
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
     width: 100%; text-align: left; cursor: pointer;
   }
-  .pcp-purpose-btn.placeholder { color: var(--text-mut); }
-  .pcp-purpose-pop {
+  .pcp-purpose-btn.placeholder, .pcp-ss-btn.placeholder { color: var(--text-mut); }
+  .pcp-ss-btn:disabled { background: #f4f6f9; color: var(--text-mut); cursor: not-allowed; }
+  .pcp-purpose-pop, .pcp-ss-pop {
     position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 60;
     background: #fff; border: 1px solid var(--line); border-radius: 10px;
     box-shadow: 0 12px 30px rgba(20,20,50,0.16); padding: 8px;
   }
-  .pcp-purpose-group {
+  /* Narrow in-table pickers would clip their own option text, so the popover is
+     allowed to grow past the cell it is anchored to. */
+  .pcp-ss-pop { min-width: 240px; }
+  .pcp-purpose-group, .pcp-ss-group {
     font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
     color: var(--text-mut); padding: 8px 8px 4px;
   }
-  .pcp-purpose-opt { font-size: 12.5px; padding: 7px 9px; border-radius: 7px; cursor: pointer; }
-  .pcp-purpose-opt:hover { background: var(--red-bg); }
-  .pcp-purpose-opt.active { background: var(--brand); color: #fff; }
+  .pcp-purpose-opt, .pcp-ss-opt { font-size: 12.5px; padding: 7px 9px; border-radius: 7px; cursor: pointer; }
+  .pcp-purpose-opt:hover, .pcp-ss-opt:hover { background: var(--red-bg); }
+  .pcp-purpose-opt.active, .pcp-ss-opt.active { background: var(--brand); color: #fff; }
+  .pcp-ss-opt-hint { font-size: 10.5px; color: var(--text-mut); }
+  .pcp-ss-opt.active .pcp-ss-opt-hint { color: rgba(255,255,255,0.8); }
+
+  /* Inline document previews (checker / approver read the receipt in place) */
+  .pcp-doc-gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
+  .pcp-doc-tile { border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: #fff; }
+  .pcp-doc-tile-head {
+    display: flex; align-items: center; gap: 7px; padding: 7px 9px;
+    border-bottom: 1px solid var(--line); background: #f8f9fc;
+  }
+  .pcp-doc-tile-name {
+    font-size: 11.5px; font-weight: 600; min-width: 0; flex: 1;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .pcp-doc-frame { background: #f4f6f9; display: block; }
+  .pcp-doc-frame img { display: block; width: 100%; max-height: 260px; object-fit: contain; }
+  .pcp-doc-frame iframe { display: block; width: 100%; height: 260px; border: none; }
+  .pcp-doc-frame .pcp-doc-none { padding: 22px 14px; text-align: center; font-size: 11.5px; color: var(--text-mut); }
   .pcp-appr-row {
     display: grid; grid-template-columns: 150px 1fr auto; gap: 10px; align-items: center;
     padding: 10px 0; border-bottom: 1px solid #eef0f3;
@@ -507,6 +530,12 @@ const GLOBAL_MODULES = [
   { key: "settings", label: "System Settings", icon: Settings },
 ];
 
+/* Cross-plant approval workspace. Checking and approval is one person's queue
+   across every company, so it is NOT a per-plant tab — see src/23-approvals.jsx. */
+const APPROVAL_MODULES = [
+  { key: "approvals", label: "Approval Module", icon: ClipboardCheck },
+];
+
 /* Consolidated monitoring modules that span every plant in one shared view.
    The Liquidation Aging report lives here so it always covers ALL plants. */
 const MONITORING_MODULES = [
@@ -574,11 +603,11 @@ function Sidebar({ tab, setTab, role, navGroups, userEmail, userName, onSignOut,
           </button>
         )}
         <div className="pcp-logos-strip">
-          <img src={LOGO_A1} alt="A1+ Paper and Plastic Inc." />
-          <img src={LOGO_SPI} alt="Starkson Paper and Plastic Corporation" />
+          <img src={LOGO_A1} alt="A1+ Multinational Packaging, Inc" />
+          <img src={LOGO_SPI} alt="Starkson Packaging, Inc." />
         </div>
         <div style={{ fontSize: 10.5, color: "#6b7290", padding: "2px 6px" }}>
-          A1+ Paper &amp; Plastic Inc. · Starkson Paper &amp; Plastic Corp.
+          A1+ Multinational Packaging, Inc · Starkson Packaging, Inc.
         </div>
       </div>
     </aside>
@@ -679,6 +708,8 @@ function Badge({ status }) {
     "Fully Liquidated": "green", "Over-Liquidated": "red",
     Draft: "gray", Submitted: "amber", Verified: "blue", Completed: "green", Released: "green",
     "For Revision": "red", "Pending Approval": "amber", "Receipts Approved": "green", "No Receipts": "gray",
+    /* Approval Module stages (Section 3E) */
+    "Awaiting Approval": "amber", "Partially Approved": "blue", "Approved & Settled": "green",
     /* Cash-settlement / final liquidation states */
     LIQUIDATED: "green", "NOT YET LIQUIDATED": "amber", "Under Review": "red",
     SETTLED: "green", UNSETTLED: "amber",
@@ -711,6 +742,185 @@ function Collapsible({ title, subtitle, defaultOpen, right, children }) {
         {right && <span onClick={(e) => e.stopPropagation()}>{right}</span>}
       </div>
       {open && <div className="pcp-collapse-body">{children}</div>}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+   SEARCHABLE DROPDOWN
+   A drop-in replacement for a long <select>: same look, plus a search box over
+   the option list so the master-data pickers (Plant / Branch, Department,
+   Allowable Purpose, Expense Category, Tax Category) can be typed at instead of
+   scrolled through.
+
+   `options` accepts either a flat list of { value, label, hint } or a grouped
+   list of { label, options: [...] }. The stored value is always one of the
+   options — the search box only filters, it is never the value — so free text
+   can never reach a record through one of these fields.
+--------------------------------------------------------------------------- */
+function SearchSelect({
+  value, onChange, options, placeholder, searchPlaceholder, emptyOptionLabel,
+  disabled, title, invalid, style, popStyle,
+}) {
+  const [open, setOpen] = useState(false);
+  const [q, setQ] = useState("");
+  const wrapRef = useRef(null);
+
+  /* Close on an outside click so an open list never sits over the next field. */
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", onDoc);
+    return () => document.removeEventListener("mousedown", onDoc);
+  }, [open]);
+
+  /* Normalize flat and grouped inputs to one grouped shape (a flat list becomes
+     a single unlabelled group) so the render path below stays single. */
+  const groups = useMemo(() => {
+    const src = options || [];
+    const isGrouped = !!(src.length && src[0] && Array.isArray(src[0].options));
+    return isGrouped
+      ? src.map((g) => ({ label: g.label, items: g.options || [] }))
+      : [{ label: "", items: src }];
+  }, [options]);
+
+  const ql = q.trim().toLowerCase();
+  const shown = groups
+    .map((g) => ({
+      label: g.label,
+      items: g.items.filter((o) => !ql
+        || String(o.label || "").toLowerCase().includes(ql)
+        || String(o.value || "").toLowerCase().includes(ql)
+        || String(o.hint || "").toLowerCase().includes(ql)),
+    }))
+    .filter((g) => g.items.length);
+  const matchCount = shown.reduce((n, g) => n + g.items.length, 0);
+
+  /* The label for the current value comes from the options, so a stored code
+     always displays as its master-data name. A value no longer in the list (a
+     category Accounting has since retired) still shows, unchanged. */
+  const selected = groups.reduce(
+    (found, g) => found || g.items.find((o) => o.value === value) || null, null);
+  const shownLabel = selected ? selected.label : (value || "");
+
+  const pick = (v) => { onChange(v); setOpen(false); setQ(""); };
+
+  return (
+    <div className="pcp-ss-wrap" ref={wrapRef} style={style}>
+      <button
+        type="button" disabled={disabled} title={title || shownLabel}
+        className={"pcp-select pcp-ss-btn" + (shownLabel ? "" : " placeholder")}
+        style={invalid ? { borderColor: "var(--brand)" } : undefined}
+        onClick={() => { if (!disabled) { setOpen((o) => !o); setQ(""); } }}
+        aria-haspopup="listbox" aria-expanded={open}
+      >
+        <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+          {shownLabel || placeholder || "— Select —"}
+        </span>
+        <ChevronRight
+          size={14}
+          style={{ transform: open ? "rotate(-90deg)" : "rotate(90deg)", flexShrink: 0, opacity: 0.6, transition: "transform 0.12s" }}
+        />
+      </button>
+      {open && (
+        <div className="pcp-ss-pop" style={popStyle}>
+          <div style={{ position: "relative" }}>
+            <Search size={13} style={{ position: "absolute", left: 9, top: 9, color: "#9098b3" }} />
+            <input
+              autoFocus className="pcp-input" style={{ paddingLeft: 27 }}
+              placeholder={searchPlaceholder || "Search…"}
+              value={q} onChange={(e) => setQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Escape") { setOpen(false); setQ(""); }
+                /* Enter picks the only remaining match — the quickest path for
+                   someone who already knows the code they are after. */
+                if (e.key === "Enter" && matchCount === 1) {
+                  e.preventDefault();
+                  pick(shown[0].items[0].value);
+                }
+              }}
+            />
+          </div>
+          <div style={{ maxHeight: 260, overflowY: "auto", marginTop: 6 }} role="listbox">
+            {emptyOptionLabel && !ql && (
+              <div
+                role="option" aria-selected={!value}
+                className={"pcp-ss-opt" + (!value ? " active" : "")}
+                onClick={() => pick("")}
+              >
+                {emptyOptionLabel}
+              </div>
+            )}
+            {matchCount ? shown.map((g, gi) => (
+              <div key={g.label || gi}>
+                {g.label && <div className="pcp-ss-group">{g.label}</div>}
+                {g.items.map((o) => (
+                  <div
+                    key={o.value} role="option" aria-selected={o.value === value}
+                    className={"pcp-ss-opt" + (o.value === value ? " active" : "")}
+                    title={o.hint || o.label}
+                    onClick={() => pick(o.value)}
+                  >
+                    {o.label}
+                    {o.hint && <div className="pcp-ss-opt-hint">{o.hint}</div>}
+                  </div>
+                ))}
+              </div>
+            )) : (
+              <div className="pcp-empty" style={{ padding: 12, fontSize: 12 }}>
+                Nothing matches {JSON.stringify(q)}.
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ---------------------------------------------------------------------------
+   INLINE DOCUMENT PREVIEWS
+   Checking and approving a claim means reading the receipt, so every uploaded
+   file is rendered in place — images and PDFs inline, anything else as a
+   labelled tile with Open / Download. Nobody has to click "View" file by file.
+--------------------------------------------------------------------------- */
+function AttachmentGallery({ attachments, emptyLabel, renderFooter }) {
+  const list = attachments || [];
+  if (!list.length) {
+    return <div style={{ fontSize: 12, color: "var(--text-mut)" }}>{emptyLabel || "No documents attached."}</div>;
+  }
+  return (
+    <div className="pcp-doc-gallery">
+      {list.map((a, i) => {
+        const name = a.name || "document";
+        const type = String(a.type || "");
+        const ext = String(name).split(".").pop().toLowerCase();
+        const isImage = type.startsWith("image") || ["png", "jpg", "jpeg", "gif", "webp", "bmp"].includes(ext);
+        const isPdf = type.includes("pdf") || ext === "pdf";
+        return (
+          <div key={a.id || name + i} className="pcp-doc-tile">
+            <div className="pcp-doc-tile-head">
+              <Paperclip size={12} color="#2054a3" style={{ flexShrink: 0 }} />
+              <span className="pcp-doc-tile-name" title={name}>{name}</span>
+              {a.docType && <span className="pcp-badge pcp-badge-gray">{a.docType}</span>}
+              <a className="pcp-iconbtn" href={a.data} target="_blank" rel="noopener noreferrer" title="Open full size"><Search size={13} /></a>
+              <a className="pcp-iconbtn" href={a.data} download={name} title="Download"><Download size={13} /></a>
+            </div>
+            <div className="pcp-doc-frame">
+              {isImage && a.data ? (
+                <img src={a.data} alt={name} />
+              ) : isPdf && a.data ? (
+                <iframe title={name} src={a.data} />
+              ) : (
+                <div className="pcp-doc-none">
+                  No in-browser preview for {ext ? ext.toUpperCase() : "this"} files — use Open or Download.
+                </div>
+              )}
+            </div>
+            {renderFooter && renderFooter(a)}
+          </div>
+        );
+      })}
     </div>
   );
 }

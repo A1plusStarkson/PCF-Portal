@@ -12,6 +12,34 @@ const LIQUIDATION_APPROVER_EMAILS = ["a1plusadmin@a1plus.com"];
 /* The cash settlement classification now derives from the per-document receipt
    amounts — see reconcileReceipts / settlementStateFor in 02-helpers.jsx. */
 
+/* ---- Liquidation status filter ----
+   The Liquidation Module filters by status, and each source has its own
+   workflow, so each gets its own option list. The keys are the labels shown to
+   the user; the values are the statuses actually stored on a record, so the
+   wording can be changed here without touching any state machine.
+
+   "Unliquidated" is the user-facing name for the stored "Not Liquidated". */
+const LIQ_STATUS_FILTER_ALL = "All statuses";
+const PCA_STATUS_FILTERS = {
+  "Unliquidated": "Not Liquidated",
+  "Partially Liquidated": "Partially Liquidated",
+  "Fully Liquidated": "Fully Liquidated",
+};
+const PCA_STATUS_FILTER_KEYS = [LIQ_STATUS_FILTER_ALL].concat(Object.keys(PCA_STATUS_FILTERS));
+const REIMB_STATUS_FILTER_KEYS = [
+  LIQ_STATUS_FILTER_ALL, "For Liquidation", "Liquidation Completed", "For Payment", "Completed",
+];
+/* Label -> the status actually stored on a reimbursement. Resolved on demand,
+   not as a module-level object: REIMB_STATUS is declared in
+   22-reimbursement.jsx, which the loader concatenates AFTER this file, so it is
+   initialized by render time but not while this fragment is being evaluated. */
+const reimbStatusFilter = (label) => ({
+  "For Liquidation": REIMB_STATUS.FOR_LIQUIDATION,
+  "Liquidation Completed": REIMB_STATUS.LIQUIDATION_DONE,
+  "For Payment": REIMB_STATUS.FOR_PAYMENT,
+  "Completed": REIMB_STATUS.COMPLETED,
+}[label]);
+
 /* Reject-liquidation dialog — a standardized Rejection Reason (required) plus an
    optional Reviewer Comment. Only the authorized approver reaches this dialog;
    the asterisk marks the reason field alone. */
@@ -642,16 +670,27 @@ function LiquidationWorksheet({
         <div className="pcp-liq-line" key={l.id}>
           <input type="date" className="pcp-input" value={l.date} onChange={(e) => updateLine(l.id, { date: e.target.value })} />
           <input className="pcp-input" placeholder="e.g. Meals, Fuel, Toll Fee" value={l.expense} onChange={(e) => updateLine(l.id, { expense: e.target.value })} />
-          <select className="pcp-select" value={l.category} onChange={(e) => updateLine(l.id, { category: e.target.value })}>
-            {EXPENSE_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-          </select>
-          <select className="pcp-select" value={l.department} onChange={(e) => updateLine(l.id, { department: e.target.value })}>
-            {SUBACCOUNTS.filter((s) => s.desc).map((s) => <option key={s.code} value={s.code}>{s.desc}</option>)}
-          </select>
-          <select className="pcp-select" value={l.taxCategory || ""} onChange={(e) => updateLine(l.id, { taxCategory: e.target.value })}>
-            <option value="">— None —</option>
-            {TAX_CATEGORIES.map((t) => <option key={t.code} value={t.code} title={t.desc}>{t.code} — {t.desc}</option>)}
-          </select>
+          <SearchSelect
+            value={l.category} onChange={(v) => updateLine(l.id, { category: v })}
+            options={EXPENSE_CATEGORY_CHOICES}
+            placeholder="— Select Expense Category —"
+            searchPlaceholder="Search expense category / COA…"
+            popStyle={{ minWidth: 340 }}
+          />
+          <SearchSelect
+            value={l.department} onChange={(v) => updateLine(l.id, { department: v })}
+            options={DEPARTMENT_CHOICES}
+            placeholder="— Select Department —"
+            searchPlaceholder="Search department or sub-account…"
+            popStyle={{ minWidth: 300 }}
+          />
+          <SearchSelect
+            value={l.taxCategory || ""} onChange={(v) => updateLine(l.id, { taxCategory: v })}
+            options={TAX_CATEGORY_CHOICES}
+            placeholder="— None —" emptyOptionLabel="— None —"
+            searchPlaceholder="Search tax category…"
+            popStyle={{ minWidth: 300 }}
+          />
           <input type="number" min="0" step="0.01" className="pcp-input" placeholder="0.00" value={l.amount} onChange={(e) => updateLine(l.id, { amount: e.target.value })} />
           <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => removeLine(l.id)} disabled={lines.length === 1}>
             <Trash2 size={13} color="var(--brand)" />
@@ -971,16 +1010,12 @@ function ReimbursementLiquidationPanel({ reimb, canFinance, onAction }) {
         )}
       </div>
 
-      <Collapsible title="Supporting Documents" subtitle={`${(reimb.attachments || []).length} file(s) carried forward`}>
-        {(reimb.attachments || []).length ? (
-          <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-            {reimb.attachments.map((a) => (
-              <a key={a.id} href={a.data} download={a.name} style={{ fontSize: 12, color: "var(--brand)" }}>
-                <Paperclip size={12} /> {a.name} · {a.docType}
-              </a>
-            ))}
-          </div>
-        ) : <div style={{ fontSize: 12, color: "var(--text-mut)" }}>None</div>}
+      <Collapsible
+        title="Supporting Documents"
+        subtitle={`${(reimb.attachments || []).length} file(s) carried forward`}
+        defaultOpen
+      >
+        <AttachmentGallery attachments={reimb.attachments} emptyLabel="None" />
       </Collapsible>
 
       <Collapsible title="Approval History & Audit Trail" subtitle={`${(reimb.history || []).length} event(s)`}>
@@ -1018,6 +1053,11 @@ function LiquidationTab({
   const [showAll, setShowAll] = useState(false);
   const [plant, setPlant] = useState("ALL");
   const [source, setSource] = useState("pettycash");
+  /* One status filter per source. The two workflows have no statuses in common,
+     so they are kept separately rather than sharing a value that would be
+     meaningless the moment you switch tabs. */
+  const [pettyStatus, setPettyStatus] = useState(LIQ_STATUS_FILTER_ALL);
+  const [reimbStatus, setReimbStatus] = useState(LIQ_STATUS_FILTER_ALL);
 
   const scoped = plant === "ALL" ? disbursements : disbursements.filter((d) => d.branchCode === plant);
   const enriched = scoped.map((d) => ({
@@ -1026,8 +1066,13 @@ function LiquidationTab({
     finalStatus: liqFinalStatus(d, liquidationFor(d.id, liquidations)),
   }));
   /* A voucher stays on the worklist until it is genuinely LIQUIDATED — that is,
-     until any refund or reimbursement has actually been settled. */
-  const list = showAll ? enriched : enriched.filter((d) => d.finalStatus !== "LIQUIDATED");
+     until any refund or reimbursement has actually been settled. Picking an
+     explicit status overrides that worklist gate: someone filtering for "Fully
+     Liquidated" is asking to see completed work, so "Show completed" no longer
+     has to be ticked as well. */
+  const list = pettyStatus === LIQ_STATUS_FILTER_ALL
+    ? (showAll ? enriched : enriched.filter((d) => d.finalStatus !== "LIQUIDATED"))
+    : enriched.filter((d) => d.liqStatus === PCA_STATUS_FILTERS[pettyStatus]);
   const selected = enriched.find((d) => d.id === selectedId) || list[0] || null;
   const exportableCount = disbursements.filter((d) => {
     const liq = liquidationFor(d.id, liquidations);
@@ -1038,9 +1083,15 @@ function LiquidationTab({
      to the Liquidation Module, carrying their reference back to the request. */
   const reimbScoped = (reimbursements || []).filter((r) => plant === "ALL" || r.branchCode === plant);
   const reimbLiq = reimbScoped.filter((r) => REIMB_LIQUIDATION_STATUSES.includes(r.status));
-  const reimbActive = showAll ? reimbLiq : reimbLiq.filter((r) => r.status === REIMB_STATUS.FOR_LIQUIDATION || r.status === REIMB_STATUS.UNDER_REVIEW);
+  const reimbActive = reimbStatus === LIQ_STATUS_FILTER_ALL
+    ? (showAll ? reimbLiq : reimbLiq.filter((r) => r.status === REIMB_STATUS.FOR_LIQUIDATION || r.status === REIMB_STATUS.UNDER_REVIEW))
+    : reimbLiq.filter((r) => r.status === reimbStatusFilter(reimbStatus));
   const selectedReimb = reimbLiq.find((r) => r.id === selectedReimbId) || reimbActive[0] || null;
 
+  /* An explicit status filter already decides what the list shows, so the
+     completed-vs-open toggle is only meaningful on "All statuses". */
+  const activeStatus = source === "pettycash" ? pettyStatus : reimbStatus;
+  const statusFilterOn = activeStatus !== LIQ_STATUS_FILTER_ALL;
   const pettyCount = list.length;
   const reimbCount = reimbActive.length;
 
@@ -1067,8 +1118,44 @@ function LiquidationTab({
             Employee Reimbursement ({reimbCount})
           </button>
           <label style={{ marginLeft: "auto", fontSize: 11.5, display: "flex", alignItems: "center", gap: 5, color: "var(--text-mut)" }}>
-            <input type="checkbox" checked={showAll} onChange={(e) => setShowAll(e.target.checked)} /> Show completed
+            <input
+              type="checkbox" checked={showAll} disabled={statusFilterOn}
+              onChange={(e) => setShowAll(e.target.checked)}
+              title={statusFilterOn ? "Not needed while a status filter is applied" : "Include liquidations that are already complete"}
+            /> Show completed
           </label>
+        </div>
+
+        {/* Status filter — the options follow the selected source's workflow. */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+          <FilterIcon size={14} color="var(--text-mut)" />
+          <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mut)" }}>Status</span>
+          <SearchSelect
+            value={source === "pettycash" ? pettyStatus : reimbStatus}
+            onChange={(v) => {
+              if (source === "pettycash") setPettyStatus(v || LIQ_STATUS_FILTER_ALL);
+              else setReimbStatus(v || LIQ_STATUS_FILTER_ALL);
+              setSelectedId(null); setSelectedReimbId(null);
+            }}
+            options={(source === "pettycash" ? PCA_STATUS_FILTER_KEYS : REIMB_STATUS_FILTER_KEYS)
+              .map((k) => ({ value: k, label: k }))}
+            searchPlaceholder="Search status…"
+            style={{ width: 240 }}
+          />
+          {statusFilterOn && (
+            <button
+              className="pcp-btn pcp-btn-ghost pcp-btn-sm"
+              onClick={() => {
+                if (source === "pettycash") setPettyStatus(LIQ_STATUS_FILTER_ALL);
+                else setReimbStatus(LIQ_STATUS_FILTER_ALL);
+              }}
+            ><X size={12} /> Clear</button>
+          )}
+          <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-mut)" }}>
+            {source === "pettycash"
+              ? `${pettyCount} of ${enriched.length} advance(s)`
+              : `${reimbCount} of ${reimbLiq.length} reimbursement(s)`}
+          </span>
         </div>
 
         <div className="pcp-liq-workspace">
@@ -1089,9 +1176,15 @@ function LiquidationTab({
                     <Badge status={d.finalStatus} />
                   </div>
                 </div>
-              )) : <div className="pcp-empty">{showAll ? "No vouchers yet" : "Every voucher is fully liquidated and settled"}</div>
+              )) : (
+                <div className="pcp-empty">
+                  {statusFilterOn
+                    ? "No cash advance has the status " + pettyStatus
+                    : showAll ? "No vouchers yet" : "Every voucher is fully liquidated and settled"}
+                </div>
+              )
             ) : (
-              (showAll ? reimbLiq : reimbActive).length ? (showAll ? reimbLiq : reimbActive).map((r) => (
+              reimbActive.length ? reimbActive.map((r) => (
                 <div key={r.id} className={"pcp-voucher-card" + (selectedReimb && selectedReimb.id === r.id ? " active" : "")} onClick={() => setSelectedReimbId(r.id)}>
                   <div style={{ display: "flex", justifyContent: "space-between" }}>
                     <strong style={{ fontSize: 12.5 }}>{r.reimbNo}</strong>
@@ -1102,7 +1195,13 @@ function LiquidationTab({
                     <Badge status={r.status} />
                   </div>
                 </div>
-              )) : <div className="pcp-empty">{showAll ? "No reimbursement liquidations yet" : "No reimbursements awaiting liquidation"}</div>
+              )) : (
+                <div className="pcp-empty">
+                  {statusFilterOn
+                    ? "No reimbursement has the status " + reimbStatus
+                    : showAll ? "No reimbursement liquidations yet" : "No reimbursements awaiting liquidation"}
+                </div>
+              )
             )}
           </div>
 

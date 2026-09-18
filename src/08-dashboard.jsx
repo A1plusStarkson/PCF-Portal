@@ -65,12 +65,7 @@ function MiniBarChart({ data, height = 220, layout = "vertical", onSelect }) {
   );
 }
 
-const DASHBOARD_BRANCHES = [
-  { key: "MNL", label: "Manila", branchCode: "A1+" },
-  { key: "WARNER", label: "Warner", branchCode: "WARNER" },
-  { key: "DISNEY", label: "Disney", branchCode: "D1" },
-  { key: "RG", label: "RG and Co.", branchCode: "RG" },
-];
+const DASHBOARD_BRANCHES = PLANTS.map((p) => ({ key: p.key, label: p.label, branchCode: p.code }));
 
 /* ---- Drill-down support -------------------------------------------------
    Every dashboard chart is clickable. Clicking a bar / slice / legend / point
@@ -106,7 +101,7 @@ function enrichDisbursement(d, requests, liquidations) {
     requestNo: req ? req.requestNo : "—", voucherNo: d.voucherNo,
     company: companyOfBranch(d.branchCode), branch: d.branchCode,
     department: deptDesc(d.department), requestor: d.employee, payee: d.employee,
-    purpose: req ? req.purpose : "—", expenseCategory: d.expenseCategory || "—",
+    purpose: req ? req.purpose : "—", expenseCategory: disbExpense(d) || "—",
     amountRequested: req ? (Number(req.amount) || 0) : amount,
     amount, amountLiquidated: amtLiq, remaining: amount - amtLiq,
     status: liqStatusFor(d, liquidations), liqRef: liq ? liq.id : "—",
@@ -138,7 +133,7 @@ const DRILL_COLS_DISB = [
   { key: "company", label: "Company", sortable: true },
   { key: "branch", label: "Branch", sortable: true },
   { key: "department", label: "Department", sortable: true },
-  { key: "expenseCategory", label: "Expense Category", sortable: true },
+  { key: "expenseCategory", label: "Expense", sortable: true },
   { key: "payee", label: "Payee", sortable: true },
   { key: "amount", label: "Amount", money: true, align: "right", sortable: true },
   { key: "status", label: "Liquidation Status", badge: true, align: "center", sortable: true },
@@ -365,7 +360,7 @@ function DrillDownModal({ chartName, label, columns, records, canEdit, onEditRec
                                 <div><div className="lbl">Company</div>{r.company}</div>
                                 <div><div className="lbl">Branch</div>{r.branch}</div>
                                 <div><div className="lbl">Department</div>{r.department}</div>
-                                <div><div className="lbl">Expense Category</div>{r.expenseCategory || "—"}</div>
+                                <div><div className="lbl">Expense</div>{r.expenseCategory || "—"}</div>
                                 <div><div className="lbl">Requestor</div>{r.requestor || "—"}</div>
                                 <div><div className="lbl">Payee</div>{r.payee || "—"}</div>
                                 <div><div className="lbl">Purpose / Description</div>{r.purpose || r.description || "—"}</div>
@@ -561,7 +556,7 @@ function DeptDrilldownPanel({ funds, requests, disbursements, liquidations }) {
                 <option value="ALL">All</option>{opts.plants.map((p) => <option key={p.code} value={p.code}>{p.code}</option>)}
               </select>
             </div>
-            <div className="pcp-rc-field"><label>Expense Category</label>
+            <div className="pcp-rc-field"><label>Expense</label>
               <select className="pcp-select" value={fCategory} onChange={(e) => setFCategory(e.target.value)}>
                 <option value="ALL">All</option>{opts.categories.map((c) => <option key={c} value={c}>{c}</option>)}
               </select>
@@ -669,7 +664,7 @@ function Dashboard({ funds, requests, disbursements, liquidations, replenishment
     const s = SUBACCOUNTS.find((x) => x.code === d.department);
     return s ? s.desc || s.code : d.department;
   }, (d) => d.amount), [disbursements]);
-  const byCategory = useMemo(() => groupSum(disbursements, (d) => d.expenseCategory, (d) => d.amount), [disbursements]);
+  const byCategory = useMemo(() => groupSum(disbursements, (d) => disbExpense(d), (d) => d.amount), [disbursements]);
 
   const allLines = useMemo(() => liquidations.flatMap((l) => l.lines), [liquidations]);
   const topCategories = useMemo(() => {
@@ -736,8 +731,8 @@ function Dashboard({ funds, requests, disbursements, liquidations, replenishment
       return { columns: DRILL_COLS_DISB, records: disbursements.filter((d) => companyOfBranch(d.branchCode) === label).map(enrich) };
     if (chartName === "Disbursements by Department")
       return { columns: DRILL_COLS_DISB, records: disbursements.filter((d) => deptDesc(d.department) === label).map(enrich) };
-    if (chartName === "Disbursements by Expense Category")
-      return { columns: DRILL_COLS_DISB, records: disbursements.filter((d) => (d.expenseCategory || "Unassigned") === label).map(enrich) };
+    if (chartName === "Disbursements by Expense")
+      return { columns: DRILL_COLS_DISB, records: disbursements.filter((d) => (disbExpense(d) || "Unassigned") === label).map(enrich) };
     if (chartName === "Top Expense Categories (Liquidated)" || chartName === "Monthly Expense Trend") {
       const recs = [];
       disbursements.forEach((d) => {
@@ -860,8 +855,8 @@ function Dashboard({ funds, requests, disbursements, liquidations, replenishment
           <div className="pcp-chart-hint">Click a bar to view liquidated receipts.</div>
         </div>
         <div className="pcp-card pcp-card-pad pcp-chart-click" title="Click to view detailed transactions.">
-          <div className="pcp-section-title">Disbursements by Expense Category</div>
-          <MiniBarChart data={byCategory} onSelect={(name) => openDrill("Disbursements by Expense Category", name)} />
+          <div className="pcp-section-title">Disbursements by Expense</div>
+          <MiniBarChart data={byCategory} onSelect={(name) => openDrill("Disbursements by Expense", name)} />
           <div className="pcp-chart-hint">Click a bar to view its transactions.</div>
         </div>
       </div>

@@ -2,7 +2,10 @@
 
 function DisburseModal({ request, onClose, onConfirm, nextVoucherNo }) {
   const [amount, setAmount] = useState(request.amount);
-  const [expenseCategory, setExpenseCategory] = useState(EXPENSE_CATEGORIES[0]);
+  /* Free-text expense description. Cash is released before the receipts exist,
+     so pinning a chart-of-accounts category here was always a guess — the real
+     GL classification is captured per receipt line during liquidation. */
+  const [expense, setExpense] = useState("");
   const [date, setDate] = useState(todayISO());
   const [remarks, setRemarks] = useState("");
 
@@ -34,10 +37,12 @@ function DisburseModal({ request, onClose, onConfirm, nextVoucherNo }) {
               <input type="number" className="pcp-input" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </div>
             <div className="pcp-field">
-              <label>Expense Category (anticipated)</label>
-              <select className="pcp-select" value={expenseCategory} onChange={(e) => setExpenseCategory(e.target.value)}>
-                {EXPENSE_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-              </select>
+              <label>Expense</label>
+              <input
+                className="pcp-input" value={expense}
+                onChange={(e) => setExpense(e.target.value)}
+                placeholder="Type the expense, e.g. Fuel and toll for Cavite delivery"
+              />
             </div>
           </div>
           <div className="pcp-field">
@@ -49,7 +54,7 @@ function DisburseModal({ request, onClose, onConfirm, nextVoucherNo }) {
           <button className="pcp-btn" onClick={onClose}>Cancel</button>
           <button
             className="pcp-btn pcp-btn-primary"
-            onClick={() => onConfirm({ amount: Number(amount), expenseCategory, date, remarks })}
+            onClick={() => onConfirm({ amount: Number(amount), expense: expense.trim(), date, remarks })}
           >
             Confirm Disbursement
           </button>
@@ -62,7 +67,7 @@ function DisburseModal({ request, onClose, onConfirm, nextVoucherNo }) {
 function EditDisbursementModal({ disbursement, onClose, onSave }) {
   const [form, setForm] = useState({
     date: disbursement.date, employee: disbursement.employee, branchCode: disbursement.branchCode,
-    department: disbursement.department, expenseCategory: disbursement.expenseCategory,
+    department: disbursement.department, expense: disbExpense(disbursement),
     amount: disbursement.amount, remarks: disbursement.remarks || "",
   });
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -110,10 +115,8 @@ function EditDisbursementModal({ disbursement, onClose, onSave }) {
               <input type="number" min="0" step="0.01" className="pcp-input" value={form.amount} onChange={(e) => set("amount", e.target.value)} />
             </div>
             <div className="pcp-field">
-              <label>Expense Category</label>
-              <select className="pcp-select" value={form.expenseCategory} onChange={(e) => set("expenseCategory", e.target.value)}>
-                {EXPENSE_CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-              </select>
+              <label>Expense</label>
+              <input className="pcp-input" value={form.expense} onChange={(e) => set("expense", e.target.value)} placeholder="Expense description" />
             </div>
           </div>
           <div className="pcp-field">
@@ -171,7 +174,7 @@ function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemar
     const data = rows.map((d) => ({
       "Voucher No.": d.voucherNo, "Date": d.date, "Employee": d.employee,
       "Branch": d.branchCode, "Company": companyOfBranch(d.branchCode),
-      "Department": subaccountLabel(d.department), "Expense Category": d.expenseCategory,
+      "Department": subaccountLabel(d.department), "Expense": disbExpense(d),
       "Amount": d.amount, "Status": d.status, "Liquidation Status": d.liqStatus, "Remarks": d.remarks || "",
     }));
     const ws = XLSX.utils.json_to_sheet(data);
@@ -223,7 +226,7 @@ function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemar
                   <Th field="date">Date</Th>
                   <Th field="employee">Employee</Th>
                   <Th field="branchCode">Branch</Th>
-                  <th>Company</th><th>Department</th><th>Expense Category</th>
+                  <th>Company</th><th>Department</th><th>Expense</th>
                   <Th field="amount">Amount</Th>
                   <th>Liquidation Status</th><th>Billed</th><th>Remarks</th><th></th>
                 </tr>
@@ -237,7 +240,7 @@ function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemar
                     <td>{d.branchCode}</td>
                     <td style={{ fontSize: 11.5, color: "var(--text-mut)" }}>{companyOfBranch(d.branchCode)}</td>
                     <td title={subaccountLabel(d.department)} style={{ maxWidth: 140, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{subaccountLabel(d.department)}</td>
-                    <td style={{ maxWidth: 150, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={d.expenseCategory}>{d.expenseCategory}</td>
+                    <td style={{ maxWidth: 150, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={disbExpense(d)}>{disbExpense(d) || "—"}</td>
                     <td className="pcp-num">{peso(d.amount)}</td>
                     <td><Badge status={d.liqStatus} /></td>
                     <td>
