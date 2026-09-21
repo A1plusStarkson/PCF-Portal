@@ -78,9 +78,28 @@ function ReferenceTable({ title, columns, rows }) {
   );
 }
 
+const FUND_SORT_FIELDS = {
+  label: (f) => f.label,
+  branchCode: (f) => f.branchCode,
+  company: (f) => companyOfBranch(f.branchCode),
+  custodian: (f) => f.custodian,
+  beginningBalance: (f) => Number(f.beginningBalance) || 0,
+  available: (f) => Number(f.available) || 0,
+};
+
 function MasterDataTab({ funds, disbursements, liquidations, replenishments, onAddFund, onEditFund, onDeleteFund }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
+  /* No sort key on open, so the funds keep their configured order until the
+     reader picks a column. */
+  const sort = useTableSort(null);
+
+  /* Available balance is derived, so it is resolved once per fund here rather
+     than inside the row — that way the column can be sorted on it too. */
+  const fundRows = sort.sortRows(
+    funds.map((f) => ({ ...f, available: monitoringForFund(f, disbursements, liquidations, replenishments).available })),
+    FUND_SORT_FIELDS
+  );
 
   return (
     <div>
@@ -96,10 +115,17 @@ function MasterDataTab({ funds, disbursements, liquidations, replenishments, onA
           </div>
           <div className="pcp-table-wrap">
             <table className="pcp-table">
-              <thead><tr><th>Plant</th><th>Branch</th><th>Company</th><th>Custodian</th><th>Beginning Balance</th><th>Available Balance</th><th></th></tr></thead>
+              <thead><tr>
+                <SortTh field="label" sort={sort}>Plant</SortTh>
+                <SortTh field="branchCode" sort={sort}>Branch</SortTh>
+                <SortTh field="company" sort={sort}>Company</SortTh>
+                <SortTh field="custodian" sort={sort}>Custodian</SortTh>
+                <SortTh field="beginningBalance" sort={sort}>Beginning Balance</SortTh>
+                <SortTh field="available" sort={sort}>Available Balance</SortTh>
+                <th></th>
+              </tr></thead>
               <tbody>
-                {funds.map((f) => {
-                  const mon = monitoringForFund(f, disbursements, liquidations, replenishments);
+                {fundRows.map((f) => {
                   return (
                   <tr key={f.id}>
                     <td style={{ fontWeight: 600 }}>{f.label}</td>
@@ -107,10 +133,12 @@ function MasterDataTab({ funds, disbursements, liquidations, replenishments, onA
                     <td style={{ fontSize: 11.5, color: "var(--text-mut)" }}>{companyOfBranch(f.branchCode)}</td>
                     <td>{f.custodian}</td>
                     <td className="pcp-num">{peso(f.beginningBalance)}</td>
-                    <td className="pcp-num" style={{ fontWeight: 700, color: mon.available < 0 ? "var(--brand)" : "var(--green)" }}>{peso(mon.available)}</td>
+                    <td className="pcp-num" style={{ fontWeight: 700, color: f.available < 0 ? "var(--brand)" : "var(--green)" }}>{peso(f.available)}</td>
                     <td>
                       <div style={{ display: "flex", gap: 6 }}>
-                        <button className="pcp-btn pcp-btn-sm" onClick={() => setEditing(f)} title="Edit fund"><Edit3 size={12} /></button>
+                        {/* Edit the stored fund, not the row copy — the row carries a
+                            derived `available` that must never be saved back. */}
+                        <button className="pcp-btn pcp-btn-sm" onClick={() => setEditing(funds.find((x) => x.id === f.id))} title="Edit fund"><Edit3 size={12} /></button>
                         <button className="pcp-btn pcp-btn-sm pcp-btn-danger" onClick={() => onDeleteFund(f.id)} title="Delete fund"><Trash2 size={12} /></button>
                       </div>
                     </td>

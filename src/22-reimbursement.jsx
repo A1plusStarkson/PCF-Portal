@@ -882,16 +882,49 @@ function ReimbursementPaymentModal({ reimb, onClose, onConfirm, processedBy }) {
 
 /* ============================= REIMBURSEMENT TAB ============================= */
 
-function reimbAgingBucket(reimb) {
+function reimbAgeDays(reimb) {
   const base = reimb.requestDate || reimb.createdAt || todayISO();
-  const days = Math.floor((Date.now() - new Date(base + "T00:00:00").getTime()) / 86400000);
-  if (reimb.status === REIMB_STATUS.COMPLETED || reimb.status === REIMB_STATUS.PAID) return "Settled";
+  return Math.floor((Date.now() - new Date(base + "T00:00:00").getTime()) / 86400000);
+}
+
+function reimbSettled(reimb) {
+  return reimb.status === REIMB_STATUS.COMPLETED || reimb.status === REIMB_STATUS.PAID;
+}
+
+function reimbAgingBucket(reimb) {
+  const days = reimbAgeDays(reimb);
+  if (reimbSettled(reimb)) return "Settled";
   if (days <= 3) return "0–3 Days";
   if (days <= 7) return "4–7 Days";
   if (days <= 15) return "8–15 Days";
   if (days <= 30) return "16–30 Days";
   return "Over 30 Days";
 }
+
+/* Sort values for the reimbursement list tables — this tab and the Approval
+   Module, which show the same record with one column different (Lines vs Docs).
+   Compliance ranks by severity and Aging by real age in days, so both order the
+   way a reviewer expects rather than alphabetically by their badge text. */
+const REIMB_COMPLIANCE_RANK = { PASS: 0, WARNING: 1, FAIL: 2 };
+
+const REIMB_SORT_FIELDS = {
+  reimbNo: (r) => r.reimbNo,
+  requestDate: (r) => r.requestDate,
+  employee: (r) => r.employee,
+  department: (r) => deptDesc(r.department),
+  branchCode: (r) => plantLabel(r.branchCode),
+  purpose: (r) => r.purpose,
+  lines: (r) => (r.lines || []).length,
+  docs: (r) => (r.attachments || []).length,
+  amount: (r) => reimbTotal(r),
+  compliance: (r) => {
+    const rank = REIMB_COMPLIANCE_RANK[(r.compliance && r.compliance.level) || "PASS"];
+    return rank === undefined ? 0 : rank;
+  },
+  status: (r) => r.status,
+  /* Settled rows group ahead of the open ones instead of interleaving by age. */
+  aging: (r) => (reimbSettled(r) ? -1 : reimbAgeDays(r)),
+};
 
 function ReimbursementTab({
   reimbursements, allReimbursements, onSaveDraft, onSubmit, onUpdate, onAction, onRecordPayment,
@@ -907,15 +940,14 @@ function ReimbursementTab({
   const [plant, setPlant] = useState("ALL");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [purposeFilter, setPurposeFilter] = useState("All");
-  const [sortDir, setSortDir] = useState("desc");
+  /* Newest reimbursement no. first on open; any header can take over. */
+  const sort = useTableSort("reimbNo", "desc");
 
   const seq = (allReimbursements || reimbursements).length + 1;
   const nextReimbNo = "REIM-2026-" + String(seq).padStart(6, "0");
 
-  /* Newest reimbursement no. first by default; the header flips to ascending.
-     Numeric-aware compare so the 6-digit series stays in true numeric order. */
-  const filtered = useMemo(() => {
-    const list = reimbursements.filter((r) => {
+  const filtered = sort.sortRows(
+    reimbursements.filter((r) => {
       if (plant !== "ALL" && r.branchCode !== plant) return false;
       if (statusFilter !== "All" && r.status !== statusFilter) return false;
       if (categoryFilter !== "All" && purposeCategory(r.purpose) !== categoryFilter) return false;
@@ -925,13 +957,9 @@ function ReimbursementTab({
         if (!(r.employee.toLowerCase().includes(q) || r.reimbNo.toLowerCase().includes(q) || (r.purpose || "").toLowerCase().includes(q))) return false;
       }
       return true;
-    });
-    list.sort((a, b) => {
-      const cmp = String(a.reimbNo || "").localeCompare(String(b.reimbNo || ""), undefined, { numeric: true });
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-    return list;
-  }, [reimbursements, plant, statusFilter, categoryFilter, purposeFilter, search, sortDir]);
+    }),
+    REIMB_SORT_FIELDS
+  );
 
   const kpi = useMemo(() => {
     const by = (s) => reimbursements.filter((r) => r.status === s);
@@ -1012,11 +1040,18 @@ function ReimbursementTab({
             <table className="pcp-table">
               <thead>
                 <tr>
-                  <th className="pcp-sortable" onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))} title="Sort by reimbursement no.">
-                    Reimb No.<span className="pcp-sort-ind">{sortDir === "asc" ? "▲" : "▼"}</span>
-                  </th>
-                  <th>Req Date</th><th>Employee</th><th>Department</th><th>Plant</th>
-                  <th>Purpose</th><th>Lines</th><th>Amount</th><th>Compliance</th><th>Status</th><th>Aging</th><th></th>
+                  <SortTh field="reimbNo" sort={sort}>Reimb No.</SortTh>
+                  <SortTh field="requestDate" sort={sort}>Req Date</SortTh>
+                  <SortTh field="employee" sort={sort}>Employee</SortTh>
+                  <SortTh field="department" sort={sort}>Department</SortTh>
+                  <SortTh field="branchCode" sort={sort}>Plant</SortTh>
+                  <SortTh field="purpose" sort={sort}>Purpose</SortTh>
+                  <SortTh field="lines" sort={sort}>Lines</SortTh>
+                  <SortTh field="amount" sort={sort}>Amount</SortTh>
+                  <SortTh field="compliance" sort={sort}>Compliance</SortTh>
+                  <SortTh field="status" sort={sort}>Status</SortTh>
+                  <SortTh field="aging" sort={sort}>Aging</SortTh>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>

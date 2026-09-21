@@ -134,21 +134,29 @@ function EditDisbursementModal({ disbursement, onClose, onSave }) {
 }
 
 const SORT_FIELDS = {
-  voucherNo: (d) => d.voucherNo, date: (d) => d.date, employee: (d) => d.employee,
-  branchCode: (d) => d.branchCode, amount: (d) => d.amount,
+  voucherNo: (d) => d.voucherNo,
+  date: (d) => d.date,
+  employee: (d) => d.employee,
+  branchCode: (d) => d.branchCode,
+  amount: (d) => Number(d.amount) || 0,
+  company: (d) => companyOfBranch(d.branchCode),
+  department: (d) => subaccountLabel(d.department),
+  expense: (d) => disbExpense(d),
+  liqStatus: (d) => d.liqStatus,
+  billed: (d) => (d.billed ? 0 : 1),
+  remarks: (d) => d.remarks,
 };
 
 function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemarks, onToggleBilled, onEditDisbursement, plantOptions, plantTitle, canEdit = true, canDelete, onDelete }) {
   const [search, setSearch] = useState("");
   const [branchFilter, setBranchFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
-  const [sortKey, setSortKey] = useState("date");
-  const [sortDir, setSortDir] = useState("desc");
+  const sort = useTableSort("date", "desc");
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState("");
   const [editDisb, setEditDisb] = useState(null);
 
-  const rows = useMemo(() => {
+  const matching = useMemo(() => {
     let list = disbursements.map((d) => ({ ...d, liqStatus: liqStatusFor(d, liquidations) }));
     if (search) {
       const s = search.toLowerCase();
@@ -156,19 +164,10 @@ function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemar
     }
     if (branchFilter !== "All") list = list.filter((d) => d.branchCode === branchFilter);
     if (statusFilter !== "All") list = list.filter((d) => d.liqStatus === statusFilter);
-    const fn = SORT_FIELDS[sortKey] || SORT_FIELDS.date;
-    list.sort((a, b) => {
-      const av = fn(a), bv = fn(b);
-      const cmp = typeof av === "number" ? av - bv : String(av).localeCompare(String(bv));
-      return sortDir === "asc" ? cmp : -cmp;
-    });
     return list;
-  }, [disbursements, liquidations, search, branchFilter, statusFilter, sortKey, sortDir]);
+  }, [disbursements, liquidations, search, branchFilter, statusFilter]);
 
-  const toggleSort = (key) => {
-    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-    else { setSortKey(key); setSortDir("asc"); }
-  };
+  const rows = sort.sortRows(matching, SORT_FIELDS);
 
   const exportLedger = () => {
     const data = rows.map((d) => ({
@@ -182,12 +181,6 @@ function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemar
     XLSX.utils.book_append_sheet(wb, ws, "Disbursement Ledger");
     downloadWorkbook(wb, `Disbursement_Ledger_${todayISO()}.xlsx`);
   };
-
-  const Th = ({ field, children }) => (
-    <th style={{ cursor: "pointer", userSelect: "none" }} onClick={() => toggleSort(field)}>
-      {children}{sortKey === field ? (sortDir === "asc" ? " ▲" : " ▼") : ""}
-    </th>
-  );
 
   return (
     <div>
@@ -222,13 +215,18 @@ function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemar
             <table className="pcp-table">
               <thead>
                 <tr>
-                  <Th field="voucherNo">Voucher No.</Th>
-                  <Th field="date">Date</Th>
-                  <Th field="employee">Employee</Th>
-                  <Th field="branchCode">Branch</Th>
-                  <th>Company</th><th>Department</th><th>Expense</th>
-                  <Th field="amount">Amount</Th>
-                  <th>Liquidation Status</th><th>Billed</th><th>Remarks</th><th></th>
+                  <SortTh field="voucherNo" sort={sort}>Voucher No.</SortTh>
+                  <SortTh field="date" sort={sort}>Date</SortTh>
+                  <SortTh field="employee" sort={sort}>Employee</SortTh>
+                  <SortTh field="branchCode" sort={sort}>Branch</SortTh>
+                  <SortTh field="company" sort={sort}>Company</SortTh>
+                  <SortTh field="department" sort={sort}>Department</SortTh>
+                  <SortTh field="expense" sort={sort}>Expense</SortTh>
+                  <SortTh field="amount" sort={sort}>Amount</SortTh>
+                  <SortTh field="liqStatus" sort={sort}>Liquidation Status</SortTh>
+                  <SortTh field="billed" sort={sort}>Billed</SortTh>
+                  <SortTh field="remarks" sort={sort}>Remarks</SortTh>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>

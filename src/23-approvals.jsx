@@ -258,7 +258,8 @@ function ApprovalModuleTab({
   const [reimbStage, setReimbStage] = useState("All statuses");
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
-  const [reimbSortDir, setReimbSortDir] = useState("desc");
+  /* Newest reimbursement no. first on open; any header can take over. */
+  const reimbSort = useTableSort("reimbNo", "desc");
 
   const inPlant = (code) => plant === "ALL" || code === plant;
   const matches = (...fields) => {
@@ -286,15 +287,13 @@ function ApprovalModuleTab({
     () => (reimbursements || []).slice().sort((a, b) => String(b.requestDate || "").localeCompare(String(a.requestDate || ""))),
     [reimbursements]
   );
-  /* Newest reimbursement no. first by default; the header flips to ascending. */
-  const reimbRows = reimbAll.filter((r) => inPlant(r.branchCode)
-    && r.status !== REIMB_STATUS.DRAFT
-    && matches(r.reimbNo, r.employee, r.branchCode, r.purpose)
-    && (reimbStage === "All statuses" || r.status === reimbStage))
-    .sort((a, b) => {
-      const cmp = String(a.reimbNo || "").localeCompare(String(b.reimbNo || ""), undefined, { numeric: true });
-      return reimbSortDir === "asc" ? cmp : -cmp;
-    });
+  const reimbRows = reimbSort.sortRows(
+    reimbAll.filter((r) => inPlant(r.branchCode)
+      && r.status !== REIMB_STATUS.DRAFT
+      && matches(r.reimbNo, r.employee, r.branchCode, r.purpose)
+      && (reimbStage === "All statuses" || r.status === reimbStage)),
+    REIMB_SORT_FIELDS
+  );
   const reimbWaiting = reimbAll.filter((r) => r.status === REIMB_STATUS.SUBMITTED
     || r.status === REIMB_STATUS.FOR_REVIEW || r.status === REIMB_STATUS.FOR_APPROVAL).length;
 
@@ -393,11 +392,18 @@ function ApprovalModuleTab({
               <table className="pcp-table">
                 <thead>
                   <tr>
-                    <th className="pcp-sortable" onClick={() => setReimbSortDir((d) => (d === "asc" ? "desc" : "asc"))} title="Sort by reimbursement no.">
-                      Reimb No.<span className="pcp-sort-ind">{reimbSortDir === "asc" ? "▲" : "▼"}</span>
-                    </th>
-                    <th>Req Date</th><th>Employee</th><th>Department</th><th>Plant</th>
-                    <th>Purpose</th><th>Docs</th><th>Amount</th><th>Compliance</th><th>Status</th><th>Aging</th><th></th>
+                    <SortTh field="reimbNo" sort={reimbSort}>Reimb No.</SortTh>
+                    <SortTh field="requestDate" sort={reimbSort}>Req Date</SortTh>
+                    <SortTh field="employee" sort={reimbSort}>Employee</SortTh>
+                    <SortTh field="department" sort={reimbSort}>Department</SortTh>
+                    <SortTh field="branchCode" sort={reimbSort}>Plant</SortTh>
+                    <SortTh field="purpose" sort={reimbSort}>Purpose</SortTh>
+                    <SortTh field="docs" sort={reimbSort}>Docs</SortTh>
+                    <SortTh field="amount" sort={reimbSort}>Amount</SortTh>
+                    <SortTh field="compliance" sort={reimbSort}>Compliance</SortTh>
+                    <SortTh field="status" sort={reimbSort}>Status</SortTh>
+                    <SortTh field="aging" sort={reimbSort}>Aging</SortTh>
+                    <th></th>
                   </tr>
                 </thead>
                 <tbody>

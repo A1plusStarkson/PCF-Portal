@@ -100,23 +100,31 @@ function ReplenishmentFormModal({ onClose, onSave, nextNo, funds, disbursements,
   );
 }
 
+const REPLENISH_SORT_FIELDS = {
+  replenishmentNo: (r) => r.replenishmentNo,
+  date: (r) => r.date,
+  branchCode: (r) => plantLabel(r.branchCode),
+  amount: (r) => Number(r.amount) || 0,
+  preparedBy: (r) => r.preparedBy,
+  status: (r) => r.status,
+  remarks: (r) => r.remarks,
+};
+
 function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, onCreate, onEdit, onComplete, onDelete, plantOptions, canEdit, plantTitle }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [plant, setPlant] = useState("ALL");
-  const [sortDir, setSortDir] = useState("desc");
+  /* Newest replenishment no. first on open; any header can take over. */
+  const sort = useTableSort("replenishmentNo", "desc");
 
   const nextNo = "PCRP-2026-" + String(replenishments.length + 1).padStart(4, "0");
   const totalCompleted = replenishments.filter((r) => r.status === "Completed").reduce((s, r) => s + (Number(r.amount) || 0), 0);
   const totalPending = replenishments.filter((r) => r.status !== "Completed").reduce((s, r) => s + (Number(r.amount) || 0), 0);
 
-  /* Newest replenishment no. first by default; the header flips to ascending.
-     The series is issued in order, so this keeps the same newest-first reading
-     the date sort gave, but now the user can reverse it. */
-  const filtered = useMemo(() => {
-    const list = replenishments.filter((r) => {
+  const filtered = sort.sortRows(
+    replenishments.filter((r) => {
       if (plant !== "ALL" && r.branchCode !== plant) return false;
       if (statusFilter !== "All" && r.status !== statusFilter) return false;
       if (search) {
@@ -124,13 +132,9 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
         if (!(r.replenishmentNo.toLowerCase().includes(q) || (r.preparedBy || "").toLowerCase().includes(q))) return false;
       }
       return true;
-    });
-    list.sort((a, b) => {
-      const cmp = String(a.replenishmentNo || "").localeCompare(String(b.replenishmentNo || ""), undefined, { numeric: true });
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-    return list;
-  }, [replenishments, plant, statusFilter, search, sortDir]);
+    }),
+    REPLENISH_SORT_FIELDS
+  );
 
   const formPlantOptions = (plantOptions && plantOptions.length)
     ? (plant !== "ALL" ? plantOptions.filter((p) => p.code === plant) : plantOptions)
@@ -165,11 +169,14 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
             <table className="pcp-table">
               <thead>
                 <tr>
-                  <th className="pcp-sortable" onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))} title="Sort by replenishment no.">
-                    Replenishment No.<span className="pcp-sort-ind">{sortDir === "asc" ? "▲" : "▼"}</span>
-                  </th>
-                  <th>Date</th><th>Fund / Plant</th><th>Amount</th>
-                  <th>Prepared By</th><th>Status</th><th>Remarks</th><th></th>
+                  <SortTh field="replenishmentNo" sort={sort}>Replenishment No.</SortTh>
+                  <SortTh field="date" sort={sort}>Date</SortTh>
+                  <SortTh field="branchCode" sort={sort}>Fund / Plant</SortTh>
+                  <SortTh field="amount" sort={sort}>Amount</SortTh>
+                  <SortTh field="preparedBy" sort={sort}>Prepared By</SortTh>
+                  <SortTh field="status" sort={sort}>Status</SortTh>
+                  <SortTh field="remarks" sort={sort}>Remarks</SortTh>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>

@@ -169,6 +169,34 @@ function downloadTextFile(text, filename, mime) {
 /* Consolidated, enterprise-wide Liquidation Aging monitoring across every
    company, plant and branch — with per-plant drill-down, filters, analytics
    charts and PDF / Excel / CSV exports. */
+const AGING_PLANT_SORT_FIELDS = {
+  plantLabel: (p) => p.plantLabel,
+  beginning: (p) => Number(p.beginning) || 0,
+  released: (p) => Number(p.released) || 0,
+  liquidated: (p) => Number(p.liquidated) || 0,
+  outstanding: (p) => Number(p.outstanding) || 0,
+  pending: (p) => Number(p.pending) || 0,
+  dueToday: (p) => Number(p.dueToday) || 0,
+  overdue: (p) => Number(p.overdue) || 0,
+  compliance: (p) => Number(p.compliance) || 0,
+};
+
+const AGING_DETAIL_SORT_FIELDS = {
+  transactionType: (r) => r.transactionType,
+  requestNo: (r) => r.requestNo,
+  requestor: (r) => r.requestor,
+  plantLabel: (r) => r.plantLabel,
+  branchCode: (r) => r.branchCode,
+  company: (r) => r.company,
+  department: (r) => deptDesc(r.department),
+  releaseDate: (r) => r.releaseDate,
+  dueDate: (r) => r.dueDate,
+  ageDays: (r) => Number(r.ageDays) || 0,
+  amount: (r) => Number(r.amount) || 0,
+  status: (r) => r.status,
+  agingBucket: (r) => Number(r.overdueDays) || 0,
+};
+
 function LiquidationAgingTab({ funds, requests, disbursements, liquidations, replenishments }) {
   const today = todayISO();
   const [filters, setFilters] = useState({
@@ -240,7 +268,14 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
     return true;
   }), [funds, filters]);
 
-  const byPlant = useMemo(() => summarizeAgingByPlant(records, scopedFunds), [records, scopedFunds]);
+  /* Both aging tables start with no sort key, so the reader keeps the order the
+     report deliberately arrives in — plants as configured, detail worst-overdue
+     first — until they click a header to take over. */
+  const plantSort = useTableSort(null);
+  const detailSort = useTableSort(null);
+
+  const byPlantUnsorted = useMemo(() => summarizeAgingByPlant(records, scopedFunds), [records, scopedFunds]);
+  const byPlant = plantSort.sortRows(byPlantUnsorted, AGING_PLANT_SORT_FIELDS);
 
   const cards = useMemo(() => {
     let released = 0, outstanding = 0, pending = 0, dueToday = 0, overdue = 0, completed = 0;
@@ -288,10 +323,11 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
     return Array.from(map.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value).slice(0, 10);
   }, [records]);
 
-  const detailRows = useMemo(
+  const detailRowsDefault = useMemo(
     () => [...records].sort((a, b) => (b.overdueDays - a.overdueDays) || (b.outstanding - a.outstanding)),
     [records]
   );
+  const detailRows = detailSort.sortRows(detailRowsDefault, AGING_DETAIL_SORT_FIELDS);
 
   /* ---- Exports ---- */
   const buildExportSheets = useCallback(() => {
@@ -481,8 +517,15 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
             <table className="pcp-table">
               <thead>
                 <tr>
-                  <th>Plant</th><th>Beginning</th><th>Released</th><th>Liquidated</th><th>Outstanding</th>
-                  <th>Pending</th><th>Due Today</th><th>Overdue</th><th>Compliance</th>
+                  <SortTh field="plantLabel" sort={plantSort}>Plant</SortTh>
+                  <SortTh field="beginning" sort={plantSort}>Beginning</SortTh>
+                  <SortTh field="released" sort={plantSort}>Released</SortTh>
+                  <SortTh field="liquidated" sort={plantSort}>Liquidated</SortTh>
+                  <SortTh field="outstanding" sort={plantSort}>Outstanding</SortTh>
+                  <SortTh field="pending" sort={plantSort}>Pending</SortTh>
+                  <SortTh field="dueToday" sort={plantSort}>Due Today</SortTh>
+                  <SortTh field="overdue" sort={plantSort}>Overdue</SortTh>
+                  <SortTh field="compliance" sort={plantSort}>Compliance</SortTh>
                 </tr>
               </thead>
               <tbody>
@@ -573,9 +616,19 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
             <table className="pcp-table">
               <thead>
                 <tr>
-                  <th>Type</th><th>Request No.</th><th>Requestor</th><th>Plant</th><th>Branch</th><th>Company</th><th>Department</th>
-                  <th>Release Date</th><th>Due Date</th><th>Days Out</th><th>Amount</th>
-                  <th>Liquidation Status</th><th>Aging Status</th>
+                  <SortTh field="transactionType" sort={detailSort}>Type</SortTh>
+                  <SortTh field="requestNo" sort={detailSort}>Request No.</SortTh>
+                  <SortTh field="requestor" sort={detailSort}>Requestor</SortTh>
+                  <SortTh field="plantLabel" sort={detailSort}>Plant</SortTh>
+                  <SortTh field="branchCode" sort={detailSort}>Branch</SortTh>
+                  <SortTh field="company" sort={detailSort}>Company</SortTh>
+                  <SortTh field="department" sort={detailSort}>Department</SortTh>
+                  <SortTh field="releaseDate" sort={detailSort}>Release Date</SortTh>
+                  <SortTh field="dueDate" sort={detailSort}>Due Date</SortTh>
+                  <SortTh field="ageDays" sort={detailSort}>Days Out</SortTh>
+                  <SortTh field="amount" sort={detailSort}>Amount</SortTh>
+                  <SortTh field="status" sort={detailSort}>Liquidation Status</SortTh>
+                  <SortTh field="agingBucket" sort={detailSort}>Aging Status</SortTh>
                 </tr>
               </thead>
               <tbody>

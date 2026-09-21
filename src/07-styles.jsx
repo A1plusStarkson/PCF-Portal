@@ -727,6 +727,66 @@ function Badge({ status }) {
   return <span className={`pcp-badge pcp-badge-${cls}`}>{status}</span>;
 }
 
+/* ---------------------------------------------------------------------------
+   Shared column sorting for the list tables.
+   Every module's table behaves the way the Release Ledger established: click a
+   header to sort by that column, click the same header again to flip the
+   direction. Defined once here so the modules stay in step instead of each
+   growing its own slightly different sort.
+   --------------------------------------------------------------------------- */
+
+/* Numbers compare numerically; everything else uses a numeric-aware collator so
+   PCR-2026-0009 stays below PCR-2026-0010 even if the series ever outgrows its
+   zero padding. Blanks sort last in ascending order rather than jumping to the
+   top, since an empty approver or remark is not "before A". */
+function sortCompare(a, b) {
+  const aBlank = a === null || a === undefined || a === "" || a === "—";
+  const bBlank = b === null || b === undefined || b === "" || b === "—";
+  if (aBlank || bBlank) return aBlank && bBlank ? 0 : (aBlank ? 1 : -1);
+  if (typeof a === "number" && typeof b === "number") return a - b;
+  return String(a).localeCompare(String(b), undefined, { numeric: true });
+}
+
+/* `fields` maps a column key to the value that column sorts on. Rows are copied
+   before sorting so the caller's array (often straight from state) is untouched. */
+function useTableSort(defaultKey, defaultDir) {
+  const [sortKey, setSortKey] = useState(defaultKey);
+  const [sortDir, setSortDir] = useState(defaultDir || "asc");
+
+  /* A new column starts ascending; re-clicking the active column flips it. */
+  const toggleSort = (key) => {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  };
+
+  const sortRows = (rows, fields) => {
+    const fn = fields && fields[sortKey];
+    if (!fn) return rows;
+    return rows.slice().sort((a, b) => {
+      const cmp = sortCompare(fn(a), fn(b));
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+  };
+
+  return { sortKey, sortDir, toggleSort, sortRows };
+}
+
+/* Header cell for a sortable column. The arrow only shows on the active column,
+   matching the Release Ledger. */
+function SortTh({ field, sort, align, style, children }) {
+  const active = sort.sortKey === field;
+  return (
+    <th
+      className="pcp-sortable"
+      style={{ ...(align ? { textAlign: align } : null), ...(style || null) }}
+      onClick={() => sort.toggleSort(field)}
+      title="Click to sort"
+    >
+      {children}{active ? <span className="pcp-sort-ind">{sort.sortDir === "asc" ? "▲" : "▼"}</span> : null}
+    </th>
+  );
+}
+
 /* Collapsible/accordion section used to keep secondary Liquidation detail
    tucked away so the working area stays uncrowded (Section 25). */
 function Collapsible({ title, subtitle, defaultOpen, right, children }) {

@@ -142,35 +142,43 @@ function RequestFormModal({ onClose, onSave, nextRequestNo, request, plantOption
   );
 }
 
+const REQUEST_SORT_FIELDS = {
+  requestNo: (r) => r.requestNo,
+  date: (r) => r.date,
+  employee: (r) => r.employee,
+  department: (r) => subaccountLabel(r.department),
+  branchCode: (r) => plantLabel(r.branchCode),
+  purpose: (r) => r.purpose,
+  amount: (r) => Number(r.amount) || 0,
+  approver: (r) => r.approver,
+  status: (r) => r.status,
+};
+
 function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, onDisburse, plantOptions, canApprove, canRelease, plantTitle, canDelete, onDelete, canEditRequestNo, isRequestNoTaken, nextRequestNo: nextRequestNoProp }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [plant, setPlant] = useState("ALL");
-  const [sortDir, setSortDir] = useState("desc");
+  /* Newest request no. first on open; any header can take over from there. */
+  const sort = useTableSort("requestNo", "desc");
 
   /* Always supplied by App, which sees every plant's numbers. The local
      fallback only exists for the plant-scoped `requests` prop and is therefore
      a last resort — App is the single source of the series. */
   const nextRequestNo = nextRequestNoProp || nextSeriesNo(REQUEST_NO_PREFIX, requests.map((r) => r.requestNo));
 
-  /* Newest request no. first by default; clicking the header flips to ascending.
-     Numeric-aware compare so PCR-2026-0009 still sorts below PCR-2026-0010 if the
-     series ever outgrows its zero padding. */
-  const filtered = useMemo(() => {
-    const list = requests.filter((r) => {
+  /* Sort on what the column actually shows, not the raw field, so Department
+     and Plant order the way the reader sees them. */
+  const filtered = sort.sortRows(
+    requests.filter((r) => {
       if (plant !== "ALL" && r.branchCode !== plant) return false;
       if (statusFilter !== "All" && r.status !== statusFilter) return false;
       if (search && !(r.employee.toLowerCase().includes(search.toLowerCase()) || r.requestNo.toLowerCase().includes(search.toLowerCase()))) return false;
       return true;
-    });
-    list.sort((a, b) => {
-      const cmp = String(a.requestNo || "").localeCompare(String(b.requestNo || ""), undefined, { numeric: true });
-      return sortDir === "asc" ? cmp : -cmp;
-    });
-    return list;
-  }, [requests, plant, statusFilter, search, sortDir]);
+    }),
+    REQUEST_SORT_FIELDS
+  );
 
   const formPlantOptions = (plantOptions && plantOptions.length)
     ? (plant !== "ALL" ? plantOptions.filter((p) => p.code === plant) : plantOptions)
@@ -200,11 +208,16 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
             <table className="pcp-table">
               <thead>
                 <tr>
-                  <th className="pcp-sortable" onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))} title="Sort by request no.">
-                    Request No.<span className="pcp-sort-ind">{sortDir === "asc" ? "▲" : "▼"}</span>
-                  </th>
-                  <th>Date</th><th>Employee</th><th>Department</th><th>Plant</th>
-                  <th>Purpose</th><th>Amount</th><th>Approver</th><th>Status</th><th></th>
+                  <SortTh field="requestNo" sort={sort}>Request No.</SortTh>
+                  <SortTh field="date" sort={sort}>Date</SortTh>
+                  <SortTh field="employee" sort={sort}>Employee</SortTh>
+                  <SortTh field="department" sort={sort}>Department</SortTh>
+                  <SortTh field="branchCode" sort={sort}>Plant</SortTh>
+                  <SortTh field="purpose" sort={sort}>Purpose</SortTh>
+                  <SortTh field="amount" sort={sort}>Amount</SortTh>
+                  <SortTh field="approver" sort={sort}>Approver</SortTh>
+                  <SortTh field="status" sort={sort}>Status</SortTh>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>

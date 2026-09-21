@@ -59,8 +59,19 @@ function ChangePasswordModal({ onClose, onDone }) {
    documents who has access to what. */
 function UserManagementTab({ currentEmail, onChangePassword }) {
   const users = window.PCP_USERS || {};
-  const rows = Object.keys(users).map((email) => ({ email, ...users[email] }));
   const plantsLabel = (p) => (p === "ALL" || !p) ? "All plants" : resolvePlants(p).map(plantLabel).join(", ");
+  /* No sort key on open, so the roster keeps its configured order. */
+  const sort = useTableSort(null);
+  const rows = sort.sortRows(
+    Object.keys(users).map((email) => ({ email, ...users[email] })),
+    {
+      name: (u) => u.name,
+      email: (u) => u.email,
+      role: (u) => (ROLES[u.role] ? ROLES[u.role].label : (u.role || "Custodian")),
+      plants: (u) => plantsLabel(u.plants),
+      admin: (u) => (u.role === "Accounting" ? 0 : 1),
+    }
+  );
   return (
     <div>
       <TopBar
@@ -72,7 +83,13 @@ function UserManagementTab({ currentEmail, onChangePassword }) {
         <div className="pcp-card">
           <div className="pcp-table-wrap">
             <table className="pcp-table">
-              <thead><tr><th>Name</th><th>Login (email)</th><th>Role</th><th>Plant Access</th><th>Admin</th></tr></thead>
+              <thead><tr>
+                <SortTh field="name" sort={sort}>Name</SortTh>
+                <SortTh field="email" sort={sort}>Login (email)</SortTh>
+                <SortTh field="role" sort={sort}>Role</SortTh>
+                <SortTh field="plants" sort={sort}>Plant Access</SortTh>
+                <SortTh field="admin" sort={sort}>Admin</SortTh>
+              </tr></thead>
               <tbody>
                 {rows.length ? rows.map((u) => (
                   <tr key={u.email}>

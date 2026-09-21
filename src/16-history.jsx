@@ -31,6 +31,18 @@ function buildTransactionFeed(requests, disbursements, liquidations, replenishme
   return rows.sort((a, b) => (b.date || "").localeCompare(a.date || ""));
 }
 
+const HISTORY_SORT_FIELDS = {
+  date: (t) => t.date,
+  type: (t) => t.type,
+  ref: (t) => t.ref,
+  party: (t) => t.party,
+  branchCode: (t) => t.branchCode,
+  department: (t) => (t.department ? deptDesc(t.department) : ""),
+  category: (t) => t.category,
+  amount: (t) => Number(t.amount) || 0,
+  status: (t) => t.status,
+};
+
 function TransactionHistoryTab({ requests, disbursements, liquidations, replenishments, initialFilter, plantOptions, plantTitle }) {
   const [type, setType] = useState("All");
   const [company, setCompany] = useState("All");
@@ -41,12 +53,14 @@ function TransactionHistoryTab({ requests, disbursements, liquidations, replenis
   const [minAmt, setMinAmt] = useState("");
   const [maxAmt, setMaxAmt] = useState("");
   const [plant, setPlant] = useState("ALL");
+  /* Newest first on open, which is the order the feed is built in. */
+  const sort = useTableSort("date", "desc");
 
   useEffect(() => { if (initialFilter && initialFilter.type) setType(initialFilter.type); }, [initialFilter]);
 
   const feed = useMemo(() => buildTransactionFeed(requests, disbursements, liquidations, replenishments), [requests, disbursements, liquidations, replenishments]);
 
-  const filtered = useMemo(() => feed.filter((t) => {
+  const filtered = useMemo(() => sort.sortRows(feed.filter((t) => {
     if (plant !== "ALL" && t.branchCode !== plant) return false;
     if (type !== "All" && t.type !== type) return false;
     if (company !== "All" && companyOfBranch(t.branchCode) !== company) return false;
@@ -60,7 +74,7 @@ function TransactionHistoryTab({ requests, disbursements, liquidations, replenis
       if (!((t.ref || "").toLowerCase().includes(q) || (t.party || "").toLowerCase().includes(q) || (t.category || "").toLowerCase().includes(q))) return false;
     }
     return true;
-  }), [feed, type, company, status, from, to, minAmt, maxAmt, search, plant]);
+  }), HISTORY_SORT_FIELDS), [feed, type, company, status, from, to, minAmt, maxAmt, search, plant, sort.sortKey, sort.sortDir]);
 
   const total = filtered.reduce((s, t) => s + t.amount, 0);
 
@@ -140,8 +154,15 @@ function TransactionHistoryTab({ requests, disbursements, liquidations, replenis
             <table className="pcp-table">
               <thead>
                 <tr>
-                  <th>Date</th><th>Type</th><th>Reference</th><th>Party</th><th>Branch</th>
-                  <th>Department</th><th>Category / Method</th><th>Amount</th><th>Status</th>
+                  <SortTh field="date" sort={sort}>Date</SortTh>
+                  <SortTh field="type" sort={sort}>Type</SortTh>
+                  <SortTh field="ref" sort={sort}>Reference</SortTh>
+                  <SortTh field="party" sort={sort}>Party</SortTh>
+                  <SortTh field="branchCode" sort={sort}>Branch</SortTh>
+                  <SortTh field="department" sort={sort}>Department</SortTh>
+                  <SortTh field="category" sort={sort}>Category / Method</SortTh>
+                  <SortTh field="amount" sort={sort}>Amount</SortTh>
+                  <SortTh field="status" sort={sort}>Status</SortTh>
                 </tr>
               </thead>
               <tbody>

@@ -2,21 +2,31 @@
 
 const AUDIT_ACTIONS = ["Signed In", "Signed Out", "Request Created", "Edited", "Request No. Changed", "Approved", "Rejected", "Released", "Liquidated", "Replenished", "Deleted", "Password Changed", "Audit Entry Deleted"];
 
+const AUDIT_SORT_FIELDS = {
+  ts: (a) => a.ts,
+  user: (a) => a.user,
+  action: (a) => a.action,
+  entity: (a) => a.entity,
+  remarks: (a) => a.remarks,
+};
+
 function AuditTrailTab({ auditLog, canDelete, onDelete }) {
   const [search, setSearch] = useState("");
   const [action, setAction] = useState("All");
   /* Ids ticked for deletion (super admin only). */
   const [selected, setSelected] = useState([]);
+  /* Newest entry first, the way an audit trail is normally read. */
+  const sort = useTableSort("ts", "desc");
 
   const rows = useMemo(() => [...auditLog].sort((a, b) => (b.ts || "").localeCompare(a.ts || "")), [auditLog]);
-  const filtered = rows.filter((a) => {
+  const filtered = sort.sortRows(rows.filter((a) => {
     if (action !== "All" && a.action !== action) return false;
     if (search) {
       const q = search.toLowerCase();
       if (!((a.entity || "").toLowerCase().includes(q) || (a.user || "").toLowerCase().includes(q) || (a.remarks || "").toLowerCase().includes(q) || (a.action || "").toLowerCase().includes(q))) return false;
     }
     return true;
-  });
+  }), AUDIT_SORT_FIELDS);
 
   const fmtTs = (ts) => {
     if (!ts) return "—";
@@ -99,7 +109,11 @@ function AuditTrailTab({ auditLog, canDelete, onDelete }) {
                     />
                   </th>
                 )}
-                <th>Date &amp; Time</th><th>User</th><th>Action</th><th>Reference</th><th>Remarks</th>
+                <SortTh field="ts" sort={sort}>Date &amp; Time</SortTh>
+                <SortTh field="user" sort={sort}>User</SortTh>
+                <SortTh field="action" sort={sort}>Action</SortTh>
+                <SortTh field="entity" sort={sort}>Reference</SortTh>
+                <SortTh field="remarks" sort={sort}>Remarks</SortTh>
                 {canDelete && <th style={{ width: 44 }}></th>}
               </tr></thead>
               <tbody>
