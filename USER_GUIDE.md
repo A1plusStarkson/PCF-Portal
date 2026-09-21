@@ -142,6 +142,31 @@ The left menu is grouped, top to bottom:
 Each plant has its **own** set of tabs, so you always know which plant you are
 working in — the plant name appears in the page title.
 
+### Sorting any list
+
+Every list in the portal sorts the same way. **Click a column heading** to sort
+by it; **click the same heading again** to flip between smallest-first and
+largest-first. A small arrow shows which column is doing the sorting:
+
+| Arrow | Meaning |
+|-------|---------|
+| ▼ | Largest / newest first (for example PCR-2026-0036 at the top) |
+| ▲ | Smallest / oldest first (PCR-2026-0001 at the top) |
+
+A few things worth knowing:
+
+- Number columns sort as **numbers**, so 9 comes before 10 — not after it.
+- Sorting is applied to whatever your filters and search have already narrowed
+  down, and it never changes the data — only the order you see it in.
+- It resets when you leave the page. Nobody else's screen is affected.
+- Lists that open in a deliberate order (Aging Detail opens worst-overdue
+  first; the funds and user lists keep their set-up order) stay that way until
+  you click a heading yourself.
+
+This works on Petty Cash Requests, Release Ledger, Replenishment,
+Reimbursement, the Approval Module, Transaction History, Liquidation Aging,
+Funds & Master Data and User Management — on **every plant**.
+
 ---
 
 ## Step 4 — What can I do? (simple version)
@@ -282,6 +307,13 @@ Liquidation is where receipts meet the cash that was released.
 4. Encode the **expense lines** (these are what get exported to Acumatica). If
    the lines don't match the approved receipts, the portal says so — reconcile
    them before submitting.
+   - **Total Expense Amount** sits directly under the Amount column and adds
+     itself up as you type, so you can check it against the cash released
+     without a calculator. This appears on every plant.
+   - Note that **Total Receipt Amount** (up in Cash Settlement) is a *different*
+     figure: it counts only supporting documents that Grace Gan has already
+     approved. It stays ₱0.00 until the receipts are approved, even when your
+     expense lines are complete. That is normal, not a fault.
 5. **Reconciliation & Cash Settlement** at the bottom tells you where you stand:
    - **Exact Amount** — receipts match the cash exactly. Nothing to settle.
    - **Excess / Refund** — cash is left over. Return it and record the refund.
@@ -396,6 +428,9 @@ kept), archive or restore. Every document gets a reference number
 
 ## Working at the same time as others
 
+- There is **one shared database** behind the app. Everybody is looking at the
+  same records — the portal shows you the plants your account is allowed to see,
+  so two people with different access see different lists of the *same* data.
 - Many people can use the app **at the same time**. The app saves each record on
   its own, so your work won't erase someone else's.
 - Changes from other people usually appear on your screen **automatically**. If
