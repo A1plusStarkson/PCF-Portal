@@ -148,18 +148,29 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
   const [statusFilter, setStatusFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [plant, setPlant] = useState("ALL");
+  const [sortDir, setSortDir] = useState("desc");
 
   /* Always supplied by App, which sees every plant's numbers. The local
      fallback only exists for the plant-scoped `requests` prop and is therefore
      a last resort — App is the single source of the series. */
   const nextRequestNo = nextRequestNoProp || nextSeriesNo(REQUEST_NO_PREFIX, requests.map((r) => r.requestNo));
 
-  const filtered = requests.filter((r) => {
-    if (plant !== "ALL" && r.branchCode !== plant) return false;
-    if (statusFilter !== "All" && r.status !== statusFilter) return false;
-    if (search && !(r.employee.toLowerCase().includes(search.toLowerCase()) || r.requestNo.toLowerCase().includes(search.toLowerCase()))) return false;
-    return true;
-  });
+  /* Newest request no. first by default; clicking the header flips to ascending.
+     Numeric-aware compare so PCR-2026-0009 still sorts below PCR-2026-0010 if the
+     series ever outgrows its zero padding. */
+  const filtered = useMemo(() => {
+    const list = requests.filter((r) => {
+      if (plant !== "ALL" && r.branchCode !== plant) return false;
+      if (statusFilter !== "All" && r.status !== statusFilter) return false;
+      if (search && !(r.employee.toLowerCase().includes(search.toLowerCase()) || r.requestNo.toLowerCase().includes(search.toLowerCase()))) return false;
+      return true;
+    });
+    list.sort((a, b) => {
+      const cmp = String(a.requestNo || "").localeCompare(String(b.requestNo || ""), undefined, { numeric: true });
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return list;
+  }, [requests, plant, statusFilter, search, sortDir]);
 
   const formPlantOptions = (plantOptions && plantOptions.length)
     ? (plant !== "ALL" ? plantOptions.filter((p) => p.code === plant) : plantOptions)
@@ -189,7 +200,10 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
             <table className="pcp-table">
               <thead>
                 <tr>
-                  <th>Request No.</th><th>Date</th><th>Employee</th><th>Department</th><th>Plant</th>
+                  <th className="pcp-sortable" onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))} title="Sort by request no.">
+                    Request No.<span className="pcp-sort-ind">{sortDir === "asc" ? "▲" : "▼"}</span>
+                  </th>
+                  <th>Date</th><th>Employee</th><th>Department</th><th>Plant</th>
                   <th>Purpose</th><th>Amount</th><th>Approver</th><th>Status</th><th></th>
                 </tr>
               </thead>
