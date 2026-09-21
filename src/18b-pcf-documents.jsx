@@ -4,9 +4,12 @@
    upload (drag & drop / multi-file), organize by category, preview, download,
    rename, replace (with version history), star, archive/restore and delete
    (permitted roles). Every document carries a reference number, is linked to a
-   company / plant / transaction, and records a per-document activity log. Files
-   are stored as data URLs alongside the rest of the portal state (same approach
-   as liquidation attachments). */
+   company / plant / transaction, and records a per-document activity log.
+
+   File bytes live in the `pcf-receipts` Storage bucket and the record keeps
+   only a `path` (same approach as liquidation attachments). Documents uploaded
+   before that change still carry their bytes inline in `dataUrl`; useFileUrl
+   resolves either, so both keep working. */
 
 const DOC_CATEGORIES = [
   "PCF Memorandum",
@@ -66,9 +69,26 @@ const docTypeMeta = (name) => {
   return { kind: "file", tint: "#4b5563" };
 };
 
+/* Row thumbnail. Its own component so it can resolve the file through
+   useFileUrl — a hook cannot be called from inside the document table's map.
+   Falls back to the file-type icon whenever there is no image to show. */
+function DocThumb({ doc, tm }) {
+  const src = useFileUrl(doc);
+  if (tm.kind === "image" && src) {
+    return <img src={src} alt="" style={{ width: 30, height: 30, borderRadius: 6, objectFit: "cover", border: "1px solid var(--line)" }} />;
+  }
+  return (
+    <div style={{ width: 30, height: 30, borderRadius: 6, background: tm.tint + "18", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <FileIcon size={16} color={tm.tint} />
+    </div>
+  );
+}
+
 /* ---- Preview modal (image + PDF inline, others prompt download) ---- */
 function DocPreviewModal({ doc, onClose, onDownload }) {
   const meta = docTypeMeta(doc.name);
+  /* Inline bytes on a legacy document, a signed bucket URL on a migrated one. */
+  const src = useFileUrl(doc);
   return (
     <div className="pcp-modal-backdrop" onClick={onClose}>
       <div className="pcp-modal" style={{ maxWidth: 900, width: "92%" }} onClick={(e) => e.stopPropagation()}>
@@ -77,10 +97,12 @@ function DocPreviewModal({ doc, onClose, onDownload }) {
           <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose}><X size={15} /></button>
         </div>
         <div className="pcp-modal-body" style={{ maxHeight: "70vh" }}>
-          {meta.kind === "image" && doc.dataUrl ? (
-            <img src={doc.dataUrl} alt={doc.name} style={{ maxWidth: "100%", borderRadius: 8, display: "block", margin: "0 auto" }} />
-          ) : meta.kind === "pdf" && doc.dataUrl ? (
-            <iframe title={doc.name} src={doc.dataUrl} style={{ width: "100%", height: "62vh", border: "1px solid var(--line)", borderRadius: 8 }} />
+          {meta.kind === "image" && src ? (
+            <img src={src} alt={doc.name} style={{ maxWidth: "100%", borderRadius: 8, display: "block", margin: "0 auto" }} />
+          ) : meta.kind === "pdf" && src ? (
+            <iframe title={doc.name} src={src} style={{ width: "100%", height: "62vh", border: "1px solid var(--line)", borderRadius: 8 }} />
+          ) : !src && hasFileBytes(doc) ? (
+            <div className="pcp-empty" style={{ padding: 32, textAlign: "center" }}>Loading document…</div>
           ) : (
             <div className="pcp-empty" style={{ padding: 32, textAlign: "center" }}>
               <FileIcon size={40} color={meta.tint} style={{ margin: "0 auto 10px" }} />
@@ -209,16 +231,24 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
     const rejected = files.length - valid.length;
     if (!valid.length) { setNotice(`Unsupported file type. Allowed: ${DOC_EXTS.join(", ").toUpperCase()}.`); return; }
 
+    const store = fileStore();
+    if (!store) { setNotice(STALE_PAGE_NOTE); return; }
     setUploading(true); setProgress(0);
     const built = [];
     let done = 0;
     const baseSeq = (documents ? documents.length : 0) + 1;
+    let failed = 0;
     valid.forEach((file, idx) => {
-      const reader = new FileReader();
-      reader.onload = () => {
+      /* Bytes go to the Storage bucket; the record keeps only the path. A
+         failed upload adds nothing — a document row with no file behind it
+         reads as filed when it is not. */
+      const docId = uid("doc");
+      const path = storagePathFor(docId, file.name);
+      store.upload(path, file).then((ok) => {
         const ts = nowTs();
-        built.push({
-          id: uid("doc"),
+        if (!ok) { failed++; }
+        else built.push({
+          id: docId,
           refNo: makeDocRef(baseSeq + idx),
           name: file.name,
           category: meta.category,
@@ -233,7 +263,7 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
           lastModified: ts,
           size: file.size,
           type: file.type || extOf(file.name),
-          dataUrl: reader.result,
+          path,
           version: 1,
           status: "Active",
           starred: false,
@@ -242,22 +272,33 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
         });
         done++; setProgress(Math.round((done / valid.length) * 100));
         if (done === valid.length) {
-          onAdd(built);
+          if (built.length) onAdd(built);
           setUploading(false); setProgress(0);
-          setNotice(`${built.length} document${built.length > 1 ? "s" : ""} uploaded${rejected ? ` · ${rejected} unsupported file(s) skipped` : ""}.`);
+          setNotice(
+            `${built.length} document${built.length === 1 ? "" : "s"} uploaded`
+            + (rejected ? ` · ${rejected} unsupported file(s) skipped` : "")
+            + (failed ? ` · ${failed} failed to upload — please retry` : "")
+          );
         }
-      };
-      reader.onerror = () => { done++; if (done === valid.length) { onAdd(built); setUploading(false); setProgress(0); } };
-      reader.readAsDataURL(file);
+      });
     });
   }, [canUpload, documents, meta, userName, role, onAdd, plantOpts]);
 
   const onDrop = (e) => { e.preventDefault(); setDragOver(false); ingest(e.dataTransfer.files); };
 
-  const doDownload = useCallback((d) => {
-    if (!d.dataUrl) { setNotice("File content unavailable for download."); return; }
+  /* Async because a migrated document's bytes live in the bucket and the
+     signed URL has to be minted first. Legacy inline documents resolve
+     immediately and behave exactly as before. */
+  const doDownload = useCallback(async (d) => {
+    let href = d.dataUrl || "";
+    if (!href && d.path && window.storage.files) {
+      setNotice("Preparing download…");
+      href = await window.storage.files.signedUrl(d.path);
+      setNotice("");
+    }
+    if (!href) { setNotice("File content unavailable for download."); return; }
     const a = document.createElement("a");
-    a.href = d.dataUrl; a.download = d.name;
+    a.href = href; a.download = d.name;
     document.body.appendChild(a); a.click(); document.body.removeChild(a);
     onActivity && onActivity(d.id, "Downloaded");
   }, [onActivity]);
@@ -269,9 +310,24 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
     e.target.value = "";
     if (!file || !target) return;
     if (!isSupportedDoc(file)) { setNotice("Unsupported file type for replacement."); return; }
-    const reader = new FileReader();
-    reader.onload = () => onReplace(target.id, { name: file.name, size: file.size, type: file.type || extOf(file.name), dataUrl: reader.result }, userName || role || "User");
-    reader.readAsDataURL(file);
+    /* A replacement is a new object, never an overwrite of the old path —
+       the superseded version stays retrievable for audit. */
+    const store = fileStore();
+    if (!store) { setNotice(STALE_PAGE_NOTE); return; }
+    const path = storagePathFor(uid("docv"), file.name);
+    setNotice(`Uploading "${file.name}"…`);
+    store.upload(path, file).then((ok) => {
+      if (!ok) { setNotice(`"${file.name}" could not be uploaded. Please try again.`); return; }
+      setNotice("");
+      /* dataUrl is cleared explicitly: replacing a legacy inline document must
+         drop the old bytes, or the stale inline copy would keep winning over
+         the new path in useFileUrl. */
+      onReplace(
+        target.id,
+        { name: file.name, size: file.size, type: file.type || extOf(file.name), path, dataUrl: "" },
+        userName || role || "User"
+      );
+    });
   };
 
   const commitRename = () => {
@@ -516,9 +572,7 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
                       </td>
                       <td>
                         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                          {tm.kind === "image" && d.dataUrl
-                            ? <img src={d.dataUrl} alt="" style={{ width: 30, height: 30, borderRadius: 6, objectFit: "cover", border: "1px solid var(--line)" }} />
-                            : <div style={{ width: 30, height: 30, borderRadius: 6, background: tm.tint + "18", display: "flex", alignItems: "center", justifyContent: "center" }}><FileIcon size={16} color={tm.tint} /></div>}
+                          <DocThumb doc={d} tm={tm} />
                           <div style={{ minWidth: 0 }}>
                             {renaming && renaming.id === d.id ? (
                               <input className="pcp-input" autoFocus value={renameVal} onChange={(e) => setRenameVal(e.target.value)}

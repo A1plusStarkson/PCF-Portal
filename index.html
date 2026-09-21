@@ -69,6 +69,21 @@
   window.PCP_SUPABASE_ANON_KEY = window.PCP_SUPABASE_PUBLISHABLE_KEY;
   window.PCP_TABLE = "pcp_state";
   window.PCP_RECORDS_TABLE = "pcp_records";
+  /* Private Storage bucket holding receipt scans and PCF document uploads.
+     Create it with supabase-storage-setup.sql. Records reference an object by
+     path; the bytes never travel with the record. */
+  window.PCP_BUCKET = "pcf-receipts";
+  /* Flip to true once tools/migrate-receipts.html AND
+     supabase-strip-inline-receipts.sql have both been run successfully.
+
+     While false, the loader assumes some records still carry megabytes of
+     base64 inline, so it fetches liquidations/reimbursements/documents apart
+     from everything else, one row at a time, after the portal is on screen.
+     Once the bytes live in the bucket every record is small and that dance is
+     pure overhead — 25 extra round trips for nothing — so this collapses the
+     load back into a single request. Harmless to leave false; it only costs
+     a slower first paint. */
+  window.PCP_RECEIPTS_IN_BUCKET = false;
 
   /* ---- Access control (Role-Based Access Control) ----
      Each account below is matched by full email (case-insensitive). "Accounting"
@@ -131,6 +146,10 @@
     // several megabytes, so these are fetched apart from everything else. See
     // getAll below for why that separation is load-bearing.
     var HEAVY_COLLECTIONS = ["liquidations", "reimbursements", "documents"];
+    // Private Storage bucket holding receipt scans and PCF document uploads.
+    // Created by supabase-storage-setup.sql. Records reference an object by
+    // `path`; the bytes never travel with the record.
+    var BUCKET = window.PCP_BUCKET || "pcf-receipts";
     // Known synchronously, unlike the client itself — lets set()/put() queue
     // writes immediately instead of waiting a microtask for sbReady.
     var CLOUD = !!(window.PCP_SUPABASE_URL && window.PCP_SUPABASE_ANON_KEY);
@@ -516,7 +535,10 @@
             window.PCP_RECORDS_LOAD_FAILED = false;
             var all = [];
             var collect = function (batch) { batch.forEach(function (r) { all.push(r); }); };
-            return recDrain(c, "id,collection,data", false, 1000, "light", collect)
+            // Once the bytes are in the bucket every record is small, so the
+            // split is unnecessary and one request fetches the lot.
+            var slice = window.PCP_RECEIPTS_IN_BUCKET ? null : "light";
+            return recDrain(c, "id,collection,data", false, 1000, slice, collect)
               .then(function () { return recDrain(c, "id,collection", true, 1000, null, collect); })
               .then(function () { return all; });
           });
@@ -535,6 +557,8 @@
             // No cloud client at all (offline/demo build) means there is
             // nothing to stream — that is success, not a failed receipt load.
             if (!c) return true;
+            // Already fetched by getAll in one pass once the bytes moved out.
+            if (window.PCP_RECEIPTS_IN_BUCKET) return true;
             return recDrain(c, "id,collection,data", false, 1, "heavy", function (batch) {
               batch.forEach(function (r) {
                 // One unreadable row must not abort the rest of the stream.
@@ -617,8 +641,105 @@
             }
           }).catch(function () { return null; });
         }
+      },
+
+      // ---- File store (Supabase Storage, bucket `pcf-receipts`) ----
+      // Receipt scans and PCF document uploads. Kept OUT of the transaction
+      // record on purpose: a record write rewrites the whole `data` column
+      // from whatever the browser holds, so bytes stored inside a record are
+      // only ever one save away from being erased. Here they cannot be.
+      //
+      // Every call fails soft and reports it — the caller decides what to do,
+      // because silently swallowing a failed upload is how a liquidation ends
+      // up referencing a receipt that was never stored.
+      files: {
+        // Uploads a File/Blob. Resolves true on success, false on failure.
+        upload: function (path, file) {
+          return sbReady.then(function (c) {
+            if (!c) return false;
+            return c.storage.from(BUCKET)
+              .upload(path, file, { upsert: true, contentType: (file && file.type) || "application/octet-stream" })
+              .then(function (res) {
+                if (res.error) { console.warn("Receipt upload failed:", res.error.message); return false; }
+                return true;
+              });
+          }).catch(function (e) { console.warn("Receipt upload failed:", e && e.message); return false; });
+        },
+
+        // Uploads a base64 data URL. Used by the one-off migration in
+        // tools/migrate-receipts.html, which reads bytes back out of the old
+        // records; new uploads go through upload() with the real File.
+        uploadDataUrl: function (path, dataUrl) {
+          var blob;
+          try { blob = dataUrlToBlob(dataUrl); }
+          catch (e) { console.warn("Unreadable data URL for", path, e && e.message); return Promise.resolve(false); }
+          if (!blob) return Promise.resolve(false);
+          return this.upload(path, blob);
+        },
+
+        // Exchanges an object path for a short-lived signed URL. Resolves ""
+        // when unavailable so a caller can render a placeholder rather than a
+        // broken image. Signed because the bucket is private.
+        signedUrl: function (path, seconds) {
+          return sbReady.then(function (c) {
+            if (!c || !path) return "";
+            return c.storage.from(BUCKET).createSignedUrl(path, seconds || 3600)
+              .then(function (res) {
+                if (res.error || !res.data) { console.warn("Receipt link failed:", res.error && res.error.message); return ""; }
+                return res.data.signedUrl || "";
+              });
+          }).catch(function () { return ""; });
+        },
+
+        // Deletes objects by path. Only ever called for files the portal knows
+        // are unreferenced — see the orphan sweep in tools/migrate-receipts.html.
+        remove: function (paths) {
+          return sbReady.then(function (c) {
+            if (!c || !paths || !paths.length) return false;
+            return c.storage.from(BUCKET).remove(paths).then(function (res) {
+              if (res.error) { console.warn("Receipt delete failed:", res.error.message); return false; }
+              return true;
+            });
+          }).catch(function () { return false; });
+        },
+
+        // Lists objects under a prefix, paging past the 100-object default.
+        list: function (prefix) {
+          return sbReady.then(function (c) {
+            if (!c) return [];
+            var out = [], size = 1000;
+            function page(offset) {
+              return c.storage.from(BUCKET).list(prefix || "", { limit: size, offset: offset, sortBy: { column: "name", order: "asc" } })
+                .then(function (res) {
+                  if (res.error) { console.warn("Receipt list failed:", res.error.message); return out; }
+                  var batch = res.data || [];
+                  batch.forEach(function (o) { out.push(o); });
+                  if (!batch.length) return out;
+                  return page(offset + batch.length);
+                });
+            }
+            return page(0);
+          }).catch(function () { return []; });
+        }
       }
     };
+
+    // Turns "data:image/jpeg;base64,AAAA..." into a Blob without inflating it
+    // through a string copy per byte. Declared after window.storage because it
+    // is only reached from files.uploadDataUrl, which runs long afterwards.
+    function dataUrlToBlob(dataUrl) {
+      var s = String(dataUrl || "");
+      var comma = s.indexOf(",");
+      if (comma < 0) return null;
+      var header = s.slice(0, comma);
+      var body = s.slice(comma + 1);
+      var type = (header.match(/^data:([^;,]+)/) || [])[1] || "application/octet-stream";
+      if (header.indexOf("base64") < 0) return new Blob([decodeURIComponent(body)], { type: type });
+      var bin = atob(body);
+      var bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new Blob([bytes], { type: type });
+    }
   })();
 </script>
 
@@ -635,7 +756,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20260921d";
+  window.PCP_SRC_VERSION = "20260921e";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",

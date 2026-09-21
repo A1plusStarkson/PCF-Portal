@@ -183,19 +183,25 @@ function drillSortValue(row, key) {
   return v == null ? "" : v;
 }
 
+/* One receipt chip. Separate component so it can resolve the file through
+   useFileUrl — inline bytes on a legacy record, a signed bucket URL on a
+   migrated one — which a hook cannot do from inside the map below. */
+function DrillReceipt({ att }) {
+  const src = useFileUrl(att);
+  const isImg = (att.type || "").startsWith("image/") && src;
+  return (
+    <a className="pcp-receipt" href={src || "#"} target="_blank" rel="noopener noreferrer" title={att.name}>
+      {isImg ? <img src={src} alt={att.name} /> : <div className="fileicon"><Receipt size={22} color="#9098b3" /></div>}
+      <span>{att.name}</span>
+    </a>
+  );
+}
+
 function DrillReceipts({ items }) {
   if (!items || !items.length) return <span style={{ color: "var(--text-mut)", fontSize: 12 }}>No receipts attached.</span>;
   return (
     <div className="pcp-receipts">
-      {items.map((a) => {
-        const isImg = (a.type || "").startsWith("image/") && a.data;
-        return (
-          <a key={a.id} className="pcp-receipt" href={a.data || "#"} target="_blank" rel="noopener noreferrer" title={a.name}>
-            {isImg ? <img src={a.data} alt={a.name} /> : <div className="fileicon"><Receipt size={22} color="#9098b3" /></div>}
-            <span>{a.name}</span>
-          </a>
-        );
-      })}
+      {items.map((a) => <DrillReceipt key={a.id} att={a} />)}
     </div>
   );
 }

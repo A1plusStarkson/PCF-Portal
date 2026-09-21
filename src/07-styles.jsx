@@ -884,6 +884,45 @@ function SearchSelect({
    file is rendered in place — images and PDFs inline, anything else as a
    labelled tile with Open / Download. Nobody has to click "View" file by file.
 --------------------------------------------------------------------------- */
+/* One tile. Its own component because useFileUrl is a hook and a hook cannot
+   be called from inside a .map callback. */
+function AttachmentTile({ att, renderFooter }) {
+  const src = useFileUrl(att);
+  const name = att.name || "document";
+  const type = String(att.type || "");
+  const ext = String(name).split(".").pop().toLowerCase();
+  const isImage = type.startsWith("image") || ["png", "jpg", "jpeg", "gif", "webp", "bmp"].includes(ext);
+  const isPdf = type.includes("pdf") || ext === "pdf";
+  /* Bytes exist but the signed URL has not come back yet — say "loading",
+     never render a broken image or a dead download link. */
+  const pending = !src && hasFileBytes(att);
+  return (
+    <div className="pcp-doc-tile">
+      <div className="pcp-doc-tile-head">
+        <Paperclip size={12} color="#2054a3" style={{ flexShrink: 0 }} />
+        <span className="pcp-doc-tile-name" title={name}>{name}</span>
+        {att.docType && <span className="pcp-badge pcp-badge-gray">{att.docType}</span>}
+        {src && <a className="pcp-iconbtn" href={src} target="_blank" rel="noopener noreferrer" title="Open full size"><Search size={13} /></a>}
+        {src && <a className="pcp-iconbtn" href={src} download={name} title="Download"><Download size={13} /></a>}
+      </div>
+      <div className="pcp-doc-frame">
+        {isImage && src ? (
+          <img src={src} alt={name} />
+        ) : isPdf && src ? (
+          <iframe title={name} src={src} />
+        ) : (
+          <div className="pcp-doc-none">
+            {pending
+              ? "Loading…"
+              : `No in-browser preview for ${ext ? ext.toUpperCase() : "this"} files — use Open or Download.`}
+          </div>
+        )}
+      </div>
+      {renderFooter && renderFooter(att)}
+    </div>
+  );
+}
+
 function AttachmentGallery({ attachments, emptyLabel, renderFooter }) {
   const list = attachments || [];
   if (!list.length) {
@@ -891,36 +930,9 @@ function AttachmentGallery({ attachments, emptyLabel, renderFooter }) {
   }
   return (
     <div className="pcp-doc-gallery">
-      {list.map((a, i) => {
-        const name = a.name || "document";
-        const type = String(a.type || "");
-        const ext = String(name).split(".").pop().toLowerCase();
-        const isImage = type.startsWith("image") || ["png", "jpg", "jpeg", "gif", "webp", "bmp"].includes(ext);
-        const isPdf = type.includes("pdf") || ext === "pdf";
-        return (
-          <div key={a.id || name + i} className="pcp-doc-tile">
-            <div className="pcp-doc-tile-head">
-              <Paperclip size={12} color="#2054a3" style={{ flexShrink: 0 }} />
-              <span className="pcp-doc-tile-name" title={name}>{name}</span>
-              {a.docType && <span className="pcp-badge pcp-badge-gray">{a.docType}</span>}
-              <a className="pcp-iconbtn" href={a.data} target="_blank" rel="noopener noreferrer" title="Open full size"><Search size={13} /></a>
-              <a className="pcp-iconbtn" href={a.data} download={name} title="Download"><Download size={13} /></a>
-            </div>
-            <div className="pcp-doc-frame">
-              {isImage && a.data ? (
-                <img src={a.data} alt={name} />
-              ) : isPdf && a.data ? (
-                <iframe title={name} src={a.data} />
-              ) : (
-                <div className="pcp-doc-none">
-                  No in-browser preview for {ext ? ext.toUpperCase() : "this"} files — use Open or Download.
-                </div>
-              )}
-            </div>
-            {renderFooter && renderFooter(a)}
-          </div>
-        );
-      })}
+      {list.map((a, i) => (
+        <AttachmentTile key={a.id || (a.name || "document") + i} att={a} renderFooter={renderFooter} />
+      ))}
     </div>
   );
 }

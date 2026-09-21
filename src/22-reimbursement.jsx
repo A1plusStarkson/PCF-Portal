@@ -361,15 +361,26 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, reimb, nextRei
         setUploadNote(`"${file.name}" is larger than 2 MB and was skipped. Please compress it first.`);
         return;
       }
-      const reader = new FileReader();
-      reader.onload = () => {
+      /* Straight to the Storage bucket — the record carries only the path.
+         The attachment is added only after the upload succeeds, so a form can
+         never reference bytes that were never stored. */
+      const store = fileStore();
+      if (!store) { setUploadNote(STALE_PAGE_NOTE); return; }
+      const attId = uid("ratt");
+      const path = storagePathFor(attId, file.name);
+      setUploadNote(`Uploading "${file.name}"…`);
+      store.upload(path, file).then((ok) => {
+        if (!ok) {
+          setUploadNote(`"${file.name}" could not be uploaded. Check your connection and try again.`);
+          return;
+        }
+        setUploadNote("");
         const doc = {
-          id: uid("ratt"), name: file.name, type: file.type || "file", size: file.size,
-          data: reader.result, uploadedAt: todayISO(), docType: docType || "Official Receipt", receiptNo: "",
+          id: attId, name: file.name, type: file.type || "file", size: file.size,
+          path, uploadedAt: todayISO(), docType: docType || "Official Receipt", receiptNo: "",
         };
         setForm((f) => ({ ...f, attachments: [...f.attachments, doc] }));
-      };
-      reader.readAsDataURL(file);
+      });
     });
   };
   const removeAtt = (id) => setForm((f) => ({ ...f, attachments: f.attachments.filter((a) => a.id !== id) }));

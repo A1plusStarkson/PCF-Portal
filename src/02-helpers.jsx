@@ -152,6 +152,83 @@ function stripFileBytes(rec) {
   return out;
 }
 
+/* ---- Where a file's bytes actually live ----
+   New uploads go straight to the `pcf-receipts` Storage bucket and the record
+   keeps only a `path`. Records created before that still carry the bytes
+   inline (`attachments[].data`, or `dataUrl` for PCF documents).
+
+   BOTH are supported, permanently — not as a temporary bridge. An inline
+   record is a complete record; it is merely expensive, and the migration in
+   tools/migrate-receipts.html converts them at a time of your choosing rather
+   than holding a deploy hostage. Inline bytes win when present, because during
+   the migration a record briefly holds both and the inline copy is the one
+   already proven to render. */
+function fileRefOf(att) {
+  if (!att) return { inline: "", path: "" };
+  return { inline: att.data || att.dataUrl || "", path: att.path || "" };
+}
+
+/* Signed URLs are minted per object and expire, so they are cached for the
+   session: a gallery of twelve receipts re-renders constantly, and re-signing
+   every tile on every render would be both slow and pointless. */
+const _signedUrlCache = new Map();
+
+/* Resolves an attachment (or PCF document) to something usable as an <img>
+   src or an <a> href. Returns "" while a signed URL is still being fetched,
+   so callers should render a placeholder rather than a broken image. */
+function useFileUrl(att) {
+  const { inline, path } = fileRefOf(att);
+  const [url, setUrl] = useState(() => inline || _signedUrlCache.get(path) || "");
+  useEffect(() => {
+    if (inline) { setUrl(inline); return undefined; }
+    if (!path) { setUrl(""); return undefined; }
+    const cached = _signedUrlCache.get(path);
+    if (cached) { setUrl(cached); return undefined; }
+    let active = true;
+    const files = window.storage && window.storage.files;
+    if (!files || !files.signedUrl) { setUrl(""); return undefined; }
+    files.signedUrl(path).then((u) => {
+      if (!active) return;
+      if (u) _signedUrlCache.set(path, u);
+      setUrl(u || "");
+    }).catch(() => { if (active) setUrl(""); });
+    return () => { active = false; };
+  }, [inline, path]);
+  return url;
+}
+
+/* True when a file has bytes SOMEWHERE — inline or in the bucket. Distinct
+   from "the URL has resolved yet", which is what useFileUrl reports. */
+function hasFileBytes(att) {
+  const { inline, path } = fileRefOf(att);
+  return !!(inline || path);
+}
+
+/* The file store, or null when this page cannot reach it.
+   Guarding matters during a deploy: index.html is served with its own cache
+   lifetime, but the src/*.jsx files are fetched fresh under the new version
+   string — so for a few minutes a browser can run NEW module code against an
+   OLD index.html that has no storage.files at all. Without this check that
+   combination throws on the first upload; with it, the user is told to
+   reload. Nothing is written either way. */
+function fileStore() {
+  const f = window.storage && window.storage.files;
+  return (f && typeof f.upload === "function") ? f : null;
+}
+const STALE_PAGE_NOTE = "This page is out of date — reload it (Ctrl+Shift+R) before uploading.";
+
+/* Object path for a newly uploaded file. The attachment id is already unique
+   (uid("att") / uid("ratt") / uid("doc")), so it alone prevents collisions;
+   the file name rides along only so the bucket stays browsable by a human.
+   Anything that could confuse a path separator is flattened. */
+function storagePathFor(attId, fileName) {
+  const safe = String(fileName || "file")
+    .replace(/[^\w.\-]+/g, "_")
+    .replace(/_{2,}/g, "_")
+    .slice(-80);
+  return "receipts/" + attId + "/" + safe;
+}
+
 /* ---- Legacy whole-state blob: READ ONLY, and only to migrate ----
    pcp_records is the store. This reads the old pcp_state blob for exactly one
    purpose: seeding pcp_records on a project that predates it (see the load

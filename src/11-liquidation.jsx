@@ -104,6 +104,36 @@ function emptyLine() {
 
 /* Bring older stored documents up to the current shape so rows uploaded before
    receipt amounts existed still render and can be completed. */
+/* ---- Receipt bytes ----
+   Both of these resolve the attachment through useFileUrl, which returns the
+   inline bytes on a legacy record and a signed bucket URL on a migrated one.
+   They are separate components because a hook cannot be called from inside
+   the .map that renders the receipt rows; the signed-URL cache means the two
+   of them still cost one network call per receipt, not two. */
+function AttachmentLinks({ att }) {
+  const src = useFileUrl(att);
+  if (!src) {
+    return <span style={{ fontSize: 10.5, color: "var(--text-mut)" }}>{hasFileBytes(att) ? "loading…" : "no file"}</span>;
+  }
+  return (
+    <>
+      <a className="pcp-btn pcp-btn-sm" href={src} target="_blank" rel="noopener noreferrer" title="Open full size / zoom"><Search size={12} /> Zoom</a>
+      <a className="pcp-btn pcp-btn-sm" href={src} download={att.name} title="Download receipt"><Download size={12} /></a>
+    </>
+  );
+}
+
+function AttachmentPreview({ att, isImage, isPdf }) {
+  const src = useFileUrl(att);
+  const note = (text) => (
+    <div style={{ padding: 24, textAlign: "center", fontSize: 11.5, color: "var(--text-mut)" }}>{text}</div>
+  );
+  if (!src) return note(hasFileBytes(att) ? "Loading receipt…" : "No file stored for this receipt.");
+  if (isImage) return <img src={src} alt={att.name} style={{ display: "block", width: "100%", maxHeight: 320, objectFit: "contain" }} />;
+  if (isPdf) return <iframe title={att.name} src={src} style={{ width: "100%", height: 320, border: "none" }} />;
+  return note("Preview not available for this file type — use Zoom or Download to open it.");
+}
+
 function normalizeAttachment(a) {
   return {
     ...a,
@@ -162,11 +192,24 @@ function LiquidationWorksheet({
         setUploadNote(`"${file.name}" is larger than 2 MB and was skipped. Please compress it first.`);
         return;
       }
-      const reader = new FileReader();
-      reader.onload = () => {
+      /* The file goes to the Storage bucket and the record keeps only its
+         path. Nothing is added to the worksheet until the upload SUCCEEDS —
+         an attachment row pointing at bytes that were never stored is worse
+         than no attachment at all, because it looks liquidated. */
+      const store = fileStore();
+      if (!store) { setUploadNote(STALE_PAGE_NOTE); return; }
+      const attId = uid("att");
+      const path = storagePathFor(attId, file.name);
+      setUploadNote(`Uploading "${file.name}"…`);
+      store.upload(path, file).then((ok) => {
+        if (!ok) {
+          setUploadNote(`"${file.name}" could not be uploaded. Check your connection and try again.`);
+          return;
+        }
+        setUploadNote("");
         const doc = {
-          id: uid("att"), name: file.name, type: file.type || "file",
-          size: file.size, data: reader.result, uploadedAt: todayISO(),
+          id: attId, name: file.name, type: file.type || "file",
+          size: file.size, path, uploadedAt: todayISO(),
           approvalStatus: "Pending", approvalHistory: [],
           docType: DEFAULT_DOC_TYPE, receiptNo: "", receiptAmount: "", amountHistory: [],
         };
@@ -185,8 +228,7 @@ function LiquidationWorksheet({
           return [...as, doc];
         });
         setSaved(false);
-      };
-      reader.readAsDataURL(file);
+      });
     });
   };
   const removeAttachment = (id) => { setAttachments((as) => as.filter((a) => a.id !== id)); setSaved(false); };
@@ -776,8 +818,7 @@ function LiquidationWorksheet({
                     </div>
                   </div>
                   <Badge status={status} />
-                  <a className="pcp-btn pcp-btn-sm" href={a.data} target="_blank" rel="noopener noreferrer" title="Open full size / zoom"><Search size={12} /> Zoom</a>
-                  <a className="pcp-btn pcp-btn-sm" href={a.data} download={a.name} title="Download receipt"><Download size={12} /></a>
+                  <AttachmentLinks att={a} />
                   {canApproveReceipts && isSaved && (
                     <>
                       <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={() => approveReceipt(a)} disabled={status === "Approved"} title="Approve receipt"><Check size={12} /></button>
@@ -860,15 +901,7 @@ function LiquidationWorksheet({
                 {/* Inline preview — the receipt is visible directly on the page,
                     no "View" click needed (mirrors the reimbursement module). */}
                 <div style={{ marginTop: 8, border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden", background: "#f4f6f9" }}>
-                  {isImage ? (
-                    <img src={a.data} alt={a.name} style={{ display: "block", width: "100%", maxHeight: 320, objectFit: "contain" }} />
-                  ) : isPdf ? (
-                    <iframe title={a.name} src={a.data} style={{ width: "100%", height: 320, border: "none" }} />
-                  ) : (
-                    <div style={{ padding: 24, textAlign: "center", fontSize: 11.5, color: "var(--text-mut)" }}>
-                      Preview not available for this file type — use Zoom or Download to open it.
-                    </div>
-                  )}
+                  <AttachmentPreview att={a} isImage={isImage} isPdf={isPdf} />
                 </div>
 
                 {canApproveReceipts && !isSaved && (
