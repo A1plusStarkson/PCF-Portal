@@ -153,19 +153,28 @@ function stripFileBytes(rec) {
 }
 
 /* ---- Where a file's bytes actually live ----
-   New uploads go into the `pcp_files` table, one row per file, and the record
-   keeps only a `fileId`. Records created before that still carry the bytes
-   inline (`attachments[].data`, or `dataUrl` for PCF documents).
+   Three places, and every one of them is resolved here so that no record is
+   ever stranded by where its bytes happen to sit:
 
-   BOTH are supported, permanently — not as a temporary bridge. An inline
-   record is a complete record; it is merely expensive, and
-   supabase-migrate-receipts-to-files.sql converts them at a time of your
-   choosing rather than holding a deploy hostage. Inline bytes win when
-   present, because during the migration a record briefly holds both and the
-   inline copy is the one already proven to render. */
+     inline  attachments[].data / dataUrl — how receipts were stored
+             originally. Read-only legacy; nothing writes here any more.
+     fileId  a row in pcp_files — the legacy receipts, moved out of the
+             records by SQL. Read-only too.
+     path    an object in the Storage bucket — every NEW upload.
+
+   Resolution order is inline → path → fileId. Inline wins because during the
+   migration a record briefly holds both, and the inline copy is the one
+   already proven to render. A record never carries both path and fileId: a
+   path means it was uploaded after the change, a fileId means it was migrated
+   before it. Replacing a legacy document clears the old pointers explicitly
+   so a stale copy cannot outrank the new one. */
 function fileRefOf(att) {
-  if (!att) return { inline: "", fileId: "" };
-  return { inline: att.data || att.dataUrl || "", fileId: att.fileId || "" };
+  if (!att) return { inline: "", path: "", fileId: "" };
+  return {
+    inline: att.data || att.dataUrl || "",
+    path: att.path || "",
+    fileId: att.fileId || "",
+  };
 }
 
 /* Fetched bytes are cached for the session so that re-rendering a gallery does
@@ -185,31 +194,39 @@ function _cacheFile(id, data) {
    src or an <a> href. Returns "" while the bytes are still being fetched, so
    callers should render a placeholder rather than a broken image. */
 function useFileUrl(att) {
-  const { inline, fileId } = fileRefOf(att);
-  const [url, setUrl] = useState(() => inline || _fileCache.get(fileId) || "");
+  const { inline, path, fileId } = fileRefOf(att);
+  const key = path || fileId;
+  const [url, setUrl] = useState(() => inline || _fileCache.get(key) || "");
   useEffect(() => {
     if (inline) { setUrl(inline); return undefined; }
-    if (!fileId) { setUrl(""); return undefined; }
-    const cached = _fileCache.get(fileId);
+    if (!key) { setUrl(""); return undefined; }
+    const cached = _fileCache.get(key);
     if (cached) { setUrl(cached); return undefined; }
-    let active = true;
     const files = window.storage && window.storage.files;
-    if (!files || !files.get) { setUrl(""); return undefined; }
-    files.get(fileId).then((d) => {
+    if (!files) { setUrl(""); return undefined; }
+    /* A bucket object resolves to a signed URL (the browser then fetches the
+       image itself, over the CDN); a pcp_files row resolves to the data URL
+       itself. Either way the caller just gets something it can put in a src. */
+    const fetching = path
+      ? (files.signedUrl ? files.signedUrl(path) : Promise.resolve(""))
+      : (files.get ? files.get(fileId) : Promise.resolve(""));
+    let active = true;
+    fetching.then((d) => {
       if (!active) return;
-      _cacheFile(fileId, d);
+      _cacheFile(key, d);
       setUrl(d || "");
     }).catch(() => { if (active) setUrl(""); });
     return () => { active = false; };
-  }, [inline, fileId]);
+  }, [inline, path, fileId, key]);
   return url;
 }
 
-/* True when a file has bytes SOMEWHERE — inline or in pcp_files. Distinct
-   from "have they arrived yet", which is what useFileUrl reports. */
+/* True when a file has bytes SOMEWHERE — inline, in the bucket, or in
+   pcp_files. Distinct from "have they arrived yet", which is what useFileUrl
+   reports. */
 function hasFileBytes(att) {
-  const { inline, fileId } = fileRefOf(att);
-  return !!(inline || fileId);
+  const { inline, path, fileId } = fileRefOf(att);
+  return !!(inline || path || fileId);
 }
 
 /* The file store, or null when this page cannot reach it.
@@ -221,33 +238,33 @@ function hasFileBytes(att) {
    reload. Nothing is written either way. */
 function fileStore() {
   const f = window.storage && window.storage.files;
-  return (f && typeof f.put === "function") ? f : null;
+  return (f && typeof f.upload === "function") ? f : null;
 }
 const STALE_PAGE_NOTE = "This page is out of date — reload it (Ctrl+Shift+R) before uploading.";
 
-/* Reads a picked File as a base64 data URL, which is what pcp_files stores.
-   Promise-shaped so the upload sites read as one linear flow rather than
-   nested FileReader callbacks. Resolves "" if the file cannot be read. */
-function readFileAsDataUrl(file) {
-  return new Promise((resolve) => {
-    try {
-      const reader = new FileReader();
-      reader.onload = () => resolve(reader.result || "");
-      reader.onerror = () => resolve("");
-      reader.readAsDataURL(file);
-    } catch (e) { resolve(""); }
-  });
+/* Object path for a newly uploaded file. The attachment id is already unique
+   (uid("att") / uid("ratt") / uid("doc")), so it alone prevents collisions;
+   the file name rides along only so the bucket stays browsable by a human.
+   Anything that could confuse a path separator is flattened. */
+function storagePathFor(attId, fileName) {
+  const safe = String(fileName || "file")
+    .replace(/[^\w.\-]+/g, "_")
+    .replace(/_{2,}/g, "_")
+    .slice(-80);
+  return "receipts/" + attId + "/" + safe;
 }
 
-/* Stores a picked File and resolves its fileId, or "" if anything failed.
-   The attachment id doubles as the file id: it is already unique, so nothing
-   new has to be invented and the migration could reuse it verbatim. */
-function storeFile(fileId, file) {
+/* Uploads a picked File to the bucket and resolves its object path, or ""
+   if anything failed. The raw File goes up as-is — no base64 — so nothing is
+   inflated by a third on the way. Callers MUST treat "" as a hard failure and
+   record nothing: an attachment pointing at bytes that were never stored is
+   worse than no attachment, because it looks liquidated. */
+function storeFile(attId, file) {
   const store = fileStore();
   if (!store) return Promise.resolve("");
-  return readFileAsDataUrl(file)
-    .then((dataUrl) => (dataUrl ? store.put(fileId, dataUrl) : false))
-    .then((ok) => (ok ? fileId : ""))
+  const path = storagePathFor(attId, file.name);
+  return store.upload(path, file)
+    .then((ok) => (ok ? path : ""))
     .catch(() => "");
 }
 

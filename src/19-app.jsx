@@ -836,12 +836,12 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       const version = (d.version || 1) + 1;
       const versions = [...(d.versions || []), { version, name: file.name, size: file.size, uploadedBy: by, date: todayISO() }];
       return {
-        /* fileId points at the bytes in pcp_files; dataUrl is carried through
-           so a replacement can explicitly clear a legacy inline copy (it
-           arrives as "") rather than leaving stale bytes to outrank the new
-           fileId in useFileUrl. */
+        /* path points at the new bucket object. dataUrl and fileId are carried
+           through so a replacement can explicitly clear the superseded
+           pointers (both arrive as "") rather than leaving stale bytes to
+           outrank the new path in useFileUrl. */
         ...d, name: file.name, size: file.size, type: file.type,
-        fileId: file.fileId || "", dataUrl: file.dataUrl || "",
+        path: file.path || "", fileId: file.fileId || "", dataUrl: file.dataUrl || "",
         version, versions, lastModified: ts,
         activity: [...(d.activity || []), { action: "Replaced", user: by || userName || role, ts, ip: "Local" }],
       };

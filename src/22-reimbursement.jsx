@@ -361,21 +361,21 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, reimb, nextRei
         setUploadNote(`"${file.name}" is larger than 2 MB and was skipped. Please compress it first.`);
         return;
       }
-      /* Bytes go to pcp_files — the record carries only the fileId. The
-         attachment is added only after the save succeeds, so a form can never
-         reference bytes that were never stored. */
+      /* Bytes go to the Storage bucket — the record carries only the path.
+         The attachment is added only after the upload succeeds, so a form can
+         never reference bytes that were never stored. */
       if (!fileStore()) { setUploadNote(STALE_PAGE_NOTE); return; }
       const attId = uid("ratt");
       setUploadNote(`Uploading "${file.name}"…`);
-      storeFile(attId, file).then((fileId) => {
-        if (!fileId) {
+      storeFile(attId, file).then((path) => {
+        if (!path) {
           setUploadNote(`"${file.name}" could not be uploaded. Check your connection and try again.`);
           return;
         }
         setUploadNote("");
         const doc = {
           id: attId, name: file.name, type: file.type || "file", size: file.size,
-          fileId, uploadedAt: todayISO(), docType: docType || "Official Receipt", receiptNo: "",
+          path, uploadedAt: todayISO(), docType: docType || "Official Receipt", receiptNo: "",
         };
         setForm((f) => ({ ...f, attachments: [...f.attachments, doc] }));
       });

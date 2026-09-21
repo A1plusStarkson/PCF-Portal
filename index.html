@@ -69,10 +69,19 @@
   window.PCP_SUPABASE_ANON_KEY = window.PCP_SUPABASE_PUBLISHABLE_KEY;
   window.PCP_TABLE = "pcp_state";
   window.PCP_RECORDS_TABLE = "pcp_records";
-  /* One row per uploaded file. Create it with supabase-files-setup.sql.
-     Records reference a row by `fileId`; the bytes never travel with the
-     record, so no record write can destroy a receipt. */
+  /* ---- Where uploaded receipts live ----
+     Never inside a transaction record. A record write rewrites the whole row
+     from whatever the browser holds, so bytes kept in the record are only ever
+     one save away from being erased.
+
+     pcp_files  — the legacy receipts, moved out of the records by SQL
+                  (supabase-files-setup.sql + the migration script). The app
+                  only ever READS these.
+     the bucket — every NEW upload (supabase-storage-setup.sql). Storage is
+                  100 GB on Pro against 8 GB of database, keeps scans out of
+                  database backups, and serves images over the CDN. */
   window.PCP_FILES_TABLE = "pcp_files";
+  window.PCP_BUCKET = "pcf-receipts";
   /* Flip to true once supabase-migrate-receipts-to-files.sql AND
      supabase-strip-inline-receipts.sql have both been run successfully.
 
@@ -146,10 +155,13 @@
     // several megabytes, so these are fetched apart from everything else. See
     // getAll below for why that separation is load-bearing.
     var HEAVY_COLLECTIONS = ["liquidations", "reimbursements", "documents"];
-    // Table holding receipt scans and PCF document uploads, one row per file.
-    // Created by supabase-files-setup.sql. Records reference a row by
-    // `fileId`; the bytes never travel with the record.
+    // Where uploaded bytes live. Never inside a transaction record.
+    //   FILE_TABLE — pcp_files, holding the legacy receipts migrated out of
+    //                the records by SQL. Read-only in practice.
+    //   BUCKET     — Storage, where every NEW upload goes.
+    // See supabase-storage-setup.sql for why there are two.
     var FILE_TABLE = window.PCP_FILES_TABLE || "pcp_files";
+    var BUCKET = window.PCP_BUCKET || "pcf-receipts";
     // Known synchronously, unlike the client itself — lets set()/put() queue
     // writes immediately instead of waiting a microtask for sbReady.
     var CLOUD = !!(window.PCP_SUPABASE_URL && window.PCP_SUPABASE_ANON_KEY);
@@ -660,23 +672,57 @@
       // because silently swallowing a failed upload is how a liquidation ends
       // up referencing a receipt that was never stored.
       files: {
-        // Stores one file's bytes as a base64 data URL under `id`, which is
-        // the attachment's own id. Resolves true on success.
-        put: function (id, dataUrl) {
+        // ---- NEW uploads: straight into the Storage bucket ----
+        // Takes the raw File, so nothing is base64-encoded on the way in — a
+        // data URL would inflate it by about a third for no benefit. Resolves
+        // true on success; the caller must not record the attachment unless
+        // this returned true.
+        upload: function (path, file) {
           return sbReady.then(function (c) {
-            if (!c || !id || !dataUrl) return false;
-            return c.from(FILE_TABLE).upsert({ id: id, data: dataUrl }, { onConflict: "id" })
+            if (!c || !path || !file) return false;
+            return c.storage.from(BUCKET)
+              .upload(path, file, { upsert: true, contentType: file.type || "application/octet-stream" })
               .then(function (res) {
-                if (res.error) { console.warn("Receipt save failed:", res.error.message); return false; }
+                if (res.error) { console.warn("Receipt upload failed:", res.error.message); return false; }
                 return true;
               });
-          }).catch(function (e) { console.warn("Receipt save failed:", e && e.message); return false; });
+          }).catch(function (e) { console.warn("Receipt upload failed:", e && e.message); return false; });
         },
 
-        // Reads one file's bytes. ONE row at a time, on demand, only when
-        // somebody actually opens a receipt — never in bulk. Fetching them all
-        // at once is precisely what broke the portal. Resolves "" when missing
-        // so the caller can show a placeholder instead of a broken image.
+        // Exchanges a bucket path for a short-lived signed URL. Signed because
+        // the bucket is private. Resolves "" when unavailable so the caller
+        // can show a placeholder rather than a broken image.
+        signedUrl: function (path, seconds) {
+          return sbReady.then(function (c) {
+            if (!c || !path) return "";
+            return c.storage.from(BUCKET).createSignedUrl(path, seconds || 3600)
+              .then(function (res) {
+                if (res.error || !res.data) { console.warn("Receipt link failed:", res.error && res.error.message); return ""; }
+                return res.data.signedUrl || "";
+              });
+          }).catch(function () { return ""; });
+        },
+
+        // Deletes bucket objects by path. Only ever called for files the
+        // portal knows are unreferenced — see the orphan sweep in
+        // supabase-storage-setup.sql.
+        removeObjects: function (paths) {
+          return sbReady.then(function (c) {
+            if (!c || !paths || !paths.length) return false;
+            return c.storage.from(BUCKET).remove(paths).then(function (res) {
+              if (res.error) { console.warn("Receipt delete failed:", res.error.message); return false; }
+              return true;
+            });
+          }).catch(function () { return false; });
+        },
+
+        // ---- LEGACY bytes: the receipts migrated out of the records ----
+        // Reads one row of pcp_files, on demand, only when somebody actually
+        // opens that receipt — never in bulk. Fetching them all at once is
+        // precisely what broke the portal. Resolves "" when missing.
+        //
+        // Nothing writes this table from the app: the 60 files that live here
+        // were put there by SQL, and every upload since goes to the bucket.
         get: function (id) {
           return sbReady.then(function (c) {
             if (!c || !id) return "";
@@ -688,8 +734,7 @@
           }).catch(function () { return ""; });
         },
 
-        // Deletes file rows by id. Only ever called for files the portal knows
-        // are unreferenced — see the orphan sweep in supabase-files-setup.sql.
+        // Deletes pcp_files rows by id. Same caveat as removeObjects.
         remove: function (ids) {
           return sbReady.then(function (c) {
             if (!c || !ids || !ids.length) return false;
@@ -717,7 +762,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20260921f";
+  window.PCP_SRC_VERSION = "20260921g";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",
