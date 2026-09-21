@@ -153,55 +153,63 @@ function stripFileBytes(rec) {
 }
 
 /* ---- Where a file's bytes actually live ----
-   New uploads go straight to the `pcf-receipts` Storage bucket and the record
-   keeps only a `path`. Records created before that still carry the bytes
+   New uploads go into the `pcp_files` table, one row per file, and the record
+   keeps only a `fileId`. Records created before that still carry the bytes
    inline (`attachments[].data`, or `dataUrl` for PCF documents).
 
    BOTH are supported, permanently — not as a temporary bridge. An inline
-   record is a complete record; it is merely expensive, and the migration in
-   tools/migrate-receipts.html converts them at a time of your choosing rather
-   than holding a deploy hostage. Inline bytes win when present, because during
-   the migration a record briefly holds both and the inline copy is the one
-   already proven to render. */
+   record is a complete record; it is merely expensive, and
+   supabase-migrate-receipts-to-files.sql converts them at a time of your
+   choosing rather than holding a deploy hostage. Inline bytes win when
+   present, because during the migration a record briefly holds both and the
+   inline copy is the one already proven to render. */
 function fileRefOf(att) {
-  if (!att) return { inline: "", path: "" };
-  return { inline: att.data || att.dataUrl || "", path: att.path || "" };
+  if (!att) return { inline: "", fileId: "" };
+  return { inline: att.data || att.dataUrl || "", fileId: att.fileId || "" };
 }
 
-/* Signed URLs are minted per object and expire, so they are cached for the
-   session: a gallery of twelve receipts re-renders constantly, and re-signing
-   every tile on every render would be both slow and pointless. */
-const _signedUrlCache = new Map();
+/* Fetched bytes are cached for the session so that re-rendering a gallery does
+   not re-fetch every tile. Capped, because these are multi-megabyte strings
+   and an uncapped cache would slowly rebuild the memory problem this whole
+   change exists to remove. Oldest entry is evicted first. */
+const FILE_CACHE_MAX = 12;
+const _fileCache = new Map();
+function _cacheFile(id, data) {
+  if (!id || !data) return;
+  if (_fileCache.has(id)) _fileCache.delete(id);
+  _fileCache.set(id, data);
+  while (_fileCache.size > FILE_CACHE_MAX) _fileCache.delete(_fileCache.keys().next().value);
+}
 
 /* Resolves an attachment (or PCF document) to something usable as an <img>
-   src or an <a> href. Returns "" while a signed URL is still being fetched,
-   so callers should render a placeholder rather than a broken image. */
+   src or an <a> href. Returns "" while the bytes are still being fetched, so
+   callers should render a placeholder rather than a broken image. */
 function useFileUrl(att) {
-  const { inline, path } = fileRefOf(att);
-  const [url, setUrl] = useState(() => inline || _signedUrlCache.get(path) || "");
+  const { inline, fileId } = fileRefOf(att);
+  const [url, setUrl] = useState(() => inline || _fileCache.get(fileId) || "");
   useEffect(() => {
     if (inline) { setUrl(inline); return undefined; }
-    if (!path) { setUrl(""); return undefined; }
-    const cached = _signedUrlCache.get(path);
+    if (!fileId) { setUrl(""); return undefined; }
+    const cached = _fileCache.get(fileId);
     if (cached) { setUrl(cached); return undefined; }
     let active = true;
     const files = window.storage && window.storage.files;
-    if (!files || !files.signedUrl) { setUrl(""); return undefined; }
-    files.signedUrl(path).then((u) => {
+    if (!files || !files.get) { setUrl(""); return undefined; }
+    files.get(fileId).then((d) => {
       if (!active) return;
-      if (u) _signedUrlCache.set(path, u);
-      setUrl(u || "");
+      _cacheFile(fileId, d);
+      setUrl(d || "");
     }).catch(() => { if (active) setUrl(""); });
     return () => { active = false; };
-  }, [inline, path]);
+  }, [inline, fileId]);
   return url;
 }
 
-/* True when a file has bytes SOMEWHERE — inline or in the bucket. Distinct
-   from "the URL has resolved yet", which is what useFileUrl reports. */
+/* True when a file has bytes SOMEWHERE — inline or in pcp_files. Distinct
+   from "have they arrived yet", which is what useFileUrl reports. */
 function hasFileBytes(att) {
-  const { inline, path } = fileRefOf(att);
-  return !!(inline || path);
+  const { inline, fileId } = fileRefOf(att);
+  return !!(inline || fileId);
 }
 
 /* The file store, or null when this page cannot reach it.
@@ -213,20 +221,34 @@ function hasFileBytes(att) {
    reload. Nothing is written either way. */
 function fileStore() {
   const f = window.storage && window.storage.files;
-  return (f && typeof f.upload === "function") ? f : null;
+  return (f && typeof f.put === "function") ? f : null;
 }
 const STALE_PAGE_NOTE = "This page is out of date — reload it (Ctrl+Shift+R) before uploading.";
 
-/* Object path for a newly uploaded file. The attachment id is already unique
-   (uid("att") / uid("ratt") / uid("doc")), so it alone prevents collisions;
-   the file name rides along only so the bucket stays browsable by a human.
-   Anything that could confuse a path separator is flattened. */
-function storagePathFor(attId, fileName) {
-  const safe = String(fileName || "file")
-    .replace(/[^\w.\-]+/g, "_")
-    .replace(/_{2,}/g, "_")
-    .slice(-80);
-  return "receipts/" + attId + "/" + safe;
+/* Reads a picked File as a base64 data URL, which is what pcp_files stores.
+   Promise-shaped so the upload sites read as one linear flow rather than
+   nested FileReader callbacks. Resolves "" if the file cannot be read. */
+function readFileAsDataUrl(file) {
+  return new Promise((resolve) => {
+    try {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result || "");
+      reader.onerror = () => resolve("");
+      reader.readAsDataURL(file);
+    } catch (e) { resolve(""); }
+  });
+}
+
+/* Stores a picked File and resolves its fileId, or "" if anything failed.
+   The attachment id doubles as the file id: it is already unique, so nothing
+   new has to be invented and the migration could reuse it verbatim. */
+function storeFile(fileId, file) {
+  const store = fileStore();
+  if (!store) return Promise.resolve("");
+  return readFileAsDataUrl(file)
+    .then((dataUrl) => (dataUrl ? store.put(fileId, dataUrl) : false))
+    .then((ok) => (ok ? fileId : ""))
+    .catch(() => "");
 }
 
 /* ---- Legacy whole-state blob: READ ONLY, and only to migrate ----

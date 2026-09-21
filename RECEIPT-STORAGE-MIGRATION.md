@@ -1,7 +1,7 @@
 # Receipt storage migration — runbook
 
 Moving uploaded receipts and PCF documents out of the transaction record and
-into a Supabase Storage bucket.
+into their own table, `pcp_files`.
 
 ## Why
 
@@ -26,7 +26,7 @@ completely blank portal** while 31 requests sat safely in `pcp_records`.
 
 Ten liquidations did that. It was going to get worse every month.
 
-## The second reason: it was unsafe to fix any other way
+## Why it was unsafe to fix any other way
 
 `saveLiquidation` rebuilds each attachment from in-memory state and upserts the
 whole record. So "just stop loading the bytes" would have meant the next save
@@ -37,61 +37,95 @@ liquidation.**
 Bytes held outside the record cannot be erased by a record write. That is the
 property being bought here, and it is worth more than the speed.
 
+## Why a table and not a Storage bucket
+
+A bucket is the textbook answer and it was the original plan. It was wrong for
+this system, for one reason: **migrating into a bucket means pulling 54 MB out
+of Postgres into a browser and pushing 54 MB back up.** That is ~108 MB across
+the very connection that could not manage a single 54 MB download — the outage
+itself.
+
+Into a table, the migration is one `INSERT … SELECT` that never leaves the
+database host. It takes about a second and cannot half-fail.
+
+The trade-off is real and accepted: the database keeps carrying the scans, so
+backups and storage cost stay high. That never affected users. The blank portal
+did.
+
 ## Order of operations
 
-Each step is safe to stop at. Nothing is destructive until step 6.
+Each step is safe to stop at. Nothing is destructive until step 5.
 
-| # | Step | Where | Reversible |
+| # | Step | File | Reversible |
 |---|---|---|---|
-| 1 | Deploy the loader stopgap | `index.html`, `src/19-app.jsx` | yes |
-| 2 | Create the bucket | `supabase-storage-setup.sql` | yes |
-| 3 | Deploy the app changes | whole `src/` + `index.html` | yes |
-| 4 | Migrate existing files | `tools/migrate-receipts.html` | yes — additive only |
+| 1 | Full backup | (below) | — |
+| 2 | Create the table | `supabase-files-setup.sql` | yes |
+| 3 | Deploy the app | `index.html` + `src/` | yes |
+| 4 | Migrate the bytes | `supabase-migrate-receipts-to-files.sql` | yes — additive only |
 | 5 | **Verify receipts display** | the portal | — |
 | 6 | Strip the inline copies | `supabase-strip-inline-receipts.sql` | backup table only |
-| 7 | Flip `PCP_RECEIPTS_IN_BUCKET` to `true` | `index.html` | yes |
+| 7 | Flip `PCP_RECEIPTS_OFFLOADED` to `true` | `index.html` | yes |
 
-### 1 · Deploy the stopgap
+### 1 · Full backup
 
-Gets users working again immediately, before any of the rest exists. Splits the
-load so the 86 kB people actually need arrives in one fast request and the
-receipt payloads stream in behind it. Also stops a failed read from being
-mistaken for an empty database — which was what turned a slow connection into a
-blank portal.
+```sql
+create schema if not exists pcf_backup;
+revoke all on schema pcf_backup from anon, authenticated;
 
-### 2 · Create the bucket
+create table pcf_backup.pcp_records_predeploy_20260921 as
+  select * from public.pcp_records;
 
-Run `supabase-storage-setup.sql` in the Supabase SQL editor. Creates the
-**private** `pcf-receipts` bucket and four policies limiting it to signed-in
-users — the same access model as `pcp_records`.
+select count(*) from pcf_backup.pcp_records_predeploy_20260921;   -- expect 458
+```
 
-### 3 · Deploy the app changes
+Do this outside working hours, and not during month-end close.
 
-From this point **new** uploads go straight to the bucket; the record stores
-only `{ id, name, size, type, path }`. Existing records still carry their bytes
-inline and keep working — every viewer reads through `useFileUrl`, which
-prefers inline bytes and falls back to a signed bucket URL.
+### 2 · Create the table
 
-Remember to bump `PCP_SRC_VERSION`.
+Run `supabase-files-setup.sql`. Creates `pcp_files` with authenticated-only
+RLS — the same access model as `pcp_records`. Nothing reads it yet.
 
-### 4 · Migrate existing files
+### 3 · Deploy the app
 
-Open `tools/migrate-receipts.html`, sign in as an admin, **Scan**, then
-**Run migration**. It uploads each inline file to the bucket and adds a `path`
-to the record, **keeping the inline bytes**. Every migrated record briefly
-holds both copies; that redundancy is the safety net.
+From this point **new** uploads write their bytes to `pcp_files` and the record
+stores only a `fileId`. Existing records still carry their bytes inline and
+keep working — every viewer reads through `useFileUrl`, which prefers inline
+bytes and falls back to fetching the row.
 
-Run it in a quiet window — it rewrites record rows, and an edit saved at the
+Bump `PCP_SRC_VERSION` (already at `20260921f`).
+
+### 4 · Migrate the bytes
+
+Run `supabase-migrate-receipts-to-files.sql`. It copies each inline file into
+`pcp_files` and tags the attachment with a `fileId`, **keeping the inline
+bytes**. Every migrated record briefly holds both copies; that redundancy is
+the safety net.
+
+It runs inside Postgres, so it does not matter how slow anyone's connection is.
+Still prefer a quiet window: it rewrites record rows, and an edit saved at the
 same instant could be overwritten.
 
-If it reports failures, re-run it. Do not proceed until it reports zero.
+**Gate:** the script's final query must return an **empty** "not copied" list,
+and `files_stored` must equal `attachments_tagged + documents_tagged`.
+Expect **60** files (59 attachments + 1 document).
 
 ### 5 · Verify
 
 Open a liquidation, a reimbursement and a PCF document. Confirm the receipt
-displays, Zoom opens, and Download saves the right file. **Do not skip this** —
-it is the last point at which the migration can be abandoned by simply ignoring
-the `path` fields.
+displays, Zoom opens, Download saves the right file.
+
+At this point receipts still render from their *inline* copies, so this does
+not yet prove `pcp_files` is good. To test that path specifically, pick a
+`fileId` and confirm the row has real content:
+
+```sql
+select id, length(data) as bytes, left(data, 40) as starts_with
+  from public.pcp_files order by length(data) desc limit 5;
+```
+
+Each should start with `data:image/...;base64,` or `data:application/pdf...`
+and be substantial. **Do not skip this** — it is the last point at which the
+migration can be abandoned by just deleting the `fileId` tags.
 
 ### 6 · Strip the inline copies
 
@@ -99,53 +133,58 @@ Run `supabase-strip-inline-receipts.sql`. It backs up the affected rows to
 `pcf_backup.pcp_records_preinline`, then removes `data`/`dataUrl` under **two**
 conditions, both required:
 
-1. the attachment carries a `path`, and
-2. an object actually exists at that path — checked against `storage.objects`.
+1. the item carries a `fileId`, and
+2. a row exists in `pcp_files` with that id **and non-empty bytes**.
 
-The second condition is the important one. A `path` is only a claim that the
-upload happened; this statement deletes the last other copy of a scanned
-official receipt, so the claim is verified against the bucket before anything
-is removed. Anything unverified is left inline and reported by section 2 for
-you to investigate.
+The second condition is the important one. A `fileId` is only a claim; this
+statement deletes the last other copy of a scanned official receipt, so the
+claim is verified against the actual bytes first. Anything unverified is left
+inline and reported in section 2 for you to investigate.
 
-Then run the commented-out `vacuum (analyze, full) public.pcp_records;` on its
-own to actually reclaim the disk.
+Read section 2's output **before** trusting the result. Then run
+`vacuum (analyze) public.pcp_records;` — safe any time. The `full` form
+reclaims more but locks the table, so save it for a quiet window.
 
 ### 7 · Flip the switch
 
-Set `window.PCP_RECEIPTS_IN_BUCKET = true` in `index.html` and redeploy. Every
-record is now small, so the loader collapses back to a single request and the
-row-at-a-time receipt streaming stops.
+Set `window.PCP_RECEIPTS_OFFLOADED = true` in `index.html`, bump
+`PCP_SRC_VERSION`, redeploy. Every record is now small, so the loader collapses
+back to a single request and the row-at-a-time streaming stops.
 
 ## Rolling back
 
-- **Before step 6** — ignore the `path` fields; the inline bytes are still
-  there and the portal prefers them. Optionally delete the bucket objects.
+- **Before step 6** — delete the `fileId` tags; the inline bytes are still
+  there and the portal prefers them:
+  ```sql
+  begin;
+  update public.pcp_records r
+     set data = jsonb_set(r.data, '{attachments}',
+           (select coalesce(jsonb_agg(
+                     case when coalesce(a->>'data','') <> '' then a - 'fileId' else a end
+                     order by ord), '[]'::jsonb)
+              from jsonb_array_elements(r.data->'attachments') with ordinality t(a, ord)))
+   where not r.deleted and jsonb_typeof(r.data->'attachments') = 'array';
+
+  update public.pcp_records
+     set data = data - 'fileId'
+   where not deleted and coalesce(data->>'dataUrl','') <> '';
+  commit;
+  ```
+  The `coalesce(a->>'data','') <> ''` guard matters: a receipt uploaded *after*
+  the deploy exists only in `pcp_files`, and stripping its `fileId` would
+  orphan it.
+
 - **After step 6** — restore from the backup table:
   ```sql
-  update public.pcp_records r
-     set data = b.data
+  update public.pcp_records r set data = b.data
     from pcf_backup.pcp_records_preinline b
    where r.id = b.id;
   ```
 
-## Known follow-up: orphaned objects
+## Known follow-up: orphaned files
 
 Removing an attachment from a liquidation, or deleting a liquidation, does
-**not** delete its object from the bucket. That is deliberate — deleting on
+**not** delete its row from `pcp_files`. That is deliberate — deleting on
 removal risks destroying a file that a still-unsaved edit would have kept.
-Orphans cost a little storage and break nothing.
-
-To find them, list the bucket and compare against every `path` in use:
-
-```sql
-select a->>'path' as path
-  from public.pcp_records r,
-       lateral jsonb_array_elements(coalesce(r.data->'attachments', '[]'::jsonb)) a
- where not r.deleted and a ? 'path'
-union
-select data->>'path' from public.pcp_records
- where not deleted and data ? 'path';
-```
-
-Anything in the bucket and not in that list is safe to delete.
+Orphans cost storage and break nothing. The query to find them is at the bottom
+of `supabase-files-setup.sql`.

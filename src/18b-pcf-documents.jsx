@@ -6,8 +6,8 @@
    (permitted roles). Every document carries a reference number, is linked to a
    company / plant / transaction, and records a per-document activity log.
 
-   File bytes live in the `pcf-receipts` Storage bucket and the record keeps
-   only a `path` (same approach as liquidation attachments). Documents uploaded
+   File bytes live in the `pcp_files` table and the record keeps only a
+   `fileId` (same approach as liquidation attachments). Documents uploaded
    before that change still carry their bytes inline in `dataUrl`; useFileUrl
    resolves either, so both keep working. */
 
@@ -231,22 +231,20 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
     const rejected = files.length - valid.length;
     if (!valid.length) { setNotice(`Unsupported file type. Allowed: ${DOC_EXTS.join(", ").toUpperCase()}.`); return; }
 
-    const store = fileStore();
-    if (!store) { setNotice(STALE_PAGE_NOTE); return; }
+    if (!fileStore()) { setNotice(STALE_PAGE_NOTE); return; }
     setUploading(true); setProgress(0);
     const built = [];
     let done = 0;
     const baseSeq = (documents ? documents.length : 0) + 1;
     let failed = 0;
     valid.forEach((file, idx) => {
-      /* Bytes go to the Storage bucket; the record keeps only the path. A
-         failed upload adds nothing — a document row with no file behind it
-         reads as filed when it is not. */
+      /* Bytes go to pcp_files; the record keeps only the fileId. A failed
+         save adds nothing — a document row with no file behind it reads as
+         filed when it is not. */
       const docId = uid("doc");
-      const path = storagePathFor(docId, file.name);
-      store.upload(path, file).then((ok) => {
+      storeFile(docId, file).then((fileId) => {
         const ts = nowTs();
-        if (!ok) { failed++; }
+        if (!fileId) { failed++; }
         else built.push({
           id: docId,
           refNo: makeDocRef(baseSeq + idx),
@@ -263,7 +261,7 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
           lastModified: ts,
           size: file.size,
           type: file.type || extOf(file.name),
-          path,
+          fileId,
           version: 1,
           status: "Active",
           starred: false,
@@ -291,9 +289,9 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
      immediately and behave exactly as before. */
   const doDownload = useCallback(async (d) => {
     let href = d.dataUrl || "";
-    if (!href && d.path && window.storage.files) {
+    if (!href && d.fileId && window.storage.files) {
       setNotice("Preparing download…");
-      href = await window.storage.files.signedUrl(d.path);
+      href = await window.storage.files.get(d.fileId);
       setNotice("");
     }
     if (!href) { setNotice("File content unavailable for download."); return; }
@@ -310,21 +308,19 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
     e.target.value = "";
     if (!file || !target) return;
     if (!isSupportedDoc(file)) { setNotice("Unsupported file type for replacement."); return; }
-    /* A replacement is a new object, never an overwrite of the old path —
-       the superseded version stays retrievable for audit. */
-    const store = fileStore();
-    if (!store) { setNotice(STALE_PAGE_NOTE); return; }
-    const path = storagePathFor(uid("docv"), file.name);
+    /* A replacement gets its OWN file id, never overwriting the superseded
+       one — the old version's bytes stay in pcp_files for audit. */
+    if (!fileStore()) { setNotice(STALE_PAGE_NOTE); return; }
     setNotice(`Uploading "${file.name}"…`);
-    store.upload(path, file).then((ok) => {
-      if (!ok) { setNotice(`"${file.name}" could not be uploaded. Please try again.`); return; }
+    storeFile(uid("docv"), file).then((fileId) => {
+      if (!fileId) { setNotice(`"${file.name}" could not be uploaded. Please try again.`); return; }
       setNotice("");
       /* dataUrl is cleared explicitly: replacing a legacy inline document must
          drop the old bytes, or the stale inline copy would keep winning over
-         the new path in useFileUrl. */
+         the new fileId in useFileUrl. */
       onReplace(
         target.id,
-        { name: file.name, size: file.size, type: file.type || extOf(file.name), path, dataUrl: "" },
+        { name: file.name, size: file.size, type: file.type || extOf(file.name), fileId, dataUrl: "" },
         userName || role || "User"
       );
     });
