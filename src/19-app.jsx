@@ -23,6 +23,19 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   /* True when the concurrency-safe per-record store (pcp_records) is missing in
      the cloud database. Surfaces a banner so an admin runs the setup SQL. */
   const [recordsUnavailable, setRecordsUnavailable] = useState(false);
+  /* True when the load from pcp_records did not complete. Distinct from
+     recordsUnavailable, which only means the table is missing. A read can fail
+     for reasons the old code could not tell apart from success — a timeout on
+     an oversized response, a dropped connection, an expired token — and every
+     one of them returned an empty array, so the portal opened blank and said
+     nothing. Whatever is on screen in this state is INCOMPLETE, so the banner
+     says so and the load effect refuses to treat it as a fresh database. */
+  const [loadFailed, setLoadFailed] = useState(false);
+  /* True when the deferred receipt stream did not finish. Narrower than
+     loadFailed and worth keeping separate: every transaction is on screen and
+     correct, only the scanned images behind them are missing, so this warns
+     without telling people their ledger is untrustworthy. */
+  const [receiptsFailed, setReceiptsFailed] = useState(false);
 
   /* Branch-level access scope for this user (list of allowed branch codes).
      For management (userPlants === "ALL") it is every branch in the master plus,
@@ -189,6 +202,10 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
          database and see different data, and the reason deleted records came
          back when a stale copy won a merge. */
       const rows = await loadRecords();
+      /* Set by the storage adapter when ANY page of the read failed. An empty
+         `rows` then means "we could not read the database", not "the database
+         is empty" — a distinction everything below depends on. */
+      const readFailed = !!window.PCP_RECORDS_LOAD_FAILED;
       /* Always keep the four master plant funds available, adding any missing. */
       const ensureFunds = (fs) => {
         const list = (fs && fs.length) ? fs.map((f) => ({ ...f })) : seedFunds();
@@ -210,7 +227,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
          non-empty blob left behind would be re-migrated the day pcp_records is
          emptied. */
       let seedFromBlob = null;
-      if (!rows.length) {
+      if (!rows.length && !readFailed) {
         try {
           const legacy = await loadLegacyBlob();
           if (legacy && txnCount(migrateState(legacy)) > 0) {
@@ -236,12 +253,16 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
         liquidations: source.liquidations || [], replenishments: source.replenishments || [],
         auditLog: source.auditLog || [], documents: source.documents || [], reimbursements: source.reimbursements || [],
       };
-      if (seedFromBlob || !rows.length) {
+      if (!readFailed && (seedFromBlob || !rows.length)) {
         /* Either a legacy migration, or an empty store that needs initialising.
            Diff against an empty baseline so everything we hold — at minimum the
            master funds — is written to pcp_records once. Initialising matters:
            while the table has no rows at all, every load would re-read the
-           legacy blob looking for something to migrate. */
+           legacy blob looking for something to migrate.
+
+           Gated on the read having SUCCEEDED. A failed read also arrives with
+           zero rows, and seeding on that would have this tab write its seed
+           funds over a database it never managed to look at. */
         syncedRef.current = snapshotSync({});
         try { syncRecords(diffSync(syncedRef.current, startState)); } catch (e) { /* best effort */ }
       } else {
@@ -250,7 +271,31 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
         syncedRef.current = snapshotSync(startState);
       }
       setRecordsUnavailable(!!window.PCP_RECORDS_UNAVAILABLE);
+      setLoadFailed(readFailed);
       setLoaded(true);
+
+      /* ---- Deferred: the receipt payloads ----
+         Liquidations, reimbursements and PCF documents hold their uploads as
+         base64 INSIDE the record, so those three collections are tens of
+         megabytes while everything a screen actually lists is a few hundred
+         kilobytes. They are therefore left out of the load above and streamed
+         in here, once the portal is already usable.
+
+         Each row is folded in exactly the way a realtime change is: recorded
+         in syncedRef FIRST, so the save effect treats it as already-synced and
+         does not echo it straight back to the database. */
+      const records = window.storage && window.storage.records;
+      if (records && records.getHeavy) {
+        records.getHeavy((change) => {
+          noteLiveChangeSynced(syncedRef.current, change);
+          applyLiveChange(change, {
+            liquidations: setLiquidations,
+            reimbursements: setReimbursements,
+            documents: setDocuments,
+          });
+        }).then((ok) => { if (!ok) setReceiptsFailed(true); })
+          .catch(() => setReceiptsFailed(true));
+      }
     })();
   }, []);
 
@@ -1136,6 +1181,23 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       <style>{CSS}</style>
       <Sidebar tab={tab} setTab={setTab} role={role} navGroups={navGroups} userEmail={userEmail} userName={userName} onSignOut={handleSignOut} onChangePassword={() => setShowChangePw(true)} />
       <div className="pcp-main">
+        {/* Shown to EVERYONE, not just admins: this one says the screen below
+            is incomplete, and a custodian looking at a short list needs that
+            more than an administrator does. */}
+        {loadFailed && (
+          <div style={{ background: "#8a1020", color: "#fff", padding: "8px 16px", fontSize: 12.5, lineHeight: 1.5 }}>
+            <b>Could not load all records.</b> The connection to the database failed part-way, so this
+            screen is INCOMPLETE — records are missing from it, not from the database. Please reload the
+            page. If it keeps happening, tell your administrator before creating any new record, because
+            new reference numbers are generated from the records this page can see.
+          </div>
+        )}
+        {receiptsFailed && !loadFailed && (
+          <div style={{ background: "#7a4a00", color: "#fff", padding: "8px 16px", fontSize: 12.5, lineHeight: 1.5 }}>
+            <b>Receipt images did not finish loading.</b> Every transaction below is complete and correct —
+            only the scanned attachments are missing. Reload the page to try fetching them again.
+          </div>
+        )}
         {recordsUnavailable && isAdmin && (
           <div style={{ background: "#8a1020", color: "#fff", padding: "8px 16px", fontSize: 12.5, lineHeight: 1.5 }}>
             <b>Database setup incomplete:</b> the concurrency-safe <code>pcp_records</code> table is missing,

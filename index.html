@@ -126,6 +126,11 @@
   (function () {
     var TABLE = window.PCP_TABLE || "pcp_state";
     var RECORD_TABLE = window.PCP_RECORDS_TABLE || "pcp_records";
+    // Collections whose rows carry base64 file payloads — receipt scans in
+    // attachments[].data, PCF uploads in dataUrl. A single row here can run to
+    // several megabytes, so these are fetched apart from everything else. See
+    // getAll below for why that separation is load-bearing.
+    var HEAVY_COLLECTIONS = ["liquidations", "reimbursements", "documents"];
     // Known synchronously, unlike the client itself — lets set()/put() queue
     // writes immediately instead of waiting a microtask for sbReady.
     var CLOUD = !!(window.PCP_SUPABASE_URL && window.PCP_SUPABASE_ANON_KEY);
@@ -161,6 +166,46 @@
           "data will be touched. Until then a union-merge safety net protects saves."
         );
       }
+    }
+
+    // ---- Record paging ----
+    // Shared by the initial load and the deferred receipt load. `slice` is
+    // "light" (everything except HEAVY_COLLECTIONS), "heavy" (only those), or
+    // null for no collection filter at all.
+    //
+    // Advances by the rows RECEIVED, never by the rows requested. PostgREST
+    // caps a response at the project's max-rows setting, so a short page does
+    // not mean the last page — testing `batch.length < size` stopped there and
+    // silently dropped every record past the cap.
+    //
+    // Resolves true when the whole slice was read, false when a page failed,
+    // and marks PCP_RECORDS_LOAD_FAILED either way so the app can tell a failed
+    // read apart from an empty database. Those two used to be the same value.
+    function recDrain(c, cols, isDeleted, size, slice, onBatch) {
+      function page(from) {
+        var q = c.from(RECORD_TABLE).select(cols).eq("deleted", isDeleted);
+        if (slice === "heavy") q = q.in("collection", HEAVY_COLLECTIONS);
+        else if (slice === "light") q = q.not("collection", "in", "(" + HEAVY_COLLECTIONS.join(",") + ")");
+        return q.order("id", { ascending: true }).range(from, from + size - 1)
+          .then(function (res) {
+            if (res.error) {
+              noteRecordsUnavailable(res.error);
+              console.warn("Cloud record load failed:", res.error.message);
+              window.PCP_RECORDS_LOAD_FAILED = true;
+              return false;
+            }
+            var batch = res.data || [];
+            batch.forEach(function (r) { r.deleted = isDeleted; });
+            if (!batch.length) return true;
+            onBatch(batch);
+            return page(from + batch.length);
+          });
+      }
+      return page(0).catch(function (e) {
+        console.warn("Cloud record load failed:", e && e.message);
+        window.PCP_RECORDS_LOAD_FAILED = true;
+        return false;
+      });
     }
 
     // Union two whole-state JSON blobs, keying transaction collections by id so
@@ -447,26 +492,56 @@
         // Tombstones are fetched separately WITHOUT the data column, since
         // mergeRecordsIntoState only needs their id in order to drop the record.
         // Otherwise a deleted document's base64 payload downloads on every load.
+        //
+        // ---- Why the live rows are fetched in two passes ----
+        // Receipts are base64 data URLs held INSIDE the record JSON, so one
+        // liquidation row can be several megabytes while a whole year of
+        // requests is a few kilobytes. Asking for every collection in one
+        // request meant a single response carrying tens of megabytes, which
+        // times out on an ordinary connection — and because a failed read
+        // returned an empty array, it was indistinguishable from an empty
+        // database: every account opened a fully working, completely blank
+        // portal while the records sat safely in pcp_records.
+        //
+        // So the light collections load first in one request, and the heavy
+        // ones follow a row at a time. If the heavy pass fails the light rows
+        // are already in hand and the portal still opens with its
+        // transactions — it just cannot show receipt images until the next
+        // successful load. Any failure sets PCP_RECORDS_LOAD_FAILED so the app
+        // can say so instead of rendering a blank screen (and, critically, so
+        // it does not mistake a failed read for a fresh database and seed it).
         getAll: function () {
           return sbReady.then(function (c) {
             if (!c) return [];
-            var all = [], size = 1000;
-            function page(cols, isDeleted, from) {
-              return c.from(RECORD_TABLE).select(cols)
-                .eq("deleted", isDeleted).order("id", { ascending: true })
-                .range(from, from + size - 1)
-                .then(function (res) {
-                  if (res.error) { noteRecordsUnavailable(res.error); console.warn("Cloud record load failed:", res.error.message); return null; }
-                  var batch = res.data || [];
-                  batch.forEach(function (r) { r.deleted = isDeleted; all.push(r); });
-                  if (batch.length < size) return null;
-                  return page(cols, isDeleted, from + size);
-                });
-            }
-            return page("id,collection,data", false, 0)
-              .then(function () { return page("id,collection", true, 0); })
-              .then(function () { return all; })
-              .catch(function () { return all; });
+            window.PCP_RECORDS_LOAD_FAILED = false;
+            var all = [];
+            var collect = function (batch) { batch.forEach(function (r) { all.push(r); }); };
+            return recDrain(c, "id,collection,data", false, 1000, "light", collect)
+              .then(function () { return recDrain(c, "id,collection", true, 1000, null, collect); })
+              .then(function () { return all; });
+          });
+        },
+        // Streams the heavy collections a row at a time, AFTER the portal is
+        // already on screen. Each row is handed to onRow in the same shape the
+        // realtime channel delivers ({ id, collection, data, deleted }) so the
+        // app folds it into state through one well-tested path instead of a
+        // second one written for this.
+        //
+        // A row at a time is deliberate: a single liquidation carrying scanned
+        // receipts can be several megabytes, and it is one oversized response
+        // that broke the load in the first place.
+        getHeavy: function (onRow) {
+          return sbReady.then(function (c) {
+            // No cloud client at all (offline/demo build) means there is
+            // nothing to stream — that is success, not a failed receipt load.
+            if (!c) return true;
+            return recDrain(c, "id,collection,data", false, 1, "heavy", function (batch) {
+              batch.forEach(function (r) {
+                // One unreadable row must not abort the rest of the stream.
+                try { onRow({ id: r.id, collection: r.collection, data: r.data, deleted: false }); }
+                catch (e) { console.warn("Receipt row skipped:", r.id, e && e.message); }
+              });
+            });
           });
         },
         // Queues an array of { id, collection, data, deleted } rows for upsert.
@@ -560,7 +635,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20260921c";
+  window.PCP_SRC_VERSION = "20260921d";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",
