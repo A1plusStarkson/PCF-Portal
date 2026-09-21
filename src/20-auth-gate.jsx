@@ -23,11 +23,10 @@ function LoginScreen({ mode, onLocalLogin }) {
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
 
   const submit = async (e) => {
     e.preventDefault();
-    setError(""); setNotice(""); setBusy(true);
+    setError(""); setBusy(true);
     try {
       if (cloud) {
         const res = await window.PCP_AUTH.signIn(identifier.trim(), password);
@@ -44,17 +43,13 @@ function LoginScreen({ mode, onLocalLogin }) {
     }
   };
 
-  const forgot = async () => {
-    setError(""); setNotice("");
-    if (!identifier.trim()) { setError("Enter your email first, then click Forgot password."); return; }
-    try {
-      const res = await window.PCP_AUTH.resetPassword(identifier.trim());
-      if (res && res.error) setError(res.error.message);
-      else setNotice("If that email has an account, a reset link is on its way.");
-    } catch (err) {
-      setError("Could not send the reset email.");
-    }
-  };
+  /* NO self-service password reset by design. The accounts are standalone
+     identifiers, not real mailboxes, and no SMTP is configured — so the reset
+     email could never be delivered. The button used to promise "a reset link is
+     on its way", which was a promise the deployment cannot keep. Resets are done
+     by the administrator in Supabase (Authentication -> Users). The
+     PCP_AUTH.resetPassword helper in index.html is deliberately left in place,
+     so restoring this is a small change once real mail delivery exists. */
 
   return (
     <div className="pcp-root">
@@ -68,7 +63,6 @@ function LoginScreen({ mode, onLocalLogin }) {
           </div>
           <form className="pcp-login-body" onSubmit={submit}>
             {error && <div className="pcp-login-err">{error}</div>}
-            {notice && <div className="pcp-login-ok">{notice}</div>}
             <div className="pcp-field">
               <label>{cloud ? "Email" : "Username"}</label>
               <input
@@ -88,12 +82,10 @@ function LoginScreen({ mode, onLocalLogin }) {
             <button type="submit" className="pcp-btn pcp-btn-primary" style={{ width: "100%", justifyContent: "center", marginTop: 4 }} disabled={busy}>
               {busy ? "Signing in…" : "Sign In"}
             </button>
-            {cloud && (
-              <div className="pcp-login-foot">
-                <button type="button" className="pcp-link-btn" onClick={forgot}>Forgot password?</button>
-              </div>
-            )}
-            <div className="pcp-login-foot" style={{ marginTop: 8 }}>
+            <div className="pcp-login-foot" style={{ marginTop: 12 }}>
+              Forgot your password? Contact your administrator to have it reset.
+            </div>
+            <div className="pcp-login-foot" style={{ marginTop: 6 }}>
               Access is provided by your administrator.
             </div>
           </form>

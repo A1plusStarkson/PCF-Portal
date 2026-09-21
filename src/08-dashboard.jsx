@@ -19,11 +19,18 @@ function KpiCard({ label, value, icon: Icon, tint, foot, onClick }) {
    plant (Accounting, Finance, Pura Barloso) can view a single plant at a time —
    effectively a separate module per plant. Hidden when only one plant applies. */
 function PlantScopeTabs({ plants, value, onChange }) {
-  if (!plants || plants.length <= 1) return null;
+  /* The plant's own fund-holding branch (isPlantRoot, set in 19-app.jsx) is left
+     out of this row. The page header already names the plant, so the tab only
+     repeated it — "Manila" under Manila · Petty Cash Requests, "Disney" under
+     Disney. Nothing becomes unreachable: those records still show under "All
+     Plants", and the branch is still selectable in the module forms, because
+     only this filter row is filtered — not the underlying option list. */
+  const list = (plants || []).filter((p) => !p.isPlantRoot);
+  if (list.length <= 1) return null;
   return (
     <div className="pcp-tabs" style={{ marginBottom: 14 }}>
       <button className={"pcp-tab" + (value === "ALL" ? " active" : "")} onClick={() => onChange("ALL")}>All Plants</button>
-      {plants.map((p) => (
+      {list.map((p) => (
         <button key={p.code} className={"pcp-tab" + (value === p.code ? " active" : "")} onClick={() => onChange(p.code)}>{p.label}</button>
       ))}
     </div>

@@ -1010,10 +1010,18 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     return visibleLiquidations.filter((l) => ids.has(l.disbursementId));
   }, [visibleLiquidations, scopedDisbursements]);
   /* Plant selector options limited to the active tab's plant so module forms
-     default to the correct plant and the redundant in-page selector hides. */
+     default to the correct plant and the redundant in-page selector hides.
+
+     The plant's own fund-holding branch is tagged isPlantRoot. It stays in the
+     list — records can still be filed against it and the module forms still
+     offer it — but the in-page branch tab row drops it, because the page header
+     already names the plant and the tab simply repeated it ("Manila" sitting
+     under Manila, "Disney" under Disney). See PlantScopeTabs. */
   const scopedPlantOptions = useMemo(
-    () => branchOptions.filter((p) => scopeCodes.includes(p.code)),
-    [branchOptions, scopeCodes]
+    () => branchOptions
+      .filter((p) => scopeCodes.includes(p.code))
+      .map((p) => (activePlant && p.code === activePlant ? { ...p, isPlantRoot: true } : p)),
+    [branchOptions, scopeCodes, activePlant]
   );
   const activePlantLabel = activePlant ? plantLabel(activePlant) : "";
   /* Resolve the per-plant dashboard header from the canonical list, falling back
