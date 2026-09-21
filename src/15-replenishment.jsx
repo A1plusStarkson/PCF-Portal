@@ -106,20 +106,31 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
   const [statusFilter, setStatusFilter] = useState("All");
   const [search, setSearch] = useState("");
   const [plant, setPlant] = useState("ALL");
+  const [sortDir, setSortDir] = useState("desc");
 
   const nextNo = "PCRP-2026-" + String(replenishments.length + 1).padStart(4, "0");
   const totalCompleted = replenishments.filter((r) => r.status === "Completed").reduce((s, r) => s + (Number(r.amount) || 0), 0);
   const totalPending = replenishments.filter((r) => r.status !== "Completed").reduce((s, r) => s + (Number(r.amount) || 0), 0);
 
-  const filtered = replenishments.filter((r) => {
-    if (plant !== "ALL" && r.branchCode !== plant) return false;
-    if (statusFilter !== "All" && r.status !== statusFilter) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      if (!(r.replenishmentNo.toLowerCase().includes(q) || (r.preparedBy || "").toLowerCase().includes(q))) return false;
-    }
-    return true;
-  }).sort((a, b) => (b.date || "").localeCompare(a.date || ""));
+  /* Newest replenishment no. first by default; the header flips to ascending.
+     The series is issued in order, so this keeps the same newest-first reading
+     the date sort gave, but now the user can reverse it. */
+  const filtered = useMemo(() => {
+    const list = replenishments.filter((r) => {
+      if (plant !== "ALL" && r.branchCode !== plant) return false;
+      if (statusFilter !== "All" && r.status !== statusFilter) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        if (!(r.replenishmentNo.toLowerCase().includes(q) || (r.preparedBy || "").toLowerCase().includes(q))) return false;
+      }
+      return true;
+    });
+    list.sort((a, b) => {
+      const cmp = String(a.replenishmentNo || "").localeCompare(String(b.replenishmentNo || ""), undefined, { numeric: true });
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return list;
+  }, [replenishments, plant, statusFilter, search, sortDir]);
 
   const formPlantOptions = (plantOptions && plantOptions.length)
     ? (plant !== "ALL" ? plantOptions.filter((p) => p.code === plant) : plantOptions)
@@ -154,7 +165,10 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
             <table className="pcp-table">
               <thead>
                 <tr>
-                  <th>Replenishment No.</th><th>Date</th><th>Fund / Plant</th><th>Amount</th>
+                  <th className="pcp-sortable" onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))} title="Sort by replenishment no.">
+                    Replenishment No.<span className="pcp-sort-ind">{sortDir === "asc" ? "▲" : "▼"}</span>
+                  </th>
+                  <th>Date</th><th>Fund / Plant</th><th>Amount</th>
                   <th>Prepared By</th><th>Status</th><th>Remarks</th><th></th>
                 </tr>
               </thead>

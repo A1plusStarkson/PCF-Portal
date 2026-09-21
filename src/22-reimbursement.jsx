@@ -907,21 +907,31 @@ function ReimbursementTab({
   const [plant, setPlant] = useState("ALL");
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [purposeFilter, setPurposeFilter] = useState("All");
+  const [sortDir, setSortDir] = useState("desc");
 
   const seq = (allReimbursements || reimbursements).length + 1;
   const nextReimbNo = "REIM-2026-" + String(seq).padStart(6, "0");
 
-  const filtered = reimbursements.filter((r) => {
-    if (plant !== "ALL" && r.branchCode !== plant) return false;
-    if (statusFilter !== "All" && r.status !== statusFilter) return false;
-    if (categoryFilter !== "All" && purposeCategory(r.purpose) !== categoryFilter) return false;
-    if (purposeFilter !== "All" && (r.purpose || "") !== purposeFilter) return false;
-    if (search) {
-      const q = search.toLowerCase();
-      if (!(r.employee.toLowerCase().includes(q) || r.reimbNo.toLowerCase().includes(q) || (r.purpose || "").toLowerCase().includes(q))) return false;
-    }
-    return true;
-  });
+  /* Newest reimbursement no. first by default; the header flips to ascending.
+     Numeric-aware compare so the 6-digit series stays in true numeric order. */
+  const filtered = useMemo(() => {
+    const list = reimbursements.filter((r) => {
+      if (plant !== "ALL" && r.branchCode !== plant) return false;
+      if (statusFilter !== "All" && r.status !== statusFilter) return false;
+      if (categoryFilter !== "All" && purposeCategory(r.purpose) !== categoryFilter) return false;
+      if (purposeFilter !== "All" && (r.purpose || "") !== purposeFilter) return false;
+      if (search) {
+        const q = search.toLowerCase();
+        if (!(r.employee.toLowerCase().includes(q) || r.reimbNo.toLowerCase().includes(q) || (r.purpose || "").toLowerCase().includes(q))) return false;
+      }
+      return true;
+    });
+    list.sort((a, b) => {
+      const cmp = String(a.reimbNo || "").localeCompare(String(b.reimbNo || ""), undefined, { numeric: true });
+      return sortDir === "asc" ? cmp : -cmp;
+    });
+    return list;
+  }, [reimbursements, plant, statusFilter, categoryFilter, purposeFilter, search, sortDir]);
 
   const kpi = useMemo(() => {
     const by = (s) => reimbursements.filter((r) => r.status === s);
@@ -1002,7 +1012,10 @@ function ReimbursementTab({
             <table className="pcp-table">
               <thead>
                 <tr>
-                  <th>Reimb No.</th><th>Req Date</th><th>Employee</th><th>Department</th><th>Plant</th>
+                  <th className="pcp-sortable" onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))} title="Sort by reimbursement no.">
+                    Reimb No.<span className="pcp-sort-ind">{sortDir === "asc" ? "▲" : "▼"}</span>
+                  </th>
+                  <th>Req Date</th><th>Employee</th><th>Department</th><th>Plant</th>
                   <th>Purpose</th><th>Lines</th><th>Amount</th><th>Compliance</th><th>Status</th><th>Aging</th><th></th>
                 </tr>
               </thead>

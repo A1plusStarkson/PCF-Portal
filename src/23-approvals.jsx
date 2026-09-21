@@ -258,6 +258,7 @@ function ApprovalModuleTab({
   const [reimbStage, setReimbStage] = useState("All statuses");
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
+  const [reimbSortDir, setReimbSortDir] = useState("desc");
 
   const inPlant = (code) => plant === "ALL" || code === plant;
   const matches = (...fields) => {
@@ -285,10 +286,15 @@ function ApprovalModuleTab({
     () => (reimbursements || []).slice().sort((a, b) => String(b.requestDate || "").localeCompare(String(a.requestDate || ""))),
     [reimbursements]
   );
+  /* Newest reimbursement no. first by default; the header flips to ascending. */
   const reimbRows = reimbAll.filter((r) => inPlant(r.branchCode)
     && r.status !== REIMB_STATUS.DRAFT
     && matches(r.reimbNo, r.employee, r.branchCode, r.purpose)
-    && (reimbStage === "All statuses" || r.status === reimbStage));
+    && (reimbStage === "All statuses" || r.status === reimbStage))
+    .sort((a, b) => {
+      const cmp = String(a.reimbNo || "").localeCompare(String(b.reimbNo || ""), undefined, { numeric: true });
+      return reimbSortDir === "asc" ? cmp : -cmp;
+    });
   const reimbWaiting = reimbAll.filter((r) => r.status === REIMB_STATUS.SUBMITTED
     || r.status === REIMB_STATUS.FOR_REVIEW || r.status === REIMB_STATUS.FOR_APPROVAL).length;
 
@@ -387,7 +393,10 @@ function ApprovalModuleTab({
               <table className="pcp-table">
                 <thead>
                   <tr>
-                    <th>Reimb No.</th><th>Req Date</th><th>Employee</th><th>Department</th><th>Plant</th>
+                    <th className="pcp-sortable" onClick={() => setReimbSortDir((d) => (d === "asc" ? "desc" : "asc"))} title="Sort by reimbursement no.">
+                      Reimb No.<span className="pcp-sort-ind">{reimbSortDir === "asc" ? "▲" : "▼"}</span>
+                    </th>
+                    <th>Req Date</th><th>Employee</th><th>Department</th><th>Plant</th>
                     <th>Purpose</th><th>Docs</th><th>Amount</th><th>Compliance</th><th>Status</th><th>Aging</th><th></th>
                   </tr>
                 </thead>
