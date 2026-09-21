@@ -4,10 +4,16 @@
    receipts before they are processed. */
 const RECEIPT_APPROVER_NAME = "Grace Gan";
 
-/* Emails that resolve to the authorized Liquidation Approver, so the identity
+/* Emails that resolve to an authorized Liquidation Approver, so the identity
    still holds even if the display name differs. Approve/Reject Liquidation is
-   restricted to this person only (see isLiquidationApprover in 19-app.jsx). */
-const LIQUIDATION_APPROVER_EMAILS = ["a1plusadmin@a1plus.com"];
+   restricted to these accounts (see isLiquidationApprover in 19-app.jsx), and
+   every gate — the UI buttons and the guards inside approveReceipt /
+   rejectLiquidation — reads this one list, so adding an account here is enough.
+
+   RECEIPT_APPROVER_NAME above still names Grace Gan in the on-screen guidance
+   ("awaiting Grace Gan's approval"), because she remains the expected approver;
+   superuser is the standby account, added at the owner's request. */
+const LIQUIDATION_APPROVER_EMAILS = ["a1plusadmin@a1plus.com", "superuser@a1plus.com"];
 
 /* The cash settlement classification now derives from the per-document receipt
    amounts — see reconcileReceipts / settlementStateFor in 02-helpers.jsx. */

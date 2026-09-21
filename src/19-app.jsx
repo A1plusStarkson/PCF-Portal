@@ -104,14 +104,21 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   const isSuperAdmin = (userRole || "") === "SuperAdmin" && role === "SuperAdmin";
 
   /* ---- Request No. override ----
-     The Petty Cash Request No. is system-generated and locked for every role.
-     Only the Accounting Department may type over it (to match a pre-printed
-     form or correct a mis-keyed series). Gated on BOTH the assigned role and
-     the role being viewed, so an Accounting user previewing another role — or
-     an admin viewing as Accounting — sees an honest preview and gains no hidden
-     rights. In local (no-auth) mode the operator is the Accounting super-admin,
-     which is why the assigned role falls back to "Accounting" here. */
-  const canEditRequestNo = (userRole || "Accounting") === "Accounting" && role === "Accounting";
+     The Petty Cash Request No. is system-generated and locked for every role
+     except these two: Accounting (to match a pre-printed form or correct a
+     mis-keyed series) and SuperAdmin (added at the owner's request so the
+     system administrator is not locked out of a correction Accounting can make).
+     Gated on BOTH the assigned role and the role being viewed, so previewing
+     another role gains no hidden rights and loses none it already had. In local
+     (no-auth) mode the operator is the Accounting super-admin, which is why the
+     assigned role falls back to "Accounting" here.
+
+     Uniqueness is still enforced separately — isRequestNoTaken rejects a blank
+     or duplicate number whoever is typing it, and every change is written to the
+     audit trail as "Request No. Changed". */
+  const REQUEST_NO_EDITOR_ROLES = ["Accounting", "SuperAdmin"];
+  const canEditRequestNo = REQUEST_NO_EDITOR_ROLES.includes(userRole || "Accounting")
+    && REQUEST_NO_EDITOR_ROLES.includes(role);
 
   /* The sole authorized Liquidation Approver — only Grace Gan may approve or
      reject a liquidation. Matched by display name or configured email, and
