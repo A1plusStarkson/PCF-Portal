@@ -203,6 +203,11 @@ const CSS = `
 
   .pcp-liq-line { display: grid; grid-template-columns: 100px 1fr 1.1fr 1fr 0.85fr 100px 32px; gap: 8px; align-items: center; margin-bottom: 8px; }
   .pcp-liq-line-head { display: grid; grid-template-columns: 100px 1fr 1.1fr 1fr 0.85fr 100px 32px; gap: 8px; font-size: 10.5px; text-transform: uppercase; color: var(--text-mut); font-weight: 700; margin-bottom: 8px; letter-spacing: 0.4px;}
+  /* Running total for the line editor. The last two tracks match the row grid,
+     so the figure sits directly under the Amount inputs. */
+  .pcp-liq-line-total { display: grid; grid-template-columns: 1fr 100px 32px; gap: 8px; align-items: center; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--line); }
+  .pcp-liq-line-total .lbl { text-align: right; font-size: 11.5px; font-weight: 700; color: var(--text-mut); text-transform: uppercase; letter-spacing: 0.4px; }
+  .pcp-liq-line-total .val { font-weight: 700; font-size: 13.5px; }
 
   .pcp-chip-list { display: flex; flex-wrap: wrap; gap: 8px; }
   .pcp-voucher-card {

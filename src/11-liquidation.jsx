@@ -743,7 +743,15 @@ function LiquidationWorksheet({
           </button>
         </div>
       ))}
-      <button className="pcp-btn pcp-btn-sm" onClick={addLine} style={{ marginTop: 4 }}><Plus size={12} /> Add Receipt Line</button>
+      {/* The encoded lines add up right here, under the Amount column, so the
+          preparer can check the total against the cash released without
+          opening the Automated Computation panel or adding up by hand. */}
+      <div className="pcp-liq-line-total">
+        <div className="lbl">Total Expense Amount ({validLines.length} line{validLines.length === 1 ? "" : "s"})</div>
+        <div className="pcp-num val">{peso(total)}</div>
+        <div></div>
+      </div>
+      <button className="pcp-btn pcp-btn-sm" onClick={addLine} style={{ marginTop: 10 }}><Plus size={12} /> Add Receipt Line</button>
 
       {/* Supporting documents */}
       <div style={{ marginTop: 18, borderTop: "1px solid var(--line)", paddingTop: 14 }}>

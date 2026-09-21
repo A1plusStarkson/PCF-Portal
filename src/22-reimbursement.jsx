@@ -625,6 +625,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, reimb, nextRei
                       </tr>
                     ))}
                   </tbody>
+                  <tfoot><tr><td colSpan={5} style={{ textAlign: "right", fontWeight: 600 }}>Total</td><td className="pcp-num" style={{ fontWeight: 700 }}>{peso(total)}</td></tr></tfoot>
                 </table>
               </div>
               <div className="pcp-card" style={{ padding: 12 }}>
