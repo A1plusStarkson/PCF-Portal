@@ -1,6 +1,6 @@
 /* ============================= REQUESTS ============================= */
 
-function RequestFormModal({ onClose, onSave, nextRequestNo, request, plantOptions, canEditRequestNo, isRequestNoTaken }) {
+function RequestFormModal({ onClose, onSave, nextRequestNoFor, request, plantOptions, canEditRequestNo, isRequestNoTaken }) {
   const isEdit = !!request;
   const defaultBranch = (plantOptions && plantOptions[0]) ? plantOptions[0].code : PCR_BRANCH_OPTIONS[0].code;
   const [form, setForm] = useState(
@@ -13,11 +13,19 @@ function RequestFormModal({ onClose, onSave, nextRequestNo, request, plantOption
           amount: request.amount, approver: request.approver || "",
         }
       : {
-          requestNo: nextRequestNo || "",
+          /* Left blank on purpose. Each plant runs its own series, so for a new
+             request the number is DERIVED from the plant selected below rather
+             than fixed when the form opens — see effectiveRequestNo. */
+          requestNo: "",
           date: todayISO(), employee: "", department: SUBACCOUNTS[1].code,
           branchCode: defaultBranch, purpose: "", purposeJustification: "", amount: "", approver: "",
         }
   );
+  /* True once Accounting has typed into the Request No. field. Until then the
+     field mirrors the generated number for the plant currently selected, so
+     switching plant switches series. After that the typed value stands and is
+     never overwritten by a plant change. */
+  const [requestNoTouched, setRequestNoTouched] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   /* Option lists for the searchable pickers. Same values as the old <select>s —
      only the way they are browsed changed (a search box over the list). */
@@ -29,8 +37,14 @@ function RequestFormModal({ onClose, onSave, nextRequestNo, request, plantOption
   const validPurpose = !!form.purpose && (!isOthers || form.purposeJustification.trim());
   /* Request No. is system-generated and locked for every role except Accounting.
      When Accounting overrides it, it must stay present and unique — a duplicated
-     series breaks the reference the audit trail and integrity report rely on. */
-  const typedRequestNo = String(form.requestNo || "").trim();
+     series breaks the reference the audit trail and integrity report rely on.
+
+     For a new request the generated number follows the plant in the form, and
+     an existing one always keeps the number it was issued: a document number,
+     once given out, does not change because someone edited the plant. */
+  const autoRequestNo = isEdit ? "" : nextRequestNoFor(form.branchCode);
+  const effectiveRequestNo = (isEdit || requestNoTouched) ? form.requestNo : autoRequestNo;
+  const typedRequestNo = String(effectiveRequestNo || "").trim();
   const requestNoDuplicate = !!canEditRequestNo && !!typedRequestNo && !!isRequestNoTaken
     && isRequestNoTaken(typedRequestNo, request ? request.id : null);
   const validRequestNo = !canEditRequestNo || (!!typedRequestNo && !requestNoDuplicate);
@@ -50,13 +64,13 @@ function RequestFormModal({ onClose, onSave, nextRequestNo, request, plantOption
               {canEditRequestNo ? (
                 <input
                   className="pcp-input"
-                  value={form.requestNo}
-                  onChange={(e) => set("requestNo", e.target.value)}
-                  placeholder={REQUEST_NO_PREFIX + "0001"}
+                  value={effectiveRequestNo}
+                  onChange={(e) => { setRequestNoTouched(true); set("requestNo", e.target.value); }}
+                  placeholder={requestNoPrefix(form.branchCode) + "0001"}
                   title="Accounting Department only — overrides the system-generated series"
                 />
               ) : (
-                <input className="pcp-input" value={isEdit ? request.requestNo : nextRequestNo} disabled />
+                <input className="pcp-input" value={effectiveRequestNo} disabled />
               )}
               {canEditRequestNo && !typedRequestNo && (
                 <div style={{ fontSize: 11.5, color: "var(--brand)" }}>Request No. is required.</div>
@@ -154,7 +168,7 @@ const REQUEST_SORT_FIELDS = {
   status: (r) => r.status,
 };
 
-function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, onDisburse, plantOptions, canApprove, canRelease, plantTitle, canDelete, onDelete, canEditRequestNo, isRequestNoTaken, nextRequestNo: nextRequestNoProp }) {
+function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, onDisburse, plantOptions, canApprove, canRelease, plantTitle, canDelete, onDelete, canEditRequestNo, isRequestNoTaken, nextRequestNoFor: nextRequestNoForProp }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All");
@@ -166,7 +180,8 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
   /* Always supplied by App, which sees every plant's numbers. The local
      fallback only exists for the plant-scoped `requests` prop and is therefore
      a last resort — App is the single source of the series. */
-  const nextRequestNo = nextRequestNoProp || nextSeriesNo(REQUEST_NO_PREFIX, requests.map((r) => r.requestNo));
+  const nextRequestNoFor = nextRequestNoForProp
+    || ((branchCode) => nextSeriesNo(requestNoPrefix(branchCode), requests.map((r) => r.requestNo)));
 
   /* Sort on what the column actually shows, not the raw field, so Department
      and Plant order the way the reader sees them. */
@@ -264,14 +279,19 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
           </div>
         </div>
       </div>
+      {/* onSave passes the form straight through: the modal has already resolved
+          requestNo for the plant it is submitting — an override when Accounting
+          typed one, the generated number for that plant otherwise. App
+          re-validates it and regenerates a blank or already-taken number, so
+          nothing here has to second-guess the form. */}
       {showForm && (
         <RequestFormModal
-          nextRequestNo={nextRequestNo}
+          nextRequestNoFor={nextRequestNoFor}
           plantOptions={formPlantOptions}
           canEditRequestNo={canEditRequestNo}
           isRequestNoTaken={isRequestNoTaken}
           onClose={() => setShowForm(false)}
-          onSave={(form) => { onCreate({ ...form, requestNo: (canEditRequestNo && form.requestNo) ? form.requestNo : nextRequestNo }); setShowForm(false); }}
+          onSave={(form) => { onCreate(form); setShowForm(false); }}
         />
       )}
       {editing && (

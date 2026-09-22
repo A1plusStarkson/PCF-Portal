@@ -223,6 +223,29 @@ const branchesOfPlant = (plant) => {
   const f = PLANT_FAMILIES.find((x) => x.plant === plant);
   return f ? f.branches.slice() : [plant];
 };
+
+/* ---- Document series, one per plant ----
+   Each plant runs its OWN Request No. series. It used to be a single
+   portal-wide run, which made every plant's list look broken: the number was
+   generated from every request in the portal, but a plant's screen only ever
+   lists its own family, so numbers claimed by another plant simply went
+   missing from view. Manila jumped 0022 -> 0035 because 0023..0034 belonged
+   to Disney, and nothing on screen could explain the hole.
+
+   Keyed on the PLANT and resolved through plantOfBranch, so a sub-branch
+   files under its plant's series — a Hasbro request is Manila's, a D6 request
+   is Disney's, exactly as the fund itself rolls up. A branch in no family
+   falls back to its own code, which keeps its records numbered and unique
+   rather than silently joining another plant's run.
+
+   The generator (nextSeriesNo) still checks every candidate against EVERY
+   number in the portal, so two plants can never mint the same string even
+   though they now count independently. */
+const PLANT_SERIES_LETTER = { "A1+": "M", WARNER: "W", ST: "D", RG: "RG" };
+const requestNoPrefix = (branchCode) => {
+  const plant = plantOfBranch(branchCode);
+  return "PCR-" + (PLANT_SERIES_LETTER[plant] || plant) + "-2026-";
+};
 /* Widen a branch grant to the full family of every plant it touches, so a
    partial grant cannot create a blind spot. */
 const expandPlantFamilies = (codes) => {

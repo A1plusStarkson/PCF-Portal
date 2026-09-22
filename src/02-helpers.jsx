@@ -54,9 +54,10 @@ function nextSeriesNo(prefix, existing, width) {
   return candidate;
 }
 
-/* The Petty Cash Request series prefix. Kept in one place so the generator, the
-   form placeholder and any future series change stay in step. */
-const REQUEST_NO_PREFIX = "PCR-2026-";
+/* The Request No. prefix is no longer a single constant: each plant runs its
+   own series. See requestNoPrefix in 05-master-data.jsx, which is where the
+   plant families it depends on are defined. This file loads before that one,
+   so the prefix cannot live here. */
 
 const branchByCode = (code) => BRANCHES.find((b) => b.code === code);
 const companyOfBranch = (code) => branchByCode(code)?.company || "—";

@@ -352,12 +352,19 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     return requests.some((r) => r.id !== exceptId && String(r.requestNo || "").trim().toUpperCase() === key);
   }, [requests]);
 
-  /* The next auto-generated Request No., derived from every number in use
-     across ALL plants (the Requests screen only ever sees its own scope, so it
-     cannot generate this itself without colliding with another plant). */
-  const nextRequestNo = useMemo(
-    () => nextSeriesNo(REQUEST_NO_PREFIX, requests.map((r) => r.requestNo)),
-    [requests]
+  /* The next auto-generated Request No. FOR A GIVEN PLANT.
+     A function, not a value: each plant runs its own series now, and the plant
+     is chosen inside the request form and can be changed while it is open, so
+     there is no single "next number" to hand down.
+
+     The candidate is still matched against every number in use across ALL
+     plants — the Requests screen only ever sees its own scope, so it cannot
+     generate this itself without risking a collision, and Accounting may have
+     typed anything into any plant's series. */
+  const allRequestNos = useMemo(() => requests.map((r) => r.requestNo), [requests]);
+  const nextRequestNoFor = useCallback(
+    (branchCode) => nextSeriesNo(requestNoPrefix(branchCode), allRequestNos),
+    [allRequestNos]
   );
 
   const addRequest = useCallback((form) => {
@@ -368,7 +375,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     const typedNo = String(form.requestNo || "").trim();
     const requestNo = (typedNo && !isRequestNoTaken(typedNo, null))
       ? typedNo
-      : nextSeriesNo(REQUEST_NO_PREFIX, requests.map((r) => r.requestNo));
+      : nextSeriesNo(requestNoPrefix(form.branchCode), requests.map((r) => r.requestNo));
     setRequests((rs) => [...rs, {
       id: uid("req"), requestNo, date: form.date, employee: form.employee,
       department: form.department, branchCode: form.branchCode, purpose: form.purpose,
@@ -1281,7 +1288,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             plantTitle={activePlantLabel}
             canDelete={isSuperAdmin} onDelete={deleteRequest}
             canEditRequestNo={canEditRequestNo} isRequestNoTaken={isRequestNoTaken}
-            nextRequestNo={nextRequestNo}
+            nextRequestNoFor={nextRequestNoFor}
           />
         )}
         {activeModule === "disbursements" && (
