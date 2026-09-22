@@ -793,21 +793,43 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     downloadWorkbook(wb, `Acumatica_PO_Export_All_${todayISO()}.xlsx`);
   }, [disbursements, liquidations]);
 
-  /* ---- Funds ---- */
+  /* ---- Funds ----
+     Every mutation here is audit-logged. A fund's beginning balance feeds the
+     available-balance figure for its whole plant family, so an unrecorded edit
+     silently restates the plant's cash position with no way to trace who did
+     it or what the previous figure was. */
   const addFund = useCallback((f) => {
     setFunds((fs) => [...fs, { id: uid("fund"), ...f }]);
-  }, []);
+    logAudit("Fund Created", f.label || f.branchCode || "—",
+      `${f.branchCode || "—"} · custodian ${f.custodian || "—"} · beginning ${peso(Number(f.beginningBalance) || 0)}`);
+  }, [logAudit]);
   const editFund = useCallback((id, f) => {
+    const prev = funds.find((x) => x.id === id);
     setFunds((fs) => fs.map((x) => (x.id === id ? { ...x, ...f } : x)));
-  }, []);
+    const before = Number(prev && prev.beginningBalance) || 0;
+    const after = Number(f.beginningBalance) || 0;
+    logAudit("Fund Edited", (prev && prev.label) || f.label || id,
+      before !== after
+        ? `Beginning balance ${peso(before)} → ${peso(after)}`
+        : `Details updated · custodian ${f.custodian || "—"}`);
+  }, [logAudit, funds]);
   const deleteFund = useCallback((id) => {
+    const prev = funds.find((x) => x.id === id);
     setFunds((fs) => fs.filter((x) => x.id !== id));
-  }, []);
-  /* Bulk beginning-balance update from the Dashboard "Edit Balances" modal. */
+    logAudit("Fund Deleted", (prev && prev.label) || id,
+      prev ? `${prev.branchCode} · beginning ${peso(Number(prev.beginningBalance) || 0)} removed` : "Fund removed");
+  }, [logAudit, funds]);
+  /* Bulk beginning-balance update from the Dashboard "Edit Balances" modal.
+     One entry per fund that actually changed, carrying the before/after
+     figures — saving the modal untouched records nothing. */
   const saveBalances = useCallback((updates) => {
     const map = new Map(updates.map((u) => [u.id, u.beginningBalance]));
+    const changed = funds.filter((x) => map.has(x.id)
+      && (Number(x.beginningBalance) || 0) !== (Number(map.get(x.id)) || 0));
     setFunds((fs) => fs.map((x) => (map.has(x.id) ? { ...x, beginningBalance: map.get(x.id) } : x)));
-  }, []);
+    changed.forEach((x) => logAudit("Beginning Balance Changed", x.label || x.branchCode,
+      `${peso(Number(x.beginningBalance) || 0)} → ${peso(Number(map.get(x.id)) || 0)}`));
+  }, [logAudit, funds]);
 
   /* Restore a recovery snapshot (admin, from System Settings). Transactions are
      replaced wholesale from the snapshot; funds/audit are only replaced when the
@@ -1092,6 +1114,13 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
 
   /* ---- Roles, navigation & notifications ---- */
   const roleModuleKeys = (ROLES[role] || ROLES["Accounting"]).tabs;
+  /* Changing a beginning balance restates a plant's whole cash position, so the
+     dashboard's "Edit Beginning Balances" button is held to the SAME gate as the
+     Master Data tab (SuperAdmin / Accounting / Finance). Derived from the tab
+     list rather than a second hard-coded role list so the two cannot drift:
+     a Custodian is deliberately kept out of Master Data, yet could previously
+     change balances straight from the dashboard, which had no role check. */
+  const canEditFunds = roleModuleKeys.includes("masterdata");
   /* User's plants in canonical order, then any additional master-data plants so
      newly created plants automatically get their own sidebar group + dashboard. */
   const orderedPlants = useMemo(() => plantOptions, [plantOptions]);
@@ -1216,7 +1245,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
               <TopBar
                 title={activeBranch.label + " Dashboard"}
                 sub={"Real-time summary of petty cash activity for " + activeBranch.label}
-                right={<button className="pcp-btn" onClick={() => setShowEditBalances(true)}><Edit3 size={14} /> Edit Beginning Balances</button>}
+                right={canEditFunds ? <button className="pcp-btn" onClick={() => setShowEditBalances(true)}><Edit3 size={14} /> Edit Beginning Balances</button> : null}
               />
               <div className="pcp-content">
                 <BranchDashboard
@@ -1233,7 +1262,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
               <TopBar
                 title="Consolidated Dashboard"
                 sub="Real-time summary of petty cash activity across your assigned plants"
-                right={<button className="pcp-btn" onClick={() => setShowEditBalances(true)}><Edit3 size={14} /> Edit Beginning Balances</button>}
+                right={canEditFunds ? <button className="pcp-btn" onClick={() => setShowEditBalances(true)}><Edit3 size={14} /> Edit Beginning Balances</button> : null}
               />
               <div className="pcp-content">
                 <Dashboard funds={scopedFunds} requests={scopedRequests} disbursements={scopedDisbursements} liquidations={scopedLiquidations} replenishments={scopedReplenishments} onNavigate={navigate} canEdit={canEdit} />
@@ -1396,7 +1425,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
           onConfirm={confirmDisburse}
         />
       )}
-      {showEditBalances && (
+      {showEditBalances && canEditFunds && (
         <EditBalancesModal
           funds={visibleFunds}
           onClose={() => setShowEditBalances(false)}

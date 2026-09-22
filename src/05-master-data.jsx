@@ -159,7 +159,7 @@ const companyProfile = (company) => COMPANY_PROFILES[company] || null;
    database that already holds that fund would gain a duplicate. */
 const PLANTS = [
   { key: "MNL", fundId: "fund-MNL", code: "A1+", label: "Manila", custodian: "Maureen Felix", beginningBalance: 600000 },
-  { key: "WARNER", fundId: "fund-WAR", code: "WARNER", label: "Warner", custodian: "Angelita Bayani", beginningBalance: 150000 },
+  { key: "WARNER", fundId: "fund-WAR", code: "WARNER", label: "Warner", custodian: "Angelita Bayani", beginningBalance: 70000 },
   /* Disney's fund is filed against the Starkson company branch (ST), not D1 —
      D1..D9 are sub-locations that draw on it (see PLANT_FAMILIES below). */
   { key: "DISNEY", fundId: "fund-DIS", code: "ST", label: "Disney", custodian: "Pura Barloso", beginningBalance: 700000 },
