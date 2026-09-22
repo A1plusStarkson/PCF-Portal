@@ -3,7 +3,6 @@
 const CSS = `
   :root {
     --ink: #12172a;
-    --ink-2: #1c2440;
     --paper: #f3f4f7;
     --card: #ffffff;
     --line: #e3e5ea;
@@ -209,7 +208,6 @@ const CSS = `
   .pcp-liq-line-total .lbl { text-align: right; font-size: 11.5px; font-weight: 700; color: var(--text-mut); text-transform: uppercase; letter-spacing: 0.4px; }
   .pcp-liq-line-total .val { font-weight: 700; font-size: 13.5px; }
 
-  .pcp-chip-list { display: flex; flex-wrap: wrap; gap: 8px; }
   .pcp-voucher-card {
     border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; cursor: pointer;
     transition: all 0.12s; margin-bottom: 8px;
@@ -236,23 +234,12 @@ const CSS = `
   }
   .pcp-collapse-head:hover { background: #eef0f5; }
   .pcp-collapse-body { padding: 12px 14px; }
-  .pcp-liq-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; align-items: start; }
-  @media (max-width: 1100px) { .pcp-liq-cols { grid-template-columns: 1fr; } }
   @media (max-width: 900px) { .pcp-liq-workspace { grid-template-columns: 1fr; } }
 
   ::-webkit-scrollbar { width: 9px; height: 9px; }
   ::-webkit-scrollbar-thumb { background: #d3d6de; border-radius: 5px; }
   ::-webkit-scrollbar-track { background: transparent; }
 
-  /* ---- Approval matrix ---- */
-  .pcp-appr-chips { display: flex; gap: 4px; flex-wrap: wrap; }
-  .pcp-appr-chip {
-    display: inline-flex; align-items: center; gap: 3px; padding: 2px 7px; border-radius: 99px;
-    font-size: 10px; font-weight: 700; letter-spacing: 0.2px; white-space: nowrap;
-  }
-  .pcp-appr-approved { background: var(--green-bg); color: var(--green); }
-  .pcp-appr-pending { background: var(--amber-bg); color: var(--amber); }
-  .pcp-appr-rejected { background: var(--red-bg); color: var(--brand); }
   /* Searchable dropdown — every master-data picker (branch, department,
      expense category, tax category, purpose) shares this one look. */
   .pcp-purpose-wrap, .pcp-ss-wrap { position: relative; }
@@ -295,12 +282,6 @@ const CSS = `
   .pcp-doc-frame img { display: block; width: 100%; max-height: 260px; object-fit: contain; }
   .pcp-doc-frame iframe { display: block; width: 100%; height: 260px; border: none; }
   .pcp-doc-frame .pcp-doc-none { padding: 22px 14px; text-align: center; font-size: 11.5px; color: var(--text-mut); }
-  .pcp-appr-row {
-    display: grid; grid-template-columns: 150px 1fr auto; gap: 10px; align-items: center;
-    padding: 10px 0; border-bottom: 1px solid #eef0f3;
-  }
-  .pcp-appr-row:last-child { border-bottom: none; }
-  .pcp-appr-level { font-weight: 700; font-size: 12.5px; }
 
   /* ---- Notifications & role ---- */
   .pcp-notif-dot {
@@ -319,11 +300,6 @@ const CSS = `
   .pcp-notif-item:hover { background: #fafbfd; }
   .pcp-notif-item:last-child { border-bottom: none; }
   .pcp-notif-ic { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-  .pcp-role-select { width: auto; min-width: 150px; font-weight: 600; }
-  .pcp-role-pill {
-    display: inline-flex; align-items: center; gap: 6px; padding: 8px 12px; border-radius: 7px;
-    background: var(--blue-bg); color: var(--blue); font-size: 12px; font-weight: 700; white-space: nowrap;
-  }
   .pcp-role-badge {
     display: flex; align-items: center; gap: 6px; padding: 7px 10px; margin: 0 6px 10px 6px;
     background: rgba(255,255,255,0.06); border-radius: 8px; color: #cfd3e0; font-size: 11.5px; font-weight: 600;
@@ -353,7 +329,6 @@ const CSS = `
   .pcp-login-err { background: var(--red-bg); color: var(--brand); font-size: 12px; padding: 9px 12px; border-radius: 8px; margin-bottom: 12px; }
   .pcp-login-ok { background: var(--green-bg); color: var(--green); font-size: 12px; padding: 9px 12px; border-radius: 8px; margin-bottom: 12px; }
   .pcp-login-foot { font-size: 11px; color: var(--text-mut); text-align: center; margin-top: 14px; }
-  .pcp-link-btn { background: none; border: none; color: var(--brand); font-size: 11.5px; cursor: pointer; padding: 0; font-weight: 600; }
 
   /* ---- Report ---- */
   .pcp-report-head { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
@@ -370,7 +345,6 @@ const CSS = `
   }
 
   /* ---- Report Center (on-screen professional preview) ---- */
-  .pcp-rc-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; }
   .pcp-rc-filters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
   .pcp-rc-field label { display: block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-mut); margin-bottom: 4px; }
   .pcp-doc-scroll { overflow: auto; background: #eceef2; border: 1px solid var(--line); border-radius: 12px; padding: 22px; }
@@ -495,21 +469,6 @@ const CSS = `
     table.pcp-table thead th { background: #f0f0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 `;
-
-const NAV_ITEMS = [
-  { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { key: "requests", label: "Petty Cash Requests", icon: ClipboardList },
-  { key: "disbursements", label: "Release Ledger", icon: Receipt },
-  { key: "liquidation", label: "Liquidation", icon: FileSpreadsheet },
-  { key: "replenishment", label: "Replenishment", icon: RefreshCw },
-  { key: "history", label: "Transaction History", icon: History },
-  { key: "report", label: "Reports", icon: FileText },
-  { key: "aging", label: "Liquidation Aging", icon: Clock },
-  { key: "audit", label: "Audit Trail", icon: ShieldCheck },
-  { key: "masterdata", label: "Funds & Master Data", icon: Database },
-  { key: "users", label: "User Management", icon: UserCog },
-  { key: "settings", label: "System Settings", icon: Settings },
-];
 
 /* Modules that get their OWN separate tab per plant (Manila / Warner / Disney /
    RG and Co.). Each plant + module pair is a distinct nav tab so a custodian
@@ -670,23 +629,6 @@ function NotificationBell() {
         </div>
       )}
     </div>
-  );
-}
-
-function RoleSelector() {
-  const ui = useContext(AppUI);
-  if (!ui) return null;
-  if (!ui.canSwitchRole) {
-    return (
-      <span className="pcp-role-pill" title="Your access level (set by your administrator)">
-        <ShieldCheck size={13} /> {ui.role}
-      </span>
-    );
-  }
-  return (
-    <select className="pcp-select pcp-role-select" value={ui.role} onChange={(e) => ui.setRole(e.target.value)} title="Super admin — view the system as any role">
-      {ROLE_NAMES.map((r) => <option key={r} value={r}>{r === "Administrator" ? "Administrator (super)" : "View as: " + r}</option>)}
-    </select>
   );
 }
 

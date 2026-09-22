@@ -19,7 +19,6 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   const [disburseTarget, setDisburseTarget] = useState(null);
   const [showEditBalances, setShowEditBalances] = useState(false);
   const [showChangePw, setShowChangePw] = useState(false);
-  const [saveTick, setSaveTick] = useState(0);
   /* True when the concurrency-safe per-record store (pcp_records) is missing in
      the cloud database. Surfaces a banner so an admin runs the setup SQL. */
   const [recordsUnavailable, setRecordsUnavailable] = useState(false);

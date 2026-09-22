@@ -1,6 +1,5 @@
 /* ============================= REPLENISHMENT ============================= */
 
-const REPLENISH_METHODS = ["Check", "Bank Transfer", "Cash"];
 const REPLENISH_STATUSES = ["Pending", "Approved", "Completed"];
 
 /* Amount already liquidated for a branch that has not yet been reimbursed by a

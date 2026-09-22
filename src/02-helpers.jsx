@@ -95,18 +95,6 @@ const seedFunds = () => PLANTS.map((p) => ({
   beginningBalance: p.beginningBalance,
 }));
 
-/* Transaction stores start EMPTY — the system begins with a clean database and
-   only master data (plants, users, chart of accounts) is pre-seeded. */
-const seedRequests = () => ([]);
-
-const seedDisbursements = () => ([]);
-
-const seedLiquidations = () => ([]);
-
-const seedReplenishments = () => ([]);
-
-const seedAuditLog = () => ([]);
-
 const STORAGE_KEY = "petty-cash-portal-state";
 /* Schema tag written into every saved blob. This is now ONLY metadata: a
    version mismatch NEVER discards transactions — historical financial records
