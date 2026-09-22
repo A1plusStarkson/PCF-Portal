@@ -102,6 +102,10 @@ function emptyLine() {
   return { id: uid("ln"), date: todayISO(), expense: "", category: EXPENSE_CATEGORIES[0], department: SUBACCOUNTS[1].code, amount: "", taxCategory: "" };
 }
 
+/* Outline for a field the save is waiting on. Border only — no background, so
+   it reads the same whatever the surrounding surface is. */
+const MISSING_FIELD_STYLE = { borderColor: "var(--brand)" };
+
 /* Bring older stored documents up to the current shape so rows uploaded before
    receipt amounts existed still render and can be completed. */
 /* ---- Receipt bytes ----
@@ -250,6 +254,36 @@ function LiquidationWorksheet({
   const remaining = disbursement.amount - total;
   const validLines = lines.filter((l) => l.expense.trim() && Number(l.amount) > 0);
 
+  /* ---- Incomplete expense lines ----
+     Only validLines are ever persisted. That used to happen silently: a line
+     missing its Expense text or its Amount was dropped on save and the button
+     still reported "Saved", so encoded work disappeared with no explanation.
+     The trap is that those two are exactly the fields that start BLANK, while
+     Date, Expense Category and Department arrive pre-filled — so a row with
+     four populated controls can still be thrown away.
+
+     A row counts as STARTED only through fields that begin empty and can be
+     emptied again (Expense, Amount, Tax Category). Category and Department are
+     deliberately excluded: they cannot be returned to an untouched state, so
+     judging by them would permanently block a save on a row the preparer
+     cannot clear and — when it is the only row — cannot delete either. */
+  const lineStarted = (l) => !!(
+    String(l.expense || "").trim()
+    || String(l.amount || "").trim()
+    || String(l.taxCategory || "").trim()
+  );
+  const lineMissing = (l) => {
+    const missing = [];
+    if (!String(l.expense || "").trim()) missing.push("Expense");
+    if (!(Number(l.amount) > 0)) missing.push("Amount");
+    return missing;
+  };
+  const incompleteLines = lines
+    .map((l, i) => ({ id: l.id, row: i + 1, missing: lineMissing(l), started: lineStarted(l) }))
+    .filter((x) => x.started && x.missing.length);
+  const incompleteById = {};
+  incompleteLines.forEach((x) => { incompleteById[x.id] = x.missing; });
+
   /* Receipt approval state is read from the PERSISTED liquidation so that
      Grace Gan's decisions (saved immediately) are reflected here regardless of
      unsaved worksheet edits. */
@@ -318,6 +352,19 @@ function LiquidationWorksheet({
   });
 
   const handleSave = () => {
+    /* Refuse the save and say exactly which row is short of what. Dropping the
+       line and reporting "Saved" is how an afternoon of encoding vanishes. */
+    if (incompleteLines.length) {
+      window.alert(
+        "This liquidation cannot be saved yet — "
+        + `${incompleteLines.length} expense line(s) are incomplete.\n\n`
+        + incompleteLines.map((x) => `  Line ${x.row}: missing ${x.missing.join(" and ")}`).join("\n")
+        + "\n\nEvery expense line needs an Expense description and an Amount greater"
+        + " than zero. Fill those in, or delete the line, then save again."
+        + "\n\nNothing has been saved, so your other lines are still here."
+      );
+      return;
+    }
     if (attachments.some((a) => a.receiptAmount !== "" && Number(a.receiptAmount) < 0)) {
       window.alert("Receipt amounts cannot be negative.");
       return;
@@ -709,13 +756,49 @@ function LiquidationWorksheet({
       {/* Main working area — the expense/receipt table is the primary surface. */}
       <div className="pcp-card pcp-card-pad" style={{ marginBottom: 12 }}>
       <div className="pcp-section-title" style={{ margin: "0 0 10px" }}>Expense / Liquidation Details</div>
+      {/* Says why the save is blocked BEFORE the button is pressed, and keeps
+          saying it while the row is short. Only complete lines are stored, so
+          without this the row would simply vanish on save. */}
+      {!!incompleteLines.length && (
+        <div
+          style={{
+            border: "1px solid var(--brand)", borderRadius: 8, padding: "10px 12px",
+            marginBottom: 10, fontSize: 12.5, lineHeight: 1.55,
+          }}
+        >
+          <div style={{ fontWeight: 700, color: "var(--brand)" }}>
+            <AlertTriangle size={13} style={{ verticalAlign: "-2px" }} />{" "}
+            This liquidation cannot be saved yet
+          </div>
+          <div style={{ marginTop: 4 }}>
+            {incompleteLines.map((x) => (
+              <div key={x.id}>Line {x.row} is missing <b>{x.missing.join(" and ")}</b>.</div>
+            ))}
+          </div>
+          <div style={{ marginTop: 4, color: "var(--text-mut)" }}>
+            Every expense line needs an Expense description and an Amount greater than zero.
+            Fill those in, or delete the line.
+          </div>
+        </div>
+      )}
       <div className="pcp-liq-line-head">
-        <div>Date</div><div>Expense</div><div>Expense Category (COA)</div><div>Department</div><div>Tax Category</div><div>Amount</div><div></div>
+        <div>Date</div>
+        <div>Expense <span style={{ color: "var(--brand)" }}>*</span></div>
+        <div>Expense Category (COA)</div><div>Department</div><div>Tax Category</div>
+        <div>Amount <span style={{ color: "var(--brand)" }}>*</span></div>
+        <div></div>
       </div>
-      {lines.map((l) => (
+      {lines.map((l) => {
+        const missing = incompleteById[l.id] || [];
+        return (
         <div className="pcp-liq-line" key={l.id}>
           <input type="date" className="pcp-input" value={l.date} onChange={(e) => updateLine(l.id, { date: e.target.value })} />
-          <input className="pcp-input" placeholder="e.g. Meals, Fuel, Toll Fee" value={l.expense} onChange={(e) => updateLine(l.id, { expense: e.target.value })} />
+          <input
+            className="pcp-input" placeholder="e.g. Meals, Fuel, Toll Fee"
+            value={l.expense} onChange={(e) => updateLine(l.id, { expense: e.target.value })}
+            style={missing.includes("Expense") ? MISSING_FIELD_STYLE : undefined}
+            title={missing.includes("Expense") ? "Required — this line will not save without it" : undefined}
+          />
           <SearchSelect
             value={l.category} onChange={(v) => updateLine(l.id, { category: v })}
             options={EXPENSE_CATEGORY_CHOICES}
@@ -737,12 +820,18 @@ function LiquidationWorksheet({
             searchPlaceholder="Search tax category…"
             popStyle={{ minWidth: 300 }}
           />
-          <input type="number" min="0" step="0.01" className="pcp-input" placeholder="0.00" value={l.amount} onChange={(e) => updateLine(l.id, { amount: e.target.value })} />
+          <input
+            type="number" min="0" step="0.01" className="pcp-input" placeholder="0.00"
+            value={l.amount} onChange={(e) => updateLine(l.id, { amount: e.target.value })}
+            style={missing.includes("Amount") ? MISSING_FIELD_STYLE : undefined}
+            title={missing.includes("Amount") ? "Required — this line will not save without it" : undefined}
+          />
           <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => removeLine(l.id)} disabled={lines.length === 1}>
             <Trash2 size={13} color="var(--brand)" />
           </button>
         </div>
-      ))}
+        );
+      })}
       {/* The encoded lines add up right here, under the Amount column, so the
           preparer can check the total against the cash released without
           opening the Automated Computation panel or adding up by hand. */}
