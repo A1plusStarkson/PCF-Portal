@@ -23,6 +23,22 @@ const fmtDate = (iso) => {
 
 const uid = (prefix) => prefix + "-" + Math.random().toString(36).slice(2, 9).toUpperCase();
 
+/* ---- Matching a person by name ----
+   Employee is FREE TEXT on the request form (09-requests.jsx, "Full name"), so
+   the same person arrives spelled several ways: "Elsa Miranda", "ELSA MIRANDA",
+   "elsa miranda", " Elsa  Miranda ". To a plain === comparison those are four
+   different people, which is how the outstanding-advance policy came to be
+   bypassed simply by typing the name with different capitalisation.
+
+   Case, leading/trailing space and repeated inner spaces are all ignored. A
+   blank name never matches anything, so two requests with the employee left
+   empty are not treated as the same person. */
+const normalizePerson = (s) => String(s || "").trim().toLowerCase().replace(/\s+/g, " ");
+const samePerson = (a, b) => {
+  const x = normalizePerson(a);
+  return !!x && x === normalizePerson(b);
+};
+
 /* Next number in a document series (e.g. "PCR-2026-" + 0007).
 
    Derived from the HIGHEST sequence already in use — never from the record
@@ -694,29 +710,94 @@ function reconcileReceipts(released, receiptTotal) {
   return { released: rel, receiptTotal: rec, difference, type, expected };
 }
 
-/* Full cash-settlement state for a liquidation. The settlement flag means the
-   cash has ACTUALLY moved, not that someone intends to move it — so a
-   liquidation only settles when the recorded actual amount equals the expected
-   amount. Over-liquidation additionally needs a reviewer's acknowledgement so
-   it can never settle automatically. */
+/* ---- Cash movements against a settlement ----
+   The cash rarely arrives in one piece. A requestor who owes ₱1,000 back may
+   hand over ₱600 today and the balance next week, and both have to stay on the
+   record with their own date, amount and who took them in.
+
+   Settlements used to hold a single `actualAmount` that was OVERWRITTEN on each
+   save, so the only way to close a part-paid settlement was to type the full
+   figure over the partial one — which erased the fact that it came in two
+   parts, on two dates, and left the outstanding balance recorded nowhere at
+   all. Entries replace that.
+
+   Records written before entries existed carry the old single figure, so they
+   are presented here as one entry. Every consumer below therefore only has to
+   understand one shape, and no historical settlement has to be migrated. */
+function settlementEntries(liq) {
+  const s = (liq && liq.settlement) || null;
+  if (!s) return [];
+  if (Array.isArray(s.entries)) return s.entries;
+  if (s.completed && round2(s.actualAmount) !== 0) {
+    return [{
+      id: "legacy", amount: round2(s.actualAmount),
+      date: String(s.recordedAt || "").slice(0, 10),
+      recordedBy: s.recordedBy || "", recordedAt: s.recordedAt || "",
+      reason: "", legacy: true,
+    }];
+  }
+  return [];
+}
+
+/* Full cash-settlement state for a liquidation. Two different variances live
+   here and must not be confused:
+
+     receipt variance  (rec.type)  — released vs approved receipts. Decides
+                                     WHAT must happen: return cash, be
+                                     reimbursed, or nothing at all.
+     settlement variance (variance) — expected vs what actually moved. Decides
+                                     WHETHER it happened: in full, short, or
+                                     over.
+
+   `settled` means the cash has ACTUALLY moved, not that someone intends to move
+   it. A shortage settles only when an authorised approver closes it, which
+   records the outstanding balance as a receivable rather than letting the
+   liquidation sit blocked forever with the missing amount stored nowhere.
+   Over-liquidation additionally needs a reviewer's acknowledgement so it can
+   never settle automatically. */
 function settlementStateFor(disb, liq) {
   const summary = receiptAmountSummary(liq);
   const rec = reconcileReceipts(disb ? disb.amount : 0, summary.approvedTotal);
   const s = (liq && liq.settlement) || null;
-  const completed = !!(s && s.completed);
-  const actual = round2(s ? s.actualAmount : 0);
+  const entries = settlementEntries(liq);
+  const actual = round2(entries.reduce((t, e) => t + (Number(e.amount) || 0), 0));
+  /* Signed: > 0 still to come in, < 0 more moved than was due. */
+  const remaining = round2(rec.expected - actual);
+  const closure = (s && s.closure && s.closure.closedBy) ? s.closure : null;
+  const closed = !!closure;
   const needsReview = rec.type === "reimburse";
   const reviewed = !!(s && s.reviewedBy);
-  const matches = rec.type === "exact" ? true : (completed && actual === rec.expected);
+
+  let variance;
+  if (rec.type === "exact") variance = "none";
+  else if (!entries.length) variance = "unsettled";
+  else if (remaining > 0) variance = "short";
+  else if (remaining < 0) variance = "over";
+  else variance = "full";
+
+  const matches = rec.type === "exact" ? true : variance === "full";
+  const settled = rec.type === "exact"
+    ? true
+    : ((matches || closed) && (!needsReview || reviewed));
+
   return {
-    ...rec, summary, settlement: s, completed, actual, matches, needsReview, reviewed,
-    settled: rec.type === "exact" ? true : (matches && (!needsReview || reviewed)),
+    ...rec, summary, settlement: s, entries, actual, remaining, variance,
+    closure, closed, matches, needsReview, reviewed, settled,
+    /* Kept for the UI, which switches between "show the figure" and "show the
+       input" on whether anything has been recorded yet. */
+    completed: entries.length > 0,
   };
 }
 
 /* Final liquidation status under the cash-settlement rule: a liquidation is
    LIQUIDATED once every receipt amount is captured and approved and any
-   resulting refund or reimbursement has actually been completed. */
+   resulting refund or reimbursement has actually been completed.
+
+   A part-paid or short settlement gets its OWN status. It used to report
+   "NOT YET LIQUIDATED", the same string as a liquidation whose receipts simply
+   had not been captured yet — so a ₱400 cash shortage somebody had to chase was
+   indistinguishable, in every list and report, from routine unfinished
+   encoding. */
 function liqFinalStatus(disb, liq) {
   if (!liq || !((liq.attachments || []).length)) return "Not Liquidated";
   /* A standing rejection takes precedence until the requestor corrects and
@@ -727,7 +808,23 @@ function liqFinalStatus(disb, liq) {
   if (approval.anyRejected) return "For Revision";
   if (!st.summary.complete || !approval.allApproved) return "NOT YET LIQUIDATED";
   if (st.needsReview && !st.reviewed) return "Under Review";
-  return st.settled ? "LIQUIDATED" : "NOT YET LIQUIDATED";
+  /* Closed over an unrecovered balance is still a completed liquidation, but it
+     is never allowed to read as a clean one — the receivable is part of the
+     status, not a detail buried in the panel. */
+  if (st.settled) return (st.closed && st.remaining > 0) ? "LIQUIDATED (SHORT)" : "LIQUIDATED";
+  if (st.variance === "short") return "PARTIALLY SETTLED";
+  if (st.variance === "over") return "OVER-SETTLED";
+  return "NOT YET LIQUIDATED";
+}
+
+/* Is this final status a FINISHED liquidation? One closed over an approved,
+   unrecovered balance reports LIQUIDATED (SHORT), which is still finished — the
+   voucher must drop off the worklist and read as complete in the approvals
+   view. Every caller goes through this rather than comparing to the literal
+   "LIQUIDATED", which would silently leave short-closed vouchers sitting on the
+   worklist forever. */
+function liqIsComplete(finalStatus) {
+  return finalStatus === "LIQUIDATED" || finalStatus === "LIQUIDATED (SHORT)";
 }
 
 /* A liquidation is editable by its requestor while still in Draft, or after a

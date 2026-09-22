@@ -151,7 +151,8 @@ function normalizeAttachment(a) {
 function LiquidationWorksheet({
   disbursement, liquidation, onSave, onExport, canApproveReceipts, onDecideReceipt,
   liquidations, disbursements, onSubmitLiquidation, onReopenLiquidation,
-  onRecordSettlement, onReviewOverLiquidation, canDelete, onDeleteLiquidation,
+  onRecordSettlement, onCloseShortage, onReopenShortage, canApproveShortage,
+  onReviewOverLiquidation, canDelete, onDeleteLiquidation,
   canRejectLiquidation, onRejectLiquidation,
 }) {
   const [lines, setLines] = useState(liquidation ? liquidation.lines.map((l) => ({ ...l })) : [emptyLine()]);
@@ -421,26 +422,81 @@ function LiquidationWorksheet({
     setShowReject(false);
   };
 
-  /* Recording the settlement asserts the cash HAS moved, so the actual amount
-     is captured and must equal the expected amount before it counts as settled. */
+  /* Recording a movement asserts the cash HAS moved. It ADDS to the running
+     total rather than replacing it, so a settlement paid in instalments keeps
+     every payment. A movement that leaves a balance outstanding must carry a
+     reason — a shortage with no explanation is the thing that used to vanish. */
   const handleRecordSettlement = () => {
     if (!onRecordSettlement) return;
-    const actual = round2(actualInput === "" ? st.expected : actualInput);
-    if (actual < 0) { window.alert("The actual amount cannot be negative."); return; }
-    if (actual !== st.expected && !window.confirm(
-      `The actual amount (${peso(actual)}) does not match the expected ${st.type === "excess" ? "return" : "reimbursement"} of ${peso(st.expected)}.\n\n`
-      + "The liquidation will stay NOT YET LIQUIDATED until the amounts match. Record it anyway?"
-    )) return;
+    const amount = round2(actualInput === "" ? st.remaining : actualInput);
+    if (!(amount > 0)) { window.alert("Enter the amount that actually moved. It must be greater than zero."); return; }
+
+    const left = round2(st.remaining - amount);
+    let reason = "";
+    if (left !== 0) {
+      const question = left > 0
+        ? `This records ${peso(amount)} against the ${peso(st.remaining)} still outstanding, leaving ${peso(left)} SHORT.\n\n`
+          + "Reason for the shortfall (required) — e.g. balance to follow, lost receipt, for payroll deduction:"
+        : `This records ${peso(amount)}, which is ${peso(Math.abs(left))} MORE than the ${peso(st.remaining)} outstanding.\n\n`
+          + "Reason for the overpayment (required):";
+      const answer = window.prompt(question, "");
+      if (answer == null) return;
+      if (!answer.trim()) {
+        window.alert("A reason is required whenever the amount does not clear the balance. Nothing was recorded.");
+        return;
+      }
+      reason = answer.trim();
+    }
+
     onRecordSettlement(disbursement.id, {
-      completed: true, actualAmount: actual, expectedAmount: st.expected, type: st.type,
+      amount, reason, expectedAmount: st.expected, runningTotal: st.actual, type: st.type,
     });
     setActualInput("");
   };
 
   const handleUndoSettlement = () => {
     if (!onRecordSettlement) return;
-    if (!window.confirm("Clear the recorded cash settlement? The liquidation will revert to NOT YET LIQUIDATED.")) return;
-    onRecordSettlement(disbursement.id, { completed: false, actualAmount: 0, expectedAmount: st.expected, type: st.type });
+    if (!window.confirm(
+      `Clear the cash settlement on ${disbursement.voucherNo}?\n\n`
+      + `This removes all ${st.entries.length} recorded movement(s)`
+      + (st.closed ? " and the approved shortage closure" : "")
+      + ", and the liquidation reverts to NOT YET LIQUIDATED.\n\nThis cannot be undone."
+    )) return;
+    onRecordSettlement(disbursement.id, { clear: true, expectedAmount: st.expected, type: st.type });
+  };
+
+  /* Accepts an unrecovered balance as a receivable so the liquidation can
+     complete. Restricted to Custodian / Finance / Accounting / SuperAdmin — a
+     Requestor closing their own shortage would be signing off their own debt. */
+  const handleCloseShortage = () => {
+    if (!onCloseShortage || !canApproveShortage) return;
+    const treatment = window.prompt(
+      `Close the ${peso(st.remaining)} shortage on ${disbursement.voucherNo}?\n\n`
+      + "How is the balance being treated? (required)\n"
+      + "e.g. Receivable from requestor, For payroll deduction, Approved write-off",
+      "Receivable from requestor"
+    );
+    if (treatment == null) return;
+    if (!treatment.trim()) { window.alert("The treatment is required."); return; }
+    const reason = window.prompt(
+      `${peso(st.remaining)} will remain unrecovered on ${disbursement.voucherNo}.\n\n`
+      + "Reason / authority for closing it (required). This is written to the audit trail"
+      + " against your name:", ""
+    );
+    if (reason == null) return;
+    if (!reason.trim()) { window.alert("A reason is required to close a shortage."); return; }
+    onCloseShortage(disbursement.id, {
+      shortageAmount: st.remaining, treatment: treatment.trim(), reason: reason.trim(),
+    });
+  };
+
+  const handleReopenShortage = () => {
+    if (!onReopenShortage || !canApproveShortage) return;
+    if (!window.confirm(
+      `Reopen the closed shortage on ${disbursement.voucherNo}?\n\n`
+      + `${peso(st.remaining)} becomes outstanding again and the liquidation reverts to PARTIALLY SETTLED.`
+    )) return;
+    onReopenShortage(disbursement.id);
   };
 
   const handleReview = () => {
@@ -628,13 +684,21 @@ function LiquidationWorksheet({
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {[
             { key: "excess", label: "Excess Cash Returned to PCF Custodian", desc: "Receipts came to less than the cash released — the requestor returns the unused cash." },
-            { key: "reimburse", label: "Reimbursed by PCF Custodian to PCF Requestor", desc: "Receipts exceeded the cash released — the custodian reimburses the shortfall." },
+            /* Deliberately not called a "shortfall". That word is reserved for a
+               CASH SHORTAGE — the requestor failing to return what they owe —
+               which is the opposite direction of money and a different problem
+               entirely. Calling both a shortfall is what made the two
+               indistinguishable on screen. */
+            { key: "reimburse", label: "Reimbursed by PCF Custodian to PCF Requestor", desc: "Receipts exceeded the cash released — the custodian pays the requestor the excess they spent." },
             { key: "exact", label: "Exact Amount — No Refund, No Reimbursement", desc: "Receipts match the cash released exactly, so no cash settlement is required." },
           ].map((opt) => {
             const active = st.type === opt.key;
             /* For the two settlement types the tick means "already completed";
                for the exact case nothing needs to move, so it is inherently done. */
-            const ticked = active && (opt.key === "exact" ? true : st.completed);
+            /* Ticked means DONE, so a part payment must not tick it — the whole
+               point is that a settlement with a balance outstanding is not
+               finished. A closed shortage counts as resolved. */
+            const ticked = active && (opt.key === "exact" ? true : (st.matches || st.closed));
             return (
               <label key={opt.key} style={{ display: "flex", gap: 9, alignItems: "flex-start", padding: "9px 11px", borderRadius: 8,
                 border: "1px solid " + (active ? "var(--brand)" : "var(--line)"),
@@ -649,36 +713,52 @@ function LiquidationWorksheet({
           })}
         </div>
 
-        {/* Expected vs actual — the control that turns an intention into a fact. */}
+        {/* Expected / settled / remaining — the control that turns an intention
+            into a fact. `Remaining` is the figure that used to exist nowhere:
+            a part-paid settlement showed only "(does not match)" and the
+            outstanding balance was unrecorded, unreportable and uncollectable. */}
         {st.type !== "exact" && (
           <div style={{ marginTop: 12, padding: "11px 12px", borderRadius: 8, border: "1px solid var(--line)" }}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 18, alignItems: "flex-end" }}>
               <div>
-                <div className="pcp-kpi-label">{st.type === "excess" ? "Expected Return Amount" : "Expected Reimbursement"}</div>
+                <div className="pcp-kpi-label">{st.type === "excess" ? "Expected Return" : "Expected Reimbursement"}</div>
                 <div className="pcp-num" style={{ fontWeight: 700, fontSize: 14 }}>{peso(st.expected)}</div>
               </div>
               <div>
-                <div className="pcp-kpi-label">{st.type === "excess" ? "Actual Return Amount" : "Actual Reimbursement"}</div>
-                {st.completed ? (
-                  <div className="pcp-num" style={{ fontWeight: 700, fontSize: 14, color: st.matches ? "var(--green)" : "var(--brand)" }}>
-                    {peso(st.actual)}{!st.matches && " (does not match)"}
-                  </div>
-                ) : (
+                <div className="pcp-kpi-label">{st.type === "excess" ? "Returned so far" : "Paid so far"}</div>
+                <div className="pcp-num" style={{ fontWeight: 700, fontSize: 14 }}>{peso(st.actual)}</div>
+              </div>
+              <div>
+                <div className="pcp-kpi-label">
+                  {st.remaining > 0 ? "Still outstanding" : st.remaining < 0 ? "Overpaid by" : "Remaining"}
+                </div>
+                <div
+                  className="pcp-num"
+                  style={{
+                    fontWeight: 700, fontSize: 14,
+                    color: st.remaining === 0 ? "var(--green)" : "var(--brand)",
+                  }}
+                >
+                  {peso(Math.abs(st.remaining))}
+                </div>
+              </div>
+              {/* Only while cash is still DUE. Recording another movement on an
+                  already over-settled liquidation would just deepen the error;
+                  the fix there is to clear and re-record. */}
+              {st.remaining > 0 && (
+                <div>
+                  <div className="pcp-kpi-label">{st.type === "excess" ? "Amount returned now" : "Amount paid now"}</div>
                   <input
                     type="number" min="0" step="0.01" className="pcp-input"
                     style={{ width: 140 }}
-                    placeholder={String(st.expected.toFixed(2))}
+                    placeholder={String(st.remaining.toFixed(2))}
                     value={actualInput}
                     onChange={(e) => setActualInput(e.target.value)}
                   />
-                )}
-              </div>
+                </div>
+              )}
               <div style={{ display: "flex", gap: 8 }}>
-                {st.completed ? (
-                  <button className="pcp-btn pcp-btn-sm" onClick={handleUndoSettlement}>
-                    <X size={12} /> Clear Settlement
-                  </button>
-                ) : (
+                {st.remaining > 0 && (
                   <button
                     className="pcp-btn pcp-btn-sm pcp-btn-primary"
                     onClick={handleRecordSettlement}
@@ -687,24 +767,106 @@ function LiquidationWorksheet({
                       !saved ? "Save your changes first"
                         : !receiptSummary.complete ? "Every document needs a receipt amount first"
                           : !approvalSummary.allApproved ? `All receipts must be approved by ${RECEIPT_APPROVER_NAME} first`
-                            : "Confirm the cash has actually been settled"
+                            : "Record cash that has actually changed hands. Leave the amount blank to record the full outstanding balance."
                     }
                   >
                     <Check size={12} /> {st.type === "excess" ? "Record Cash Returned" : "Record Reimbursement Paid"}
                   </button>
                 )}
+                {/* Offered whenever cash is still due, not only on a part
+                    payment: a requestor who returns NOTHING leaves the full
+                    amount outstanding and that needs the same resolution. */}
+                {st.remaining > 0 && !st.closed && canApproveShortage && (
+                  <button
+                    className="pcp-btn pcp-btn-sm pcp-btn-danger"
+                    onClick={handleCloseShortage}
+                    title="Accept the outstanding balance as a receivable from the requestor so this liquidation can complete"
+                  >
+                    <AlertTriangle size={12} /> Close {peso(st.remaining)} as Receivable
+                  </button>
+                )}
+                {!!st.entries.length && (
+                  <button className="pcp-btn pcp-btn-sm" onClick={handleUndoSettlement}>
+                    <X size={12} /> Clear Settlement
+                  </button>
+                )}
               </div>
             </div>
-            {st.completed && st.settlement && (
-              <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 7 }}>
-                Recorded by {st.settlement.recordedBy} · {(st.settlement.recordedAt || "").replace("T", " ")}
+
+            {/* Every movement, so two payments a week apart both stay visible
+                with who took them in and why the first fell short. */}
+            {!!st.entries.length && (
+              <div style={{ marginTop: 10, borderTop: "1px solid var(--line)", paddingTop: 8 }}>
+                <div className="pcp-kpi-label" style={{ marginBottom: 4 }}>Recorded movements</div>
+                {st.entries.map((e, i) => (
+                  <div key={e.id || i} style={{ fontSize: 11.5, display: "flex", gap: 10, flexWrap: "wrap", padding: "2px 0" }}>
+                    <span className="pcp-num" style={{ fontWeight: 700, minWidth: 90 }}>{peso(e.amount)}</span>
+                    <span style={{ color: "var(--text-mut)" }}>{e.date || "—"}</span>
+                    <span style={{ color: "var(--text-mut)" }}>
+                      {e.recordedBy || "—"}{e.legacy ? " (recorded before movements were itemised)" : ""}
+                    </span>
+                    {e.reason && <span style={{ color: "var(--text-mut)" }}>· {e.reason}</span>}
+                  </div>
+                ))}
               </div>
             )}
-            {!st.completed && (
+
+            {!st.entries.length && (
               <div style={{ fontSize: 11, color: "var(--text-mut)", marginTop: 7 }}>
-                Tick this off only once the cash has physically changed hands. The liquidation stays <strong>NOT YET LIQUIDATED</strong> until then.
+                Record this only once the cash has physically changed hands. The liquidation stays <strong>NOT YET LIQUIDATED</strong> until then.
+                Part payments are fine — each one is recorded separately and the balance is carried.
               </div>
             )}
+          </div>
+        )}
+
+        {/* An unrecovered balance. This is the case the module had no answer
+            for: the liquidation was blocked indefinitely and the missing cash
+            was recorded nowhere, so it could not be chased or reported. */}
+        {st.variance === "short" && !st.closed && (
+          <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: "var(--red-bg)", color: "var(--brand-dark)", fontSize: 12 }}>
+            <AlertTriangle size={13} style={{ verticalAlign: "-2px" }} />{" "}
+            <strong>CASH SHORTAGE: {peso(st.remaining)} of the {peso(st.expected)} due has not been {st.type === "excess" ? "returned" : "paid"}.</strong>
+            <div style={{ marginTop: 3 }}>
+              Record the balance above when it comes in. If it will not be recovered, it has to be
+              accepted as a receivable from the requestor before this liquidation can complete —
+              {canApproveShortage
+                ? " use Close as Receivable above."
+                : " a Custodian, Finance, Accounting or the System Administrator must do that."}
+            </div>
+          </div>
+        )}
+
+        {/* A closed shortage stays on screen permanently — the status reads
+            LIQUIDATED (SHORT), never plain LIQUIDATED. */}
+        {st.closed && (
+          <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)", fontSize: 12 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
+              <div>
+                <strong>Shortage of {peso(st.closure.shortageAmount)} closed — {st.closure.treatment}</strong>
+                <div style={{ color: "var(--text-mut)", marginTop: 3 }}>
+                  {st.closure.closedBy} · {(st.closure.closedAt || "").replace("T", " ")}
+                  {st.closure.reason ? ` · "${st.closure.reason}"` : ""}
+                </div>
+              </div>
+              {canApproveShortage && (
+                <button className="pcp-btn pcp-btn-sm" onClick={handleReopenShortage}>
+                  <X size={12} /> Reopen Shortage
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* More cash moved than was due. Blocked rather than closed: an
+            overpayment is a different problem from a shortage and correcting
+            the movement is the right answer, not accepting it. */}
+        {st.variance === "over" && (
+          <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: "var(--red-bg)", color: "var(--brand-dark)", fontSize: 12 }}>
+            <AlertTriangle size={13} style={{ verticalAlign: "-2px" }} />{" "}
+            <strong>OVER-SETTLED by {peso(Math.abs(st.remaining))}.</strong>{" "}
+            {peso(st.actual)} was recorded against {peso(st.expected)} due. Correct the recorded
+            movements — use Clear Settlement and re-record — before this liquidation can complete.
           </div>
         )}
 
@@ -746,8 +908,16 @@ function LiquidationWorksheet({
             {finalStatus === "NOT YET LIQUIDATED" && (
               !receiptSummary.complete ? <>Capture the receipt amount on every supporting document.</>
                 : !approvalSummary.allApproved ? <>Awaiting {RECEIPT_APPROVER_NAME}'s approval of all receipts.</>
-                  : st.completed && !st.matches ? <>The actual amount recorded ({peso(st.actual)}) does not match the expected {peso(st.expected)}.</>
-                    : <>{st.type === "excess" ? `${peso(st.expected)} in excess cash must be returned to the PCF Custodian.` : `${peso(st.expected)} must be reimbursed to the PCF Requestor.`}</>
+                  : <>{st.type === "excess" ? `${peso(st.expected)} in excess cash must be returned to the PCF Custodian.` : `${peso(st.expected)} must be reimbursed to the PCF Requestor.`}</>
+            )}
+            {finalStatus === "PARTIALLY SETTLED" && (
+              <>{peso(st.actual)} of {peso(st.expected)} {st.type === "excess" ? "returned" : "paid"} — <strong>{peso(st.remaining)} still outstanding.</strong> Record the balance when it comes in, or have it closed as a receivable.</>
+            )}
+            {finalStatus === "OVER-SETTLED" && (
+              <>{peso(st.actual)} recorded against {peso(st.expected)} due — {peso(Math.abs(st.remaining))} too much. Correct the recorded movements.</>
+            )}
+            {finalStatus === "LIQUIDATED (SHORT)" && (
+              <>Completed with {peso(st.remaining)} unrecovered — {st.closure.treatment}, closed by {st.closure.closedBy}.</>
             )}
           </span>
         </div>
@@ -1178,7 +1348,8 @@ function ReimbursementLiquidationPanel({ reimb, canFinance, onAction }) {
 function LiquidationTab({
   disbursements, liquidations, onSaveLiquidation, onExport, onExportAll, plantOptions, plantTitle,
   canApproveReceipts, onDecideReceipt, onSubmitLiquidation, onReopenLiquidation,
-  onRecordSettlement, onReviewOverLiquidation, canDelete, onDeleteLiquidation,
+  onRecordSettlement, onCloseShortage, onReopenShortage, canApproveShortage,
+  onReviewOverLiquidation, canDelete, onDeleteLiquidation,
   canRejectLiquidation, onRejectLiquidation,
   reimbursements, onReimbursementAction, canFinance,
 }) {
@@ -1205,7 +1376,7 @@ function LiquidationTab({
      Liquidated" is asking to see completed work, so "Show completed" no longer
      has to be ticked as well. */
   const list = pettyStatus === LIQ_STATUS_FILTER_ALL
-    ? (showAll ? enriched : enriched.filter((d) => d.finalStatus !== "LIQUIDATED"))
+    ? (showAll ? enriched : enriched.filter((d) => !liqIsComplete(d.finalStatus)))
     : enriched.filter((d) => d.liqStatus === PCA_STATUS_FILTERS[pettyStatus]);
   const selected = enriched.find((d) => d.id === selectedId) || list[0] || null;
   const exportableCount = disbursements.filter((d) => {
@@ -1353,6 +1524,9 @@ function LiquidationTab({
                 onSubmitLiquidation={onSubmitLiquidation}
                 onReopenLiquidation={onReopenLiquidation}
                 onRecordSettlement={onRecordSettlement}
+                onCloseShortage={onCloseShortage}
+                onReopenShortage={onReopenShortage}
+                canApproveShortage={canApproveShortage}
                 onReviewOverLiquidation={onReviewOverLiquidation}
                 canDelete={canDelete}
                 onDeleteLiquidation={onDeleteLiquidation}

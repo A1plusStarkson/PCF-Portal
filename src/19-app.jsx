@@ -132,6 +132,25 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   const canEditRequestNo = REQUEST_NO_EDITOR_ROLES.includes(userRole || "Accounting")
     && REQUEST_NO_EDITOR_ROLES.includes(role);
 
+  /* ---- Closing a cash shortage ----
+     When a requestor returns less than they owe, the balance is a receivable
+     from them — so somebody accountable has to decide it is recoverable (or
+     recorded for payroll deduction) and say so on the record. Until then the
+     liquidation stays PARTIALLY SETTLED.
+
+     Custodians, Finance, Accounting and SuperAdmin may do this; a Requestor
+     never can, since it would let the person who owes the cash sign off their
+     own shortage. Custodians are included as a ROLE, so Manila's custodian can
+     close Manila shortages just as Disney's can close Disney's — plant scoping
+     already stops either from touching the other's records.
+
+     Gated on BOTH the assigned role and the role being viewed, so previewing
+     another role gains no hidden rights, matching REQUEST_NO_EDITOR_ROLES
+     above. Re-checked inside closeShortage so a bypassed UI still fails. */
+  const SHORTAGE_APPROVER_ROLES = ["Custodian", "Finance", "Accounting", "SuperAdmin"];
+  const canApproveShortage = SHORTAGE_APPROVER_ROLES.includes(userRole || "Accounting")
+    && SHORTAGE_APPROVER_ROLES.includes(role);
+
   /* The sole authorized Liquidation Approver — only Grace Gan may approve or
      reject a liquidation. Matched by display name or configured email, and
      enforced again inside rejectLiquidation so a bypassed UI still fails. */
@@ -423,18 +442,44 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     const req = disburseTarget;
     if (!req) return;
     /* Policy: no new advance may be released while the employee still has an
-       unliquidated (not fully liquidated) advance. */
-    const outstanding = disbursements.filter(
-      (d) => d.employee === req.employee && liqStatusFor(d, liquidations) !== "Fully Liquidated"
-    );
+       advance that is not fully liquidated.
+
+       Two things this gets right that the earlier version did not, and each one
+       on its own was enough to let the policy be bypassed completely:
+
+       1. The employee is matched with samePerson, not ===. Employee is free
+          text, so "Elsa Miranda" and "ELSA MIRANDA" compared unequal and the
+          same person could be handed a second advance just by typing their
+          name with different capitalisation.
+
+       2. Completeness comes from liqFinalStatus, not liqStatusFor. The latter
+          only sums the ENCODED EXPENSE LINES (liquidatedTotal), so an advance
+          counted as "Fully Liquidated" the moment someone typed lines adding up
+          to the amount — with no receipts uploaded, nothing approved by the
+          receipt approver, and no cash settled. liqFinalStatus is the real
+          test: receipts captured AND approved AND the cash difference actually
+          settled or formally closed. */
+    const outstanding = disbursements.filter((d) => {
+      if (!samePerson(d.employee, req.employee)) return false;
+      return !liqIsComplete(liqFinalStatus(d, liquidationFor(d.id, liquidations)));
+    });
     if (outstanding.length) {
-      const vouchers = outstanding.map((d) => d.voucherNo).join(", ");
+      /* Name each blocking voucher WITH its status, so whoever is at the
+         counter knows what to go and chase rather than just being refused. */
+      const detail = outstanding
+        .map((d) => `  ${d.voucherNo} · ${peso(d.amount)} · ${liqFinalStatus(d, liquidationFor(d.id, liquidations))}`)
+        .join("\n");
       window.alert(
-        `Cannot release a new advance to ${req.employee}.\n\n` +
-        `This employee has an unliquidated advance (${vouchers}). ` +
-        `Per policy, the previous advance must be fully liquidated before a new one is released.`
+        `Cannot release a new advance to ${req.employee}.\n\n`
+        + `This employee has ${outstanding.length} advance(s) that are not fully liquidated:\n\n`
+        + detail
+        + "\n\nPer policy, the previous advance must be fully liquidated — receipts"
+        + " captured and approved, and the cash difference settled — before a new"
+        + " one is released."
       );
-      logAudit("Release Blocked", req.requestNo, `${req.employee} has unliquidated advance(s): ${vouchers}`);
+      logAudit("Release Blocked", req.requestNo,
+        `${req.employee} has unliquidated advance(s): `
+        + outstanding.map((d) => `${d.voucherNo} (${liqFinalStatus(d, liquidationFor(d.id, liquidations))})`).join(", "));
       return;
     }
     setDisbursements((ds) => [...ds, {
@@ -545,35 +590,110 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
 
   /* Record that the refund or reimbursement cash has ACTUALLY changed hands.
      The actual amount is stored so it can be checked against the expected one. */
+  /* ---- Recording a cash movement against a settlement ----
+     ADDS an entry; it never overwrites the running total. A settlement that
+     arrives in two payments keeps both, each with its own date, amount, who
+     took it in and why it fell short — which is what makes an outstanding
+     balance chaseable instead of invisible.
+
+     `clear: true` wipes every entry and any shortage closure, returning the
+     settlement to untouched. That is the only destructive path, and it is what
+     the "Clear Settlement" button uses. */
   const recordSettlement = useCallback((disbursementId, payload) => {
+    const p = payload || {};
     const ts = new Date().toISOString().slice(0, 19);
     const actor = userName || role;
+    const amount = round2(p.amount);
+    const d = disbursements.find((x) => x.id === disbursementId);
+    const voucher = d ? d.voucherNo : disbursementId;
+
+    if (!p.clear && !(amount > 0)) return;
+
     setLiquidations((ls) => ls.map((l) => {
       if (l.disbursementId !== disbursementId) return l;
       const prev = l.settlement || {};
+      if (p.clear) {
+        return {
+          ...l,
+          settlement: {
+            ...prev, type: p.type, expectedAmount: round2(p.expectedAmount),
+            entries: [],
+            /* The legacy single-figure fields are zeroed too, or settlementEntries
+               would keep resurrecting the old amount as a synthetic entry. */
+            completed: false, actualAmount: 0, recordedBy: "", recordedAt: "",
+            closure: null,
+          },
+        };
+      }
+      const entries = (Array.isArray(prev.entries) ? prev.entries : settlementEntries(l)).concat([{
+        id: uid("stl"), amount, date: p.date || todayISO(),
+        recordedBy: actor, recordedAt: ts, reason: p.reason || "",
+      }]);
+      const total = round2(entries.reduce((t, e) => t + (Number(e.amount) || 0), 0));
       return {
         ...l,
         settlement: {
-          ...prev,
-          completed: !!payload.completed,
-          type: payload.type,
-          expectedAmount: round2(payload.expectedAmount),
-          actualAmount: round2(payload.actualAmount),
-          recordedBy: payload.completed ? actor : "",
-          recordedAt: payload.completed ? ts : "",
+          ...prev, type: p.type, expectedAmount: round2(p.expectedAmount),
+          entries,
+          /* Mirrored onto the old fields so anything still reading them — an
+             export, an older report — sees the running total, not the first
+             payment only. */
+          completed: true, actualAmount: total, recordedBy: actor, recordedAt: ts,
         },
       };
     }));
-    const d = disbursements.find((x) => x.id === disbursementId);
-    const label = payload.type === "excess" ? "excess cash returned" : "reimbursement paid";
-    logAudit(
-      payload.completed ? "Cash Settlement Recorded" : "Cash Settlement Cleared",
-      d ? d.voucherNo : disbursementId,
-      payload.completed
-        ? `${label} · expected ${peso(payload.expectedAmount)} · actual ${peso(payload.actualAmount)}`
-        : "Settlement record cleared"
-    );
+
+    if (p.clear) {
+      logAudit("Cash Settlement Cleared", voucher, "Every recorded movement and any shortage closure removed");
+      return;
+    }
+    const label = p.type === "excess" ? "cash returned" : "reimbursement paid";
+    const outstanding = round2(round2(p.expectedAmount) - round2(p.runningTotal || 0) - amount);
+    logAudit("Cash Settlement Recorded", voucher,
+      `${label} ${peso(amount)} · expected ${peso(p.expectedAmount)}`
+      + (outstanding > 0 ? ` · SHORT by ${peso(outstanding)}` : "")
+      + (outstanding < 0 ? ` · OVER by ${peso(Math.abs(outstanding))}` : "")
+      + (p.reason ? ` · ${p.reason}` : ""));
   }, [logAudit, disbursements, userName, role]);
+
+  /* ---- Closing an unrecovered shortage ----
+     Accepts the outstanding balance as a receivable from the requestor so the
+     liquidation can complete, and stamps who decided that and why. The status
+     becomes LIQUIDATED (SHORT), never plain LIQUIDATED, so the balance stays
+     visible. Role is re-checked here because a UI check alone is not a control. */
+  const closeShortage = useCallback((disbursementId, payload) => {
+    if (!canApproveShortage) return;
+    const p = payload || {};
+    const reason = String(p.reason || "").trim();
+    if (!reason) return;
+    const ts = new Date().toISOString().slice(0, 19);
+    const actor = userName || role;
+    setLiquidations((ls) => ls.map((l) => (l.disbursementId === disbursementId ? {
+      ...l,
+      settlement: {
+        ...(l.settlement || {}),
+        closure: {
+          closedBy: actor, closedAt: ts, reason,
+          shortageAmount: round2(p.shortageAmount), treatment: p.treatment || "Receivable from requestor",
+        },
+      },
+    } : l)));
+    const d = disbursements.find((x) => x.id === disbursementId);
+    logAudit("Cash Shortage Closed", d ? d.voucherNo : disbursementId,
+      `${peso(p.shortageAmount)} unrecovered · ${p.treatment || "Receivable from requestor"} · ${reason}`);
+  }, [logAudit, disbursements, userName, role, canApproveShortage]);
+
+  /* Reverses a shortage closure, putting the liquidation back to PARTIALLY
+     SETTLED. Same authority as closing it. */
+  const reopenShortage = useCallback((disbursementId) => {
+    if (!canApproveShortage) return;
+    setLiquidations((ls) => ls.map((l) => (l.disbursementId === disbursementId ? {
+      ...l, settlement: { ...(l.settlement || {}), closure: null },
+    } : l)));
+    const d = disbursements.find((x) => x.id === disbursementId);
+    logAudit("Cash Shortage Reopened", d ? d.voucherNo : disbursementId,
+      "Shortage closure reversed — the balance is outstanding again");
+  }, [logAudit, disbursements, canApproveShortage]);
 
   /* Reviewer sign-off on an over-liquidation. Without this the liquidation can
      never reach LIQUIDATED, so an excess claim is never auto-approved. */
@@ -1312,6 +1432,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             onSubmitLiquidation={submitLiquidation}
             onReopenLiquidation={reopenLiquidation}
             onRecordSettlement={recordSettlement}
+            onCloseShortage={closeShortage} onReopenShortage={reopenShortage}
+            canApproveShortage={canApproveShortage}
             onReviewOverLiquidation={reviewOverLiquidation}
             canDelete={isSuperAdmin} onDeleteLiquidation={deleteLiquidation}
             canApproveReceipts={isLiquidationApprover}

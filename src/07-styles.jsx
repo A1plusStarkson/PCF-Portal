@@ -657,9 +657,14 @@ function Badge({ status }) {
     "For Revision": "red", "Pending Approval": "amber", "Receipts Approved": "green", "No Receipts": "gray",
     /* Approval Module stages (Section 3E) */
     "Awaiting Approval": "amber", "Partially Approved": "blue", "Approved & Settled": "green",
-    /* Cash-settlement / final liquidation states */
+    /* Cash-settlement / final liquidation states.
+       PARTIALLY SETTLED and OVER-SETTLED exist so a cash variance somebody has
+       to chase is never shown as plain "NOT YET LIQUIDATED", and
+       "LIQUIDATED (SHORT)" marks one closed over an approved, unrecovered
+       balance so it never reads as a clean full settlement. */
     LIQUIDATED: "green", "NOT YET LIQUIDATED": "amber", "Under Review": "red",
     SETTLED: "green", UNSETTLED: "amber",
+    "PARTIALLY SETTLED": "amber", "OVER-SETTLED": "red", "LIQUIDATED (SHORT)": "blue",
     /* Reimbursement workflow states (Section 14) */
     DRAFT: "gray", SUBMITTED: "amber", "FOR REVIEW": "amber", "FOR APPROVAL": "amber",
     APPROVED: "blue", "RETURNED FOR REVISION": "red", REJECTED: "red",

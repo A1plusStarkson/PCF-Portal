@@ -47,7 +47,7 @@ const PCA_APPROVAL_STAGE = {
 };
 function pcaApprovalStage(row) {
   if (row.submissionStatus === "Rejected") return PCA_APPROVAL_STAGE.REJECTED;
-  if (row.finalStatus === "LIQUIDATED") return PCA_APPROVAL_STAGE.COMPLETE;
+  if (liqIsComplete(row.finalStatus)) return PCA_APPROVAL_STAGE.COMPLETE;
   if (row.approval.anyRejected) return PCA_APPROVAL_STAGE.REJECTED;
   if (row.approval.allApproved) return PCA_APPROVAL_STAGE.APPROVED;
   if (row.approval.approved > 0) return PCA_APPROVAL_STAGE.PARTIAL;
