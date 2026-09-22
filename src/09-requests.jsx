@@ -189,7 +189,18 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
     requests.filter((r) => {
       if (plant !== "ALL" && r.branchCode !== plant) return false;
       if (statusFilter !== "All" && r.status !== statusFilter) return false;
-      if (search && !(r.employee.toLowerCase().includes(search.toLowerCase()) || r.requestNo.toLowerCase().includes(search.toLowerCase()))) return false;
+      /* The legacy number is searchable too. Requests issued before the series
+         became per-plant went out on paper under their old portal-wide number,
+         so someone holding a signed PCR-2026-0022 must be able to find it by
+         the number printed in their hand — the record now reads
+         PCR-M-2026-0001 and would otherwise be unfindable outside SQL. */
+      if (search) {
+        const q = search.toLowerCase();
+        const hit = r.employee.toLowerCase().includes(q)
+          || r.requestNo.toLowerCase().includes(q)
+          || String(r.legacyRequestNo || "").toLowerCase().includes(q);
+        if (!hit) return false;
+      }
       return true;
     }),
     REQUEST_SORT_FIELDS
@@ -212,7 +223,7 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
           <div style={{ padding: "14px 18px", display: "flex", gap: 10, alignItems: "center", borderBottom: "1px solid var(--line)" }}>
             <div style={{ position: "relative", flex: 1, maxWidth: 280 }}>
               <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#9098b3" }} />
-              <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search employee or request no." value={search} onChange={(e) => setSearch(e.target.value)} />
+              <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search employee, request no. or old no." value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <select className="pcp-select" style={{ width: 170 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               {["All", "Pending", "Approved", "Rejected", "Disbursed"].map((s) => <option key={s}>{s}</option>)}
@@ -238,7 +249,21 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
               <tbody>
                 {filtered.length ? filtered.map((r) => (
                   <tr key={r.id}>
-                    <td>{r.requestNo}</td>
+                    {/* The old portal-wide number sits under the current one so a
+                        signed paper voucher can be matched to the record on sight,
+                        without anyone having to remember the renumbering. Only
+                        shown on records that actually carry one. */}
+                    <td>
+                      {r.requestNo}
+                      {r.legacyRequestNo && (
+                        <div
+                          style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 1 }}
+                          title={`Previously numbered ${r.legacyRequestNo} before the series became per-plant`}
+                        >
+                          was {r.legacyRequestNo}
+                        </div>
+                      )}
+                    </td>
                     <td>{fmtDate(r.date)}</td>
                     <td>{r.employee}</td>
                     <td title={subaccountLabel(r.department)}>{subaccountLabel(r.department)}</td>
