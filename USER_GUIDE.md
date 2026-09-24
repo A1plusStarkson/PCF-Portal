@@ -91,6 +91,7 @@ and which plants you'll see.
 | Your email | Your name | Your role | Plants you see |
 |------------|-----------|-----------|----------------|
 | `a1plusadmin@a1plus.com` | Grace Gan | System Administrator (the boss account) | All |
+| `superuser@a1plus.com` | System Superuser | System Administrator — identical access to Grace Gan | All |
 | `accounting@a1plus.com` | Accounting Department | Accounting (full access) | All |
 | `finance@a1plus.com` | Finance Department | Finance | All |
 | `puradr@a1plus.com` | Pura Barloso | Custodian | Disney + RG and Co. |
@@ -176,13 +177,14 @@ Think of the roles like this:
 - **Requestor** = *"I fill in the forms."* You prepare requests, liquidations and
   reimbursements, but you don't hand out cash or approve anything.
 - **Custodian** = *"I hold the cash for my plant."* You approve requests, release
-  cash, and refill the fund.
+  cash, **check and approve liquidations** (first level), settle the cash, and
+  refill the fund.
 - **Finance** = *"I oversee all plants"* — same as a custodian but for every
-  plant, plus master data, the audit trail and the approval queue.
+  plant, plus master data and the audit trail.
 - **Accounting** = *"I run the system"* — everything Finance can do, plus User
   Management and System Settings.
-- **System Administrator (Grace Gan)** = *"I have the final say"* — the only one
-  who approves receipts, and the only one who can delete data.
+- **System Administrator (Grace Gan or the System Superuser)** = *"I have the final say"* — gives the
+  **final approval** on every liquidation, and is the only one who can delete data.
 
 Here's the same thing as a checklist:
 
@@ -192,22 +194,27 @@ Here's the same thing as a checklist:
 | Approve a request | ❌ | ✅ | ✅ | ✅ | ✅ |
 | Release cash | ❌ (view only) | ✅ | ✅ | ✅ | ✅ |
 | Prepare a liquidation | ✅ | ✅ | ✅ | ✅ | ✅ |
-| **Approve receipts** | ❌ | ❌ | ❌ | ❌ | ✅ *(only Grace Gan)* |
+| **Check receipts & approve a liquidation** (level 1) | ❌ | ✅ | ✅ | ✅ | ❌ |
+| Record the cash settlement | ❌ | ✅ | ✅ | ✅ | ❌ |
+| **Final approval of a liquidation** (level 2) | ❌ | ❌ | ❌ | ❌ | ✅ |
 | Do a reimbursement | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Replenish the fund | ❌ | ✅ | ✅ | ✅ | ✅ |
 | See reports & aging | ❌ | ✅ | ✅ | ✅ | ✅ |
-| Use the Approval Module | ❌ | ❌ | ✅ | ✅ | ✅ |
+| Use the Approval Module | ❌ | ✅ | ✅ | ✅ | ✅ |
 | See PCF Documents | ❌ | ✅ | ✅ | ✅ | ✅ |
 | See the Audit Trail | ❌ | ❌ | ✅ | ✅ | ✅ |
 | Edit master data | ❌ | ❌ | ✅ | ✅ | ✅ |
 | Manage users/settings | ❌ | ❌ | ❌ | ✅ | ✅ |
 | **Edit a Request No.** | ❌ | ❌ | ❌ | ✅ | ❌ |
-| Delete a record | ❌ | ❌ | ❌ | ❌ | ✅ *(only Grace Gan)* |
+| Delete a record | ❌ | ❌ | ❌ | ❌ | ✅ *(Grace Gan / Superuser)* |
 
-> ⭐ **Important:** Only **Grace Gan** can approve receipts. A liquidation cannot
-> be finished until she has approved every receipt attached to it.
+> ⭐ **Important:** Every liquidation is approved **twice**: first by the
+> **custodian** (who checks every receipt and the amounts), then by **Grace Gan or the System Superuser**
+> (final approval). They only see a liquidation once the custodian has
+> approved it **and** the cash difference has been settled. Only after her final
+> approval does it read **LIQUIDATED** and become **Ready for Replenishment**.
 
-> Grace Gan and Accounting can also **view the portal as another role** to check
+> Grace Gan, the Superuser and Accounting can also **view the portal as another role** to check
 > what that person sees. It's a preview only — it grants no extra powers.
 
 ---
@@ -224,30 +231,42 @@ You prepare paperwork. You cannot approve or hand out cash.
    approver. Click **Submit**.
 3. Later, when the cash is released, open **Liquidation** to record how it was
    spent and **attach the receipts** (one amount per receipt).
-4. Wait for **Grace Gan** to approve the receipts, then submit the liquidation.
+4. **Submit** the liquidation. The custodian then checks it, and Grace Gan (or the Superuser) gives
+   the final approval. If anything is wrong it comes back to you as
+   **Rejected** with the reason — correct it and resubmit.
 5. Use **Transaction History** anytime to check the status of your submissions.
 
 ```mermaid
 flowchart TD
     A[New Request] --> B[Wait for approval]
     B --> C[Cash is released to you]
-    C --> D[Open Liquidation & attach receipts]
-    D --> E{Grace Gan approved receipts?}
-    E -- Not yet --> F[Wait]
-    F --> E
-    E -- Yes --> G[Settle the cash & submit ✅]
+    C --> D[Open Liquidation, attach receipts & submit]
+    D --> E{Custodian checks}
+    E -- Problem --> R[Rejected — correct & resubmit]
+    R --> D
+    E -- Approved --> S[Cash difference settled]
+    S --> G{Grace Gan / Superuser final approval}
+    G -- Problem --> R
+    G -- Approved --> L[LIQUIDATED ✅ Ready for Replenishment]
 ```
 
 ### 💰 If you are a Custodian
-You take care of the cash for your plant.
+You take care of the cash for your plant, and you are the **first level of
+liquidation approval**.
 
 1. Start at the **Dashboard** to see balances and anything that needs attention.
 2. In **Petty Cash Requests**, review and **approve** (or reject) requests.
 3. In **Release Ledger**, **release the cash** for approved requests.
-4. When receipts come in, check the **Liquidation** (final approval still comes
-   from Grace Gan).
-5. Once expenses are liquidated, go to **Replenishment** to **refill the fund**.
-6. Check **Liquidation Aging** to spot advances that are overdue.
+4. When a liquidation is submitted, open the **Approval Module** (it opens on
+   *For Custodian Review*). Check every receipt and its amount, approve or reject
+   each one, then click **Custodian Approve**. If something is wrong, **Reject
+   Liquidation** with a reason so the requestor can fix it.
+5. In **Liquidation**, record the **cash settlement** — the refund returned to
+   you, or the extra you paid the requestor. Once the cash is settled the
+   liquidation goes to Grace Gan or the Superuser for final approval.
+6. When the final approval is given it, it appears under **Ready for Replenishment**
+   in **Replenishment** — click **Replenish** to **refill the fund**.
+7. Check **Liquidation Aging** to spot advances that are overdue.
 
 ### 🧾 If you are Finance
 Same as a Custodian, but for **all plants** — plus the **Approval Module**, the
@@ -281,11 +300,18 @@ fixed. Every change is written to the **Audit Trail** as *"Request No. Changed"*
 showing the old and the new number. A released (Disbursed) request has no Edit
 button, so its number stays fixed.
 
-### 👑 If you are the System Administrator (Grace Gan)
+### 👑 If you are the System Administrator (Grace Gan and the System Superuser)
 You have full control and are the **only** person who can:
 
-- **Approve or reject receipts and final liquidations.**
+- **Give final approval to a liquidation** (or reject it). Your Approval Module
+  shows **only** liquidations a custodian has already approved and whose cash
+  is settled — it opens on *For Final Approval*. Your approval makes the
+  liquidation **LIQUIDATED — Fully Approved / Ready for Replenishment**, and
+  locks it.
 - **Delete** a record.
+
+You do not check receipts yourself — that is the custodian's level, so the two
+approvals always come from two different people.
 - Ask for lost data to be **restored from the Supabase daily backup**. The
   portal keeps no snapshots of its own — recovery is done in the Supabase
   dashboard, so report a mistake the same day it happens.
@@ -311,21 +337,28 @@ Liquidation is where receipts meet the cash that was released.
      itself up as you type, so you can check it against the cash released
      without a calculator. This appears on every plant.
    - Note that **Total Receipt Amount** (up in Cash Settlement) is a *different*
-     figure: it counts only supporting documents that Grace Gan has already
+     figure: it counts only supporting documents the custodian has already
      approved. It stays ₱0.00 until the receipts are approved, even when your
      expense lines are complete. That is normal, not a fault.
-5. **Reconciliation & Cash Settlement** at the bottom tells you where you stand:
+5. **Submit.** The amounts lock, and the liquidation reads **FOR CUSTODIAN REVIEW**.
+6. The **custodian** approves each receipt and then the liquidation. Changing a
+   receipt's amount afterwards sends that receipt back to *Pending* and cancels
+   the custodian's approval, so what gets approved is always what was checked.
+7. **Reconciliation & Cash Settlement** tells you where the cash stands, and the
+   custodian records it:
    - **Exact Amount** — receipts match the cash exactly. Nothing to settle.
-   - **Excess / Refund** — cash is left over. Return it and record the refund.
-   - **Reimbursement Due** — you spent more than was released. The difference is
-     paid back to you (this one gets a review before it closes).
-6. Submit. Grace Gan approves each receipt; once **all** are approved and the
-   settlement is done, the liquidation reads **LIQUIDATED**.
+   - **Excess / Refund** — cash is left over. Return it; the custodian records it.
+   - **Reimbursement Due** — you spent more than was released. The custodian pays
+     you the difference (this one gets a review before it closes).
+8. Once the custodian has approved it and the cash is settled, it reads **FOR
+   FINAL APPROVAL** and goes to **Grace Gan or the System Superuser**. That approval makes it
+   **LIQUIDATED** — *Fully Approved / Ready for Replenishment* — and locks it.
 
-If a receipt is rejected, the liquidation becomes **For Revision** — the preparer
-uploads a corrected document and resubmits. The rejection always carries an
-official reason (missing receipt, unreadable receipt, incorrect amount,
-non-allowable expense, and so on) plus any comment the approver typed.
+If a receipt is rejected, the custodian rejects the liquidation back to you — you
+upload a corrected document and resubmit, and the review starts again. Grace Gan or the Superuser
+can also reject at final approval. A rejection always carries an official reason
+(missing receipt, unreadable receipt, incorrect amount, non-allowable expense,
+and so on) plus any comment the approver typed.
 
 ---
 
@@ -359,28 +392,36 @@ for both).
 
 ## Step 8 — The Approval Module
 
-Finance, Accounting and Grace Gan get one **Approval Module** that spans every
-plant, so nothing gets missed in a tab nobody opened. It holds two queues:
+Custodians, Finance, Accounting Grace Gan and the Superuser each get an **Approval Module**
+covering every plant they can see, so nothing gets missed in a tab nobody opened.
+It holds two queues:
 
-- **Petty Cash Advance** liquidations — each supporting document shown inline
-  with its own Approve / Reject, plus the option to reject the whole liquidation.
+- **Petty Cash Advance** liquidations — the expense lines, the cash settlement
+  and every supporting document shown inline.
 - **Employee Reimbursements** — the full request with its documents and history.
 
-Each row tells you the stage: *Awaiting Approval*, *Partially Approved*,
-*Receipts Approved*, *Rejected*, or *Approved & Settled*.
+What you see depends on your level:
 
-It adds no new powers — the same rules apply as in the Liquidation and
-Reimbursement tabs (only the authorized approver can decide a receipt, and nobody
-approves their own reimbursement).
+| You are | Your queue opens on | You can |
+|---------|--------------------|---------|
+| Custodian / Finance / Accounting | *For Custodian Review* | Approve or reject each receipt, **Custodian Approve**, reject the liquidation, reopen it |
+| Grace Gan / System Superuser | *For Final Approval* — **only** custodian-approved, cash-settled liquidations | **Final Approve** or reject |
+
+Each row shows its stage: *For Custodian Review*, *Needs Correction*, *Awaiting
+Settlement*, *For Final Approval*, *Fully Approved / Ready for Replenishment*,
+*Replenished*, or *Rejected*. Liquidations finished before the two-level review
+existed show as *Approved (before two-level review)*.
 
 ```mermaid
 flowchart LR
-    R[Receipt turned in] --> V{Grace Gan reviews}
-    V -- Looks good --> A[Approve ✅]
-    V -- Problem --> X[Reject with a reason ↩️]
-    A --> Z[Cash settlement → LIQUIDATED]
-    X --> Y[For Revision — upload a corrected receipt]
-    Y --> V
+    S[Requestor submits] --> C{Custodian checks receipts}
+    C -- Problem --> X[Rejected with a reason ↩️]
+    C -- Approved --> T[Cash settled]
+    T --> G{Grace Gan / Superuser final approval}
+    G -- Problem --> X
+    G -- Approved --> R[LIQUIDATED ✅ Ready for Replenishment]
+    R --> P[Replenishment]
+    X --> S
 ```
 
 ---
@@ -466,7 +507,7 @@ kept), archive or restore. Every document gets a reference number
   rejected.
 - ✅ Liquidate within **5 days** of receiving cash.
 - ✅ Submit reimbursements within **5 working days**, with the original OR.
-- ✅ Only **Grace Gan** approves receipts and can delete records.
+- ✅ Custodians check and approve liquidations; only **Grace Gan and the System Superuser** give the final approval and can delete records.
 - ✅ Refresh (**Ctrl + F5**) if something looks out of date.
 
 ---

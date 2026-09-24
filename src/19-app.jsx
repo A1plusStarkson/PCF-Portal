@@ -98,7 +98,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   }, [branchOptions, funds, requests, disbursements, replenishments, reimbursements]);
   const inScope = useCallback((code) => allowedPlants.includes(code), [allowedPlants]);
   /* PCF Requestor prepares transactions only: full Requests + Liquidation (minus
-     approval, already gated by isLiquidationApprover), but no approve/reject/
+     approval, already gated by isLiquidationChecker), but no approve/reject/
      release rights and Release Ledger is view-only. Every other role keeps full
      edit/approve/release within its scope. Checked on BOTH the assigned role and
      the role being viewed so an admin's "view as Requestor" is an honest preview. */
@@ -151,15 +151,30 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   const canApproveShortage = SHORTAGE_APPROVER_ROLES.includes(userRole || "Accounting")
     && SHORTAGE_APPROVER_ROLES.includes(role);
 
-  /* The sole authorized Liquidation Approver — only Grace Gan may approve or
-     reject a liquidation. Matched by display name or configured email, and
-     enforced again inside rejectLiquidation so a bypassed UI still fails. */
-  const isLiquidationApprover = useMemo(() => {
-    const name = (userName || "").trim().toLowerCase();
+  /* ---- Two-level liquidation approval (see 11-liquidation.jsx) ----
+     FINAL APPROVERS: Grace Gan and the System Superuser (identical access), by
+     email only. Previewing another role hides it,
+     so "view as" stays an honest preview.
+     CHECKER: every Custodian, Accounting, Finance and SuperAdmin account, within
+     its plant scope — except the final approver, so the two levels are always
+     two different people. Both are re-checked inside every handler below, so
+     a bypassed UI still fails. */
+  const isFinalApproverAccount = useMemo(() => {
     const email = (userEmail || "").trim().toLowerCase();
-    return name === RECEIPT_APPROVER_NAME.toLowerCase()
-      || LIQUIDATION_APPROVER_EMAILS.map((e) => e.toLowerCase()).includes(email);
-  }, [userName, userEmail]);
+    return LIQUIDATION_FINAL_APPROVER_EMAILS.map((e) => e.toLowerCase()).includes(email);
+  }, [userEmail]);
+  const isFinalApprover = isFinalApproverAccount && role === (userRole || "Accounting");
+  /* Excluded by ACCOUNT, not by the role being viewed — otherwise the final
+     approver previewing "Custodian" would become her own checker. */
+  const isLiquidationChecker = !isFinalApproverAccount
+    && LIQUIDATION_CHECKER_ROLES.includes(userRole || "Accounting")
+    && LIQUIDATION_CHECKER_ROLES.includes(role);
+  /* Nothing under Grace Gan's final approval may move — it is what gets
+     replenished. (Legacy approvals are not locked; they predate the lock.) */
+  const isLiquidationFinalLocked = useCallback((disbursementId) => {
+    const liq = liquidations.find((l) => l.disbursementId === disbursementId);
+    return !!liq && !!liq.workflow && liqReview(liq).final;
+  }, [liquidations]);
 
   /* Append an entry to the immutable audit trail, tagged with the signed-in user. */
   const logAudit = useCallback((action, entity, remarks) => {
@@ -515,6 +530,12 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     const ts = new Date().toISOString().slice(0, 19);
     const actor = userName || role;
     const prevLiq = liquidations.find((l) => l.disbursementId === disbursementId) || null;
+    /* What Grace Gan approved is what gets replenished — nothing under a final
+       approval may change. */
+    if (prevLiq && liqReview(prevLiq).final && prevLiq.workflow) {
+      window.alert("This liquidation has final approval and can no longer be changed.");
+      return;
+    }
     const prevById = {};
     ((prevLiq && prevLiq.attachments) || []).forEach((a) => { prevById[a.id] = a; });
 
@@ -535,7 +556,17 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       if (prev && prevAmount !== amount) {
         const entry = { prevAmount, newAmount: amount, user: actor, ts, reason: o.reason || "" };
         changes.push({ name: a.name, ...entry });
-        return { ...base, amountHistory: [...carried, entry] };
+        /* An approval is an approval OF AN AMOUNT. Change the amount and the
+           receipt goes back to Pending — otherwise an approved ₱500 receipt
+           could be saved as ₱5,000 and still count as approved. */
+        const wasDecided = (base.approvalStatus || "Pending") !== "Pending";
+        return {
+          ...base, amountHistory: [...carried, entry],
+          approvalStatus: wasDecided ? "Pending" : base.approvalStatus,
+          approvalHistory: wasDecided
+            ? [...base.approvalHistory, { approver: actor, ts, status: "Pending", remarks: `Amount changed ${peso(prevAmount)} → ${peso(amount)} — needs re-approval` }]
+            : base.approvalHistory,
+        };
       }
       if (!prev && amount > 0) {
         return { ...base, amountHistory: [...carried, { prevAmount: null, newAmount: amount, user: actor, ts, reason: o.reason || "Initial amount" }] };
@@ -543,11 +574,26 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       return { ...base, amountHistory: carried };
     });
 
+    /* Any change to the documents or their amounts after the custodian approved
+       voids that approval: the custodian approved a specific set of receipts. */
+    const prevIds = Object.keys(prevById).sort().join("|");
+    const nextIds = atts.map((a) => a.id).sort().join("|");
+    const docsChanged = changes.length > 0 || prevIds !== nextIds;
+    const voidCheck = !!prevLiq && prevLiq.workflow && liqReview(prevLiq).checked && docsChanged;
+
     setLiquidations((ls) => {
       const exists = ls.find((l) => l.disbursementId === disbursementId);
-      if (exists) return ls.map((l) => (l.disbursementId === disbursementId ? { ...l, lines, attachments: atts } : l));
-      return [...ls, { id: uid("liq"), disbursementId, createdDate: todayISO(), lines, attachments: atts, submissionStatus: "Draft" }];
+      if (exists) {
+        return ls.map((l) => {
+          if (l.disbursementId !== disbursementId) return l;
+          const next = { ...l, lines, attachments: atts };
+          if (voidCheck) next.review = clearReview(l, actor, ts, "Custodian approval voided — receipts changed");
+          return next;
+        });
+      }
+      return [...ls, { id: uid("liq"), disbursementId, createdDate: todayISO(), lines, attachments: atts, submissionStatus: "Draft", workflow: 2 }];
     });
+    if (voidCheck) logAudit("Liquidation Approval Voided", (disbursements.find((x) => x.id === disbursementId) || {}).voucherNo || disbursementId, "Receipts changed after custodian approval");
     setDisbursements((ds) => ds.map((d) => (d.id === disbursementId ? { ...d, status: "Closed" } : d)));
     const d = disbursements.find((x) => x.id === disbursementId);
     const voucher = d ? d.voucherNo : disbursementId;
@@ -560,33 +606,97 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     ));
   }, [logAudit, disbursements, liquidations, userName, role]);
 
-  /* Submit the final liquidation. Receipt amounts become read-only afterwards
-     for everyone except a receipt approver. */
+  /* Submit the liquidation for custodian review. Receipt amounts become
+     read-only afterwards for everyone except a checker. Submitting (or
+     resubmitting after a rejection) always starts the two-level review afresh
+     and moves the liquidation onto the new workflow. */
   const submitLiquidation = useCallback((disbursementId) => {
     const ts = new Date().toISOString().slice(0, 19);
     const actor = userName || role;
     setLiquidations((ls) => ls.map((l) => (
       l.disbursementId === disbursementId
-        ? { ...l, submissionStatus: "Submitted", submittedBy: actor, submittedAt: ts }
+        ? { ...l, submissionStatus: "Submitted", submittedBy: actor, submittedAt: ts, workflow: 2,
+            review: clearReview(l, actor, ts, "Review restarted — liquidation resubmitted") }
         : l
     )));
     const d = disbursements.find((x) => x.id === disbursementId);
     const liq = liquidations.find((l) => l.disbursementId === disbursementId);
     const sum = receiptAmountSummary(liq);
-    const rec = reconcileReceipts(d ? d.amount : 0, sum.approvedTotal);
+    const rec = reconcileReceipts(d ? d.amount : 0, sum.allTotal);
     logAudit("Liquidation Submitted", d ? d.voucherNo : disbursementId,
-      `Total receipts ${peso(sum.approvedTotal)} vs released ${peso(rec.released)}`
-      + (rec.type === "excess" ? ` · refund due ${peso(rec.expected)}` : rec.type === "reimburse" ? ` · reimbursement due ${peso(rec.expected)} · FOR REVIEW` : " · exact"));
+      `Receipts claimed ${peso(sum.allTotal)} vs released ${peso(rec.released)}`
+      + (rec.type === "excess" ? ` · refund due ${peso(rec.expected)}` : rec.type === "reimburse" ? ` · reimbursement due ${peso(rec.expected)} · FOR REVIEW` : " · exact")
+      + " · for custodian review");
   }, [logAudit, disbursements, liquidations, userName, role]);
 
-  /* Reopen a submitted liquidation for correction (receipt approvers only). */
+  /* Reopen a submitted liquidation for correction (checkers only, and never
+     once it has final approval). Any review stamps are voided. */
   const reopenLiquidation = useCallback((disbursementId, reason) => {
+    const liq = liquidations.find((l) => l.disbursementId === disbursementId);
+    if (!isLiquidationChecker || !liq || (liq.workflow && liqReview(liq).final)) return;
+    const ts = new Date().toISOString().slice(0, 19);
+    const actor = userName || role;
     setLiquidations((ls) => ls.map((l) => (
-      l.disbursementId === disbursementId ? { ...l, submissionStatus: "Draft" } : l
+      l.disbursementId === disbursementId
+        ? { ...l, submissionStatus: "Draft", review: clearReview(l, actor, ts, "Review voided — liquidation reopened") }
+        : l
     )));
     const d = disbursements.find((x) => x.id === disbursementId);
     logAudit("Liquidation Reopened", d ? d.voucherNo : disbursementId, reason || "");
-  }, [logAudit, disbursements]);
+  }, [logAudit, disbursements, liquidations, isLiquidationChecker, userName, role]);
+
+  /* ---- Level 1: custodian approval of the liquidation ----
+     Requires a submitted liquidation whose every receipt the checker has
+     approved. The cash may be settled before or after; Grace Gan only sees it
+     once both are done. */
+  const checkLiquidation = useCallback((disbursementId, remarks) => {
+    const liq = liquidations.find((l) => l.disbursementId === disbursementId);
+    if (!isLiquidationChecker || !liq) return;
+    const approval = receiptApprovalSummary(liq);
+    const rv = liqReview(liq);
+    if ((liq.submissionStatus || "Draft") !== "Submitted" || rv.checked || !approval.allApproved
+      || !receiptAmountSummary(liq).complete) {
+      window.alert("This liquidation cannot be approved yet — it must be submitted, with every receipt amount captured and every receipt approved.");
+      return;
+    }
+    const ts = new Date().toISOString().slice(0, 19);
+    const actor = userName || role;
+    setLiquidations((ls) => ls.map((l) => (l.disbursementId === disbursementId ? {
+      ...l, workflow: 2,
+      review: { ...(l.review || {}), checkedBy: actor, checkedAt: ts, checkRemarks: remarks || "", finalBy: "", finalAt: "", finalRemarks: "" },
+    } : l)));
+    const d = disbursements.find((x) => x.id === disbursementId);
+    logAudit("Liquidation Custodian Approved", d ? d.voucherNo : disbursementId,
+      `Approved receipts ${peso(receiptAmountSummary(liq).approvedTotal)}${remarks ? ` · ${remarks}` : ""} · for final approval`);
+  }, [isLiquidationChecker, liquidations, disbursements, logAudit, userName, role]);
+
+  /* ---- Level 2: Grace Gan's final approval ----
+     Only for a liquidation the custodian approved AND whose cash is settled.
+     Makes it LIQUIDATED — Fully Approved / Ready for Replenishment. */
+  const finalApproveLiquidation = useCallback((disbursementId, remarks) => {
+    if (!isFinalApprover) {
+      window.alert(`Only ${FINAL_APPROVER_NAME} can give final approval to a liquidation.`);
+      return;
+    }
+    const d = disbursements.find((x) => x.id === disbursementId);
+    const liq = liquidations.find((l) => l.disbursementId === disbursementId);
+    if (!d || !liq) return;
+    if (liqApprovalStage(d, liq) !== LIQ_STAGE.FOR_FINAL) {
+      window.alert("Only a liquidation the custodian has approved, with its cash settled, can be given final approval.");
+      return;
+    }
+    const ts = new Date().toISOString().slice(0, 19);
+    const actor = userName || role;
+    if (String(liqReview(liq).checkedBy).toLowerCase() === String(actor).toLowerCase()) {
+      window.alert("The final approval must come from someone other than the custodian who approved it.");
+      return;
+    }
+    setLiquidations((ls) => ls.map((l) => (l.disbursementId === disbursementId ? {
+      ...l, review: { ...(l.review || {}), finalBy: actor, finalAt: ts, finalRemarks: remarks || "" },
+    } : l)));
+    logAudit("Liquidation Final Approved", d.voucherNo,
+      `${peso(receiptAmountSummary(liq).approvedTotal)} · ready for replenishment${remarks ? ` · ${remarks}` : ""}`);
+  }, [isFinalApprover, liquidations, disbursements, logAudit, userName, role]);
 
   /* Record that the refund or reimbursement cash has ACTUALLY changed hands.
      The actual amount is stored so it can be checked against the expected one. */
@@ -600,6 +710,9 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
      settlement to untouched. That is the only destructive path, and it is what
      the "Clear Settlement" button uses. */
   const recordSettlement = useCallback((disbursementId, payload) => {
+    /* A custodian act, never the requestor's: the person who owes the cash
+       must not be able to record that it came back, or clear a shortage. */
+    if (!isLiquidationChecker || isLiquidationFinalLocked(disbursementId)) return;
     const p = payload || {};
     const ts = new Date().toISOString().slice(0, 19);
     const actor = userName || role;
@@ -654,7 +767,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       + (outstanding > 0 ? ` · SHORT by ${peso(outstanding)}` : "")
       + (outstanding < 0 ? ` · OVER by ${peso(Math.abs(outstanding))}` : "")
       + (p.reason ? ` · ${p.reason}` : ""));
-  }, [logAudit, disbursements, userName, role]);
+  }, [logAudit, disbursements, userName, role, isLiquidationChecker, isLiquidationFinalLocked]);
 
   /* ---- Closing an unrecovered shortage ----
      Accepts the outstanding balance as a receivable from the requestor so the
@@ -662,7 +775,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
      becomes LIQUIDATED (SHORT), never plain LIQUIDATED, so the balance stays
      visible. Role is re-checked here because a UI check alone is not a control. */
   const closeShortage = useCallback((disbursementId, payload) => {
-    if (!canApproveShortage) return;
+    if (!canApproveShortage || isLiquidationFinalLocked(disbursementId)) return;
     const p = payload || {};
     const reason = String(p.reason || "").trim();
     if (!reason) return;
@@ -681,23 +794,24 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     const d = disbursements.find((x) => x.id === disbursementId);
     logAudit("Cash Shortage Closed", d ? d.voucherNo : disbursementId,
       `${peso(p.shortageAmount)} unrecovered · ${p.treatment || "Receivable from requestor"} · ${reason}`);
-  }, [logAudit, disbursements, userName, role, canApproveShortage]);
+  }, [logAudit, disbursements, userName, role, canApproveShortage, isLiquidationFinalLocked]);
 
   /* Reverses a shortage closure, putting the liquidation back to PARTIALLY
      SETTLED. Same authority as closing it. */
   const reopenShortage = useCallback((disbursementId) => {
-    if (!canApproveShortage) return;
+    if (!canApproveShortage || isLiquidationFinalLocked(disbursementId)) return;
     setLiquidations((ls) => ls.map((l) => (l.disbursementId === disbursementId ? {
       ...l, settlement: { ...(l.settlement || {}), closure: null },
     } : l)));
     const d = disbursements.find((x) => x.id === disbursementId);
     logAudit("Cash Shortage Reopened", d ? d.voucherNo : disbursementId,
       "Shortage closure reversed — the balance is outstanding again");
-  }, [logAudit, disbursements, canApproveShortage]);
+  }, [logAudit, disbursements, canApproveShortage, isLiquidationFinalLocked]);
 
   /* Reviewer sign-off on an over-liquidation. Without this the liquidation can
      never reach LIQUIDATED, so an excess claim is never auto-approved. */
   const reviewOverLiquidation = useCallback((disbursementId, remarks) => {
+    if (!isLiquidationChecker || isLiquidationFinalLocked(disbursementId)) return;
     const ts = new Date().toISOString().slice(0, 19);
     const actor = userName || role;
     setLiquidations((ls) => ls.map((l) => (
@@ -707,18 +821,25 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     )));
     const d = disbursements.find((x) => x.id === disbursementId);
     logAudit("Over-Liquidation Reviewed", d ? d.voucherNo : disbursementId, remarks || "");
-  }, [logAudit, disbursements, userName, role]);
+  }, [logAudit, disbursements, userName, role, isLiquidationChecker, isLiquidationFinalLocked]);
 
-  /* ---- Liquidation rejection (Grace Gan only) ----
+  /* ---- Liquidation rejection (checker, or Grace Gan at final approval) ----
      A rejection requires ONE standardized reason; the reviewer comment is
      optional and stored verbatim (empty stays empty — never a placeholder).
      Each rejection is appended as its own record and never overwrites an
      earlier one, and the liquidation returns to an editable state so the
-     requestor can correct and resubmit. Authorization is re-checked here, so a
-     bypassed UI cannot reject through this handler. */
+     requestor can correct and resubmit — the review then starts over.
+     Authorization is re-checked here, so a bypassed UI cannot reject through
+     this handler. A liquidation with final approval cannot be rejected. */
   const rejectLiquidation = useCallback((disbursementId, payload) => {
-    if (!isLiquidationApprover) {
-      window.alert(`Only ${RECEIPT_APPROVER_NAME} is authorized to reject a liquidation.`);
+    const d0 = disbursements.find((x) => x.id === disbursementId);
+    const liq0 = liquidations.find((l) => l.disbursementId === disbursementId);
+    const allowed = liq0 && !isLiquidationFinalLocked(disbursementId) && (
+      (isLiquidationChecker && (liq0.submissionStatus || "Draft") === "Submitted")
+      || (isFinalApprover && liqApprovalStage(d0, liq0) === LIQ_STAGE.FOR_FINAL)
+    );
+    if (!allowed) {
+      window.alert(`Only the custodian (while it is under review) or ${FINAL_APPROVER_NAME} (at final approval) can reject this liquidation.`);
       return;
     }
     const reason = String((payload && payload.reason) || "").trim();
@@ -750,44 +871,52 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     };
     setLiquidations((ls) => ls.map((l) => (
       l.disbursementId === disbursementId
-        ? { ...l, submissionStatus: "Rejected", rejections: [...(l.rejections || []), record] }
+        ? { ...l, submissionStatus: "Rejected", rejections: [...(l.rejections || []), record],
+            review: clearReview(l, actor, ts, `Review voided — rejected: ${reason}`) }
         : l
     )));
     logAudit("Liquidation Rejected", d ? d.voucherNo : disbursementId,
       `Reason: ${reason}${comment ? ` · Comment: ${comment}` : ""} · ${prevStatus} → REJECTED`);
-  }, [isLiquidationApprover, logAudit, disbursements, liquidations, requests, userName, role]);
+  }, [isLiquidationChecker, isFinalApprover, isLiquidationFinalLocked, logAudit, disbursements, liquidations, requests, userName, role]);
 
   /* ---- Receipt approval (per uploaded Official Receipt / Sales Invoice) ----
-     Approver is Grace Gan (super admin). Each decision is stamped into the
-     receipt's own approval history and recorded in the audit trail. */
+     Decided by the CHECKER (custodian level) once the requestor has submitted,
+     while the amounts are locked. Each decision is stamped into the receipt's
+     own approval history and the audit trail. Changing a decision after the
+     custodian approved the liquidation voids that approval. */
   const decideReceipt = useCallback((disbursementId, attachmentId, decision, remarks) => {
-    if (!isLiquidationApprover) {
-      window.alert(`Only ${RECEIPT_APPROVER_NAME} is authorized to review liquidation receipts.`);
+    if (!isLiquidationChecker) {
+      window.alert("Only a custodian (or Accounting / Finance) can approve or reject liquidation receipts.");
       return;
     }
+    const liq = liquidations.find((l) => l.disbursementId === disbursementId);
+    if (!liq || (liq.submissionStatus || "Draft") !== "Submitted" || isLiquidationFinalLocked(disbursementId)) {
+      window.alert("Receipts can only be decided on a submitted liquidation that has not had final approval.");
+      return;
+    }
+    const target = (liq.attachments || []).find((a) => a.id === attachmentId);
+    if (!target) return;
     const ts = new Date().toISOString().slice(0, 19);
     const approver = userName || role;
-    let receiptName = attachmentId;
+    const voidCheck = liqReview(liq).checked && (target.approvalStatus || "Pending") !== decision;
     setLiquidations((ls) => ls.map((l) => {
       if (l.disbursementId !== disbursementId) return l;
-      const attachments = (l.attachments || []).map((a) => {
-        if (a.id !== attachmentId) return a;
-        receiptName = a.name || attachmentId;
-        return {
-          ...a,
-          approvalStatus: decision,
-          approvalHistory: [...(a.approvalHistory || []), { approver, ts, status: decision, remarks: remarks || "" }],
-        };
-      });
-      return { ...l, attachments };
+      const attachments = (l.attachments || []).map((a) => (a.id !== attachmentId ? a : {
+        ...a,
+        approvalStatus: decision,
+        approvalHistory: [...(a.approvalHistory || []), { approver, ts, status: decision, remarks: remarks || "" }],
+      }));
+      const next = { ...l, attachments };
+      if (voidCheck) next.review = clearReview(l, approver, ts, "Custodian approval voided — receipt decision changed");
+      return next;
     }));
     const d = disbursements.find((x) => x.id === disbursementId);
     logAudit(
       decision === "Approved" ? "Receipt Approved" : "Receipt Rejected",
       d ? d.voucherNo : disbursementId,
-      `${receiptName}${remarks ? ` · ${remarks}` : ""}`
+      `${target.name || attachmentId}${remarks ? ` · ${remarks}` : ""}`
     );
-  }, [isLiquidationApprover, logAudit, disbursements, userName, role]);
+  }, [isLiquidationChecker, isLiquidationFinalLocked, liquidations, logAudit, disbursements, userName, role]);
 
   /* ---- Deletion (SuperAdmin only) ----
      Each delete leaves the surviving records consistent: a voucher takes its
@@ -871,15 +1000,26 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   }, [auditLog, userName, role]);
 
   /* ---- Replenishment ---- */
+  /* Names the approved liquidations a replenishment claims, for the audit trail. */
+  const linkedVouchers = (ids) => (ids || []).map((lid) => {
+    const l = liquidations.find((x) => x.id === lid);
+    const d = l && disbursements.find((x) => x.id === l.disbursementId);
+    return d ? d.voucherNo : lid;
+  });
+
   const addReplenishment = useCallback((form) => {
     setReplenishments((rs) => [...rs, { id: uid("rep"), ...form }]);
-    logAudit("Replenished", form.replenishmentNo, `${peso(Number(form.amount))} · ${form.method}${form.checkNo ? ` · ${form.checkNo}` : ""} · ${form.status}`);
-  }, [logAudit]);
+    const linked = linkedVouchers(form.liquidationIds);
+    logAudit("Replenished", form.replenishmentNo, `${peso(Number(form.amount))}${form.status ? ` · ${form.status}` : ""}`
+      + (linked.length ? ` · liquidations: ${linked.join(", ")}` : ""));
+  }, [logAudit, liquidations, disbursements]); // eslint-disable-line
 
   const editReplenishment = useCallback((id, form) => {
     setReplenishments((rs) => rs.map((r) => (r.id === id ? { ...r, ...form } : r)));
-    logAudit("Edited", form.replenishmentNo || id, `Replenishment updated · ${peso(Number(form.amount))} · ${form.status}`);
-  }, [logAudit]);
+    const linked = linkedVouchers(form.liquidationIds);
+    logAudit("Edited", form.replenishmentNo || id, `Replenishment updated · ${peso(Number(form.amount))}${form.status ? ` · ${form.status}` : ""}`
+      + (linked.length ? ` · liquidations: ${linked.join(", ")}` : ""));
+  }, [logAudit, liquidations, disbursements]); // eslint-disable-line
 
   const completeReplenishment = useCallback((id) => {
     setReplenishments((rs) => rs.map((r) => (r.id === id ? { ...r, status: "Completed" } : r)));
@@ -1436,9 +1576,12 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             canApproveShortage={canApproveShortage}
             onReviewOverLiquidation={reviewOverLiquidation}
             canDelete={isSuperAdmin} onDeleteLiquidation={deleteLiquidation}
-            canApproveReceipts={isLiquidationApprover}
-            canRejectLiquidation={isLiquidationApprover}
+            canApproveReceipts={isLiquidationChecker}
+            canRejectLiquidation={isLiquidationChecker || isFinalApprover}
             onRejectLiquidation={rejectLiquidation}
+            onCheckLiquidation={checkLiquidation}
+            canFinalApprove={isFinalApprover}
+            onFinalApprove={finalApproveLiquidation}
             reimbursements={scopedReimbursements}
             onReimbursementAction={reimbursementAction}
             canFinance={["Accounting", "Finance", "SuperAdmin"].includes(role) || !!isAdmin}
@@ -1450,6 +1593,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
           <ReplenishmentTab
             key={tab}
             replenishments={scopedReplenishments} funds={scopedFunds}
+            allReplenishmentNos={replenishments.map((r) => r.replenishmentNo)}
             disbursements={scopedDisbursements} liquidations={scopedLiquidations}
             onCreate={addReplenishment} onEdit={editReplenishment}
             onComplete={completeReplenishment} onDelete={deleteReplenishment}
@@ -1499,12 +1643,16 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
           <ApprovalModuleTab
             disbursements={visibleDisbursements} liquidations={visibleLiquidations}
             reimbursements={visibleReimbursements}
+            replenishments={visibleReplenishments}
             onDecideReceipt={decideReceipt}
             onRejectLiquidation={rejectLiquidation}
             onReopenLiquidation={reopenLiquidation}
+            onCheckLiquidation={checkLiquidation}
+            onFinalApprove={finalApproveLiquidation}
             onReimbursementAction={reimbursementAction}
             onExportReimbursementAcumatica={exportReimbursementAcumatica}
-            canApproveLiquidation={isLiquidationApprover}
+            isChecker={isLiquidationChecker}
+            isFinalApprover={isFinalApprover}
             canApproveReimbursement={canApprove}
             canFinance={["Accounting", "Finance", "SuperAdmin"].includes(role) || !!isAdmin}
             currentUser={userName || role}

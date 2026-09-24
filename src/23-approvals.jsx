@@ -2,80 +2,116 @@
    One cross-plant workspace for checking and approving everything that needs a
    decision: Petty Cash Advance liquidations and Employee Reimbursements.
 
-   Why it is not a per-plant tab: the approver (Grace Gan) signs off for every
-   company, so splitting the queue by plant would mean opening four tabs to find
-   out whether anything is waiting. This module deliberately spans ALL plants the
-   signed-in user can see, and states how many items are waiting.
+   Petty cash liquidations go through TWO levels (see 11-liquidation.jsx):
+     1. Custodian review — every Custodian, Accounting and Finance account (and
+        any SuperAdmin that is not a final approver), within its plant scope:
+        decide each receipt, approve the liquidation, settle the cash.
+     2. Final approval — Grace Gan or the System Superuser (identical access).
+        Their queue holds ONLY liquidations a custodian has approved and whose
+        cash is settled; their approval makes them Fully Approved / Ready for
+        Replenishment.
+
+   Why it is not a per-plant tab: approvers sign off across plants, so splitting
+   the queue by plant would mean opening four tabs to find out whether anything
+   is waiting. Plant scoping still applies — a custodian only ever sees their
+   own plants' liquidations.
 
    It adds no new authority. Every action routes through the same handlers the
-   Liquidation and Reimbursement modules use, so the existing rules still hold:
-   only the authorized approver can decide a receipt or reject a liquidation, and
-   nobody can approve their own reimbursement.
+   Liquidation and Reimbursement modules use, and each handler re-checks who is
+   calling it.
 --------------------------------------------------------------------------- */
 
-/* Petty cash advances that still need a decision, newest first. A voucher with
-   no liquidation filed yet has nothing to check, so it stays out of the queue. */
-function pcaApprovalQueue(disbursements, liquidations) {
+/* Stages the final approver's queue is limited to: custodian-approved, cash
+   settled, and what she has already approved (for reference). */
+const FINAL_APPROVER_STAGES = [LIQ_STAGE.FOR_FINAL, LIQ_STAGE.READY, LIQ_STAGE.REPLENISHED];
+
+/* Submitted petty cash liquidations, newest first. A voucher with no
+   liquidation, or one still in Draft, has nothing to decide yet. */
+function pcaApprovalQueue(disbursements, liquidations, replenishments) {
+  const replenishedIds = replenishedLiquidationIds(replenishments);
   return (disbursements || [])
     .map((d) => {
       const liq = liquidationFor(d.id, liquidations);
       if (!liq) return null;
-      const approval = receiptApprovalSummary(liq);
-      const amounts = receiptAmountSummary(liq);
+      const stage = liqApprovalStage(d, liq, replenishedIds);
+      if (stage === LIQ_STAGE.DRAFT) return null;
       return {
         disb: d,
         liq,
-        approval,
-        amounts,
+        stage,
+        review: liqReview(liq),
+        approval: receiptApprovalSummary(liq),
+        amounts: receiptAmountSummary(liq),
+        settlement: settlementStateFor(d, liq),
         submissionStatus: liq.submissionStatus || "Draft",
         finalStatus: liqFinalStatus(d, liq),
-        liqStatus: liqStatusFor(d, liquidations),
       };
     })
     .filter(Boolean)
     .sort((a, b) => String(b.disb.date || "").localeCompare(String(a.disb.date || "")));
 }
 
-/* The approver's view of where an advance stands. Distinct from liqFinalStatus,
-   which answers "is the cash settled" — this answers "is a decision owed". */
-const PCA_APPROVAL_STAGE = {
-  AWAITING: "Awaiting Approval",
-  PARTIAL: "Partially Approved",
-  APPROVED: "Receipts Approved",
-  REJECTED: "Rejected",
-  COMPLETE: "Approved & Settled",
-};
-function pcaApprovalStage(row) {
-  if (row.submissionStatus === "Rejected") return PCA_APPROVAL_STAGE.REJECTED;
-  if (liqIsComplete(row.finalStatus)) return PCA_APPROVAL_STAGE.COMPLETE;
-  if (row.approval.anyRejected) return PCA_APPROVAL_STAGE.REJECTED;
-  if (row.approval.allApproved) return PCA_APPROVAL_STAGE.APPROVED;
-  if (row.approval.approved > 0) return PCA_APPROVAL_STAGE.PARTIAL;
-  return PCA_APPROVAL_STAGE.AWAITING;
-}
-const PCA_APPROVAL_STAGES = ["All statuses"].concat(Object.keys(PCA_APPROVAL_STAGE).map((k) => PCA_APPROVAL_STAGE[k]));
-
-/* Reimbursements are "waiting" from submission until they are paid/completed. */
-const REIMB_APPROVAL_STAGES = () => ["All statuses"].concat(REIMB_OPEN_STATUSES, [
-  REIMB_STATUS.PAID, REIMB_STATUS.COMPLETED, REIMB_STATUS.RETURNED, REIMB_STATUS.REJECTED,
-]);
-
 /* ---- Petty Cash Advance liquidation: check & approve panel ----
    Shows what the approver has to judge — the released amount, the expense
-   lines, and every supporting document rendered inline with its own decision —
-   and nothing they do not need. */
-function PcaApprovalPanel({ row, canApprove, onDecideReceipt, onRejectLiquidation, onReopenLiquidation }) {
+   lines, the cash settlement and every supporting document rendered inline —
+   with only the actions this viewer's level allows. */
+function PcaApprovalPanel({
+  row, isChecker, isFinalApprover,
+  onDecideReceipt, onRejectLiquidation, onReopenLiquidation, onCheckLiquidation, onFinalApprove,
+}) {
   const [remarks, setRemarks] = useState("");
   const [rejecting, setRejecting] = useState(false);
-  const { disb, liq, approval, amounts } = row;
+  const { disb, liq, approval, amounts, review, settlement: st, stage } = row;
   const rec = reconcileReceipts(disb.amount, amounts.approvedTotal);
-  const stage = pcaApprovalStage(row);
   const rejections = liqRejections(liq);
+  const submitted = row.submissionStatus === "Submitted";
+  const finalLocked = review.final && !review.legacy;
+
+  const canDecide = isChecker && submitted && !finalLocked;
+  const canCheck = isChecker && stage === LIQ_STAGE.FOR_CHECK && approval.allApproved && amounts.complete;
+  const canFinal = isFinalApprover && stage === LIQ_STAGE.FOR_FINAL;
+  const canReject = !finalLocked && ((isChecker && submitted) || canFinal);
 
   const decide = (att, decision) => {
+    if (decision === "Rejected" && !remarks.trim()) {
+      window.alert("Enter the reason in Decision Remarks before rejecting a receipt.");
+      return;
+    }
     onDecideReceipt(disb.id, att.id, decision, remarks.trim());
     setRemarks("");
   };
+  const check = () => {
+    if (!window.confirm(`Approve the liquidation for ${disb.voucherNo} as custodian?\n\nApproved receipts: ${peso(amounts.approvedTotal)} against ${peso(disb.amount)} released.`)) return;
+    onCheckLiquidation(disb.id, remarks.trim());
+    setRemarks("");
+  };
+  const finalApprove = () => {
+    if (!window.confirm(`Give final approval to ${disb.voucherNo}?\n\nApproved receipts: ${peso(amounts.approvedTotal)} · checked by ${review.checkedBy}.\n\nIt becomes Fully Approved / Ready for Replenishment and can no longer be edited.`)) return;
+    onFinalApprove(disb.id, remarks.trim());
+    setRemarks("");
+  };
+
+  /* What the viewer is waiting on, in one sentence. */
+  const guidance = (() => {
+    if (stage === LIQ_STAGE.FOR_CHECK) {
+      if (!isChecker) return "Awaiting the custodian's review.";
+      if (!amounts.complete) return "Some documents have no receipt amount — reject the liquidation so the requestor can complete it.";
+      if (!approval.allApproved) return `Decide each receipt below (${approval.pending} pending), then approve the liquidation.`;
+      return "Every receipt is approved — approve the liquidation to send it on for final approval once the cash is settled.";
+    }
+    if (stage === LIQ_STAGE.NEEDS_CORRECTION) return isChecker
+      ? "A receipt was rejected. Reject the liquidation to return it to the requestor for correction."
+      : "A receipt was rejected; the liquidation is being returned for correction.";
+    if (stage === LIQ_STAGE.AWAITING_SETTLEMENT) return `Custodian approved. The ${rec.type === "excess" ? "refund" : "reimbursement"} of ${peso(st.expected)} must be settled in the Liquidation module before it goes to ${FINAL_APPROVER_NAME}.`;
+    if (stage === LIQ_STAGE.FOR_FINAL) return isFinalApprover
+      ? "Custodian approved and cash settled — ready for your final approval."
+      : `Awaiting final approval by ${FINAL_APPROVER_NAME}.`;
+    if (stage === LIQ_STAGE.READY) return "Fully approved — available in the Replenishment module.";
+    if (stage === LIQ_STAGE.REPLENISHED) return "Fully approved and included in a replenishment.";
+    if (stage === LIQ_STAGE.LEGACY) return "Approved under the previous single-level process.";
+    if (stage === LIQ_STAGE.REJECTED) return "Returned to the requestor for correction.";
+    return "";
+  })();
 
   return (
     <div>
@@ -95,14 +131,30 @@ function PcaApprovalPanel({ row, canApprove, onDecideReceipt, onRejectLiquidatio
                 {liq.submittedBy ? ` · submitted by ${liq.submittedBy}` : ""}
               </span>
             </div>
+            {!review.legacy && (review.checked || review.final) && (
+              <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 5, lineHeight: 1.5 }}>
+                {review.checked && <div>Custodian approved by <b>{review.checkedBy}</b> · {review.checkedAt.replace("T", " ")}{review.checkRemarks ? ` · "${review.checkRemarks}"` : ""}</div>}
+                {review.final && <div>Final approval by <b>{review.finalBy}</b> · {review.finalAt.replace("T", " ")}{review.finalRemarks ? ` · "${review.finalRemarks}"` : ""}</div>}
+              </div>
+            )}
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            {canApprove && row.submissionStatus === "Submitted" && (
+            {canCheck && (
+              <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={check}>
+                <ShieldCheck size={12} /> Custodian Approve
+              </button>
+            )}
+            {canFinal && (
+              <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={finalApprove}>
+                <ShieldCheck size={12} /> Final Approve
+              </button>
+            )}
+            {isChecker && submitted && !finalLocked && (
               <button className="pcp-btn pcp-btn-sm" onClick={() => onReopenLiquidation(disb.id, "Reopened from the Approval Module for correction")}>
                 <RefreshCw size={12} /> Reopen for Correction
               </button>
             )}
-            {canApprove && row.submissionStatus !== "Rejected" && (
+            {canReject && (
               <button className="pcp-btn pcp-btn-sm pcp-btn-danger" onClick={() => setRejecting(true)}>
                 <X size={12} /> Reject Liquidation
               </button>
@@ -117,18 +169,17 @@ function PcaApprovalPanel({ row, canApprove, onDecideReceipt, onRejectLiquidatio
             <div className="pcp-num" style={{ color: rec.type === "exact" ? "var(--green)" : "var(--brand)" }}>{peso(rec.expected)}</div>
           </div>
           <div className="pcp-liq-metric">
+            <div className="pcp-kpi-label">Cash Settlement</div>
+            <div><Badge status={st.settled ? "SETTLED" : "UNSETTLED"} /></div>
+          </div>
+          <div className="pcp-liq-metric">
             <div className="pcp-kpi-label">Documents Decided</div>
             <div className="pcp-num">{approval.approved + approval.rejected} / {approval.total}</div>
           </div>
         </div>
       </div>
 
-      {!canApprove && (
-        <div className="pcp-hint" style={{ marginBottom: 12 }}>
-          You can review everything here, but only {RECEIPT_APPROVER_NAME} is authorized to approve or
-          reject a liquidation.
-        </div>
-      )}
+      {guidance && <div className="pcp-hint" style={{ marginBottom: 12 }}>{guidance}</div>}
 
       {!!rejections.length && (
         <div className="pcp-card pcp-card-pad" style={{ marginBottom: 12, borderColor: "#f0c0c0" }}>
@@ -176,15 +227,21 @@ function PcaApprovalPanel({ row, canApprove, onDecideReceipt, onRejectLiquidatio
             </tfoot>
           </table>
         </div>
+        {st.entries.length > 0 && (
+          <div style={{ marginTop: 10, fontSize: 11.5, color: "var(--text-mut)" }}>
+            <b>Cash settlement:</b> {st.entries.map((e) => `${peso(e.amount)} on ${e.date || "—"} by ${e.recordedBy || "—"}`).join(" · ")}
+            {st.closed ? ` · shortage of ${peso(st.closure.shortageAmount)} closed by ${st.closure.closedBy}` : ""}
+          </div>
+        )}
       </div>
 
       <div className="pcp-card pcp-card-pad">
         <div className="pcp-section-title" style={{ margin: "0 0 10px" }}>
           <Receipt size={15} color="#c8102e" /> Supporting Documents ({approval.total})
         </div>
-        {canApprove && (
+        {(canDecide || canCheck || canFinal || canReject) && (
           <div className="pcp-field">
-            <label>Decision Remarks <span style={{ color: "var(--text-mut)", fontWeight: 500 }}>(optional — recorded against the next decision)</span></label>
+            <label>Decision Remarks <span style={{ color: "var(--text-mut)", fontWeight: 500 }}>(recorded against the next decision · required to reject a receipt)</span></label>
             <input
               className="pcp-input" value={remarks} onChange={(e) => setRemarks(e.target.value)}
               placeholder="e.g. OR is legible and the amount agrees"
@@ -197,6 +254,7 @@ function PcaApprovalPanel({ row, canApprove, onDecideReceipt, onRejectLiquidatio
           emptyLabel="No supporting documents were uploaded for this liquidation."
           renderFooter={(a) => {
             const status = a.approvalStatus || "Pending";
+            const last = (a.approvalHistory || [])[(a.approvalHistory || []).length - 1];
             return (
               <div style={{ padding: "7px 9px", borderTop: "1px solid var(--line)", display: "flex", flexDirection: "column", gap: 6 }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -204,26 +262,22 @@ function PcaApprovalPanel({ row, canApprove, onDecideReceipt, onRejectLiquidatio
                   <span style={{ fontSize: 10.5, color: "var(--text-mut)" }}>
                     {a.receiptNo ? `${a.receiptNo} · ` : ""}{docRequiresAmount(a) ? peso(receiptAmountOf(a)) : "no amount"}
                   </span>
-                  {canApprove && (
+                  {canDecide && (
                     <span style={{ marginLeft: "auto", display: "flex", gap: 5 }}>
                       <button
                         className="pcp-btn pcp-btn-sm pcp-btn-primary" title="Approve this document"
                         disabled={status === "Approved"} onClick={() => decide(a, "Approved")}
                       ><Check size={12} /></button>
                       <button
-                        className="pcp-btn pcp-btn-sm pcp-btn-danger" title="Reject this document"
+                        className="pcp-btn pcp-btn-sm pcp-btn-danger" title="Reject this document (enter the reason in Decision Remarks)"
                         disabled={status === "Rejected"} onClick={() => decide(a, "Rejected")}
                       ><X size={12} /></button>
                     </span>
                   )}
                 </div>
-                {!!(a.approvalHistory || []).length && (
+                {last && (
                   <div style={{ fontSize: 10.5, color: "var(--text-mut)" }}>
-                    {a.approvalHistory[a.approvalHistory.length - 1].status} by{" "}
-                    {a.approvalHistory[a.approvalHistory.length - 1].approver} ·{" "}
-                    {a.approvalHistory[a.approvalHistory.length - 1].ts}
-                    {a.approvalHistory[a.approvalHistory.length - 1].remarks
-                      ? ` · "${a.approvalHistory[a.approvalHistory.length - 1].remarks}"` : ""}
+                    {last.status} by {last.approver} · {last.ts}{last.remarks ? ` · "${last.remarks}"` : ""}
                   </div>
                 )}
               </div>
@@ -245,16 +299,20 @@ function PcaApprovalPanel({ row, canApprove, onDecideReceipt, onRejectLiquidatio
 }
 
 function ApprovalModuleTab({
-  disbursements, liquidations, reimbursements,
-  onDecideReceipt, onRejectLiquidation, onReopenLiquidation,
+  disbursements, liquidations, replenishments, reimbursements,
+  onDecideReceipt, onRejectLiquidation, onReopenLiquidation, onCheckLiquidation, onFinalApprove,
   onReimbursementAction, onExportReimbursementAcumatica,
-  canApproveLiquidation, canApproveReimbursement, canFinance,
+  isChecker, isFinalApprover, canApproveReimbursement, canFinance,
   currentUser, plantOptions,
 }) {
   const [source, setSource] = useState("pettycash");
   const [plant, setPlant] = useState("ALL");
   const [search, setSearch] = useState("");
-  const [pcaStage, setPcaStage] = useState("All statuses");
+  /* Open on the viewer's own work: custodians on what awaits their review,
+     the final approver on what awaits hers. */
+  const [pcaStage, setPcaStage] = useState(
+    isFinalApprover ? LIQ_STAGE.FOR_FINAL : isChecker ? LIQ_STAGE.FOR_CHECK : "All statuses"
+  );
   const [reimbStage, setReimbStage] = useState("All statuses");
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
@@ -269,18 +327,24 @@ function ApprovalModuleTab({
   };
 
   /* ---- Petty Cash Advance liquidations ---- */
-  const pcaAll = useMemo(
-    () => pcaApprovalQueue(disbursements, liquidations),
-    [disbursements, liquidations]
-  );
+  /* The final approver's queue holds ONLY what custodians have approved and
+     whose cash is settled — nothing earlier in the chain reaches her. */
+  const pcaAll = useMemo(() => {
+    const all = pcaApprovalQueue(disbursements, liquidations, replenishments);
+    return isFinalApprover ? all.filter((r) => FINAL_APPROVER_STAGES.includes(r.stage)) : all;
+  }, [disbursements, liquidations, replenishments, isFinalApprover]);
   const pcaRows = pcaAll.filter((r) => inPlant(r.disb.branchCode)
     && matches(r.disb.voucherNo, r.disb.employee, r.disb.branchCode)
-    && (pcaStage === "All statuses" || pcaApprovalStage(r) === pcaStage));
+    && (pcaStage === "All statuses" || r.stage === pcaStage));
   const selected = pcaRows.find((r) => r.disb.id === selectedId) || pcaRows[0] || null;
-  const pcaWaiting = pcaAll.filter((r) => {
-    const s = pcaApprovalStage(r);
-    return s === PCA_APPROVAL_STAGE.AWAITING || s === PCA_APPROVAL_STAGE.PARTIAL;
-  }).length;
+  const pcaStageOptions = ["All statuses"].concat(isFinalApprover
+    ? FINAL_APPROVER_STAGES
+    : [LIQ_STAGE.FOR_CHECK, LIQ_STAGE.NEEDS_CORRECTION, LIQ_STAGE.AWAITING_SETTLEMENT, LIQ_STAGE.FOR_FINAL,
+       LIQ_STAGE.READY, LIQ_STAGE.REPLENISHED, LIQ_STAGE.REJECTED, LIQ_STAGE.LEGACY]);
+  const countStage = (s) => pcaAll.filter((r) => r.stage === s).length;
+  const pcaForCheck = countStage(LIQ_STAGE.FOR_CHECK) + countStage(LIQ_STAGE.NEEDS_CORRECTION);
+  const pcaForFinal = countStage(LIQ_STAGE.FOR_FINAL);
+  const pcaReady = countStage(LIQ_STAGE.READY);
 
   /* ---- Employee reimbursements ---- */
   const reimbAll = useMemo(
@@ -297,20 +361,28 @@ function ApprovalModuleTab({
   const reimbWaiting = reimbAll.filter((r) => r.status === REIMB_STATUS.SUBMITTED
     || r.status === REIMB_STATUS.FOR_REVIEW || r.status === REIMB_STATUS.FOR_APPROVAL).length;
 
-  const stageOptions = source === "pettycash" ? PCA_APPROVAL_STAGES : REIMB_APPROVAL_STAGES();
+  const stageOptions = source === "pettycash" ? pcaStageOptions : REIMB_APPROVAL_STAGES();
 
   return (
     <div className="pcp-liq-full">
       <TopBar
         title="Approval Module"
-        sub="Check and approve Petty Cash Advance liquidations and Employee Reimbursements across every plant"
+        sub={isFinalApprover
+          ? "Final approval of custodian-approved, cash-settled liquidations — and employee reimbursements"
+          : "Review and approve Petty Cash Advance liquidations and Employee Reimbursements for your plants"}
       />
       <div className="pcp-content">
         <div className="pcp-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12, marginBottom: 16 }}>
-          <KpiCard label="Advances Awaiting Approval" value={pcaWaiting} icon={FileSpreadsheet} tint="#b9790a" />
+          {isFinalApprover ? (
+            <KpiCard label="Awaiting Your Final Approval" value={pcaForFinal} icon={ShieldCheck} tint="#b9790a" />
+          ) : (
+            <>
+              <KpiCard label="Awaiting Custodian Review" value={pcaForCheck} icon={FileSpreadsheet} tint="#b9790a" />
+              <KpiCard label="Awaiting Final Approval" value={pcaForFinal} icon={ShieldCheck} tint="#7c3aed" />
+            </>
+          )}
+          <KpiCard label="Ready for Replenishment" value={pcaReady} icon={RefreshCw} tint="#15803d" />
           <KpiCard label="Reimbursements Awaiting Approval" value={reimbWaiting} icon={ArrowLeftRight} tint="#2054a3" />
-          <KpiCard label="Advance Liquidations Filed" value={pcaAll.length} icon={Receipt} tint="#7c3aed" />
-          <KpiCard label="Reimbursements Submitted" value={reimbAll.length} icon={ClipboardList} tint="#15803d" />
         </div>
 
         <PlantScopeTabs plants={plantOptions} value={plant} onChange={(v) => { setPlant(v); setSelectedId(null); }} />
@@ -365,7 +437,7 @@ function ApprovalModuleTab({
                     {r.disb.employee} · {plantLabel(r.disb.branchCode)}
                   </div>
                   <div style={{ marginTop: 6, display: "flex", gap: 5, flexWrap: "wrap" }}>
-                    <Badge status={pcaApprovalStage(r)} />
+                    <Badge status={r.stage} />
                     <span style={{ fontSize: 10.5, color: "var(--text-mut)" }}>
                       {r.approval.approved + r.approval.rejected}/{r.approval.total} docs decided
                     </span>
@@ -377,10 +449,13 @@ function ApprovalModuleTab({
               <PcaApprovalPanel
                 key={selected.disb.id}
                 row={selected}
-                canApprove={canApproveLiquidation}
+                isChecker={isChecker}
+                isFinalApprover={isFinalApprover}
                 onDecideReceipt={onDecideReceipt}
                 onRejectLiquidation={onRejectLiquidation}
                 onReopenLiquidation={onReopenLiquidation}
+                onCheckLiquidation={onCheckLiquidation}
+                onFinalApprove={onFinalApprove}
               />
             ) : (
               <div className="pcp-card pcp-card-pad"><div className="pcp-empty">Select a liquidation to check and approve</div></div>

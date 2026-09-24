@@ -796,7 +796,7 @@ function Dashboard({ funds, requests, disbursements, liquidations, replenishment
           onClick={onNavigate ? () => onNavigate("masterdata") : undefined} />
         <KpiCard label="Pending Requests" value={m.pendingRequests} icon={ClipboardList} tint="#b9790a" foot="Awaiting approval" onClick={onNavigate ? () => onNavigate("requests") : undefined} />
         <KpiCard label="Approved Requests" value={m.approvedRequests} icon={Check} tint="#2054a3" foot="Ready for release" onClick={onNavigate ? () => onNavigate("requests") : undefined} />
-        <KpiCard label="Receipts Waiting for Grace Gan's Approval" value={receiptStats.pending} icon={Receipt} tint="#c8102e" foot="Pending receipt approvals" onClick={onNavigate ? () => onNavigate("liquidation") : undefined} />
+        <KpiCard label="Receipts Waiting for Custodian Approval" value={receiptStats.pending} icon={Receipt} tint="#c8102e" foot="Pending receipt approvals" onClick={onNavigate ? () => onNavigate("liquidation") : undefined} />
         <KpiCard label="Liquidations For Revision" value={receiptStats.forRevision} icon={AlertTriangle} tint="#c8102e" foot="Rejected receipt(s) — needs correction" onClick={onNavigate ? () => onNavigate("liquidation") : undefined} />
         <KpiCard label="Pending Liquidations" value={m.pendingLiquidationCount} icon={FileSpreadsheet} tint="#2054a3" foot="Vouchers not fully liquidated" onClick={onNavigate ? () => onNavigate("liquidation") : undefined} />
         <KpiCard label="Overdue Liquidations" value={overdueLiquidations} icon={AlertTriangle} tint="#c8102e" foot="Past 5-day liquidation deadline" onClick={onNavigate ? () => onNavigate("aging") : undefined} />

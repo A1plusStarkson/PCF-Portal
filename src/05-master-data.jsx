@@ -901,7 +901,9 @@ const ROLES = {
   "SuperAdmin": { label: "System Administrator", tabs: ["dashboard", "requests", "disbursements", "liquidation", "reimbursement", "replenishment", "history", "report", "approvals", "aging", "documents", "audit", "masterdata", "users", "settings"] },
   "Accounting": { label: "Accounting Department", tabs: ["dashboard", "requests", "disbursements", "liquidation", "reimbursement", "replenishment", "history", "report", "approvals", "aging", "documents", "audit", "masterdata", "users", "settings"] },
   "Finance":    { label: "Finance Department",    tabs: ["dashboard", "requests", "disbursements", "liquidation", "reimbursement", "replenishment", "history", "report", "approvals", "aging", "documents", "audit", "masterdata"] },
-  "Custodian":  { label: "Custodian",             tabs: ["dashboard", "requests", "disbursements", "liquidation", "reimbursement", "replenishment", "history", "report", "aging", "documents"] },
+  /* Custodians are the first level of liquidation approval, so they get the
+     Approval Module — scoped, like everything else, to their own plants. */
+  "Custodian":  { label: "Custodian",             tabs: ["dashboard", "requests", "disbursements", "liquidation", "reimbursement", "replenishment", "history", "report", "approvals", "aging", "documents"] },
   /* PCF Requestor: prepares transactions only. Full Petty Cash Requests + full
      Liquidation (except approval) + Reimbursement (prepare/submit, no approval);
      Release Ledger is view-only. No Dashboard. No approve/reject/release rights

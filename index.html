@@ -122,10 +122,10 @@
   window.PCP_DEFAULT_ROLE = "Custodian";                 // fallback for unlisted signed-in users
   window.PCP_USERS = {
     "a1plusadmin@a1plus.com": { name: "Grace Gan",             role: "SuperAdmin", plants: "ALL" },
-    /* Second SuperAdmin account. Sees every plant, every module, and may delete
-       records. NOT a liquidation approver — receipt approval stays with Grace
-       Gan alone (RECEIPT_APPROVER_NAME / LIQUIDATION_APPROVER_EMAILS in
-       src/11-liquidation.jsx), so approving and deleting remain separate hands. */
+    /* Second SuperAdmin account, with access IDENTICAL to a1plusadmin (Grace
+       Gan): every plant, every module, delete rights, and final liquidation
+       approval (LIQUIDATION_FINAL_APPROVER_EMAILS in src/11-liquidation.jsx).
+       Keep the two entries in step — any change to one belongs on both. */
     "superuser@a1plus.com":   { name: "System Superuser",      role: "SuperAdmin", plants: "ALL" },
     "accounting@a1plus.com": { name: "Accounting Department", role: "Accounting", plants: "ALL" },
     "finance@a1plus.com":    { name: "Finance Department",    role: "Finance",    plants: "ALL" },
@@ -762,7 +762,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20260922a";
+  window.PCP_SRC_VERSION = "20260924b";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",

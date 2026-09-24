@@ -14,21 +14,42 @@ function suggestedReplenishment(branchCode, disbursements, liquidations, repleni
   return Math.max(0, liquidated - replenished);
 }
 
-function ReplenishmentFormModal({ onClose, onSave, nextNo, funds, disbursements, liquidations, replenishments, replenishment, plantOptions }) {
+function ReplenishmentFormModal({ onClose, onSave, nextNo, funds, disbursements, liquidations, replenishments, replenishment, plantOptions, preselect }) {
   const isEdit = !!replenishment;
-  const defaultBranch = (plantOptions && plantOptions[0]) ? plantOptions[0].code
-    : (funds[0] ? funds[0].branchCode : BRANCHES[0].code);
+  const defaultBranch = (preselect && preselect.branchCode)
+    || ((plantOptions && plantOptions[0]) ? plantOptions[0].code : (funds[0] ? funds[0].branchCode : BRANCHES[0].code));
   const [form, setForm] = useState(
     replenishment
-      ? { ...replenishment, amount: replenishment.amount }
+      ? { ...replenishment, amount: replenishment.amount, preparedBy: replenishment.preparedBy || "", liquidationIds: replenishment.liquidationIds || [] }
       : {
           date: todayISO(), branchCode: defaultBranch,
-          amount: "", preparedBy: "", status: "", remarks: "",
+          amount: preselect ? preselect.amount : "", preparedBy: "", status: "", remarks: "",
+          liquidationIds: preselect ? preselect.liquidationIds : [],
         }
   );
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const suggested = useMemo(() => suggestedReplenishment(form.branchCode, disbursements, liquidations, replenishments), [form.branchCode, disbursements, liquidations, replenishments]);
-  const valid = form.preparedBy.trim() && Number(form.amount) > 0;
+
+  /* Grace Gan-approved liquidations this replenishment may claim: the same
+     plant family as the fund being replenished, not already claimed by another
+     replenishment (this one's own claims stay selectable when editing). */
+  const ready = useMemo(() => {
+    const plant = plantOfBranch(form.branchCode);
+    return liquidationsReadyForReplenishment(disbursements, liquidations, replenishments, replenishment && replenishment.id)
+      .filter((x) => plantOfBranch(x.disb.branchCode) === plant);
+  }, [form.branchCode, disbursements, liquidations, replenishments, replenishment]);
+  const picked = new Set(form.liquidationIds || []);
+  const pickedTotal = round2(ready.filter((x) => picked.has(x.liq.id)).reduce((s, x) => s + x.amount, 0));
+  /* Picking liquidations sets the amount to exactly what they total — the
+     figure the fund actually spent on approved expenses. */
+  const togglePick = (id) => setForm((f) => {
+    const ids = new Set(f.liquidationIds || []);
+    if (ids.has(id)) ids.delete(id); else ids.add(id);
+    const list = Array.from(ids);
+    const total = round2(ready.filter((x) => ids.has(x.liq.id)).reduce((s, x) => s + x.amount, 0));
+    return { ...f, liquidationIds: list, amount: list.length ? total : f.amount };
+  });
+  const valid = String(form.preparedBy || "").trim() && Number(form.amount) > 0;
 
   return (
     <div className="pcp-modal-backdrop" onClick={onClose}>
@@ -51,7 +72,7 @@ function ReplenishmentFormModal({ onClose, onSave, nextNo, funds, disbursements,
           <div className="pcp-field-row">
             <div className="pcp-field">
               <label>Fund / Plant</label>
-              <select className="pcp-select" value={form.branchCode} onChange={(e) => set("branchCode", e.target.value)}>
+              <select className="pcp-select" value={form.branchCode} onChange={(e) => setForm((f) => ({ ...f, branchCode: e.target.value, liquidationIds: [] }))}>
                 {plantOptions ? (
                   plantOptions.map((p) => <option key={p.code} value={p.code}>{p.label} ({p.code})</option>)
                 ) : (
@@ -89,10 +110,47 @@ function ReplenishmentFormModal({ onClose, onSave, nextNo, funds, disbursements,
             <label>Remarks</label>
             <input className="pcp-input" placeholder="Optional notes" value={form.remarks} onChange={(e) => set("remarks", e.target.value)} />
           </div>
+          <div className="pcp-field">
+            <label>
+              Liquidations Ready for Replenishment
+              <span style={{ color: "var(--text-mut)", fontWeight: 400 }}> — final-approved by {FINAL_APPROVER_NAME}</span>
+            </label>
+            {ready.length ? (
+              <div style={{ border: "1px solid var(--line)", borderRadius: 8, maxHeight: 200, overflowY: "auto" }}>
+                {ready.map((x) => (
+                  <label key={x.liq.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 10px", borderBottom: "1px solid var(--line)", fontSize: 12, cursor: "pointer" }}>
+                    <input type="checkbox" checked={picked.has(x.liq.id)} onChange={() => togglePick(x.liq.id)} />
+                    <span style={{ flex: 1 }}>
+                      <b>{x.disb.voucherNo}</b> · {x.disb.employee} · {plantLabel(x.disb.branchCode)}
+                    </span>
+                    <span className="pcp-num">{peso(x.amount)}</span>
+                  </label>
+                ))}
+              </div>
+            ) : (
+              <div style={{ fontSize: 11.5, color: "var(--text-mut)" }}>No fully approved liquidations are waiting for this fund.</div>
+            )}
+            {picked.size > 0 && (
+              <div style={{ fontSize: 11.5, marginTop: 4 }}>
+                {picked.size} liquidation(s) selected · <b>{peso(pickedTotal)}</b>
+                {round2(form.amount) !== pickedTotal && (
+                  <span style={{ color: "var(--brand)" }}> — the amount differs from the selected liquidations</span>
+                )}
+              </div>
+            )}
+          </div>
         </div>
         <div className="pcp-modal-foot">
           <button className="pcp-btn" onClick={onClose}>Cancel</button>
-          <button className="pcp-btn pcp-btn-primary" disabled={!valid} onClick={() => onSave({ ...form, amount: Number(form.amount) })}>{isEdit ? "Save Changes" : "Create Replenishment"}</button>
+          <button
+            className="pcp-btn pcp-btn-primary" disabled={!valid}
+            onClick={() => onSave({
+              ...form, amount: Number(form.amount),
+              /* Only ids still eligible for this fund survive — a plant change
+                 or another user's replenishment cannot leave a stale claim. */
+              liquidationIds: (form.liquidationIds || []).filter((id) => ready.some((x) => x.liq.id === id)),
+            })}
+          >{isEdit ? "Save Changes" : "Create Replenishment"}</button>
         </div>
       </div>
     </div>
@@ -109,8 +167,10 @@ const REPLENISH_SORT_FIELDS = {
   remarks: (r) => r.remarks,
 };
 
-function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, onCreate, onEdit, onComplete, onDelete, plantOptions, canEdit, plantTitle }) {
+function ReplenishmentTab({ replenishments, allReplenishmentNos, funds, disbursements, liquidations, onCreate, onEdit, onComplete, onDelete, plantOptions, canEdit, plantTitle }) {
   const [showForm, setShowForm] = useState(false);
+  /* Liquidations + amount handed to a new form from the Ready panel. */
+  const [preselect, setPreselect] = useState(null);
   const [editing, setEditing] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All");
   const [search, setSearch] = useState("");
@@ -118,7 +178,35 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
   /* Newest replenishment no. first on open; any header can take over. */
   const sort = useTableSort("replenishmentNo", "desc");
 
-  const nextNo = "PCRP-2026-" + String(replenishments.length + 1).padStart(4, "0");
+  /* Numbered from EVERY plant's replenishments, not this plant's slice — the
+     plant-scoped count restarted at 0001 for each plant, so every plant's
+     first replenishment carried the same number. */
+  const nextNo = nextSeriesNo("PCRP-2026-", allReplenishmentNos || replenishments.map((r) => r.replenishmentNo));
+
+  /* Grace Gan-approved liquidations not yet claimed by a replenishment. */
+  const ready = useMemo(
+    () => liquidationsReadyForReplenishment(disbursements, liquidations, replenishments)
+      .filter((x) => plant === "ALL" || x.disb.branchCode === plant),
+    [disbursements, liquidations, replenishments, plant]
+  );
+  /* One replenishment per fund, so group the ready items by plant. */
+  const readyByPlant = useMemo(() => {
+    const m = new Map();
+    ready.forEach((x) => {
+      const p = plantOfBranch(x.disb.branchCode);
+      if (!m.has(p)) m.set(p, []);
+      m.get(p).push(x);
+    });
+    return Array.from(m.entries());
+  }, [ready]);
+  const startFromReady = (plantCode, items) => {
+    setPreselect({
+      branchCode: plantCode,
+      liquidationIds: items.map((x) => x.liq.id),
+      amount: round2(items.reduce((s, x) => s + x.amount, 0)),
+    });
+    setShowForm(true);
+  };
   const totalCompleted = replenishments.filter((r) => r.status === "Completed").reduce((s, r) => s + (Number(r.amount) || 0), 0);
   const totalPending = replenishments.filter((r) => r.status !== "Completed").reduce((s, r) => s + (Number(r.amount) || 0), 0);
 
@@ -144,10 +232,55 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
       <TopBar
         title={(plantTitle ? plantTitle + " \u00b7 " : "") + "Replenishment"}
         sub="Reimburse funds for liquidated expenses to restore the imprest balance"
-        right={<button className="pcp-btn pcp-btn-primary" onClick={() => setShowForm(true)}><Plus size={14} /> New Replenishment</button>}
+        right={<button className="pcp-btn pcp-btn-primary" onClick={() => { setPreselect(null); setShowForm(true); }}><Plus size={14} /> New Replenishment</button>}
       />
       <div className="pcp-content">
         <PlantScopeTabs plants={plantOptions} value={plant} onChange={setPlant} />
+        {/* Liquidations with Grace Gan's final approval, waiting to be replenished. */}
+        <div className="pcp-card pcp-card-pad" style={{ marginBottom: 14 }}>
+          <div className="pcp-section-title" style={{ margin: "0 0 8px" }}>
+            <ShieldCheck size={15} color="#15803d" /> Ready for Replenishment
+            <span style={{ fontSize: 11.5, color: "var(--text-mut)", fontWeight: 500, marginLeft: 6 }}>
+              ({ready.length}) — fully approved by {FINAL_APPROVER_NAME}, not yet replenished · {peso(ready.reduce((s, x) => s + x.amount, 0))}
+            </span>
+          </div>
+          {readyByPlant.length ? readyByPlant.map(([plantCode, items]) => (
+            <div key={plantCode} style={{ marginBottom: 10 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, marginBottom: 4 }}>
+                <b style={{ fontSize: 12.5 }}>{plantLabel(plantCode)}</b>
+                {canEdit && (
+                  <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={() => startFromReady(plantCode, items)}>
+                    <RefreshCw size={12} /> Replenish {items.length} · {peso(items.reduce((s, x) => s + x.amount, 0))}
+                  </button>
+                )}
+              </div>
+              <div className="pcp-table-wrap">
+                <table className="pcp-table">
+                  <thead><tr><th>Voucher No.</th><th>Employee</th><th>Branch</th><th>Custodian Approved</th><th>Final Approval</th><th style={{ textAlign: "right" }}>Approved Receipts</th></tr></thead>
+                  <tbody>
+                    {items.map((x) => {
+                      const rv = liqReview(x.liq);
+                      return (
+                        <tr key={x.liq.id}>
+                          <td>{x.disb.voucherNo}</td>
+                          <td>{x.disb.employee}</td>
+                          <td>{plantLabel(x.disb.branchCode)}</td>
+                          <td>{rv.checkedBy} · {fmtDate(rv.checkedAt.slice(0, 10))}</td>
+                          <td>{rv.finalBy} · {fmtDate(rv.finalAt.slice(0, 10))}</td>
+                          <td className="pcp-num">{peso(x.amount)}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )) : (
+            <div style={{ fontSize: 12, color: "var(--text-mut)" }}>
+              Nothing waiting. A liquidation appears here once the custodian has approved it, its cash is settled and {FINAL_APPROVER_NAME} has given final approval.
+            </div>
+          )}
+        </div>
         <div className="pcp-kpi-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
           <KpiCard label="Total Replenished" value={peso(totalCompleted)} icon={RefreshCw} tint="#15803d" foot="Completed reimbursements" />
           <KpiCard label="Pending Replenishments" value={replenishments.filter((r) => r.status !== "Completed").length} icon={Clock} tint="#b9790a" foot={peso(totalPending) + " in progress"} />
@@ -187,7 +320,12 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                     <td className="pcp-num">{peso(r.amount)}</td>
                     <td>{r.preparedBy || "—"}</td>
                     <td>{r.status ? <Badge status={r.status} /> : <span style={{ color: "var(--text-mut)" }}>—</span>}</td>
-                    <td style={{ maxWidth: 200, whiteSpace: "normal" }}>{r.remarks || "—"}</td>
+                    <td style={{ maxWidth: 200, whiteSpace: "normal" }}>
+                      {r.remarks || "—"}
+                      {!!(r.liquidationIds || []).length && (
+                        <div style={{ fontSize: 10.5, color: "var(--text-mut)" }}>{r.liquidationIds.length} approved liquidation(s)</div>
+                      )}
+                    </td>
                     <td>
                       <div style={{ display: "flex", gap: 6 }}>
                         {canEdit && r.status !== "Completed" && (
@@ -208,9 +346,11 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
       </div>
       {showForm && (
         <ReplenishmentFormModal
-          nextNo={nextNo} funds={funds} disbursements={disbursements} liquidations={liquidations} replenishments={replenishments} plantOptions={formPlantOptions}
-          onClose={() => setShowForm(false)}
-          onSave={(form) => { onCreate({ ...form, replenishmentNo: nextNo }); setShowForm(false); }}
+          nextNo={nextNo} funds={funds} disbursements={disbursements} liquidations={liquidations} replenishments={replenishments}
+          plantOptions={preselect ? (plantOptions || []).filter((p) => plantOfBranch(p.code) === preselect.branchCode) : formPlantOptions}
+          preselect={preselect}
+          onClose={() => { setShowForm(false); setPreselect(null); }}
+          onSave={(form) => { onCreate({ ...form, replenishmentNo: nextNo }); setShowForm(false); setPreselect(null); }}
         />
       )}
       {editing && (

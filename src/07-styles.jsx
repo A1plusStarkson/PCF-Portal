@@ -655,8 +655,11 @@ function Badge({ status }) {
     "Fully Liquidated": "green", "Over-Liquidated": "red",
     Draft: "gray", Submitted: "amber", Verified: "blue", Completed: "green", Released: "green",
     "For Revision": "red", "Pending Approval": "amber", "Receipts Approved": "green", "No Receipts": "gray",
-    /* Approval Module stages (Section 3E) */
-    "Awaiting Approval": "amber", "Partially Approved": "blue", "Approved & Settled": "green",
+    /* Two-level liquidation approval stages (LIQ_STAGE in 02-helpers.jsx) */
+    "For Custodian Review": "amber", "Needs Correction": "red", "Awaiting Settlement": "amber",
+    "For Final Approval": "blue", "Fully Approved / Ready for Replenishment": "green",
+    Replenished: "green", "Approved (before two-level review)": "gray",
+    "FOR CUSTODIAN REVIEW": "amber", "FOR FINAL APPROVAL": "blue",
     /* Cash-settlement / final liquidation states.
        PARTIALLY SETTLED and OVER-SETTLED exist so a cash variance somebody has
        to chase is never shown as plain "NOT YET LIQUIDATED", and

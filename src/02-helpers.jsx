@@ -805,16 +805,121 @@ function liqFinalStatus(disb, liq) {
   if ((liq.submissionStatus || "Draft") === "Rejected") return "REJECTED";
   const approval = receiptApprovalSummary(liq);
   const st = settlementStateFor(disb, liq);
+  const rv = liqReview(liq);
   if (approval.anyRejected) return "For Revision";
-  if (!st.summary.complete || !approval.allApproved) return "NOT YET LIQUIDATED";
+  if (!st.summary.complete) return "NOT YET LIQUIDATED";
+  /* Submitted and waiting on the custodian: every receipt approved AND the
+     liquidation itself approved. Before submission there is nothing to review. */
+  if (!approval.allApproved || !rv.checked) {
+    return (liq.submissionStatus || "Draft") === "Submitted" ? "FOR CUSTODIAN REVIEW" : "NOT YET LIQUIDATED";
+  }
   if (st.needsReview && !st.reviewed) return "Under Review";
-  /* Closed over an unrecovered balance is still a completed liquidation, but it
-     is never allowed to read as a clean one — the receivable is part of the
-     status, not a detail buried in the panel. */
-  if (st.settled) return (st.closed && st.remaining > 0) ? "LIQUIDATED (SHORT)" : "LIQUIDATED";
+  if (st.settled) {
+    /* Settled cash is what makes it eligible for Grace Gan's final approval;
+       only her approval makes it LIQUIDATED. Closed over an unrecovered
+       balance is still complete but never reads as a clean one. */
+    if (!rv.final) return "FOR FINAL APPROVAL";
+    return (st.closed && st.remaining > 0) ? "LIQUIDATED (SHORT)" : "LIQUIDATED";
+  }
   if (st.variance === "short") return "PARTIALLY SETTLED";
   if (st.variance === "over") return "OVER-SETTLED";
   return "NOT YET LIQUIDATED";
+}
+
+/* ---- Two-level liquidation approval ----
+     Requestor submits → Custodian checks and approves → cash settled →
+     Grace Gan's final approval → ready for replenishment.
+
+   The stamps live on liq.review. A liquidation filed before this workflow
+   existed has no `workflow` flag: its receipts were approved by Grace Gan
+   herself under the old single-level flow, so a fully approved legacy
+   liquidation counts as both checked and finally approved. That keeps every
+   completed historical liquidation completed, instead of dropping hundreds of
+   them back into a review queue and blocking their employees' next advance.
+   Legacy approvals are never offered for replenishment — they may already
+   have been replenished under the old, unlinked process. */
+function liqReview(liq) {
+  if (!liq) return { checked: false, final: false, legacy: false, history: [] };
+  if (!liq.workflow) {
+    const legacy = receiptApprovalSummary(liq).allApproved;
+    return { checked: legacy, final: legacy, legacy, history: [] };
+  }
+  const r = liq.review || {};
+  return {
+    checked: !!r.checkedBy, checkedBy: r.checkedBy || "", checkedAt: r.checkedAt || "", checkRemarks: r.checkRemarks || "",
+    final: !!r.finalBy, finalBy: r.finalBy || "", finalAt: r.finalAt || "", finalRemarks: r.finalRemarks || "",
+    legacy: false, history: r.history || [],
+  };
+}
+
+/* Review stamps are never silently lost: clearing them (reopen, rejection,
+   resubmission, receipts changed after approval) moves the old stamps into
+   review.history first. */
+function clearReview(liq, actor, ts, note) {
+  const r = (liq && liq.review) || {};
+  const had = !!(r.checkedBy || r.finalBy);
+  return {
+    history: (r.history || []).concat(had ? [{
+      action: note, user: actor, ts,
+      checkedBy: r.checkedBy || "", checkedAt: r.checkedAt || "",
+      finalBy: r.finalBy || "", finalAt: r.finalAt || "",
+    }] : []),
+  };
+}
+
+/* Where a liquidation stands in the approval chain — the question an approver
+   asks ("is a decision owed, and by whom?"), as distinct from liqFinalStatus,
+   which answers "is it finished". */
+const LIQ_STAGE = {
+  DRAFT: "Draft",
+  FOR_CHECK: "For Custodian Review",
+  NEEDS_CORRECTION: "Needs Correction",
+  AWAITING_SETTLEMENT: "Awaiting Settlement",
+  FOR_FINAL: "For Final Approval",
+  READY: "Fully Approved / Ready for Replenishment",
+  REPLENISHED: "Replenished",
+  LEGACY: "Approved (before two-level review)",
+  REJECTED: "Rejected",
+};
+
+function liqApprovalStage(disb, liq, replenishedIds) {
+  if (!liq) return LIQ_STAGE.DRAFT;
+  const sub = liq.submissionStatus || "Draft";
+  if (sub === "Rejected") return LIQ_STAGE.REJECTED;
+  const rv = liqReview(liq);
+  if (rv.legacy) return LIQ_STAGE.LEGACY;
+  if (rv.final) return (replenishedIds && replenishedIds.has(liq.id)) ? LIQ_STAGE.REPLENISHED : LIQ_STAGE.READY;
+  if (sub === "Draft") return LIQ_STAGE.DRAFT;
+  if (receiptApprovalSummary(liq).anyRejected) return LIQ_STAGE.NEEDS_CORRECTION;
+  if (!rv.checked) return LIQ_STAGE.FOR_CHECK;
+  if (!settlementStateFor(disb, liq).settled) return LIQ_STAGE.AWAITING_SETTLEMENT;
+  return LIQ_STAGE.FOR_FINAL;
+}
+
+/* Liquidation ids already claimed by a replenishment (pending or completed),
+   so the same approved expense is never replenished twice. */
+function replenishedLiquidationIds(replenishments, exceptReplenishmentId) {
+  const ids = new Set();
+  (replenishments || []).forEach((r) => {
+    if (!r || r.id === exceptReplenishmentId) return;
+    (r.liquidationIds || []).forEach((id) => ids.add(id));
+  });
+  return ids;
+}
+
+/* Grace Gan-approved liquidations not yet claimed by any replenishment. The
+   amount is the approved receipt total — what the fund actually spent once the
+   cash difference has been settled (released − returned + reimbursed). */
+function liquidationsReadyForReplenishment(disbursements, liquidations, replenishments, exceptReplenishmentId) {
+  const claimed = replenishedLiquidationIds(replenishments, exceptReplenishmentId);
+  const out = [];
+  (disbursements || []).forEach((d) => {
+    const liq = liquidationFor(d.id, liquidations || []);
+    if (!liq || claimed.has(liq.id)) return;
+    if (liqApprovalStage(d, liq, claimed) !== LIQ_STAGE.READY) return;
+    out.push({ disb: d, liq, amount: receiptAmountSummary(liq).approvedTotal });
+  });
+  return out;
 }
 
 /* Is this final status a FINISHED liquidation? One closed over an approved,

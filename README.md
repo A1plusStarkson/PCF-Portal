@@ -189,12 +189,25 @@ Two independent layers: **role** (which modules you see) and **plant scope**
 | `SuperAdmin` | System Administrator | Everything. The **only** role that can delete records. |
 | `Accounting` | Accounting Department | Everything. The **only** role that can override a Request No. |
 | `Finance` | Finance Department | Everything except User Management and System Settings. |
-| `Custodian` | Custodian | Dashboard, Requests, Release Ledger, Liquidation, Reimbursement, Replenishment, History, Reports, Aging, Documents. |
+| `Custodian` | Custodian | Dashboard, Requests, Release Ledger, Liquidation, Reimbursement, Replenishment, History, Reports, Approval Module, Aging, Documents. |
 | `Requestor` | PCF Requestor | Requests, Release Ledger (view-only), Liquidation, Reimbursement, History. No approve/reject/release rights, no dashboard. |
 
-Receipt and liquidation approval is reserved for the configured approver
-(`RECEIPT_APPROVER_NAME` / `LIQUIDATION_APPROVER_EMAILS` in
-[src/11-liquidation.jsx](src/11-liquidation.jsx)), independent of role.
+Petty cash liquidations are approved at **two levels** (constants in
+[src/11-liquidation.jsx](src/11-liquidation.jsx), status engine in
+[src/02-helpers.jsx](src/02-helpers.jsx)):
+
+1. **Custodian review** — any `LIQUIDATION_CHECKER_ROLES` account (Custodian,
+   Accounting, Finance, SuperAdmin), within its plant scope: decides each
+   receipt, approves the liquidation, records the cash settlement.
+2. **Final approval** — `LIQUIDATION_FINAL_APPROVER_EMAILS` (Grace Gan and the System Superuser, who have identical access) only.
+   Their queue holds only custodian-approved, cash-settled liquidations; their
+   approval makes them `LIQUIDATED` and *Ready for Replenishment*, and locks them.
+   A final approver is never also a checker — so in practice the checkers are the
+   Custodian, Accounting and Finance accounts.
+
+A replenishment claims the approved liquidations it covers (`liquidationIds`),
+so none is replenished twice. Liquidations completed before this workflow
+(no `workflow` flag) keep their status and are not offered for replenishment.
 
 Accounts in `window.PCP_ADMIN_EMAILS`, plus the `Accounting` and `SuperAdmin`
 roles, can **view as** any other role — an honest preview: the permission flags

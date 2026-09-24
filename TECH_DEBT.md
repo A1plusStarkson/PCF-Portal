@@ -44,7 +44,7 @@ The `Requestor` role (see `ROLES` in `src/05-master-data.jsx`, flags in
 `src/19-app.jsx`) enforces its permissions in the app UI/logic:
 - Petty Cash Requests — full access (no approve/reject/release)
 - Release Ledger — view-only (`canEdit` gate in `src/10-disbursements.jsx`)
-- Liquidation — full access except approve/reject (`isLiquidationApprover`)
+- Liquidation — full access except approve/reject and cash settlement (`isLiquidationChecker` / `isFinalApprover`)
 - Per-entity data isolation via existing plant scoping (`allowedPlants`)
 
 Because RLS on `pcp_state` only checks *authenticated* (not role/plant), a

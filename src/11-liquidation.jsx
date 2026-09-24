@@ -1,19 +1,24 @@
 /* ============================= LIQUIDATION ============================= */
 
-/* Only this named approver (Ma'am Grace Gan) may review and approve liquidation
-   receipts before they are processed. */
-const RECEIPT_APPROVER_NAME = "Grace Gan";
+/* ---- Two-level liquidation approval ----
+   1. CHECKERS — every Custodian, plus Accounting and Finance (and any
+      SuperAdmin that is not a final approver) — review the submitted
+      liquidation within their plant scope:
+      approve/reject each receipt, approve the liquidation, record the cash
+      settlement.
+   2. FINAL APPROVERS — Grace Gan (a1plusadmin) and the System Superuser, who
+      hold identical access by the owner's instruction. Matched by EMAIL (a
+      display name is not an identity). They only ever see liquidations a
+      checker has approved and whose cash is settled, and their approval is
+      what makes a liquidation LIQUIDATED and ready for replenishment.
 
-/* Emails that resolve to an authorized Liquidation Approver, so the identity
-   still holds even if the display name differs. Approve/Reject Liquidation is
-   restricted to these accounts (see isLiquidationApprover in 19-app.jsx), and
-   every gate — the UI buttons and the guards inside approveReceipt /
-   rejectLiquidation — reads this one list, so adding an account here is enough.
-
-   RECEIPT_APPROVER_NAME above still names Grace Gan in the on-screen guidance
-   ("awaiting Grace Gan's approval"), because she remains the expected approver;
-   superuser is the standby account, added at the owner's request. */
-const LIQUIDATION_APPROVER_EMAILS = ["a1plusadmin@a1plus.com", "superuser@a1plus.com"];
+   A final approver is deliberately NOT also a checker, even though the
+   SuperAdmin role would otherwise qualify: one person doing both levels is one
+   level. See isLiquidationChecker / isFinalApprover in 19-app.jsx; every gate —
+   UI and handler — reads these constants. */
+const FINAL_APPROVER_NAME = "Grace Gan or the System Superuser";
+const LIQUIDATION_FINAL_APPROVER_EMAILS = ["a1plusadmin@a1plus.com", "superuser@a1plus.com"];
+const LIQUIDATION_CHECKER_ROLES = ["Custodian", "Accounting", "Finance", "SuperAdmin"];
 
 /* The cash settlement classification now derives from the per-document receipt
    amounts — see reconcileReceipts / settlementStateFor in 02-helpers.jsx. */
@@ -154,6 +159,7 @@ function LiquidationWorksheet({
   onRecordSettlement, onCloseShortage, onReopenShortage, canApproveShortage,
   onReviewOverLiquidation, canDelete, onDeleteLiquidation,
   canRejectLiquidation, onRejectLiquidation,
+  onCheckLiquidation, canFinalApprove, onFinalApprove,
 }) {
   const [lines, setLines] = useState(liquidation ? liquidation.lines.map((l) => ({ ...l })) : [emptyLine()]);
   const [attachments, setAttachments] = useState(
@@ -314,18 +320,63 @@ function LiquidationWorksheet({
      reason(s) stay on the record. */
   const isRejected = liqIsRejected(liquidation);
   const rejections = liqRejections(liquidation);
-  /* After submission the amounts are read-only; only a receipt approver may
-     still correct them, and every such change is written to the audit trail. */
-  const amountsLocked = !isDraft && !canApproveReceipts;
+  const review = liqReview(liquidation);
+  const stage = liqApprovalStage(disbursement, liquidation);
+  const isSubmitted = !!liquidation && (liquidation.submissionStatus || "Draft") === "Submitted";
+  /* Grace Gan's approval closes the liquidation for everybody: what she
+     approved is what gets replenished, so nothing under it may move. */
+  const finalLocked = review.final && !review.legacy;
+  /* After submission the amounts are read-only; only a checker may still
+     correct them (with a reason, in the audit trail), and never after final
+     approval. */
+  const amountsLocked = finalLocked || (!isDraft && !canApproveReceipts);
+  /* Receipts are decided by the checker AFTER the requestor submits, while the
+     amounts are locked — so an approved amount can never be edited afterwards
+     by the person who claimed it. */
+  const canDecideReceipts = !!canApproveReceipts && isSubmitted && !finalLocked;
+  /* Cash settlement is a custodian act: the person who owes the money must not
+     be able to record that it came back. */
+  const canSettle = !!canApproveReceipts && !finalLocked;
   /* The encoded expense lines should agree with the approved receipts. */
   const linesVsReceipts = round2(total - receiptSummary.approvedTotal);
 
   const submitBlockers = [];
   if (!receiptSummary.docCount) submitBlockers.push("upload at least one supporting document");
   if (receiptSummary.missing > 0) submitBlockers.push(`enter the receipt amount on ${receiptSummary.missing} document(s)`);
-  if (receiptSummary.docCount > 0 && !approvalSummary.allApproved) submitBlockers.push(`await ${RECEIPT_APPROVER_NAME}'s approval of all receipts`);
+  if (approvalSummary.anyRejected) submitBlockers.push("replace or remove the rejected document(s)");
   if (!saved) submitBlockers.push("save your changes first");
   const canSubmit = isDraft && submitBlockers.length === 0;
+
+  /* Custodian approval of the liquidation as a whole. */
+  const checkBlockers = [];
+  if (!isSubmitted) checkBlockers.push("the requestor has not submitted it");
+  if (receiptSummary.missing > 0) checkBlockers.push("every document needs its receipt amount");
+  if (approvalSummary.anyRejected) checkBlockers.push("a receipt is rejected — return the liquidation for correction");
+  if (!approvalSummary.allApproved) checkBlockers.push("approve every receipt first");
+  if (!saved) checkBlockers.push("save your changes first");
+  const canCheckNow = !!canApproveReceipts && !!onCheckLiquidation && !review.checked && !finalLocked && checkBlockers.length === 0;
+  const canFinalNow = !!canFinalApprove && !!onFinalApprove && stage === LIQ_STAGE.FOR_FINAL;
+
+  const handleCheck = () => {
+    if (!canCheckNow) return;
+    const remarks = window.prompt(
+      `Approve the liquidation for ${disbursement.voucherNo} as custodian?\n\n`
+      + `Approved receipts: ${peso(receiptSummary.approvedTotal)} against ${peso(disbursement.amount)} released.\n\n`
+      + `Once the cash difference is settled it goes to ${FINAL_APPROVER_NAME} for final approval.\n\nRemarks (optional):`, ""
+    );
+    if (remarks == null) return;
+    onCheckLiquidation(disbursement.id, remarks.trim());
+  };
+  const handleFinalApprove = () => {
+    if (!canFinalNow) return;
+    const remarks = window.prompt(
+      `Give final approval to the liquidation for ${disbursement.voucherNo}?\n\n`
+      + `Approved receipts: ${peso(receiptSummary.approvedTotal)} · checked by ${review.checkedBy}.\n\n`
+      + "It becomes Fully Approved / Ready for Replenishment and can no longer be edited.\n\nRemarks (optional):", ""
+    );
+    if (remarks == null) return;
+    onFinalApprove(disbursement.id, remarks.trim());
+  };
 
   const approveReceipt = (a) => onDecideReceipt && onDecideReceipt(disbursement.id, a.id, "Approved", "");
   const rejectReceipt = (a) => {
@@ -394,13 +445,16 @@ function LiquidationWorksheet({
 
   const handleSubmit = () => {
     if (!canSubmit || !onSubmitLiquidation) return;
-    const warn = st.type === "reimburse"
-      ? `\n\nWARNING: the receipt total exceeds the cash released by ${peso(st.expected)}. This liquidation will be flagged for review and will NOT be approved automatically.`
+    /* Nothing is approved yet at submission, so compare the amounts CLAIMED. */
+    const claimed = reconcileReceipts(disbursement.amount, receiptSummary.allTotal);
+    const warn = claimed.type === "reimburse"
+      ? `\n\nWARNING: the receipt total exceeds the cash released by ${peso(claimed.expected)}. This liquidation will be flagged for review and will NOT be approved automatically.`
       : "";
     if (!window.confirm(
       `Submit this liquidation for ${disbursement.voucherNo}?\n\n`
-      + `Total Receipt Amount: ${peso(receiptSummary.approvedTotal)}\n`
+      + `Total Receipt Amount: ${peso(receiptSummary.allTotal)}\n`
       + `PCF Released Amount: ${peso(disbursement.amount)}${warn}\n\n`
+      + `It goes to the custodian for review, then to ${FINAL_APPROVER_NAME} for final approval. `
       + "Receipt amounts become read-only after submission."
     )) return;
     onSubmitLiquidation(disbursement.id);
@@ -524,38 +578,62 @@ function LiquidationWorksheet({
             </div>
             <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 7, flexWrap: "wrap" }}>
               <Badge status={finalStatus} />
-              <Badge status={isRejected ? "Rejected" : (isDraft ? "Draft" : "Submitted")} />
+              <Badge status={stage} />
               {!isDraft && liquidation && liquidation.submittedBy && (
                 <span style={{ fontSize: 10.5, color: "var(--text-mut)" }}>
                   submitted by {liquidation.submittedBy} · {(liquidation.submittedAt || "").replace("T", " ")}
                 </span>
               )}
             </div>
+            {/* The approval chain, stamped. */}
+            {(review.checked || review.final) && !review.legacy && (
+              <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 5, lineHeight: 1.5 }}>
+                {review.checked && <div>Custodian approved by <b>{review.checkedBy}</b> · {review.checkedAt.replace("T", " ")}{review.checkRemarks ? ` · "${review.checkRemarks}"` : ""}</div>}
+                {review.final && <div>Final approval by <b>{review.finalBy}</b> · {review.finalAt.replace("T", " ")}{review.finalRemarks ? ` · "${review.finalRemarks}"` : ""}</div>}
+              </div>
+            )}
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
             <button className="pcp-btn pcp-btn-sm" onClick={() => onExport(disbursement, { lines: validLines })} disabled={!validLines.length}>
               <Download size={12} /> Export to Excel
             </button>
-            <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={handleSave}>
-              {saved ? "Saved" : "Save Liquidation"}
-            </button>
+            {!finalLocked && (
+              <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={handleSave}>
+                {saved ? "Saved" : "Save Liquidation"}
+              </button>
+            )}
             {isDraft ? (
               <button
                 className="pcp-btn pcp-btn-sm pcp-btn-primary"
                 onClick={handleSubmit}
                 disabled={!canSubmit}
-                title={canSubmit ? "Submit the final liquidation" : `To submit: ${submitBlockers.join("; ")}`}
+                title={canSubmit ? "Submit the liquidation for custodian review" : `To submit: ${submitBlockers.join("; ")}`}
               >
                 <Check size={12} /> {isRejected ? "Resubmit Liquidation" : "Submit Liquidation"}
               </button>
             ) : (
               <>
-                {canApproveReceipts && (
+                {canApproveReceipts && onCheckLiquidation && !review.checked && !finalLocked && (
+                  <button
+                    className="pcp-btn pcp-btn-sm pcp-btn-primary"
+                    onClick={handleCheck}
+                    disabled={!canCheckNow}
+                    title={canCheckNow ? "Approve this liquidation as custodian" : `To approve: ${checkBlockers.join("; ")}`}
+                  >
+                    <ShieldCheck size={12} /> Custodian Approve
+                  </button>
+                )}
+                {canFinalNow && (
+                  <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={handleFinalApprove} title="Final approval — ready for replenishment">
+                    <ShieldCheck size={12} /> Final Approve
+                  </button>
+                )}
+                {canApproveReceipts && !finalLocked && (
                   <button className="pcp-btn pcp-btn-sm" onClick={handleReopen} title="Reopen for editing (recorded in the audit trail)">
                     <Edit3 size={12} /> Reopen
                   </button>
                 )}
-                {canRejectLiquidation && liquidation && (
+                {canRejectLiquidation && liquidation && !finalLocked && (canApproveReceipts || canFinalNow) && (
                   <button
                     className="pcp-btn pcp-btn-sm pcp-btn-danger"
                     onClick={() => setShowReject(true)}
@@ -657,10 +735,14 @@ function LiquidationWorksheet({
         <div style={{ marginTop: 12, padding: "9px 12px", borderRadius: 8, fontSize: 12,
           background: overallApproval === "For Revision" ? "var(--red-bg)" : (canSubmitFinal ? "var(--green-bg)" : "var(--amber-bg)"),
           color: overallApproval === "For Revision" ? "var(--brand-dark)" : (canSubmitFinal ? "var(--green)" : "var(--amber)") }}>
-          {approvalSummary.total === 0 && <>Upload each Official Receipt / Sales Invoice above. Every receipt must be reviewed and approved by {RECEIPT_APPROVER_NAME} before the liquidation can be submitted.</>}
-          {approvalSummary.total > 0 && overallApproval === "For Revision" && <><AlertTriangle size={13} style={{ verticalAlign: "-2px" }} /> <strong>For Revision</strong> — {approvalSummary.rejected} receipt(s) were rejected. Replace or correct only the rejected receipt(s), then re-save.</>}
-          {approvalSummary.total > 0 && overallApproval === "Pending Approval" && <><strong>Pending Approval</strong> — {approvalSummary.pending} receipt(s) awaiting {RECEIPT_APPROVER_NAME}'s approval. Final liquidation cannot be submitted yet.</>}
-          {canSubmitFinal && <><Check size={13} style={{ verticalAlign: "-2px" }} /> <strong>All receipts approved</strong> — this liquidation is ready for final submission.</>}
+          {approvalSummary.total === 0 && <>Upload each Official Receipt / Sales Invoice above, enter its amount and submit. The custodian then reviews every receipt, and {FINAL_APPROVER_NAME} gives the final approval.</>}
+          {approvalSummary.total > 0 && overallApproval === "For Revision" && <><AlertTriangle size={13} style={{ verticalAlign: "-2px" }} /> <strong>For Revision</strong> — {approvalSummary.rejected} receipt(s) were rejected. Replace or correct only the rejected receipt(s), then resubmit.</>}
+          {approvalSummary.total > 0 && overallApproval === "Pending Approval" && (isDraft
+            ? <><strong>Not yet submitted</strong> — submit the liquidation so the custodian can review its {approvalSummary.total} receipt(s).</>
+            : <><strong>For Custodian Review</strong> — {approvalSummary.pending} receipt(s) awaiting the custodian's approval.</>)}
+          {canSubmitFinal && (review.checked
+            ? <><Check size={13} style={{ verticalAlign: "-2px" }} /> <strong>Custodian approved</strong>{review.final ? ` — final approval given by ${review.finalBy || FINAL_APPROVER_NAME}.` : ` — goes to ${FINAL_APPROVER_NAME} for final approval once the cash is settled.`}</>
+            : <><Check size={13} style={{ verticalAlign: "-2px" }} /> <strong>All receipts approved</strong> — awaiting the custodian's approval of the liquidation.</>)}
         </div>
       </Collapsible>
 
@@ -745,7 +827,7 @@ function LiquidationWorksheet({
               {/* Only while cash is still DUE. Recording another movement on an
                   already over-settled liquidation would just deepen the error;
                   the fix there is to clear and re-record. */}
-              {st.remaining > 0 && (
+              {st.remaining > 0 && canSettle && (
                 <div>
                   <div className="pcp-kpi-label">{st.type === "excess" ? "Amount returned now" : "Amount paid now"}</div>
                   <input
@@ -758,7 +840,7 @@ function LiquidationWorksheet({
                 </div>
               )}
               <div style={{ display: "flex", gap: 8 }}>
-                {st.remaining > 0 && (
+                {st.remaining > 0 && canSettle && (
                   <button
                     className="pcp-btn pcp-btn-sm pcp-btn-primary"
                     onClick={handleRecordSettlement}
@@ -766,7 +848,7 @@ function LiquidationWorksheet({
                     title={
                       !saved ? "Save your changes first"
                         : !receiptSummary.complete ? "Every document needs a receipt amount first"
-                          : !approvalSummary.allApproved ? `All receipts must be approved by ${RECEIPT_APPROVER_NAME} first`
+                          : !approvalSummary.allApproved ? "The custodian must approve every receipt first"
                             : "Record cash that has actually changed hands. Leave the amount blank to record the full outstanding balance."
                     }
                   >
@@ -776,7 +858,7 @@ function LiquidationWorksheet({
                 {/* Offered whenever cash is still due, not only on a part
                     payment: a requestor who returns NOTHING leaves the full
                     amount outstanding and that needs the same resolution. */}
-                {st.remaining > 0 && !st.closed && canApproveShortage && (
+                {st.remaining > 0 && !st.closed && canApproveShortage && !finalLocked && (
                   <button
                     className="pcp-btn pcp-btn-sm pcp-btn-danger"
                     onClick={handleCloseShortage}
@@ -785,7 +867,7 @@ function LiquidationWorksheet({
                     <AlertTriangle size={12} /> Close {peso(st.remaining)} as Receivable
                   </button>
                 )}
-                {!!st.entries.length && (
+                {!!st.entries.length && canSettle && (
                   <button className="pcp-btn pcp-btn-sm" onClick={handleUndoSettlement}>
                     <X size={12} /> Clear Settlement
                   </button>
@@ -849,7 +931,7 @@ function LiquidationWorksheet({
                   {st.closure.reason ? ` · "${st.closure.reason}"` : ""}
                 </div>
               </div>
-              {canApproveShortage && (
+              {canApproveShortage && !finalLocked && (
                 <button className="pcp-btn pcp-btn-sm" onClick={handleReopenShortage}>
                   <X size={12} /> Reopen Shortage
                 </button>
@@ -883,7 +965,7 @@ function LiquidationWorksheet({
                     : <>This liquidation will not be approved automatically. A reviewer must investigate the discrepancy before it can be liquidated.</>}
                 </div>
               </div>
-              {canApproveReceipts && !st.reviewed && (
+              {canApproveReceipts && !st.reviewed && !finalLocked && (
                 <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={handleReview}>
                   <ShieldCheck size={12} /> Record Review
                 </button>
@@ -905,9 +987,11 @@ function LiquidationWorksheet({
             {finalStatus === "Under Review" && <>Awaiting a reviewer's findings on the over-liquidation.</>}
             {finalStatus === "For Revision" && <>{approvalSummary.rejected} receipt(s) were rejected — correct them and re-save.</>}
             {finalStatus === "Not Liquidated" && <>No supporting documents uploaded yet.</>}
+            {finalStatus === "FOR CUSTODIAN REVIEW" && <>Submitted — awaiting the custodian's review of the receipts and approval of the liquidation.</>}
+            {finalStatus === "FOR FINAL APPROVAL" && <>Custodian approved and cash settled — awaiting final approval by {FINAL_APPROVER_NAME}.</>}
             {finalStatus === "NOT YET LIQUIDATED" && (
               !receiptSummary.complete ? <>Capture the receipt amount on every supporting document.</>
-                : !approvalSummary.allApproved ? <>Awaiting {RECEIPT_APPROVER_NAME}'s approval of all receipts.</>
+                : !approvalSummary.allApproved ? <>Submit the liquidation for the custodian's review.</>
                   : <>{st.type === "excess" ? `${peso(st.expected)} in excess cash must be returned to the PCF Custodian.` : `${peso(st.expected)} must be reimbursed to the PCF Requestor.`}</>
             )}
             {finalStatus === "PARTIALLY SETTLED" && (
@@ -1022,8 +1106,8 @@ function LiquidationWorksheet({
             </span>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
-            {canApproveReceipts && approvalSummary.total > 0 && approvalSummary.pending > 0 && (
-              <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={approveAllReceipts} title={`Approve all pending receipts as ${RECEIPT_APPROVER_NAME}`}>
+            {canDecideReceipts && approvalSummary.total > 0 && approvalSummary.pending > 0 && (
+              <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={approveAllReceipts} title="Approve all pending receipts as custodian">
                 <Check size={12} /> Approve All ({approvalSummary.pending})
               </button>
             )}
@@ -1084,7 +1168,7 @@ function LiquidationWorksheet({
                   </div>
                   <Badge status={status} />
                   <AttachmentLinks att={a} />
-                  {canApproveReceipts && isSaved && (
+                  {canDecideReceipts && isSaved && (
                     <>
                       <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={() => approveReceipt(a)} disabled={status === "Approved"} title="Approve receipt"><Check size={12} /></button>
                       <button className="pcp-btn pcp-btn-sm pcp-btn-danger" onClick={() => rejectReceipt(a)} disabled={status === "Rejected"} title="Reject receipt"><X size={12} /></button>
@@ -1154,12 +1238,14 @@ function LiquidationWorksheet({
                 )}
                 {status !== "Approved" && status !== "Rejected" && Number(a.receiptAmount) > 0 && (
                   <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 5 }}>
-                    Excluded from the total until {RECEIPT_APPROVER_NAME} approves this document.
+                    Excluded from the total until the custodian approves this document.
                   </div>
                 )}
                 {amountsLocked && (
                   <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 5 }}>
-                    Read-only — this liquidation has been submitted. A receipt approver can reopen it or correct the amount.
+                    {finalLocked
+                      ? "Read-only — this liquidation has final approval."
+                      : "Read-only — this liquidation has been submitted. The custodian can reopen it or correct the amount."}
                   </div>
                 )}
 
@@ -1169,7 +1255,7 @@ function LiquidationWorksheet({
                   <AttachmentPreview att={a} isImage={isImage} isPdf={isPdf} />
                 </div>
 
-                {canApproveReceipts && !isSaved && (
+                {canDecideReceipts && !isSaved && (
                   <div style={{ fontSize: 10.5, color: "var(--amber)", marginTop: 5 }}>Save the liquidation to enable approval of this receipt.</div>
                 )}
                 {history.length > 0 && (
@@ -1351,6 +1437,7 @@ function LiquidationTab({
   onRecordSettlement, onCloseShortage, onReopenShortage, canApproveShortage,
   onReviewOverLiquidation, canDelete, onDeleteLiquidation,
   canRejectLiquidation, onRejectLiquidation,
+  onCheckLiquidation, canFinalApprove, onFinalApprove,
   reimbursements, onReimbursementAction, canFinance,
 }) {
   const [selectedId, setSelectedId] = useState(null);
@@ -1532,6 +1619,9 @@ function LiquidationTab({
                 onDeleteLiquidation={onDeleteLiquidation}
                 canRejectLiquidation={canRejectLiquidation}
                 onRejectLiquidation={onRejectLiquidation}
+                onCheckLiquidation={onCheckLiquidation}
+                canFinalApprove={canFinalApprove}
+                onFinalApprove={onFinalApprove}
               />
             ) : (
               <div className="pcp-card pcp-card-pad"><div className="pcp-empty">Select a voucher to begin liquidation</div></div>
