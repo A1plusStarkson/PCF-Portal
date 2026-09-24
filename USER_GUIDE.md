@@ -429,6 +429,11 @@ approved as custodian. If the Superuser does the custodian review, Grace Gan
 gives the final approval (and the other way round). Grace Gan does final
 approval only.
 
+The Superuser's Approval Module shows **everything Grace Gan's does**: the same
+transactions, receipts, amounts, custodian approvals, comments and dates. It
+opens the same way, on *For Final Approval* with the same counters at the top.
+To do custodian review, pick *For Custodian Review* in the status filter.
+
 Each row shows its stage: *For Custodian Review*, *Needs Correction*, *Awaiting
 Settlement*, *For Final Approval*, *Fully Approved / Ready for Replenishment*,
 *Replenished*, or *Rejected*. Liquidations finished before the two-level review

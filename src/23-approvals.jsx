@@ -329,18 +329,20 @@ function ApprovalModuleTab({
 }) {
   /* Grace Gan: final approval only, so her queues hold only what custodians
      have approved. The System Superuser is BOTH a checker and a final
-     approver, so she gets the full checker view plus the final-approve action. */
+     approver. By the owner's instruction she sees everything Grace Gan sees,
+     opened the same way (For Final Approval, same KPIs), with the custodian
+     queue added one filter away. */
   const finalOnly = isFinalApprover && !isChecker;
   const [source, setSource] = useState("pettycash");
   const [plant, setPlant] = useState("ALL");
   const [search, setSearch] = useState("");
-  /* Open on the viewer's own work: custodians on what awaits their review,
-     the final approver on what awaits hers. */
+  /* Open on the viewer's own work: every final approver on what awaits final
+     approval, custodians on what awaits their review. */
   const [pcaStage, setPcaStage] = useState(
-    finalOnly ? LIQ_STAGE.FOR_FINAL : isChecker ? LIQ_STAGE.FOR_CHECK : "All statuses"
+    isFinalApprover ? LIQ_STAGE.FOR_FINAL : isChecker ? LIQ_STAGE.FOR_CHECK : "All statuses"
   );
   const [reimbStage, setReimbStage] = useState(
-    finalOnly ? REIMB_STATUS.FOR_FINAL : isChecker ? REIMB_STAGE.FOR_CHECK : "All statuses"
+    isFinalApprover ? REIMB_STATUS.FOR_FINAL : isChecker ? REIMB_STAGE.FOR_CHECK : "All statuses"
   );
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
@@ -405,20 +407,23 @@ function ApprovalModuleTab({
         title="Approval Module"
         sub={finalOnly
           ? "Final approval of custodian-approved liquidations and employee reimbursements"
-          : "Review and approve Petty Cash Advance liquidations and Employee Reimbursements for your plants"}
+          : isFinalApprover
+            ? "Final approval of custodian-approved liquidations and employee reimbursements — plus custodian review (choose For Custodian Review in the status filter)"
+            : "Review and approve Petty Cash Advance liquidations and Employee Reimbursements for your plants"}
       />
       <div className="pcp-content">
         <div className="pcp-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12, marginBottom: 16 }}>
-          {finalOnly ? (
+          {isFinalApprover && (
             <>
               <KpiCard label="Liquidations Awaiting Your Final Approval" value={pcaForFinal} icon={ShieldCheck} tint="#b9790a" />
               <KpiCard label="Reimbursements Awaiting Your Final Approval" value={reimbForFinal} icon={ArrowLeftRight} tint="#b9790a" />
             </>
-          ) : (
+          )}
+          {isChecker && (
             <>
               <KpiCard label="Liquidations Awaiting Custodian Review" value={pcaForCheck} icon={FileSpreadsheet} tint="#b9790a" />
               <KpiCard label="Reimbursements Awaiting Custodian Review" value={reimbForCheck} icon={ArrowLeftRight} tint="#2054a3" />
-              <KpiCard label="Awaiting Final Approval" value={pcaForFinal + reimbForFinal} icon={ShieldCheck} tint="#7c3aed" />
+              {!isFinalApprover && <KpiCard label="Awaiting Final Approval" value={pcaForFinal + reimbForFinal} icon={ShieldCheck} tint="#7c3aed" />}
             </>
           )}
           <KpiCard label="Liquidations Ready for Replenishment" value={pcaReady} icon={RefreshCw} tint="#15803d" />
