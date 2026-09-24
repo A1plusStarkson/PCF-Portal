@@ -835,7 +835,7 @@ function liqFinalStatus(disb, liq) {
    herself under the old single-level flow, so a fully approved legacy
    liquidation counts as both checked and finally approved. That keeps every
    completed historical liquidation completed, instead of dropping hundreds of
-   them back into a review queue and blocking their employees' next advance.
+   them back into a review queue.
    Legacy approvals are never offered for replenishment — they may already
    have been replenished under the old, unlinked process. */
 function liqReview(liq) {

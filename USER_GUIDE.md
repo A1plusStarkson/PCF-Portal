@@ -256,7 +256,10 @@ liquidation approval**.
 
 1. Start at the **Dashboard** to see balances and anything that needs attention.
 2. In **Petty Cash Requests**, review and **approve** (or reject) requests.
-3. In **Release Ledger**, **release the cash** for approved requests.
+3. In **Release Ledger**, **release the cash** for approved requests. An
+   employee may get a new advance even while an earlier one is not yet
+   liquidated — the release window lists those earlier advances for reference
+   only, and the Audit Trail notes them.
 4. When a liquidation is submitted, open the **Approval Module** (it opens on
    *For Custodian Review*). Check every receipt and its amount, approve or reject
    each one, then click **Custodian Approve**. If something is wrong, **Reject

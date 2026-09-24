@@ -1,6 +1,8 @@
 /* ============================= DISBURSEMENTS ============================= */
 
-function DisburseModal({ request, onClose, onConfirm, nextVoucherNo }) {
+/* outstanding: the employee's advances not yet fully liquidated. Shown for
+   reference only — they do not block the release. */
+function DisburseModal({ request, onClose, onConfirm, nextVoucherNo, outstanding }) {
   const [amount, setAmount] = useState(request.amount);
   /* Free-text expense description. Cash is released before the receipts exist,
      so pinning a chart-of-accounts category here was always a guess — the real
@@ -21,6 +23,19 @@ function DisburseModal({ request, onClose, onConfirm, nextVoucherNo }) {
             <div><strong>{request.requestNo}</strong> — {request.employee}</div>
             <div style={{ color: "var(--text-mut)", marginTop: 3 }}>{request.purpose}</div>
           </div>
+          {!!(outstanding && outstanding.length) && (
+            <div className="pcp-hint" style={{ marginBottom: 14, fontSize: 12 }}>
+              <div style={{ fontWeight: 600, marginBottom: 4 }}>
+                For reference: {request.employee} has {outstanding.length} advance(s) not yet fully liquidated
+              </div>
+              {outstanding.map((o) => (
+                <div key={o.disb.id} style={{ color: "var(--text-mut)" }}>
+                  {o.disb.voucherNo} · {fmtDate(o.disb.date)} · {peso(o.disb.amount)} · {o.status}
+                </div>
+              ))}
+              <div style={{ color: "var(--text-mut)", marginTop: 4 }}>This does not prevent the release.</div>
+            </div>
+          )}
           <div className="pcp-field-row">
             <div className="pcp-field">
               <label>Voucher No.</label>

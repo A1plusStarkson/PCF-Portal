@@ -453,50 +453,27 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   /* ---- Disbursements ---- */
   const nextVoucherNo = "PCV-2026-" + String(disbursements.length + 1).padStart(4, "0");
 
+  /* The employee's advances that are not yet fully liquidated — shown on the
+     release dialog and noted in the audit trail for MONITORING ONLY.
+
+     An unliquidated previous advance no longer blocks a new one: the owner
+     removed the rule "No new petty cash advance shall be released to an
+     employee with unliquidated previous advances." Nothing here may refuse a
+     release.
+
+     Matched with samePerson (employee is free text, so capitalisation must not
+     hide a match) and judged by liqFinalStatus (receipts approved AND cash
+     settled), not by encoded expense lines alone. */
+  const outstandingAdvancesFor = useCallback((employee) => disbursements
+    .filter((d) => samePerson(d.employee, employee)
+      && !liqIsComplete(liqFinalStatus(d, liquidationFor(d.id, liquidations))))
+    .map((d) => ({ disb: d, status: liqFinalStatus(d, liquidationFor(d.id, liquidations)) })),
+  [disbursements, liquidations]);
+
   const confirmDisburse = useCallback((extra) => {
     const req = disburseTarget;
     if (!req) return;
-    /* Policy: no new advance may be released while the employee still has an
-       advance that is not fully liquidated.
-
-       Two things this gets right that the earlier version did not, and each one
-       on its own was enough to let the policy be bypassed completely:
-
-       1. The employee is matched with samePerson, not ===. Employee is free
-          text, so "Elsa Miranda" and "ELSA MIRANDA" compared unequal and the
-          same person could be handed a second advance just by typing their
-          name with different capitalisation.
-
-       2. Completeness comes from liqFinalStatus, not liqStatusFor. The latter
-          only sums the ENCODED EXPENSE LINES (liquidatedTotal), so an advance
-          counted as "Fully Liquidated" the moment someone typed lines adding up
-          to the amount — with no receipts uploaded, nothing approved by the
-          receipt approver, and no cash settled. liqFinalStatus is the real
-          test: receipts captured AND approved AND the cash difference actually
-          settled or formally closed. */
-    const outstanding = disbursements.filter((d) => {
-      if (!samePerson(d.employee, req.employee)) return false;
-      return !liqIsComplete(liqFinalStatus(d, liquidationFor(d.id, liquidations)));
-    });
-    if (outstanding.length) {
-      /* Name each blocking voucher WITH its status, so whoever is at the
-         counter knows what to go and chase rather than just being refused. */
-      const detail = outstanding
-        .map((d) => `  ${d.voucherNo} · ${peso(d.amount)} · ${liqFinalStatus(d, liquidationFor(d.id, liquidations))}`)
-        .join("\n");
-      window.alert(
-        `Cannot release a new advance to ${req.employee}.\n\n`
-        + `This employee has ${outstanding.length} advance(s) that are not fully liquidated:\n\n`
-        + detail
-        + "\n\nPer policy, the previous advance must be fully liquidated — receipts"
-        + " captured and approved, and the cash difference settled — before a new"
-        + " one is released."
-      );
-      logAudit("Release Blocked", req.requestNo,
-        `${req.employee} has unliquidated advance(s): `
-        + outstanding.map((d) => `${d.voucherNo} (${liqFinalStatus(d, liquidationFor(d.id, liquidations))})`).join(", "));
-      return;
-    }
+    const outstanding = outstandingAdvancesFor(req.employee);
     setDisbursements((ds) => [...ds, {
       id: uid("dv"), voucherNo: nextVoucherNo, date: extra.date, requestId: req.id,
       employee: req.employee, branchCode: req.branchCode, department: req.department,
@@ -504,9 +481,12 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       remarks: extra.remarks, billed: false,
     }]);
     setRequests((rs) => rs.map((r) => (r.id === req.id ? { ...r, status: "Disbursed" } : r)));
-    logAudit("Released", nextVoucherNo, `Cash released to ${req.employee} · ${peso(extra.amount)}`);
+    logAudit("Released", nextVoucherNo, `Cash released to ${req.employee} · ${peso(extra.amount)}`
+      + (outstanding.length
+        ? ` · employee has ${outstanding.length} unliquidated advance(s): ${outstanding.map((o) => `${o.disb.voucherNo} (${o.status})`).join(", ")}`
+        : ""));
     setDisburseTarget(null);
-  }, [disburseTarget, nextVoucherNo, logAudit, disbursements, liquidations]);
+  }, [disburseTarget, nextVoucherNo, logAudit, outstandingAdvancesFor]);
 
   const updateRemarks = useCallback((id, remarks) => {
     setDisbursements((ds) => ds.map((d) => (d.id === id ? { ...d, remarks } : d)));
@@ -1759,6 +1739,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
         <DisburseModal
           request={disburseTarget}
           nextVoucherNo={nextVoucherNo}
+          outstanding={outstandingAdvancesFor(disburseTarget.employee)}
           onClose={() => setDisburseTarget(null)}
           onConfirm={confirmDisburse}
         />
