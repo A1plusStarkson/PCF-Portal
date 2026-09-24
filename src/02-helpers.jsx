@@ -532,9 +532,30 @@ function liquidatedTotal(liq) {
   return liq.lines.reduce((s, l) => s + (Number(l.amount) || 0), 0);
 }
 
+/* How much of the released cash has been accounted for.
+
+   The encoded expense lines alone cannot answer that: an employee who spent
+   ₱4,200 of a ₱5,000 advance and handed back ₱800 has lines of ₱4,200, and
+   judged on lines alone that advance read "Partially Liquidated" forever —
+   in the Liquidation module, the Release Ledger, the dashboards, the reports
+   and the Aging report, where it also stayed overdue. So once every receipt
+   amount is captured and approved and the cash difference has actually been
+   settled (refund returned, reimbursement paid, or a shortage formally
+   closed), the whole release is accounted for. Before that, the lines decide
+   as they always have. This measures the CASH; where the liquidation is in
+   the approval chain is liqApprovalStage / liqFinalStatus. */
+function liqCashAccounted(disb, liq) {
+  if (!liq) return false;
+  const summary = receiptAmountSummary(liq);
+  return summary.complete && receiptApprovalSummary(liq).allApproved && settlementStateFor(disb, liq).settled;
+}
+
 function liqStatusFor(disb, liquidations) {
   const liq = liquidationFor(disb.id, liquidations);
   const total = liquidatedTotal(liq);
+  if (liqCashAccounted(disb, liq)) {
+    return receiptAmountSummary(liq).approvedTotal > round2(disb.amount) ? "Over-Liquidated" : "Fully Liquidated";
+  }
   if (total === 0) return "Not Liquidated";
   if (total < disb.amount) return "Partially Liquidated";
   if (total === disb.amount) return "Fully Liquidated";
