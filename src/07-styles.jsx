@@ -674,6 +674,7 @@ function Badge({ status }) {
     "FOR LIQUIDATION": "blue", "LIQUIDATION COMPLETED": "blue", "FOR PAYMENT": "amber",
     "UNDER REVIEW": "amber",
     PAID: "green", COMPLETED: "green",
+    "FULLY APPROVED / READY FOR REPLENISHMENT": "green", REPLENISHED: "green",
     /* Acumatica export states */
     "Not Yet Exported": "gray", "Ready for Acumatica": "amber", Exported: "blue",
     Posted: "green", "Posting Error": "red",

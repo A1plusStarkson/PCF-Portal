@@ -11,6 +11,11 @@
         cash is settled; their approval makes them Fully Approved / Ready for
         Replenishment.
 
+   Employee reimbursements go through the same two levels with the same
+   people (22-reimbursement.jsx): custodian approval → FOR FINAL APPROVAL →
+   final approval → FULLY APPROVED / READY FOR REPLENISHMENT. The final
+   approver's reimbursement queue likewise holds only custodian-approved ones.
+
    Why it is not a per-plant tab: approvers sign off across plants, so splitting
    the queue by plant would mean opening four tabs to find out whether anything
    is waiting. Plant scoping still applies — a custodian only ever sees their
@@ -24,6 +29,18 @@
 /* Stages the final approver's queue is limited to: custodian-approved, cash
    settled, and what she has already approved (for reference). */
 const FINAL_APPROVER_STAGES = [LIQ_STAGE.FOR_FINAL, LIQ_STAGE.READY, LIQ_STAGE.REPLENISHED];
+
+/* Employee reimbursements follow the same two levels (22-reimbursement.jsx).
+   The final approver's queue is likewise limited to what custodians have
+   approved. Built on demand from REIMB_STATUS/REIMB_STAGE. */
+const reimbFinalApproverStages = () => [REIMB_STATUS.FOR_FINAL, REIMB_STATUS.READY, REIMB_STAGE.REPLENISHED];
+const reimbCheckerStages = () => [
+  REIMB_STAGE.FOR_CHECK, REIMB_STATUS.FOR_FINAL, REIMB_STATUS.READY, REIMB_STAGE.REPLENISHED,
+  REIMB_STATUS.RETURNED, REIMB_STATUS.REJECTED,
+  /* Legacy single-level chain, still visible for records already in it. */
+  REIMB_STATUS.FOR_LIQUIDATION, REIMB_STATUS.UNDER_REVIEW, REIMB_STATUS.LIQUIDATION_DONE,
+  REIMB_STATUS.FOR_PAYMENT, REIMB_STATUS.PAID, REIMB_STATUS.COMPLETED,
+];
 
 /* Submitted petty cash liquidations, newest first. A voucher with no
    liquidation, or one still in Draft, has nothing to decide yet. */
@@ -302,7 +319,7 @@ function ApprovalModuleTab({
   disbursements, liquidations, replenishments, reimbursements,
   onDecideReceipt, onRejectLiquidation, onReopenLiquidation, onCheckLiquidation, onFinalApprove,
   onReimbursementAction, onExportReimbursementAcumatica,
-  isChecker, isFinalApprover, canApproveReimbursement, canFinance,
+  isChecker, isFinalApprover, canFinance,
   currentUser, plantOptions,
 }) {
   const [source, setSource] = useState("pettycash");
@@ -313,7 +330,9 @@ function ApprovalModuleTab({
   const [pcaStage, setPcaStage] = useState(
     isFinalApprover ? LIQ_STAGE.FOR_FINAL : isChecker ? LIQ_STAGE.FOR_CHECK : "All statuses"
   );
-  const [reimbStage, setReimbStage] = useState("All statuses");
+  const [reimbStage, setReimbStage] = useState(
+    isFinalApprover ? REIMB_STATUS.FOR_FINAL : isChecker ? REIMB_STAGE.FOR_CHECK : "All statuses"
+  );
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
   /* Newest reimbursement no. first on open; any header can take over. */
@@ -346,43 +365,54 @@ function ApprovalModuleTab({
   const pcaForFinal = countStage(LIQ_STAGE.FOR_FINAL);
   const pcaReady = countStage(LIQ_STAGE.READY);
 
-  /* ---- Employee reimbursements ---- */
-  const reimbAll = useMemo(
-    () => (reimbursements || []).slice().sort((a, b) => String(b.requestDate || "").localeCompare(String(a.requestDate || ""))),
-    [reimbursements]
-  );
+  /* ---- Employee reimbursements ----
+     Each row carries its approval stage. As with liquidations, the final
+     approver's queue holds ONLY what a custodian has already approved. */
+  const reimbAll = useMemo(() => {
+    const replenishedIds = replenishedReimbursementIds(replenishments);
+    const finalStages = reimbFinalApproverStages();
+    return (reimbursements || [])
+      .filter((r) => r.status !== REIMB_STATUS.DRAFT)
+      .map((r) => ({ ...r, stage: reimbApprovalStage(r, replenishedIds) }))
+      .filter((r) => !isFinalApprover || finalStages.includes(r.stage))
+      .sort((a, b) => String(b.requestDate || "").localeCompare(String(a.requestDate || "")));
+  }, [reimbursements, replenishments, isFinalApprover]);
   const reimbRows = reimbSort.sortRows(
     reimbAll.filter((r) => inPlant(r.branchCode)
-      && r.status !== REIMB_STATUS.DRAFT
       && matches(r.reimbNo, r.employee, r.branchCode, r.purpose)
-      && (reimbStage === "All statuses" || r.status === reimbStage)),
-    REIMB_SORT_FIELDS
+      && (reimbStage === "All statuses" || r.stage === reimbStage)),
+    { ...REIMB_SORT_FIELDS, status: (r) => r.stage }
   );
-  const reimbWaiting = reimbAll.filter((r) => r.status === REIMB_STATUS.SUBMITTED
-    || r.status === REIMB_STATUS.FOR_REVIEW || r.status === REIMB_STATUS.FOR_APPROVAL).length;
+  const reimbForCheck = reimbAll.filter((r) => r.stage === REIMB_STAGE.FOR_CHECK).length;
+  const reimbForFinal = reimbAll.filter((r) => r.stage === REIMB_STATUS.FOR_FINAL).length;
 
-  const stageOptions = source === "pettycash" ? pcaStageOptions : REIMB_APPROVAL_STAGES();
+  const stageOptions = source === "pettycash"
+    ? pcaStageOptions
+    : ["All statuses"].concat(isFinalApprover ? reimbFinalApproverStages() : reimbCheckerStages());
 
   return (
     <div className="pcp-liq-full">
       <TopBar
         title="Approval Module"
         sub={isFinalApprover
-          ? "Final approval of custodian-approved, cash-settled liquidations — and employee reimbursements"
+          ? "Final approval of custodian-approved liquidations and employee reimbursements"
           : "Review and approve Petty Cash Advance liquidations and Employee Reimbursements for your plants"}
       />
       <div className="pcp-content">
         <div className="pcp-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12, marginBottom: 16 }}>
           {isFinalApprover ? (
-            <KpiCard label="Awaiting Your Final Approval" value={pcaForFinal} icon={ShieldCheck} tint="#b9790a" />
+            <>
+              <KpiCard label="Liquidations Awaiting Your Final Approval" value={pcaForFinal} icon={ShieldCheck} tint="#b9790a" />
+              <KpiCard label="Reimbursements Awaiting Your Final Approval" value={reimbForFinal} icon={ArrowLeftRight} tint="#b9790a" />
+            </>
           ) : (
             <>
-              <KpiCard label="Awaiting Custodian Review" value={pcaForCheck} icon={FileSpreadsheet} tint="#b9790a" />
-              <KpiCard label="Awaiting Final Approval" value={pcaForFinal} icon={ShieldCheck} tint="#7c3aed" />
+              <KpiCard label="Liquidations Awaiting Custodian Review" value={pcaForCheck} icon={FileSpreadsheet} tint="#b9790a" />
+              <KpiCard label="Reimbursements Awaiting Custodian Review" value={reimbForCheck} icon={ArrowLeftRight} tint="#2054a3" />
+              <KpiCard label="Awaiting Final Approval" value={pcaForFinal + reimbForFinal} icon={ShieldCheck} tint="#7c3aed" />
             </>
           )}
-          <KpiCard label="Ready for Replenishment" value={pcaReady} icon={RefreshCw} tint="#15803d" />
-          <KpiCard label="Reimbursements Awaiting Approval" value={reimbWaiting} icon={ArrowLeftRight} tint="#2054a3" />
+          <KpiCard label="Liquidations Ready for Replenishment" value={pcaReady} icon={RefreshCw} tint="#15803d" />
         </div>
 
         <PlantScopeTabs plants={plantOptions} value={plant} onChange={(v) => { setPlant(v); setSelectedId(null); }} />
@@ -497,7 +527,7 @@ function ApprovalModuleTab({
                       <td>{(r.attachments || []).length}</td>
                       <td className="pcp-num">{peso(reimbTotal(r))}</td>
                       <td><CompliancePill level={(r.compliance && r.compliance.level) || "PASS"} /></td>
-                      <td><Badge status={r.status} /></td>
+                      <td><Badge status={r.stage} /></td>
                       <td>{reimbAgingBucket(r)}</td>
                       <td>
                         <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={() => setDetail(r)} title="Check documents and decide">
@@ -517,7 +547,8 @@ function ApprovalModuleTab({
         <ReimbursementDetail
           reimb={(reimbursements || []).find((x) => x.id === detail.id) || detail}
           currentUser={currentUser}
-          canApprove={canApproveReimbursement}
+          isChecker={isChecker}
+          isFinalApprover={isFinalApprover}
           canFinance={canFinance}
           onExportAcumatica={onExportReimbursementAcumatica}
           onAction={(id, action, opts) => { onReimbursementAction(id, action, opts); setDetail(null); }}

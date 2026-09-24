@@ -1007,19 +1007,28 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     return d ? d.voucherNo : lid;
   });
 
+  const linkedReimbNos = (ids) => (ids || []).map((rid) => {
+    const r = reimbursements.find((x) => x.id === rid);
+    return r ? r.reimbNo : rid;
+  });
+
   const addReplenishment = useCallback((form) => {
     setReplenishments((rs) => [...rs, { id: uid("rep"), ...form }]);
     const linked = linkedVouchers(form.liquidationIds);
+    const linkedR = linkedReimbNos(form.reimbursementIds);
     logAudit("Replenished", form.replenishmentNo, `${peso(Number(form.amount))}${form.status ? ` · ${form.status}` : ""}`
-      + (linked.length ? ` · liquidations: ${linked.join(", ")}` : ""));
-  }, [logAudit, liquidations, disbursements]); // eslint-disable-line
+      + (linked.length ? ` · liquidations: ${linked.join(", ")}` : "")
+      + (linkedR.length ? ` · reimbursements: ${linkedR.join(", ")}` : ""));
+  }, [logAudit, liquidations, disbursements, reimbursements]); // eslint-disable-line
 
   const editReplenishment = useCallback((id, form) => {
     setReplenishments((rs) => rs.map((r) => (r.id === id ? { ...r, ...form } : r)));
     const linked = linkedVouchers(form.liquidationIds);
+    const linkedR = linkedReimbNos(form.reimbursementIds);
     logAudit("Edited", form.replenishmentNo || id, `Replenishment updated · ${peso(Number(form.amount))}${form.status ? ` · ${form.status}` : ""}`
-      + (linked.length ? ` · liquidations: ${linked.join(", ")}` : ""));
-  }, [logAudit, liquidations, disbursements]); // eslint-disable-line
+      + (linked.length ? ` · liquidations: ${linked.join(", ")}` : "")
+      + (linkedR.length ? ` · reimbursements: ${linkedR.join(", ")}` : ""));
+  }, [logAudit, liquidations, disbursements, reimbursements]); // eslint-disable-line
 
   const completeReplenishment = useCallback((id) => {
     setReplenishments((rs) => rs.map((r) => (r.id === id ? { ...r, status: "Completed" } : r)));
@@ -1223,51 +1232,102 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     logAudit(mode === "submit" ? "Reimbursement Submitted" : "Reimbursement Edited", r ? r.reimbNo : id, `${form.employee} · ${peso(reimbTotal(base))}`);
   }, [buildReimbFromForm, logAudit, reimbursements, userName, role]);
 
-  /* Generic workflow transition with segregation-of-duties enforcement. */
+  /* Workflow transition. The two approval levels mirror the liquidation's
+     (see 11-liquidation.jsx): a custodian-level checker (isLiquidationChecker)
+     approves first, then Grace Gan or the System Superuser (isFinalApprover)
+     gives the final approval that makes it ready for replenishment. Every
+     gate is re-checked here so a bypassed UI still fails. */
   const reimbursementAction = useCallback((id, action, payload) => {
     const o = payload || {};
+    const comments = (o.comments || "").trim();
     const ts = reimbTs();
     const actor = userName || role;
+    const r0 = reimbursements.find((x) => x.id === id);
+    if (!r0 || !inScope(r0.branchCode)) return;
+    const prev = r0.status;
+    const atCheck = REIMB_CUSTODIAN_REVIEW_STATUSES.includes(prev);
+    const atFinal = prev === REIMB_STATUS.FOR_FINAL;
+    const isOwn = [r0.createdBy, r0.employee].some((n) => (n || "").trim().toLowerCase() === actor.toLowerCase());
+    const rv = reimbReview(r0);
+
+    let next = prev, label = action;
+    switch (action) {
+      case "custodian-approve":
+        if (!isLiquidationChecker || !atCheck) {
+          window.alert("Only a custodian can approve a reimbursement that is awaiting custodian review.");
+          return;
+        }
+        if (isOwn) { window.alert("Segregation of duties: you cannot approve your own reimbursement request."); return; }
+        next = REIMB_STATUS.FOR_FINAL; label = "Custodian Approved → For Final Approval";
+        break;
+      case "final-approve":
+        if (!isFinalApprover || !atFinal) {
+          window.alert(`Only ${FINAL_APPROVER_NAME} can give final approval, and only to a custodian-approved reimbursement.`);
+          return;
+        }
+        if (isOwn) { window.alert("Segregation of duties: you cannot approve your own reimbursement request."); return; }
+        if (rv.checkedBy.toLowerCase() === actor.toLowerCase()) {
+          window.alert("You approved this reimbursement as custodian — the final approval must come from someone else.");
+          return;
+        }
+        next = REIMB_STATUS.READY; label = "Final Approved → Ready for Replenishment";
+        break;
+      case "return":
+      case "reject":
+        /* The custodian while it is under review, or the final approver at
+           final approval — the same rule as rejecting a liquidation. */
+        if (!((isLiquidationChecker && atCheck) || (isFinalApprover && atFinal))) {
+          window.alert(`Only the custodian (while it is under review) or ${FINAL_APPROVER_NAME} (at final approval) can ${action} this reimbursement.`);
+          return;
+        }
+        if (!comments) { window.alert("Enter the reason in Comments first."); return; }
+        next = action === "return" ? REIMB_STATUS.RETURNED : REIMB_STATUS.REJECTED;
+        label = action === "return" ? "Returned for Revision" : "Rejected";
+        break;
+      /* Legacy single-level chain — only for records approved before the
+         two-level workflow, which still finish in the Liquidation module. */
+      case "liquidation-review": next = REIMB_STATUS.UNDER_REVIEW; label = "Liquidation Under Review"; break;
+      case "liquidation-complete": next = REIMB_STATUS.LIQUIDATION_DONE; label = "Liquidation Completed"; break;
+      case "for-payment": next = REIMB_STATUS.FOR_PAYMENT; label = "Moved to Payment"; break;
+      case "complete": next = REIMB_STATUS.COMPLETED; label = "Completed"; break;
+      default: return;
+    }
+    if (next === prev) return;
+
     setReimbursements((rs) => rs.map((r) => {
-      if (r.id !== id) return r;
-      const prev = r.status;
-      let next = prev, label = action;
-      switch (action) {
-        case "recommend": next = REIMB_STATUS.FOR_APPROVAL; label = "Recommended for Approval"; break;
-        case "approve":
-          /* Segregation of duties — an employee cannot approve their own request. */
-          if ((r.createdBy || "").toLowerCase() === actor.toLowerCase() || (r.employee || "").toLowerCase() === actor.toLowerCase()) {
-            window.alert("Segregation of duties: you cannot approve your own reimbursement request.");
-            return r;
-          }
-          next = REIMB_STATUS.FOR_LIQUIDATION; label = "Approved → For Liquidation";
-          break;
-        case "return": next = REIMB_STATUS.RETURNED; label = "Returned for Revision"; break;
-        case "reject": next = REIMB_STATUS.REJECTED; label = "Rejected"; break;
-        case "liquidation-review": next = REIMB_STATUS.UNDER_REVIEW; label = "Liquidation Under Review"; break;
-        case "liquidation-complete": next = REIMB_STATUS.LIQUIDATION_DONE; label = "Liquidation Completed"; break;
-        case "for-payment": next = REIMB_STATUS.FOR_PAYMENT; label = "Moved to Payment"; break;
-        case "complete": next = REIMB_STATUS.COMPLETED; label = "Completed"; break;
-        default: return r;
+      if (r.id !== id || r.status !== prev) return r;
+      const patch = { status: next, history: [...(r.history || []), { ts, user: actor, action: label, prevStatus: prev, newStatus: next, comments }] };
+      const cur = r.review || {};
+      if (action === "custodian-approve") {
+        patch.review = { history: cur.history || [], checkedBy: actor, checkedAt: ts, checkRemarks: comments };
+      } else if (action === "final-approve") {
+        patch.review = { ...cur, finalBy: actor, finalAt: ts, finalRemarks: comments };
+        patch.approvedBy = actor; patch.approvedAt = ts;
+      } else if (action === "return" || action === "reject") {
+        /* Stamps are never silently lost: a cleared custodian approval moves
+           into review.history, like clearReview does for a liquidation. */
+        patch.review = {
+          history: (cur.history || []).concat(cur.checkedBy ? [{
+            action: label, user: actor, ts, checkedBy: cur.checkedBy, checkedAt: cur.checkedAt || "",
+          }] : []),
+        };
       }
-      if (next === prev) return r;
-      const patch = { status: next, history: [...(r.history || []), { ts, user: actor, action: label, prevStatus: prev, newStatus: next, comments: o.comments || "" }] };
-      if (action === "approve") { patch.approvedBy = actor; patch.approvedAt = ts; patch.liquidationRef = r.reimbNo; }
-      if (action === "recommend") { patch.reviewedBy = actor; patch.reviewedAt = ts; }
       return { ...r, ...patch };
     }));
-    const r = reimbursements.find((x) => x.id === id);
-    logAudit("Reimbursement " + action.replace(/-/g, " "), r ? r.reimbNo : id, o.comments || "");
-  }, [logAudit, reimbursements, userName, role]);
+    logAudit("Reimbursement " + label, r0.reimbNo, comments);
+  }, [logAudit, reimbursements, userName, role, inScope, isLiquidationChecker, isFinalApprover]);
 
   const recordReimbursementPayment = useCallback((id, payment) => {
     const ts = reimbTs();
     const actor = userName || role;
     setReimbursements((rs) => rs.map((r) => {
       if (r.id !== id) return r;
+      /* A fully approved reimbursement keeps its status when the employee is
+         paid — it must stay ready until a replenishment claims it. */
+      const status = r.status === REIMB_STATUS.READY ? REIMB_STATUS.READY : REIMB_STATUS.PAID;
       return {
-        ...r, status: REIMB_STATUS.PAID, payment: { ...payment },
-        history: [...(r.history || []), { ts, user: actor, action: "Payment Recorded", prevStatus: r.status, newStatus: REIMB_STATUS.PAID, comments: `${payment.method} · ${peso(payment.amount)}${payment.refNo ? ` · ${payment.refNo}` : ""}` }],
+        ...r, status, payment: { ...payment },
+        history: [...(r.history || []), { ts, user: actor, action: "Payment Recorded", prevStatus: r.status, newStatus: status, comments: `${payment.method} · ${peso(payment.amount)}${payment.refNo ? ` · ${payment.refNo}` : ""}` }],
       };
     }));
     const r = reimbursements.find((x) => x.id === id);
@@ -1595,6 +1655,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             replenishments={scopedReplenishments} funds={scopedFunds}
             allReplenishmentNos={replenishments.map((r) => r.replenishmentNo)}
             disbursements={scopedDisbursements} liquidations={scopedLiquidations}
+            reimbursements={scopedReimbursements}
             onCreate={addReplenishment} onEdit={editReplenishment}
             onComplete={completeReplenishment} onDelete={deleteReplenishment}
             plantOptions={scopedPlantOptions} canEdit={canEdit}
@@ -1609,7 +1670,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             plantOptions={scopedPlantOptions}
             plantTitle={activePlantLabel}
             currentUser={userName || role}
-            canApprove={canApprove}
+            isChecker={isLiquidationChecker}
+            isFinalApprover={isFinalApprover}
             canFinance={["Accounting", "Finance", "SuperAdmin"].includes(role) || !!isAdmin}
             canDelete={isSuperAdmin}
             onSaveDraft={(form) => addReimbursement(form, false)}
@@ -1653,7 +1715,6 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             onExportReimbursementAcumatica={exportReimbursementAcumatica}
             isChecker={isLiquidationChecker}
             isFinalApprover={isFinalApprover}
-            canApproveReimbursement={canApprove}
             canFinance={["Accounting", "Finance", "SuperAdmin"].includes(role) || !!isAdmin}
             currentUser={userName || role}
             plantOptions={plantOptions}

@@ -273,8 +273,10 @@ Same as a Custodian, but for **all plants** — plus the **Approval Module**, th
 **Audit Trail**, and **Funds & Master Data** (plants, custodians, chart of
 accounts). You don't manage user accounts.
 
-You also carry reimbursements through the later stages: **Mark Liquidation
-Completed → Move to Payment → Record Payment → Mark Completed**.
+You also record the payment to the employee on a fully approved reimbursement,
+and carry any reimbursement approved before the two-level review through its
+old stages: **Mark Liquidation Completed → Move to Payment → Record Payment →
+Mark Completed**.
 
 ### 🗂️ If you are Accounting
 You can do everything Finance can, **plus User Management and System Settings**.
@@ -381,10 +383,21 @@ Company policy (AF P16) is built into the form:
 | **No duplicates** | An exact duplicate claim is blocked. |
 | **Not reimbursable** | Personal expenses · expenses without an official receipt · expenses without proper approval · fines and penalties · entertainment that wasn't pre-approved. |
 
-Then it moves through: **Submitted → For Review → For Approval → Approved → For
-Liquidation → Liquidation Completed → For Payment → Paid → Completed.** A
-reviewer can also **Return for Revision** or **Reject** (a comment is required
-for both).
+It then goes through the **same two-level approval as a liquidation**:
+**Submitted → For Final Approval (after the custodian approves) → Fully
+Approved / Ready for Replenishment (after Grace Gan or the Superuser approves)**.
+It then appears in the **Replenishment** module, next to the ready liquidations,
+and reads *Replenished* once a replenishment includes it. Finance can record
+the payment to the employee on a fully approved reimbursement.
+
+The custodian (while it is under review) or Grace Gan / the Superuser (at final
+approval) can also **Return for Revision** or **Reject** — a comment is required
+for both. Every step is stamped with who did it and when, in the
+reimbursement's history and the Audit Trail.
+
+Reimbursements approved before the two-level review keep the old chain (For
+Liquidation → Liquidation Completed → For Payment → Paid → Completed) until they
+finish.
 
 > 🔒 **You can never approve your own reimbursement.** The portal blocks it.
 
@@ -404,8 +417,8 @@ What you see depends on your level:
 
 | You are | Your queue opens on | You can |
 |---------|--------------------|---------|
-| Custodian / Finance / Accounting | *For Custodian Review* | Approve or reject each receipt, **Custodian Approve**, reject the liquidation, reopen it |
-| Grace Gan / System Superuser | *For Final Approval* — **only** custodian-approved, cash-settled liquidations | **Final Approve** or reject |
+| Custodian / Finance / Accounting | *For Custodian Review* | Approve or reject each receipt, **Custodian Approve**, reject the liquidation, reopen it · for reimbursements: review every document, **Custodian Approve**, return or reject |
+| Grace Gan / System Superuser | *For Final Approval* — **only** custodian-approved, cash-settled liquidations and custodian-approved reimbursements | **Final Approve** or reject |
 
 Each row shows its stage: *For Custodian Review*, *Needs Correction*, *Awaiting
 Settlement*, *For Final Approval*, *Fully Approved / Ready for Replenishment*,
