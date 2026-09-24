@@ -125,6 +125,9 @@
     /* Second SuperAdmin account, with access IDENTICAL to a1plusadmin (Grace
        Gan): every plant, every module, delete rights, and final liquidation
        approval (LIQUIDATION_FINAL_APPROVER_EMAILS in src/11-liquidation.jsx).
+       One difference by the owner's instruction: this account ALSO has
+       custodian-review approval, which Grace Gan does not
+       (LIQUIDATION_FINAL_ONLY_EMAILS) — never both levels on the same record.
        Keep the two entries in step — any change to one belongs on both. */
     "superuser@a1plus.com":   { name: "System Superuser",      role: "SuperAdmin", plants: "ALL" },
     "accounting@a1plus.com": { name: "Accounting Department", role: "Accounting", plants: "ALL" },
@@ -762,7 +765,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20260924d";
+  window.PCP_SRC_VERSION = "20260924e";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",

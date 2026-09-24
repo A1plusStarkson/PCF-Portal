@@ -91,7 +91,7 @@ and which plants you'll see.
 | Your email | Your name | Your role | Plants you see |
 |------------|-----------|-----------|----------------|
 | `a1plusadmin@a1plus.com` | Grace Gan | System Administrator (the boss account) | All |
-| `superuser@a1plus.com` | System Superuser | System Administrator — identical access to Grace Gan | All |
+| `superuser@a1plus.com` | System Superuser | System Administrator — same access as Grace Gan, plus custodian review | All |
 | `accounting@a1plus.com` | Accounting Department | Accounting (full access) | All |
 | `finance@a1plus.com` | Finance Department | Finance | All |
 | `puradr@a1plus.com` | Pura Barloso | Custodian | Disney + RG and Co. |
@@ -420,8 +420,14 @@ What you see depends on your level:
 
 | You are | Your queue opens on | You can |
 |---------|--------------------|---------|
-| Custodian / Finance / Accounting | *For Custodian Review* | Approve or reject each receipt, **Custodian Approve**, reject the liquidation, reopen it · for reimbursements: review every document, **Custodian Approve**, return or reject |
+| Custodian / Finance / Accounting / System Superuser | *For Custodian Review* | Approve or reject each receipt, **Custodian Approve**, reject the liquidation, reopen it · for reimbursements: review every document, **Custodian Approve**, return or reject |
 | Grace Gan / System Superuser | *For Final Approval* — **only** custodian-approved, cash-settled liquidations and custodian-approved reimbursements | **Final Approve** or reject |
+
+The System Superuser works at **both** levels: custodian review and final
+approval. The portal never lets anyone give the final approval to something they
+approved as custodian. If the Superuser does the custodian review, Grace Gan
+gives the final approval (and the other way round). Grace Gan does final
+approval only.
 
 Each row shows its stage: *For Custodian Review*, *Needs Correction*, *Awaiting
 Settlement*, *For Final Approval*, *Fully Approved / Ready for Replenishment*,

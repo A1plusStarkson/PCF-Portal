@@ -2,22 +2,28 @@
 
 /* ---- Two-level liquidation approval ----
    1. CHECKERS — every Custodian, plus Accounting and Finance (and any
-      SuperAdmin that is not a final approver) — review the submitted
+      SuperAdmin that is not final-approval-only, i.e. the System Superuser
+      but not Grace Gan) — review the submitted
       liquidation within their plant scope:
       approve/reject each receipt, approve the liquidation, record the cash
       settlement.
    2. FINAL APPROVERS — Grace Gan (a1plusadmin) and the System Superuser, who
-      hold identical access by the owner's instruction. Matched by EMAIL (a
-      display name is not an identity). They only ever see liquidations a
-      checker has approved and whose cash is settled, and their approval is
-      what makes a liquidation LIQUIDATED and ready for replenishment.
+      hold identical final-approval authority by the owner's instruction.
+      Matched by EMAIL (a display name is not an identity). Grace Gan only
+      ever sees liquidations a checker has approved and whose cash is settled.
+      A final approval is what makes a liquidation LIQUIDATED and ready for
+      replenishment.
 
-   A final approver is deliberately NOT also a checker, even though the
-   SuperAdmin role would otherwise qualify: one person doing both levels is one
-   level. See isLiquidationChecker / isFinalApprover in 19-app.jsx; every gate —
-   UI and handler — reads these constants. */
+   Grace Gan is final approval ONLY (LIQUIDATION_FINAL_ONLY_EMAILS). The
+   System Superuser, by the owner's instruction, ALSO has custodian-review
+   approval, like the custodians, Accounting and Finance. Two levels still
+   means two people: nobody may give the final approval to a transaction they
+   approved as custodian — enforced per record in every final-approve gate,
+   UI and handler. See isLiquidationChecker / isFinalApprover in 19-app.jsx.
+   The same people and rules apply to employee reimbursements. */
 const FINAL_APPROVER_NAME = "Grace Gan or the System Superuser";
 const LIQUIDATION_FINAL_APPROVER_EMAILS = ["a1plusadmin@a1plus.com", "superuser@a1plus.com"];
+const LIQUIDATION_FINAL_ONLY_EMAILS = ["a1plusadmin@a1plus.com"];
 const LIQUIDATION_CHECKER_ROLES = ["Custodian", "Accounting", "Finance", "SuperAdmin"];
 
 /* The cash settlement classification now derives from the per-document receipt
@@ -159,7 +165,7 @@ function LiquidationWorksheet({
   onRecordSettlement, onCloseShortage, onReopenShortage, canApproveShortage,
   onReviewOverLiquidation, canDelete, onDeleteLiquidation,
   canRejectLiquidation, onRejectLiquidation,
-  onCheckLiquidation, canFinalApprove, onFinalApprove,
+  onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser,
 }) {
   const [lines, setLines] = useState(liquidation ? liquidation.lines.map((l) => ({ ...l })) : [emptyLine()]);
   const [attachments, setAttachments] = useState(
@@ -355,7 +361,10 @@ function LiquidationWorksheet({
   if (!approvalSummary.allApproved) checkBlockers.push("approve every receipt first");
   if (!saved) checkBlockers.push("save your changes first");
   const canCheckNow = !!canApproveReceipts && !!onCheckLiquidation && !review.checked && !finalLocked && checkBlockers.length === 0;
-  const canFinalNow = !!canFinalApprove && !!onFinalApprove && stage === LIQ_STAGE.FOR_FINAL;
+  /* Never the custodian who approved it — two levels, two people. */
+  const checkedBySelf = review.checked
+    && String(review.checkedBy).toLowerCase() === String(currentUser || "").toLowerCase();
+  const canFinalNow = !!canFinalApprove && !!onFinalApprove && stage === LIQ_STAGE.FOR_FINAL && !checkedBySelf;
 
   const handleCheck = () => {
     if (!canCheckNow) return;
@@ -1437,7 +1446,7 @@ function LiquidationTab({
   onRecordSettlement, onCloseShortage, onReopenShortage, canApproveShortage,
   onReviewOverLiquidation, canDelete, onDeleteLiquidation,
   canRejectLiquidation, onRejectLiquidation,
-  onCheckLiquidation, canFinalApprove, onFinalApprove,
+  onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser,
   reimbursements, onReimbursementAction, canFinance,
 }) {
   const [selectedId, setSelectedId] = useState(null);
@@ -1622,6 +1631,7 @@ function LiquidationTab({
                 onCheckLiquidation={onCheckLiquidation}
                 canFinalApprove={canFinalApprove}
                 onFinalApprove={onFinalApprove}
+                currentUser={currentUser}
               />
             ) : (
               <div className="pcp-card pcp-card-pad"><div className="pcp-empty">Select a voucher to begin liquidation</div></div>

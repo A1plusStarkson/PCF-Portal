@@ -152,21 +152,23 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     && SHORTAGE_APPROVER_ROLES.includes(role);
 
   /* ---- Two-level liquidation approval (see 11-liquidation.jsx) ----
-     FINAL APPROVERS: Grace Gan and the System Superuser (identical access), by
+     FINAL APPROVERS: Grace Gan and the System Superuser (identical final
+     approval authority), by
      email only. Previewing another role hides it,
      so "view as" stays an honest preview.
      CHECKER: every Custodian, Accounting, Finance and SuperAdmin account, within
-     its plant scope — except the final approver, so the two levels are always
-     two different people. Both are re-checked inside every handler below, so
+     its plant scope — including the System Superuser, but never Grace Gan
+     (LIQUIDATION_FINAL_ONLY_EMAILS). The Superuser may hold both levels, but
+     never on the same record: final approval is refused to whoever gave the
+     custodian approval. Both are re-checked inside every handler below, so
      a bypassed UI still fails. */
-  const isFinalApproverAccount = useMemo(() => {
-    const email = (userEmail || "").trim().toLowerCase();
-    return LIQUIDATION_FINAL_APPROVER_EMAILS.map((e) => e.toLowerCase()).includes(email);
-  }, [userEmail]);
+  const emailIn = (list) => list.map((e) => e.toLowerCase()).includes((userEmail || "").trim().toLowerCase());
+  const isFinalApproverAccount = useMemo(() => emailIn(LIQUIDATION_FINAL_APPROVER_EMAILS), [userEmail]); // eslint-disable-line
+  const isFinalOnlyAccount = useMemo(() => emailIn(LIQUIDATION_FINAL_ONLY_EMAILS), [userEmail]); // eslint-disable-line
   const isFinalApprover = isFinalApproverAccount && role === (userRole || "Accounting");
-  /* Excluded by ACCOUNT, not by the role being viewed — otherwise the final
-     approver previewing "Custodian" would become her own checker. */
-  const isLiquidationChecker = !isFinalApproverAccount
+  /* Grace Gan is excluded by ACCOUNT, not by the role being viewed — otherwise
+     previewing "Custodian" would make her a checker. */
+  const isLiquidationChecker = !isFinalOnlyAccount
     && LIQUIDATION_CHECKER_ROLES.includes(userRole || "Accounting")
     && LIQUIDATION_CHECKER_ROLES.includes(role);
   /* Nothing under Grace Gan's final approval may move — it is what gets
@@ -1622,6 +1624,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             onCheckLiquidation={checkLiquidation}
             canFinalApprove={isFinalApprover}
             onFinalApprove={finalApproveLiquidation}
+            currentUser={userName || role}
             reimbursements={scopedReimbursements}
             onReimbursementAction={reimbursementAction}
             canFinance={["Accounting", "Finance", "SuperAdmin"].includes(role) || !!isAdmin}

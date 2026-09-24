@@ -3,13 +3,13 @@
    decision: Petty Cash Advance liquidations and Employee Reimbursements.
 
    Petty cash liquidations go through TWO levels (see 11-liquidation.jsx):
-     1. Custodian review — every Custodian, Accounting and Finance account (and
-        any SuperAdmin that is not a final approver), within its plant scope:
-        decide each receipt, approve the liquidation, settle the cash.
-     2. Final approval — Grace Gan or the System Superuser (identical access).
-        Their queue holds ONLY liquidations a custodian has approved and whose
-        cash is settled; their approval makes them Fully Approved / Ready for
-        Replenishment.
+     1. Custodian review — every Custodian, Accounting and Finance account and
+        the System Superuser, within its plant scope: decide each receipt,
+        approve the liquidation, settle the cash.
+     2. Final approval — Grace Gan or the System Superuser. Grace Gan's queue
+        holds ONLY liquidations a custodian has approved and whose cash is
+        settled; their approval makes them Fully Approved / Ready for
+        Replenishment. Nobody final-approves what they approved as custodian.
 
    Employee reimbursements go through the same two levels with the same
    people (22-reimbursement.jsx): custodian approval → FOR FINAL APPROVAL →
@@ -73,7 +73,7 @@ function pcaApprovalQueue(disbursements, liquidations, replenishments) {
    lines, the cash settlement and every supporting document rendered inline —
    with only the actions this viewer's level allows. */
 function PcaApprovalPanel({
-  row, isChecker, isFinalApprover,
+  row, isChecker, isFinalApprover, currentUser,
   onDecideReceipt, onRejectLiquidation, onReopenLiquidation, onCheckLiquidation, onFinalApprove,
 }) {
   const [remarks, setRemarks] = useState("");
@@ -86,7 +86,10 @@ function PcaApprovalPanel({
 
   const canDecide = isChecker && submitted && !finalLocked;
   const canCheck = isChecker && stage === LIQ_STAGE.FOR_CHECK && approval.allApproved && amounts.complete;
-  const canFinal = isFinalApprover && stage === LIQ_STAGE.FOR_FINAL;
+  /* Never the custodian who approved it — two levels, two people. */
+  const checkedBySelf = review.checked
+    && String(review.checkedBy).toLowerCase() === String(currentUser || "").toLowerCase();
+  const canFinal = isFinalApprover && stage === LIQ_STAGE.FOR_FINAL && !checkedBySelf;
   const canReject = !finalLocked && ((isChecker && submitted) || canFinal);
 
   const decide = (att, decision) => {
@@ -120,9 +123,11 @@ function PcaApprovalPanel({
       ? "A receipt was rejected. Reject the liquidation to return it to the requestor for correction."
       : "A receipt was rejected; the liquidation is being returned for correction.";
     if (stage === LIQ_STAGE.AWAITING_SETTLEMENT) return `Custodian approved. The ${rec.type === "excess" ? "refund" : "reimbursement"} of ${peso(st.expected)} must be settled in the Liquidation module before it goes to ${FINAL_APPROVER_NAME}.`;
-    if (stage === LIQ_STAGE.FOR_FINAL) return isFinalApprover
-      ? "Custodian approved and cash settled — ready for your final approval."
-      : `Awaiting final approval by ${FINAL_APPROVER_NAME}.`;
+    if (stage === LIQ_STAGE.FOR_FINAL) return !isFinalApprover
+      ? `Awaiting final approval by ${FINAL_APPROVER_NAME}.`
+      : checkedBySelf
+        ? "You approved this as custodian, so the final approval must come from the other final approver."
+        : "Custodian approved and cash settled — ready for your final approval.";
     if (stage === LIQ_STAGE.READY) return "Fully approved — available in the Replenishment module.";
     if (stage === LIQ_STAGE.REPLENISHED) return "Fully approved and included in a replenishment.";
     if (stage === LIQ_STAGE.LEGACY) return "Approved under the previous single-level process.";
@@ -322,16 +327,20 @@ function ApprovalModuleTab({
   isChecker, isFinalApprover, canFinance,
   currentUser, plantOptions,
 }) {
+  /* Grace Gan: final approval only, so her queues hold only what custodians
+     have approved. The System Superuser is BOTH a checker and a final
+     approver, so she gets the full checker view plus the final-approve action. */
+  const finalOnly = isFinalApprover && !isChecker;
   const [source, setSource] = useState("pettycash");
   const [plant, setPlant] = useState("ALL");
   const [search, setSearch] = useState("");
   /* Open on the viewer's own work: custodians on what awaits their review,
      the final approver on what awaits hers. */
   const [pcaStage, setPcaStage] = useState(
-    isFinalApprover ? LIQ_STAGE.FOR_FINAL : isChecker ? LIQ_STAGE.FOR_CHECK : "All statuses"
+    finalOnly ? LIQ_STAGE.FOR_FINAL : isChecker ? LIQ_STAGE.FOR_CHECK : "All statuses"
   );
   const [reimbStage, setReimbStage] = useState(
-    isFinalApprover ? REIMB_STATUS.FOR_FINAL : isChecker ? REIMB_STAGE.FOR_CHECK : "All statuses"
+    finalOnly ? REIMB_STATUS.FOR_FINAL : isChecker ? REIMB_STAGE.FOR_CHECK : "All statuses"
   );
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
@@ -350,13 +359,13 @@ function ApprovalModuleTab({
      whose cash is settled — nothing earlier in the chain reaches her. */
   const pcaAll = useMemo(() => {
     const all = pcaApprovalQueue(disbursements, liquidations, replenishments);
-    return isFinalApprover ? all.filter((r) => FINAL_APPROVER_STAGES.includes(r.stage)) : all;
-  }, [disbursements, liquidations, replenishments, isFinalApprover]);
+    return finalOnly ? all.filter((r) => FINAL_APPROVER_STAGES.includes(r.stage)) : all;
+  }, [disbursements, liquidations, replenishments, finalOnly]);
   const pcaRows = pcaAll.filter((r) => inPlant(r.disb.branchCode)
     && matches(r.disb.voucherNo, r.disb.employee, r.disb.branchCode)
     && (pcaStage === "All statuses" || r.stage === pcaStage));
   const selected = pcaRows.find((r) => r.disb.id === selectedId) || pcaRows[0] || null;
-  const pcaStageOptions = ["All statuses"].concat(isFinalApprover
+  const pcaStageOptions = ["All statuses"].concat(finalOnly
     ? FINAL_APPROVER_STAGES
     : [LIQ_STAGE.FOR_CHECK, LIQ_STAGE.NEEDS_CORRECTION, LIQ_STAGE.AWAITING_SETTLEMENT, LIQ_STAGE.FOR_FINAL,
        LIQ_STAGE.READY, LIQ_STAGE.REPLENISHED, LIQ_STAGE.REJECTED, LIQ_STAGE.LEGACY]);
@@ -374,9 +383,9 @@ function ApprovalModuleTab({
     return (reimbursements || [])
       .filter((r) => r.status !== REIMB_STATUS.DRAFT)
       .map((r) => ({ ...r, stage: reimbApprovalStage(r, replenishedIds) }))
-      .filter((r) => !isFinalApprover || finalStages.includes(r.stage))
+      .filter((r) => !finalOnly || finalStages.includes(r.stage))
       .sort((a, b) => String(b.requestDate || "").localeCompare(String(a.requestDate || "")));
-  }, [reimbursements, replenishments, isFinalApprover]);
+  }, [reimbursements, replenishments, finalOnly]);
   const reimbRows = reimbSort.sortRows(
     reimbAll.filter((r) => inPlant(r.branchCode)
       && matches(r.reimbNo, r.employee, r.branchCode, r.purpose)
@@ -388,19 +397,19 @@ function ApprovalModuleTab({
 
   const stageOptions = source === "pettycash"
     ? pcaStageOptions
-    : ["All statuses"].concat(isFinalApprover ? reimbFinalApproverStages() : reimbCheckerStages());
+    : ["All statuses"].concat(finalOnly ? reimbFinalApproverStages() : reimbCheckerStages());
 
   return (
     <div className="pcp-liq-full">
       <TopBar
         title="Approval Module"
-        sub={isFinalApprover
+        sub={finalOnly
           ? "Final approval of custodian-approved liquidations and employee reimbursements"
           : "Review and approve Petty Cash Advance liquidations and Employee Reimbursements for your plants"}
       />
       <div className="pcp-content">
         <div className="pcp-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12, marginBottom: 16 }}>
-          {isFinalApprover ? (
+          {finalOnly ? (
             <>
               <KpiCard label="Liquidations Awaiting Your Final Approval" value={pcaForFinal} icon={ShieldCheck} tint="#b9790a" />
               <KpiCard label="Reimbursements Awaiting Your Final Approval" value={reimbForFinal} icon={ArrowLeftRight} tint="#b9790a" />
@@ -481,6 +490,7 @@ function ApprovalModuleTab({
                 row={selected}
                 isChecker={isChecker}
                 isFinalApprover={isFinalApprover}
+                currentUser={currentUser}
                 onDecideReceipt={onDecideReceipt}
                 onRejectLiquidation={onRejectLiquidation}
                 onReopenLiquidation={onReopenLiquidation}
