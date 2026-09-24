@@ -841,7 +841,13 @@ function liqFinalStatus(disb, liq) {
 function liqReview(liq) {
   if (!liq) return { checked: false, final: false, legacy: false, history: [] };
   if (!liq.workflow) {
-    const legacy = receiptApprovalSummary(liq).allApproved;
+    /* Legacy means FINISHED under the old flow: every receipt approved AND
+       every receipt amount captured. An old draft that is still missing an
+       amount was never complete — counting it as approved labelled it
+       "Approved (before two-level review)" while it read NOT YET LIQUIDATED,
+       and left it with no way forward. It now goes through the two-level
+       review like any new liquidation. */
+    const legacy = receiptApprovalSummary(liq).allApproved && receiptAmountSummary(liq).complete;
     return { checked: legacy, final: legacy, legacy, history: [] };
   }
   const r = liq.review || {};

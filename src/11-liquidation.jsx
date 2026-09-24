@@ -352,6 +352,9 @@ function LiquidationWorksheet({
   if (approvalSummary.anyRejected) submitBlockers.push("replace or remove the rejected document(s)");
   if (!saved) submitBlockers.push("save your changes first");
   const canSubmit = isDraft && submitBlockers.length === 0;
+  const missingAmountDocs = attachments
+    .filter((a) => docRequiresAmount(a) && (a.approvalStatus || "Pending") !== "Rejected" && !(Number(a.receiptAmount) > 0))
+    .map((a) => a.name);
 
   /* Custodian approval of the liquidation as a whole. */
   const checkBlockers = [];
@@ -673,6 +676,21 @@ function LiquidationWorksheet({
           </div>
           <div className="pcp-liq-metric"><div className="pcp-kpi-label">Status</div><div><Badge status={finalStatus} /></div></div>
         </div>
+        {/* Why Submit is disabled, on screen rather than only in the button's
+            hover tooltip — and WHICH documents still need an amount, since a
+            document without one adds ₱0 and the totals can look complete. */}
+        {isDraft && !canSubmit && submitBlockers.length > 0 && (
+          <div style={{ marginTop: 10, fontSize: 11.5, color: "var(--brand)" }}>
+            <AlertTriangle size={12} style={{ verticalAlign: "-2px" }} /> To submit: {submitBlockers.join("; ")}.
+            {missingAmountDocs.length > 0 && (
+              <div style={{ color: "var(--text-mut)", marginTop: 3 }}>
+                Missing an amount: <b>{missingAmountDocs.join(", ")}</b>. Enter its receipt amount below, or, if it is
+                only a supporting document with no peso amount (a photo, permit, approval sheet), set its Document Type
+                to "Other Supporting Document".
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Rejection history — every rejection kept as its own record and never
