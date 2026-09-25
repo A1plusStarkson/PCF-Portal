@@ -355,6 +355,7 @@ const CSS = `
   .pcp-user-email { flex: 1; min-width: 0; color: #9098b3; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pcp-kpi-click { cursor: pointer; transition: border-color 0.12s, box-shadow 0.12s; }
   .pcp-kpi-click:hover { border-color: var(--brand); box-shadow: 0 4px 14px rgba(200,16,46,0.10); }
+  .pcp-kpi-click.active { border-color: var(--brand); box-shadow: inset 0 -3px 0 var(--brand); background: #fff8f9; }
 
   /* ---- Login ---- */
   .pcp-login-wrap { flex: 1; display: flex; align-items: center; justify-content: center; padding: 24px; min-height: 100vh; }

@@ -1054,9 +1054,34 @@ function ReimbursementTab({
   const seq = (allReimbursements || reimbursements).length + 1;
   const nextReimbNo = "REIM-2026-" + String(seq).padStart(6, "0");
 
+  /* Summary cards double as filters: each card's statuses, exactly as counted.
+     Clicking one filters the table below (and scrolls to it); clicking it
+     again, or picking a status in the dropdown, clears it. */
+  const [cardFilter, setCardFilter] = useState(null);
+  const tableRef = useRef(null);
+  const S = REIMB_STATUS;
+  const KPI_CARDS = {
+    pending: { label: "Pending Reimbursements", statuses: REIMB_OPEN_STATUSES },
+    forApproval: { label: "Custodian / Final Approval", statuses: REIMB_CUSTODIAN_REVIEW_STATUSES.concat([S.FOR_FINAL]) },
+    approved: { label: "Fully Approved", statuses: [S.READY, S.APPROVED, S.FOR_LIQUIDATION, S.UNDER_REVIEW, S.LIQUIDATION_DONE] },
+    forPayment: { label: "For Payment", statuses: [S.FOR_PAYMENT] },
+    paid: { label: "Paid", statuses: [S.PAID, S.COMPLETED] },
+    rejected: { label: "Rejected / Returned", statuses: [S.REJECTED, S.RETURNED] },
+  };
+  const pickCard = (key) => {
+    const next = cardFilter === key ? null : key;
+    setCardFilter(next);
+    setStatusFilter("All");
+    if (next && tableRef.current) tableRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  /* Cards count the selected plant only, so a card's number always matches
+     the rows it shows when clicked. */
+  const plantScoped = plant === "ALL" ? reimbursements : reimbursements.filter((r) => r.branchCode === plant);
+
   const filtered = sort.sortRows(
-    reimbursements.filter((r) => {
-      if (plant !== "ALL" && r.branchCode !== plant) return false;
+    plantScoped.filter((r) => {
+      if (cardFilter && !KPI_CARDS[cardFilter].statuses.includes(r.status)) return false;
       if (statusFilter !== "All" && r.status !== statusFilter) return false;
       if (categoryFilter !== "All" && purposeCategory(r.purpose) !== categoryFilter) return false;
       if (purposeFilter !== "All" && (r.purpose || "") !== purposeFilter) return false;
@@ -1069,23 +1094,19 @@ function ReimbursementTab({
     REIMB_SORT_FIELDS
   );
 
-  const kpi = useMemo(() => {
-    const by = (s) => reimbursements.filter((r) => r.status === s);
-    const sum = (arr) => arr.reduce((s, r) => s + reimbTotal(r), 0);
-    const pending = reimbursements.filter((r) => REIMB_OPEN_STATUSES.includes(r.status));
-    const paid = by(REIMB_STATUS.PAID).concat(by(REIMB_STATUS.COMPLETED));
-    return {
-      pending: pending.length,
-      forApproval: reimbursements.filter((r) => REIMB_CUSTODIAN_REVIEW_STATUSES.includes(r.status)).length + by(REIMB_STATUS.FOR_FINAL).length,
-      approved: by(REIMB_STATUS.READY).length + by(REIMB_STATUS.APPROVED).length + by(REIMB_STATUS.FOR_LIQUIDATION).length + by(REIMB_STATUS.UNDER_REVIEW).length + by(REIMB_STATUS.LIQUIDATION_DONE).length,
-      forPayment: by(REIMB_STATUS.FOR_PAYMENT).length,
-      paid: paid.length,
-      rejected: by(REIMB_STATUS.REJECTED).length,
-      returned: by(REIMB_STATUS.RETURNED).length,
-      amtPending: sum(pending),
-      amtPaid: sum(paid),
-    };
-  }, [reimbursements]);
+  const kpiRows = (key) => plantScoped.filter((r) => KPI_CARDS[key].statuses.includes(r.status));
+  const sumRows = (arr) => arr.reduce((s, r) => s + reimbTotal(r), 0);
+  const kpi = {
+    pending: kpiRows("pending").length,
+    forApproval: kpiRows("forApproval").length,
+    approved: kpiRows("approved").length,
+    forPayment: kpiRows("forPayment").length,
+    paid: kpiRows("paid").length,
+    rejected: kpiRows("rejected").length,
+    amtPending: sumRows(kpiRows("pending")),
+    amtPaid: sumRows(kpiRows("paid")),
+  };
+  const cardProps = (key) => ({ onClick: () => pickCard(key), active: cardFilter === key });
 
   const formPlantOptions = (plantOptions && plantOptions.length)
     ? (plant !== "ALL" ? plantOptions.filter((p) => p.code === plant) : plantOptions)
@@ -1111,21 +1132,26 @@ function ReimbursementTab({
         <PlantScopeTabs plants={plantOptions} value={plant} onChange={setPlant} />
 
         <div className="pcp-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10, marginBottom: 14 }}>
-          <KpiCard label="Pending Reimbursements" value={kpi.pending} icon={ClipboardList} tint="#b9790a" foot={peso(kpi.amtPending)} />
-          <KpiCard label="Custodian / Final Approval" value={kpi.forApproval} icon={Check} tint="#2054a3" />
-          <KpiCard label="Fully Approved" value={kpi.approved} icon={FileSpreadsheet} tint="#7c3aed" />
-          <KpiCard label="For Payment" value={kpi.forPayment} icon={Banknote} tint="#0891b2" />
-          <KpiCard label="Paid" value={kpi.paid} icon={CircleDollarSign} tint="#15803d" foot={peso(kpi.amtPaid)} />
-          <KpiCard label="Rejected / Returned" value={kpi.rejected + kpi.returned} icon={X} tint="#c8102e" />
+          <KpiCard label="Pending Reimbursements" value={kpi.pending} icon={ClipboardList} tint="#b9790a" foot={peso(kpi.amtPending)} {...cardProps("pending")} />
+          <KpiCard label="Custodian / Final Approval" value={kpi.forApproval} icon={Check} tint="#2054a3" {...cardProps("forApproval")} />
+          <KpiCard label="Fully Approved" value={kpi.approved} icon={FileSpreadsheet} tint="#7c3aed" {...cardProps("approved")} />
+          <KpiCard label="For Payment" value={kpi.forPayment} icon={Banknote} tint="#0891b2" {...cardProps("forPayment")} />
+          <KpiCard label="Paid" value={kpi.paid} icon={CircleDollarSign} tint="#15803d" foot={peso(kpi.amtPaid)} {...cardProps("paid")} />
+          <KpiCard label="Rejected / Returned" value={kpi.rejected} icon={X} tint="#c8102e" {...cardProps("rejected")} />
         </div>
 
-        <div className="pcp-card">
+        <div className="pcp-card" ref={tableRef} style={{ scrollMarginTop: 80 }}>
           <div style={{ padding: "14px 18px", display: "flex", gap: 10, alignItems: "center", borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
             <div style={{ position: "relative", flex: 1, maxWidth: 280 }}>
               <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#9098b3" }} />
               <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search employee or reimbursement no." value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
-            <select className="pcp-select" style={{ width: 200 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
+            {cardFilter && (
+              <button className="pcp-btn pcp-btn-sm" onClick={() => setCardFilter(null)} title="Show all statuses again">
+                Showing: {KPI_CARDS[cardFilter].label} <X size={12} />
+              </button>
+            )}
+            <select className="pcp-select" style={{ width: 200 }} value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setCardFilter(null); }}>
               {["All", ...Object.values(REIMB_STATUS)].map((s) => <option key={s}>{s}</option>)}
             </select>
             <select className="pcp-select" style={{ width: 130 }} value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPurposeFilter("All"); }} title="Filter by expense category">

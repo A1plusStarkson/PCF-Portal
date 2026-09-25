@@ -2,9 +2,9 @@
 
 const CHART_COLORS = ["#c8102e", "#2054a3", "#b9790a", "#15803d", "#7c3aed", "#0891b2", "#be185d", "#4b5563"];
 
-function KpiCard({ label, value, icon: Icon, tint, foot, onClick }) {
+function KpiCard({ label, value, icon: Icon, tint, foot, onClick, active }) {
   return (
-    <div className={"pcp-kpi" + (onClick ? " pcp-kpi-click" : "")} onClick={onClick}>
+    <div className={"pcp-kpi" + (onClick ? " pcp-kpi-click" : "") + (active ? " active" : "")} onClick={onClick}>
       <div className="pcp-kpi-icon" style={{ background: tint + "22", color: tint }}>
         <Icon size={16} />
       </div>
