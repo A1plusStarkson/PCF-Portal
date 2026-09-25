@@ -1,8 +1,5 @@
-function ManagementReportTab({ funds, requests, disbursements, liquidations, replenishments, reimbursements, auditLog, plantTitle, generatedBy, reportCodes }) {
-  /* reportCodes limits the catalogue for roles that may only see some reports
-     (PCF Requestors see just the Grace Gan approval report). */
-  const reportTypes = reportCodes ? REPORT_TYPES.filter((r) => reportCodes.includes(r.code)) : REPORT_TYPES;
-  const [type, setType] = useState(reportCodes ? reportTypes[0].code : "CASHPOS");
+function ManagementReportTab({ funds, requests, disbursements, liquidations, replenishments, reimbursements, auditLog, plantTitle, generatedBy }) {
+  const [type, setType] = useState("CASHPOS");
   const [F, setF] = useState({ from: "", to: "", company: "", plant: "", branch: "", custodian: "", status: "", category: "", account: "" });
   const [watermark, setWatermark] = useState(false);
   const [orientation, setOrientation] = useState("");
@@ -27,6 +24,7 @@ function ManagementReportTab({ funds, requests, disbursements, liquidations, rep
   const statusOpts = useMemo(() => {
     if (type === "REPL") return REPLENISH_STATUSES;
     if (type === "FINALAPP") return ["For Replenishment", "In Replenishment", "Replenished"];
+    if (type === "CUSTAPP") return ["Awaiting Final Approval", "Final Approved"];
     if (type === "DISB" || type === "OUT") return ["Not Liquidated", "Partially Liquidated", "Fully Liquidated", "Over-Liquidated"];
     return [];
   }, [type]);
@@ -101,7 +99,7 @@ function ManagementReportTab({ funds, requests, disbursements, liquidations, rep
             <div className="pcp-rc-field" style={{ gridColumn: "span 2" }}>
               <label>Report</label>
               <select className="pcp-select" value={type} onChange={(e) => setType(e.target.value)}>
-                {reportTypes.map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}
+                {REPORT_TYPES.map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}
               </select>
             </div>
             <div className="pcp-rc-field">

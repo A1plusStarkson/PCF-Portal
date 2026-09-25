@@ -93,6 +93,7 @@ const REPORT_TYPES = [
   { code: "DISB",    label: "Cash Disbursement Report",      orientation: "landscape" },
   { code: "LIQ",     label: "Liquidation Report",            orientation: "landscape" },
   { code: "FINALAPP", label: "Approved Liquidation Transactions by Grace Gan", orientation: "landscape" },
+  { code: "CUSTAPP",  label: "Approved Liquidation Transactions by Custodian per Plant", orientation: "landscape" },
   { code: "REPL",    label: "Replenishment Report",          orientation: "portrait"  },
   { code: "OUT",     label: "Outstanding Liquidation Report", orientation: "landscape" },
   { code: "EXPSUM",  label: "Expense Summary",               orientation: "portrait"  },
@@ -228,76 +229,102 @@ function buildReport(type, D, F) {
       return fin(columns, tmp, tmp.length, "GRAND TOTAL");
     }
 
-    /* Every transaction carrying the FINAL approval (Grace Gan / System
-       Superuser) — petty cash liquidations and employee reimbursements — i.e.
-       what the custodian's fund is replenished for. Grouped by plant with a
-       subtotal each, dated by the final approval, and tagged with whether a
-       replenishment has claimed it yet (replenishment.liquidationIds /
-       reimbursementIds). Legacy liquidations approved before the two-level
-       review are included too, marked "Liquidation (old)". */
-    case "FINALAPP": {
-      const columns = [
+    /* Approved transactions — petty cash liquidations and employee
+       reimbursements, old and new — at one of two approval levels:
+
+         FINALAPP — FINAL approval (Grace Gan / System Superuser): what the
+                    custodian's fund is replenished for. Dated by the final
+                    approval.
+         CUSTAPP  — CUSTODIAN approval (first level), whether or not the final
+                    approval has followed yet. Dated by the custodian approval.
+
+       Both are grouped by plant (with its custodian) and subtotalled, and tag
+       each row with whether a replenishment has claimed it yet
+       (replenishment.liquidationIds / reimbursementIds).
+
+       "Old" records were approved under the single-level flow, before the
+       two-level review existed, so they carry no review stamps. They count at
+       BOTH levels: that one approval was the whole approval. Old liquidations
+       are dated/attributed from the last receipt approval in their history;
+       old reimbursements from the approval step in their status history. */
+    case "FINALAPP":
+    case "CUSTAPP": {
+      const isFinal = type === "FINALAPP";
+      const columns = isFinal ? [
         c("approvedAt", "Final Approval"), c("ref", "Voucher / Reimb No."), c("kind", "Type", { align: "center" }),
         c("employee", "Employee"), c("branch", "Branch"), c("checkedBy", "Custodian Approved By"),
         c("finalBy", "Final Approved By"), c("repl", "Replenishment", { width: "16%" }),
         c("amount", "Approved Amount", { money: true }),
+      ] : [
+        c("approvedAt", "Custodian Approval"), c("ref", "Voucher / Reimb No."), c("kind", "Type", { align: "center" }),
+        c("employee", "Employee"), c("branch", "Branch"), c("checkedBy", "Custodian Approved By"),
+        c("finalBy", "Final Approval"), c("repl", "Replenishment", { width: "16%" }),
+        c("amount", "Approved Amount", { money: true }),
       ];
+      const OLD = "(before two-level approval)";
+      const AWAITING = "Awaiting final approval";
       const replFor = (key, id) => reps.find((r) => (r[key] || []).includes(id));
       const replStatus = (rp) => (!rp ? "For Replenishment"
         : (rp.status === "Completed" ? "Replenished" : "In Replenishment"));
-      /* Old liquidations (approved before the two-level review) carry no final
-         stamp, so they are dated and attributed from the LAST receipt approval
-         in their approval history, falling back to the record's own dates. */
-      const legacyApproval = (liq, d) => {
+      /* One old-flow approval reads the same in both reports. */
+      const oldItem = (base, at, by) => ({
+        ...base, at, kind: base.kind + " (old)",
+        checkedBy: isFinal ? "—" : (by ? by + " " : "") + OLD,
+        finalBy: isFinal ? (by ? by + " " : "") + OLD : "—",
+      });
+      const legacyLiqApproval = (liq, d) => {
         let at = "", by = "";
         (liq.attachments || []).forEach((a) => (a.approvalHistory || []).forEach((h) => {
           if (h.status === "Approved" && String(h.ts || "") > at) { at = String(h.ts || ""); by = h.approver || ""; }
         }));
         return { at: at || liq.submittedAt || liq.updatedAt || d.date || "", by };
       };
+
       const items = [];
       disbursements.forEach((d) => {
         if (!okBranch(d.branchCode)) return;
         const liq = liquidationFor(d.id, liquidations);
+        if (!liq) return;
         const rv = liqReview(liq);
-        if (!rv.final) return;
-        const amount = receiptAmountSummary(liq).approvedTotal;
-        const rp = replFor("liquidationIds", liq.id);
+        const base = { d: d.branchCode, ref: d.voucherNo, kind: "Liquidation", employee: d.employee,
+          rp: replFor("liquidationIds", liq.id), amount: receiptAmountSummary(liq).approvedTotal };
         if (rv.legacy) {
-          const la = legacyApproval(liq, d);
-          items.push({ d: d.branchCode, at: la.at, ref: d.voucherNo, kind: "Liquidation (old)", employee: d.employee,
-            checkedBy: "—", finalBy: (la.by ? la.by + " " : "") + "(before two-level approval)", rp, amount });
+          const la = legacyLiqApproval(liq, d);
+          items.push(oldItem(base, la.at, la.by));
           return;
         }
-        if (!rv.finalBy) return;
-        items.push({ d: d.branchCode, at: rv.finalAt, ref: d.voucherNo, kind: "Liquidation", employee: d.employee,
-          checkedBy: rv.checkedBy, finalBy: rv.finalBy, rp, amount });
+        if (isFinal ? !rv.finalBy : !rv.checkedBy) return;
+        items.push({ ...base, at: isFinal ? rv.finalAt : rv.checkedAt,
+          checkedBy: rv.checkedBy || "—", finalBy: rv.finalBy || AWAITING });
       });
-      /* Reimbursements: new ones carry the final stamp; old ones (single-level
-         flow) are recognised by a status only an approved request reaches, and
-         dated/attributed from the approval step in their status history. */
+
       const S = REIMB_STATUS;
       const APPROVED_REIMB = [S.READY, S.APPROVED, S.FOR_LIQUIDATION, S.UNDER_REVIEW, S.LIQUIDATION_DONE, S.FOR_PAYMENT, S.PAID, S.COMPLETED];
       (D.reimbursements || []).forEach((r) => {
         if (!okBranch(r.branchCode)) return;
         const rv = reimbReview(r);
-        const rp = replFor("reimbursementIds", r.id);
-        if (rv.final) {
-          items.push({ d: r.branchCode, at: rv.finalAt, ref: r.reimbNo, kind: "Reimbursement", employee: r.employee,
-            checkedBy: rv.checkedBy || "—", finalBy: rv.finalBy, rp, amount: reimbTotal(r) });
+        const base = { d: r.branchCode, ref: r.reimbNo, kind: "Reimbursement", employee: r.employee,
+          rp: replFor("reimbursementIds", r.id), amount: reimbTotal(r) };
+        if (rv.checkedBy || rv.finalBy) {
+          if (isFinal ? !rv.finalBy : !rv.checkedBy) return;
+          items.push({ ...base, at: isFinal ? rv.finalAt : rv.checkedAt,
+            checkedBy: rv.checkedBy || "—", finalBy: rv.finalBy || AWAITING });
           return;
         }
         if (!APPROVED_REIMB.includes(r.status)) return;
         const step = [...(r.history || [])].reverse().find((h) => h.newStatus === S.APPROVED || h.newStatus === S.READY)
           || [...(r.history || [])].find((h) => APPROVED_REIMB.includes(h.newStatus));
-        const at = (step && step.ts) || r.approvedAt || r.submittedAt || r.requestDate || "";
-        const by = (step && step.user) || r.approvedBy || "";
-        items.push({ d: r.branchCode, at, ref: r.reimbNo, kind: "Reimbursement (old)", employee: r.employee,
-          checkedBy: "—", finalBy: (by ? by + " " : "") + "(before two-level approval)", rp, amount: reimbTotal(r) });
+        items.push(oldItem(base,
+          (step && step.ts) || r.approvedAt || r.submittedAt || r.requestDate || "",
+          (step && step.user) || r.approvedBy || ""));
       });
+
+      /* Status filter: the replenishment stage on the final report; the
+         final-approval stage on the custodian report. */
+      const finalStage = (x) => (x.finalBy === AWAITING ? "Awaiting Final Approval" : "Final Approved");
       const kept = items
         .filter((x) => okDate(String(x.at || "").slice(0, 10)))
-        .filter((x) => !F.status || replStatus(x.rp) === F.status)
+        .filter((x) => !F.status || (isFinal ? replStatus(x.rp) : finalStage(x)) === F.status)
         .sort((a, b) => a.d.localeCompare(b.d) || String(a.at).localeCompare(String(b.at)));
       const rows = [];
       [...new Set(kept.map((x) => x.d))].forEach((code) => {
