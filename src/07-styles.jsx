@@ -233,23 +233,6 @@ const CSS = `
   .pcp-liq-full .pcp-content { padding: 14px 18px 48px 18px; }
   table.pcp-table tbody tr.pcp-liq-row { cursor: pointer; }
   /* Replenishment — Ready for Replenishment panel (cut-off chips, selection). */
-  .pcp-rr-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
-  .pcp-rr-tile {
-    display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left;
-    padding: 10px 14px; border: 1px solid var(--line); border-left: 4px solid var(--blue); border-radius: 10px;
-    background: #fff; cursor: pointer; font-family: inherit;
-  }
-  .pcp-rr-tile + .pcp-rr-tile { border-left-color: var(--amber); }
-  .pcp-rr-tile:hover { box-shadow: 0 4px 14px rgba(20,24,40,0.08); }
-  .pcp-rr-tile .lbl { font-size: 12.5px; font-weight: 700; color: var(--text); }
-  .pcp-rr-tile .tagdue { font-size: 10.5px; font-weight: 600; color: var(--text-mut); margin-left: 4px; }
-  .pcp-rr-tile .amt { font-size: 18px; font-weight: 700; color: var(--text); }
-  .pcp-rr-tile .sub { font-size: 11px; color: var(--text-mut); }
-  .pcp-rr-tile.due .sub { color: var(--brand); font-weight: 600; }
-  .pcp-rr-tile.active { background: var(--red-bg); border-color: var(--brand); }
-  select.pcp-rr-tag { padding: 4px 8px; font-size: 12px; font-weight: 600; }
-  select.pcp-rr-tag.t1 { background: var(--blue-bg); color: var(--blue); border-color: #c4d6f0; }
-  select.pcp-rr-tag.t2 { background: var(--amber-bg); color: var(--amber); border-color: #efd49a; }
   .pcp-rr-plant { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
   .pcp-rr-plant-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 9px 12px; background: var(--paper); border-bottom: 1px solid var(--line); }
   table.pcp-table tbody tr.pcp-rr-row { cursor: pointer; }
