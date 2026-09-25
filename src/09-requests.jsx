@@ -51,8 +51,8 @@ function RequestFormModal({ onClose, onSave, nextRequestNoFor, request, plantOpt
   const valid = validRequestNo && form.employee.trim() && !!form.branchCode && validPurpose && Number(form.amount) > 0 && form.approver.trim();
 
   return (
-    <div className="pcp-modal-backdrop" onClick={onClose}>
-      <div className="pcp-modal" onClick={(e) => e.stopPropagation()}>
+    <div className="pcp-modal-backdrop" {...backdropCloseProps(onClose)}>
+      <div className="pcp-modal pcp-modal-resizable" onClick={(e) => e.stopPropagation()}>
         <div className="pcp-modal-head">
           <h3>{isEdit ? "Edit Petty Cash Request" : "New Petty Cash Request"}</h3>
           <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose}><X size={15} /></button>

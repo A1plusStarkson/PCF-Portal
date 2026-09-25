@@ -479,28 +479,17 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, reimb, nextRei
   };
 
   return (
-    <div
-      className="pcp-modal-backdrop"
-      // Close only when the click both starts and ends on the backdrop, so
-      // releasing a resize-drag outside the box doesn't close the form.
-      onMouseDown={(e) => { e.currentTarget.dataset.downOnBackdrop = e.target === e.currentTarget ? "1" : ""; }}
-      onClick={(e) => { if (e.target === e.currentTarget && e.currentTarget.dataset.downOnBackdrop === "1") onClose(); }}
-    >
-      {/* Larger by default; user can drag the bottom-right corner to resize. */}
+    <div className="pcp-modal-backdrop" {...backdropCloseProps(onClose)}>
       <div
-        className="pcp-modal"
+        className="pcp-modal pcp-modal-resizable"
         onClick={(e) => e.stopPropagation()}
-        style={{
-          width: "min(1200px, 96vw)", maxWidth: "98vw", minWidth: "min(600px, 96vw)",
-          height: "calc(100vh - 80px)", maxHeight: "calc(100vh - 40px)", minHeight: 400,
-          resize: "both", overflow: "hidden", display: "flex", flexDirection: "column",
-        }}
+        style={{ width: "min(1200px, 96vw)", height: "calc(100vh - 80px)", minHeight: 400 }}
       >
         <div className="pcp-modal-head">
           <h3>{isEdit ? `Edit Reimbursement · ${reimb.reimbNo}` : "New Reimbursement Request"}</h3>
           <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose}><X size={15} /></button>
         </div>
-        <div className="pcp-modal-body" style={{ flex: 1, minHeight: 0, maxHeight: "none", overflowY: "auto" }}>
+        <div className="pcp-modal-body">
           <Stepper />
 
           {/* STEP 1 — Expense Information */}

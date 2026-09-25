@@ -21,6 +21,15 @@ const fmtDate = (iso) => {
   return d.toLocaleDateString("en-PH", { year: "numeric", month: "short", day: "2-digit" });
 };
 
+/* ---- Modal backdrop close ----
+   Close only when the click both starts and ends on the backdrop, so releasing
+   a resize-drag (.pcp-modal-resizable) outside the box doesn't close the form.
+   Usage: <div className="pcp-modal-backdrop" {...backdropCloseProps(onClose)}> */
+const backdropCloseProps = (onClose) => ({
+  onMouseDown: (e) => { e.currentTarget.dataset.downOnBackdrop = e.target === e.currentTarget ? "1" : ""; },
+  onClick: (e) => { if (e.target === e.currentTarget && e.currentTarget.dataset.downOnBackdrop === "1") onClose(); },
+});
+
 const uid = (prefix) => prefix + "-" + Math.random().toString(36).slice(2, 9).toUpperCase();
 
 /* ---- Matching a person by name ----
