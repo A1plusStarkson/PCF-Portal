@@ -1019,6 +1019,27 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     return r ? r.reimbNo : rid;
   });
 
+  /* Cut-off tag on a ready item ("1-15" → due the 30th, "16-end" → due the
+     15th of next month), saved on the liquidation / reimbursement itself so
+     every user sees the same tag. Blank clears it back to the date default. */
+  const tagReplenishCutoff = useCallback((kind, id, tag) => {
+    if (!canEdit) return;
+    const val = tag === "1-15" || tag === "16-end" ? tag : "";
+    const label = val === "1-15" ? "1–15 expenses (due 30th)" : val === "16-end" ? "16–30/31 expenses (due 15th)" : "cleared (date default)";
+    if (kind === "reimb") {
+      const r = reimbursements.find((x) => x.id === id);
+      if (!r || !inScope(r.branchCode)) return;
+      setReimbursements((rs) => rs.map((x) => (x.id === id ? { ...x, replenishCutoff: val } : x)));
+      logAudit("Cut-off Tagged", r.reimbNo, label);
+    } else {
+      const l = liquidations.find((x) => x.id === id);
+      const d = l && disbursements.find((x) => x.id === l.disbursementId);
+      if (!l || !d || !inScope(d.branchCode)) return;
+      setLiquidations((ls) => ls.map((x) => (x.id === id ? { ...x, replenishCutoff: val } : x)));
+      logAudit("Cut-off Tagged", d.voucherNo, label);
+    }
+  }, [canEdit, reimbursements, liquidations, disbursements, inScope, logAudit]);
+
   const addReplenishment = useCallback((form) => {
     setReplenishments((rs) => [...rs, { id: uid("rep"), ...form }]);
     const linked = linkedVouchers(form.liquidationIds);
@@ -1683,6 +1704,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             onCreate={addReplenishment} onEdit={editReplenishment}
             onComplete={completeReplenishment} onDelete={deleteReplenishment}
             generatedBy={userName || userEmail}
+            onTagCutoff={tagReplenishCutoff}
             plantOptions={scopedPlantOptions} canEdit={canEdit}
             plantTitle={activePlantLabel}
           />

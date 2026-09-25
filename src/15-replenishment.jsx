@@ -25,7 +25,7 @@ function replenishmentReadyItems(disbursements, liquidations, reimbursements, re
     return {
       kind: "liq", id: x.liq.id, ref: x.disb.voucherNo, employee: x.disb.employee, branchCode: x.disb.branchCode,
       checkedBy: rv.checkedBy, checkedAt: rv.checkedAt, finalBy: rv.finalBy, finalAt: rv.finalAt, amount: x.amount,
-      date: x.disb.date || "",
+      date: x.disb.date || "", savedTag: x.liq.replenishCutoff || "",
     };
   });
   const reimbs = reimbursementsReadyForReplenishment(reimbursements, replenishments, exceptReplenishmentId).map((x) => {
@@ -33,32 +33,39 @@ function replenishmentReadyItems(disbursements, liquidations, reimbursements, re
     return {
       kind: "reimb", id: x.reimb.id, ref: x.reimb.reimbNo, employee: x.reimb.employee, branchCode: x.reimb.branchCode,
       checkedBy: rv.checkedBy, checkedAt: rv.checkedAt, finalBy: rv.finalBy, finalAt: rv.finalAt, amount: x.amount,
-      date: x.reimb.requestDate || "",
+      date: x.reimb.requestDate || "", savedTag: x.reimb.replenishCutoff || "",
     };
   });
   return liqs.concat(reimbs);
 }
 
-/* ---- Replenishment cut-off periods ----
-   Transactions dated 1–15 are replenished on the 30th of the same month (the
-   last day in February); 16–end are replenished on the 15th of the next month.
-   The transaction date is the voucher (release) date for a liquidation and the
-   request date for a reimbursement. */
-function replenishCutoff(iso) {
-  const s = String(iso || "").slice(0, 10);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return { key: "none", label: "No date", approveOn: "", sort: "" };
-  const [y, m, d] = s.split("-").map(Number);
+/* ---- Replenishment cut-off tag ----
+   Every ready item is tagged as 1–15 expenses (due on the 30th — the last day
+   in February) or 16–30/31 expenses (due on the 15th of the next month). The
+   tag is saved on the liquidation / reimbursement (replenishCutoff) by the
+   team; until someone sets it, it is suggested from the transaction date
+   (voucher release date / reimbursement request date) and shown as "auto".
+   The month the due date falls in comes from that same transaction date. */
+const CUTOFF_TAGS = [
+  { value: "1-15", label: "1–15 expenses", due: "due 30th" },
+  { value: "16-end", label: "16–30/31 expenses", due: "due 15th" },
+];
+function replenishCutoff(item) {
+  const s = String((item && item.date) || "").slice(0, 10);
+  const iso = /^\d{4}-\d{2}-\d{2}$/.test(s) ? s : todayISO();
+  const [y, m, d] = iso.split("-").map(Number);
   const pad = (n) => String(n).padStart(2, "0");
+  const saved = item && (item.savedTag === "1-15" || item.savedTag === "16-end") ? item.savedTag : "";
+  const tag = saved || (d <= 15 ? "1-15" : "16-end");
   const lastDay = new Date(y, m, 0).getDate();
-  const mon = new Date(y, m - 1, 1).toLocaleDateString("en-PH", { month: "short", year: "numeric" });
-  const first = d <= 15;
-  const approveOn = first
+  const approveOn = tag === "1-15"
     ? `${y}-${pad(m)}-${pad(Math.min(30, lastDay))}`
     : `${m === 12 ? y + 1 : y}-${pad(m === 12 ? 1 : m + 1)}-15`;
+  const def = CUTOFF_TAGS.find((t) => t.value === tag);
   return {
-    key: `${y}-${pad(m)}-${first ? "1" : "2"}`,
-    label: first ? `1–15 ${mon}` : `16–${lastDay} ${mon}`,
-    approveOn, sort: `${y}-${pad(m)}-${first ? "1" : "2"}`,
+    tag, auto: !saved, approveOn, month: `${y}-${pad(m)}`,
+    monthLabel: new Date(y, m - 1, 1).toLocaleDateString("en-PH", { month: "long", year: "numeric" }),
+    label: def.label,
   };
 }
 /* The Ready for Replenishment list as a Report Center document, so it prints
@@ -68,7 +75,7 @@ function replenishCutoff(iso) {
 function readyReplenishmentDoc(readyByPlant, funds, plantTitle, generatedBy, scopeNote) {
   const col = (key, label, opt = {}) => ({ key, label, align: opt.align || (opt.money ? "right" : "left"), money: !!opt.money, width: opt.width });
   const columns = [
-    col("kind", "Type"), col("ref", "Voucher / Reimb No."), col("date", "Txn Date"), col("cutoff", "Cut-off"),
+    col("kind", "Type"), col("ref", "Voucher / Reimb No."), col("date", "Txn Date"), col("cutoff", "Cut-off Tag", { width: "15%" }),
     col("employee", "Employee"), col("branch", "Branch"),
     col("checked", "Custodian Approved", { width: "17%" }), col("final", "Final Approval", { width: "17%" }),
     col("amount", "Approved Amount", { money: true }),
@@ -83,7 +90,9 @@ function readyReplenishmentDoc(readyByPlant, funds, plantTitle, generatedBy, sco
     rows.push({ _group: true, kind: `${plantLabel(plantCode)} (${plantCode}) — ${companyOfBranch(plantCode)}${fund && fund.custodian ? " · Custodian: " + fund.custodian : ""}` });
     items.forEach((x) => {
       count++;
-      rows.push({ kind: readyKindLabel(x), ref: x.ref, date: x.date ? fmtDate(x.date) : "—", cutoff: replenishCutoff(x.date).label,
+      const cut = replenishCutoff(x);
+      rows.push({ kind: readyKindLabel(x), ref: x.ref, date: x.date ? fmtDate(x.date) : "—",
+        cutoff: `${cut.label} · due ${fmtDate(cut.approveOn)}`,
         employee: x.employee, branch: plantLabel(x.branchCode) || x.branchCode,
         checked: stamp(x.checkedBy, x.checkedAt), final: stamp(x.finalBy, x.finalAt), amount: x.amount });
     });
@@ -281,7 +290,7 @@ const REPLENISH_SORT_FIELDS = {
   remarks: (r) => r.remarks,
 };
 
-function ReplenishmentTab({ replenishments, allReplenishmentNos, funds, disbursements, liquidations, reimbursements, onCreate, onEdit, onComplete, onDelete, plantOptions, canEdit, plantTitle, generatedBy }) {
+function ReplenishmentTab({ replenishments, allReplenishmentNos, funds, disbursements, liquidations, reimbursements, onCreate, onEdit, onComplete, onDelete, plantOptions, canEdit, plantTitle, generatedBy, onTagCutoff }) {
   const [showForm, setShowForm] = useState(false);
   /* Liquidations + amount handed to a new form from the Ready panel. */
   const [preselect, setPreselect] = useState(null);
@@ -302,31 +311,37 @@ function ReplenishmentTab({ replenishments, allReplenishmentNos, funds, disburse
   const ready = useMemo(
     () => replenishmentReadyItems(disbursements, liquidations, reimbursements, replenishments)
       .filter((x) => plant === "ALL" || x.branchCode === plant)
-      .map((x) => ({ ...x, cut: replenishCutoff(x.date) }))
+      .map((x) => ({ ...x, cut: replenishCutoff(x) }))
       .sort((a, b) => String(a.date).localeCompare(String(b.date))),
     [disbursements, liquidations, reimbursements, replenishments, plant]
   );
 
-  /* ---- Cut-off filter, search and selection ----
-     The cut-off chips list every period that has items waiting, oldest first,
-     with the date it is due for approval. Ticked items drive Replenish, Print
-     and Excel; with nothing ticked, those act on everything shown. */
-  const [cutFilter, setCutFilter] = useState("ALL");
+  /* ---- Cut-off tag filter, month, search and selection ----
+     Ticked items drive Replenish, Print and Excel; with nothing ticked, those
+     act on everything shown. */
+  const [tagFilter, setTagFilter] = useState("ALL");
+  const [monthFilter, setMonthFilter] = useState("ALL");
   const [readySearch, setReadySearch] = useState("");
   const [picked, setPicked] = useState(() => new Set());
   const today = todayISO();
-  const cutoffs = useMemo(() => {
+  const months = useMemo(() => {
     const m = new Map();
-    ready.forEach((x) => {
-      const c = m.get(x.cut.key) || { ...x.cut, count: 0, amount: 0 };
-      c.count++; c.amount = round2(c.amount + x.amount);
-      m.set(x.cut.key, c);
-    });
-    return Array.from(m.values()).sort((a, b) => a.sort.localeCompare(b.sort));
+    ready.forEach((x) => m.set(x.cut.month, x.cut.monthLabel));
+    return Array.from(m.entries()).sort((a, b) => a[0].localeCompare(b[0]));
   }, [ready]);
   const rq = readySearch.trim().toLowerCase();
-  const shown = ready.filter((x) => (cutFilter === "ALL" || x.cut.key === cutFilter)
+  const shown = ready.filter((x) => (tagFilter === "ALL" || x.cut.tag === tagFilter)
+    && (monthFilter === "ALL" || x.cut.month === monthFilter)
     && (!rq || [x.ref, x.employee, plantLabel(x.branchCode), x.checkedBy, x.finalBy].some((v) => String(v || "").toLowerCase().includes(rq))));
+  /* Summary per tag for the two tiles (within the month / search in force). */
+  const tagBase = ready.filter((x) => (monthFilter === "ALL" || x.cut.month === monthFilter));
+  const tagStats = CUTOFF_TAGS.map((t) => {
+    const arr = tagBase.filter((x) => x.cut.tag === t.value);
+    const dues = [...new Set(arr.map((x) => x.cut.approveOn))].sort();
+    return { ...t, count: arr.length, amount: round2(arr.reduce((s, x) => s + x.amount, 0)),
+      nextDue: dues[0] || "", overdue: arr.filter((x) => x.cut.approveOn < today).length,
+      auto: arr.filter((x) => x.cut.auto).length };
+  });
   const pickedShown = shown.filter((x) => picked.has(readyKey(x)));
   const sumOf = (arr) => round2(arr.reduce((s, x) => s + x.amount, 0));
   const togglePick = (keys, on) => setPicked((p) => {
@@ -348,17 +363,17 @@ function ReplenishmentTab({ replenishments, allReplenishmentNos, funds, disburse
     return Array.from(m.entries());
   };
   const readyByPlant = groupByPlant(shown);
-  const cutLabel = cutFilter === "ALL" ? "" : ((cutoffs.find((c) => c.key === cutFilter) || {}).label || "");
   const exportScope = pickedShown.length ? pickedShown : shown;
   const exportNote = [
     pickedShown.length ? `${pickedShown.length} selected item(s)` : "",
-    cutLabel ? `Cut-off ${cutLabel}` : "",
+    tagFilter !== "ALL" ? (CUTOFF_TAGS.find((t) => t.value === tagFilter) || {}).label : "",
+    monthFilter !== "ALL" ? (months.find((m) => m[0] === monthFilter) || [])[1] : "",
     rq ? `Search "${readySearch.trim()}"` : "",
   ].filter(Boolean).join(" · ");
   const exportDoc = () => readyReplenishmentDoc(groupByPlant(exportScope), funds, plantTitle, generatedBy, exportNote);
 
   const startFromReady = (plantCode, items) => {
-    const cuts = [...new Set(items.map((x) => x.cut.label))];
+    const cuts = [...new Set(items.map((x) => `${x.cut.label} ${x.cut.monthLabel}`))];
     setPreselect({
       branchCode: plantCode,
       liquidationIds: items.filter((x) => x.kind === "liq").map((x) => x.id),
@@ -418,30 +433,23 @@ function ReplenishmentTab({ replenishments, allReplenishmentNos, funds, disburse
               </button>
             </span>
           </div>
-          <div style={{ fontSize: 11.5, color: "var(--text-mut)", marginBottom: 10 }}>
-            Cut-off: transactions dated <b>1–15</b> are replenished on the <b>30th</b> of the month; <b>16–end</b> on the <b>15th</b> of the next month.
-          </div>
-
           {ready.length > 0 && (
             <>
-              {/* Cut-off period chips — oldest first, each with its approval date. */}
-              <div className="pcp-rr-chips">
-                <button className={"pcp-rr-chip" + (cutFilter === "ALL" ? " active" : "")} onClick={() => setCutFilter("ALL")}>
-                  <span className="lbl">All periods</span>
-                  <span className="sub">{ready.length} · {peso(sumOf(ready))}</span>
-                </button>
-                {cutoffs.map((c) => {
-                  const due = c.approveOn && c.approveOn <= today;
-                  return (
-                    <button key={c.key} className={"pcp-rr-chip" + (cutFilter === c.key ? " active" : "") + (due ? " due" : "")}
-                      onClick={() => setCutFilter(c.key)} title={c.approveOn ? `Replenish on ${fmtDate(c.approveOn)}` : ""}>
-                      <span className="lbl">{c.label}</span>
-                      <span className="sub">
-                        {c.approveOn ? (due ? `Due ${fmtDate(c.approveOn)}` : `Replenish ${fmtDate(c.approveOn)}`) : "—"} · {c.count} · {peso(c.amount)}
-                      </span>
-                    </button>
-                  );
-                })}
+              {/* Two cut-off tiles — click to filter; click again to show all. */}
+              <div className="pcp-rr-tiles">
+                {tagStats.map((t) => (
+                  <button key={t.value} className={"pcp-rr-tile" + (tagFilter === t.value ? " active" : "") + (t.overdue ? " due" : "")}
+                    onClick={() => setTagFilter(tagFilter === t.value ? "ALL" : t.value)}>
+                    <span className="lbl">{t.label} <span className="tagdue">{t.due}</span></span>
+                    <span className="amt pcp-num">{peso(t.amount)}</span>
+                    <span className="sub">
+                      {t.count} item(s)
+                      {t.nextDue ? ` · next due ${fmtDate(t.nextDue)}` : ""}
+                      {t.overdue ? ` · ${t.overdue} past due` : ""}
+                      {t.auto ? ` · ${t.auto} auto-tagged` : ""}
+                    </span>
+                  </button>
+                ))}
               </div>
 
               {/* Search + bulk selection. */}
@@ -451,10 +459,26 @@ function ReplenishmentTab({ replenishments, allReplenishmentNos, funds, disburse
                   <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search voucher / reimb no., employee, approver…"
                     value={readySearch} onChange={(e) => setReadySearch(e.target.value)} />
                 </div>
+                <select className="pcp-select" style={{ width: 190 }} value={tagFilter} onChange={(e) => setTagFilter(e.target.value)} title="Cut-off tag">
+                  <option value="ALL">All cut-off tags</option>
+                  {CUTOFF_TAGS.map((t) => <option key={t.value} value={t.value}>{t.label} ({t.due})</option>)}
+                </select>
+                <select className="pcp-select" style={{ width: 170 }} value={monthFilter} onChange={(e) => setMonthFilter(e.target.value)} title="Month of the transaction">
+                  <option value="ALL">All months</option>
+                  {months.map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+                </select>
                 <button className="pcp-btn pcp-btn-sm" disabled={!shown.length}
                   onClick={() => togglePick(shown.map(readyKey), !allShownPicked)}>
                   <Check size={12} /> {allShownPicked ? "Unselect all shown" : `Select all shown (${shown.length})`}
                 </button>
+                {pickedShown.length > 0 && canEdit && onTagCutoff && (
+                  <select className="pcp-select" style={{ width: 200 }} value=""
+                    onChange={(e) => { const v = e.target.value; if (v) pickedShown.forEach((x) => onTagCutoff(x.kind, x.id, v)); }}
+                    title="Tag every selected item">
+                    <option value="">Tag {pickedShown.length} selected as…</option>
+                    {CUTOFF_TAGS.map((t) => <option key={t.value} value={t.value}>{t.label} ({t.due})</option>)}
+                  </select>
+                )}
                 {pickedShown.length > 0 && (
                   <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={clearPicked}><X size={12} /> Clear selection</button>
                 )}
@@ -493,7 +517,7 @@ function ReplenishmentTab({ replenishments, allReplenishmentNos, funds, disburse
                   <table className="pcp-table">
                     <thead>
                       <tr>
-                        <th style={{ width: 30 }}></th><th>Type</th><th>Voucher / Reimb No.</th><th>Txn Date</th><th>Cut-off</th>
+                        <th style={{ width: 30 }}></th><th>Type</th><th>Voucher / Reimb No.</th><th>Txn Date</th><th>Cut-off Tag</th>
                         <th>Employee</th><th>Branch</th><th>Custodian Approved</th><th>Final Approval</th>
                         <th style={{ textAlign: "right" }}>Approved Amount</th>
                       </tr>
@@ -510,13 +534,21 @@ function ReplenishmentTab({ replenishments, allReplenishmentNos, funds, disburse
                             <td><span className={"pcp-badge " + (x.kind === "reimb" ? "pcp-badge-blue" : "pcp-badge-gray")}>{readyKindLabel(x)}</span></td>
                             <td><strong>{x.ref}</strong></td>
                             <td>{x.date ? fmtDate(x.date) : "—"}</td>
-                            <td>
-                              <div>{x.cut.label}</div>
-                              {x.cut.approveOn && (
-                                <div style={{ fontSize: 10.5, color: x.cut.approveOn <= today ? "var(--brand)" : "var(--text-mut)", fontWeight: x.cut.approveOn <= today ? 700 : 400 }}>
-                                  {x.cut.approveOn <= today ? "Due " : "Replenish "}{fmtDate(x.cut.approveOn)}
-                                </div>
+                            {/* Tag dropdown — saved on the record for everyone.
+                                "auto" = suggested from the date, not yet confirmed. */}
+                            <td onClick={(e) => e.stopPropagation()} style={{ minWidth: 170 }}>
+                              {canEdit && onTagCutoff ? (
+                                <select className={"pcp-select pcp-rr-tag" + (x.cut.tag === "1-15" ? " t1" : " t2")}
+                                  value={x.cut.tag} onChange={(e) => onTagCutoff(x.kind, x.id, e.target.value)}>
+                                  {CUTOFF_TAGS.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                                </select>
+                              ) : (
+                                <span className={"pcp-badge " + (x.cut.tag === "1-15" ? "pcp-badge-blue" : "pcp-badge-amber")}>{x.cut.label}</span>
                               )}
+                              <div style={{ fontSize: 10.5, marginTop: 2, color: x.cut.approveOn < today ? "var(--brand)" : "var(--text-mut)", fontWeight: x.cut.approveOn < today ? 700 : 400 }}>
+                                {x.cut.approveOn < today ? "Past due " : x.cut.approveOn === today ? "Due today " : "Due "}{fmtDate(x.cut.approveOn)}
+                                {x.cut.auto && <span style={{ fontWeight: 400, color: "var(--text-mut)" }}> · auto</span>}
+                              </div>
                             </td>
                             <td>{x.employee}</td>
                             <td>{plantLabel(x.branchCode)}</td>
