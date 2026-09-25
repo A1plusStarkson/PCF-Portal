@@ -234,7 +234,7 @@ function buildReport(type, D, F) {
        subtotal each, dated by the final approval, and tagged with whether a
        replenishment has claimed it yet (replenishment.liquidationIds /
        reimbursementIds). Legacy liquidations approved before the two-level
-       review have no final approver and are left out. */
+       review are included too, marked "Liquidation (old)". */
     case "FINALAPP": {
       const columns = [
         c("approvedAt", "Final Approval"), c("ref", "Voucher / Reimb No."), c("kind", "Type", { align: "center" }),
@@ -245,15 +245,33 @@ function buildReport(type, D, F) {
       const replFor = (key, id) => reps.find((r) => (r[key] || []).includes(id));
       const replStatus = (rp) => (!rp ? "For Replenishment"
         : (rp.status === "Completed" ? "Replenished" : "In Replenishment"));
+      /* Old liquidations (approved before the two-level review) carry no final
+         stamp, so they are dated and attributed from the LAST receipt approval
+         in their approval history, falling back to the record's own dates. */
+      const legacyApproval = (liq, d) => {
+        let at = "", by = "";
+        (liq.attachments || []).forEach((a) => (a.approvalHistory || []).forEach((h) => {
+          if (h.status === "Approved" && String(h.ts || "") > at) { at = String(h.ts || ""); by = h.approver || ""; }
+        }));
+        return { at: at || liq.submittedAt || liq.updatedAt || d.date || "", by };
+      };
       const items = [];
       disbursements.forEach((d) => {
         if (!okBranch(d.branchCode)) return;
         const liq = liquidationFor(d.id, liquidations);
         const rv = liqReview(liq);
-        if (!rv.final || rv.legacy || !rv.finalBy) return;
+        if (!rv.final) return;
+        const amount = receiptAmountSummary(liq).approvedTotal;
+        const rp = replFor("liquidationIds", liq.id);
+        if (rv.legacy) {
+          const la = legacyApproval(liq, d);
+          items.push({ d: d.branchCode, at: la.at, ref: d.voucherNo, kind: "Liquidation (old)", employee: d.employee,
+            checkedBy: "—", finalBy: (la.by ? la.by + " " : "") + "(before two-level approval)", rp, amount });
+          return;
+        }
+        if (!rv.finalBy) return;
         items.push({ d: d.branchCode, at: rv.finalAt, ref: d.voucherNo, kind: "Liquidation", employee: d.employee,
-          checkedBy: rv.checkedBy, finalBy: rv.finalBy, rp: replFor("liquidationIds", liq.id),
-          amount: receiptAmountSummary(liq).approvedTotal });
+          checkedBy: rv.checkedBy, finalBy: rv.finalBy, rp, amount });
       });
       (D.reimbursements || []).forEach((r) => {
         if (!okBranch(r.branchCode)) return;
