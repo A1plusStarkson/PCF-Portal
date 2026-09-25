@@ -70,6 +70,8 @@ const LIQ_PETTY_SORT_FIELDS = {
   amount: (d) => Number(d.amount) || 0,
   liqStatus: (d) => d.liqStatus,
   finalStatus: (d) => d.finalStatus,
+  /* Overdue balances sort above everything else, then by amount owed. */
+  balance: (d) => (d.stl.owing ? (d.stl.overdue ? 1e12 : 0) + d.stl.st.remaining : -1),
 };
 const LIQ_REIMB_SORT_FIELDS = {
   reimbNo: (r) => r.reimbNo,
@@ -82,6 +84,269 @@ const LIQ_REIMB_SORT_FIELDS = {
   status: (r) => r.status,
 };
 const LIQ_CLIP_CELL = { maxWidth: 170, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+
+/* ---- Cash settlement: options, readiness, direction and due date ----
+   Shared by the worksheet, the Liquidation list filter, Aging and the
+   dashboard so every screen agrees on who owes what and by when. */
+const SETTLEMENT_MODES = ["Cash", "GCash", "Bank transfer", "Payroll deduction", "Other"];
+const SETTLEMENT_SHORT_REASONS = [
+  "Balance to follow", "For payroll deduction", "Lost / missing receipt", "Requestor unavailable", "Other",
+];
+const RECEIVABLE_TREATMENTS = ["Receivable from requestor", "For payroll deduction", "Approved write-off", "Other"];
+const SETTLEMENT_FILTERS = [
+  "All settlements", "Waiting for receipts", "Cash to return", "Custodian to reimburse", "Overdue settlement", "Settled / nothing owed",
+];
+
+/* `ready`  — every document has an amount and is approved, so the figures are
+              final. Before that the "amount due" is just the released amount
+              minus whatever was typed so far, and showing it as a debt misleads.
+   `owing`  — cash still has to change hands (an approved closure ends it).
+   Due date — the same 5-calendar-day deadline (AGING_DUE_DAYS) as the
+              liquidation itself, counted from cash release. */
+function settlementInfo(disb, liq, today) {
+  const st = settlementStateFor(disb, liq);
+  const approval = receiptApprovalSummary(liq);
+  const ready = st.summary.docCount > 0 && st.summary.complete && approval.allApproved;
+  const owing = (ready || st.entries.length > 0) && st.type !== "exact" && st.remaining > 0 && !st.closed;
+  const dueDate = addDaysISO((disb && disb.date) || todayISO(), AGING_DUE_DAYS);
+  const daysLeft = daysBetween(today || todayISO(), dueDate);
+  let category;
+  if (!ready && !st.entries.length) category = "Waiting for receipts";
+  else if (owing) category = st.type === "excess" ? "Cash to return" : "Custodian to reimburse";
+  else category = "Settled / nothing owed";
+  return { st, ready, owing, dueDate, daysLeft, overdue: owing && daysLeft < 0, category };
+}
+
+/* Who owes whom, in words — "Difference ₱5,000" alone does not say. */
+const settlementOwes = (type) => (type === "excess" ? "Requestor owes custodian"
+  : type === "reimburse" ? "Custodian owes requestor" : "Nothing owed");
+
+/* "Due Sep 29, 2026 · 2 days left" / "Due today" / "Overdue by 3 days". */
+function SettlementDueChip({ dueDate, daysLeft }) {
+  const overdue = daysLeft < 0;
+  const text = overdue
+    ? `Overdue by ${-daysLeft} day${daysLeft === -1 ? "" : "s"} · was due ${fmtDate(dueDate)}`
+    : daysLeft === 0 ? `Due today · ${fmtDate(dueDate)}`
+      : `Due ${fmtDate(dueDate)} · ${daysLeft} day${daysLeft === 1 ? "" : "s"} left`;
+  return <span className={"pcp-stl-due" + (overdue ? " overdue" : daysLeft <= 1 ? " soon" : "")}><Clock size={11} /> {text}</span>;
+}
+
+/* Printable acknowledgment slip for ONE recorded movement, signed by both
+   sides when the cash changes hands. Opens the browser print dialog. */
+function printSettlementSlip(disb, st, entry) {
+  const esc = (v) => String(v == null ? "" : v).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  const idx = st.entries.findIndex((e) => e === entry || (e.id && e.id === entry.id));
+  const paidToDate = round2(st.entries.slice(0, idx + 1).reduce((t, e) => t + (Number(e.amount) || 0), 0));
+  const balance = round2(st.expected - paidToDate);
+  const isReturn = st.type === "excess";
+  const title = isReturn ? "Acknowledgment of Excess Cash Returned" : "Acknowledgment of Reimbursement Paid";
+  const payer = isReturn ? disb.employee : (entry.recordedBy || "PCF Custodian");
+  const payee = isReturn ? (entry.receivedBy || entry.recordedBy || "PCF Custodian") : (entry.receivedBy || disb.employee);
+  const row = (k, v) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`;
+  const html = `<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)} · ${esc(disb.voucherNo)}</title>
+<style>
+  body { font-family: -apple-system, "Segoe UI", Roboto, Arial, sans-serif; color: #1c2130; margin: 32px; font-size: 13px; }
+  h1 { font-size: 17px; margin: 0 0 2px; text-transform: uppercase; letter-spacing: .4px; }
+  .co { color: #6b7182; margin-bottom: 18px; }
+  table { border-collapse: collapse; width: 100%; margin-bottom: 18px; }
+  th, td { text-align: left; padding: 7px 10px; border: 1px solid #d9dce3; }
+  th { width: 34%; background: #f5f6f8; font-weight: 600; }
+  .amt { font-size: 20px; font-weight: 700; }
+  .note { font-size: 12px; color: #444; margin: 0 0 40px; }
+  .sig { display: flex; gap: 40px; }
+  .sig div { flex: 1; text-align: center; }
+  .line { border-top: 1px solid #1c2130; margin-top: 46px; padding-top: 5px; font-weight: 600; }
+  .role { font-size: 11px; color: #6b7182; }
+</style></head><body>
+  <h1>${esc(title)}</h1>
+  <div class="co">${esc(companyOfBranch(disb.branchCode))} · ${esc(plantLabel(disb.branchCode) || disb.branchCode)}</div>
+  <table>
+    ${row("Voucher No.", disb.voucherNo)}
+    ${row("Employee / Requestor", disb.employee)}
+    ${row("PCF Released", peso(st.released))}
+    ${row("Approved Receipts", peso(st.receiptTotal))}
+    ${row(isReturn ? "Total Excess to Return" : "Total Reimbursement Due", peso(st.expected))}
+    <tr><th>Amount ${isReturn ? "Returned" : "Paid"} (this slip)</th><td class="amt">${esc(peso(entry.amount))}</td></tr>
+    ${row("Date", fmtDate(entry.date))}
+    ${row("Mode", entry.mode || "Cash")}
+    ${row("Reference / AR / OR No.", entry.reference || "—")}
+    ${row("Balance after this payment", balance > 0 ? peso(balance) + " still outstanding" : balance < 0 ? peso(-balance) + " overpaid" : "Fully settled")}
+    ${entry.reason ? row("Remarks", entry.reason) : ""}
+    ${row("Recorded by", (entry.recordedBy || "—") + (entry.recordedAt ? " · " + String(entry.recordedAt).replace("T", " ") : ""))}
+  </table>
+  <p class="note">I acknowledge that the amount above was ${isReturn ? "returned to" : "received from"} the Petty Cash Fund on the date stated.</p>
+  <div class="sig">
+    <div><div class="line">${esc(payer)}</div><div class="role">${isReturn ? "Returned by (Requestor)" : "Paid by (PCF Custodian)"}</div></div>
+    <div><div class="line">${esc(payee)}</div><div class="role">${isReturn ? "Received by (PCF Custodian)" : "Received by (Requestor)"}</div></div>
+  </div>
+  <script>window.onload=function(){setTimeout(function(){window.print();},300);};</script>
+</body></html>`;
+  const w = window.open("", "_blank", "width=820,height=900");
+  if (!w) { window.alert("Please allow pop-ups for this site to print the acknowledgment slip."); return; }
+  w.document.open(); w.document.write(html); w.document.close(); w.focus();
+}
+
+/* Record-a-payment form (replaces the old browser prompt). Captures how the
+   cash moved and, when it does not clear the balance, a standard reason. */
+function RecordSettlementModal({ disbursement, st, currentUser, onClose, onConfirm }) {
+  const isReturn = st.type === "excess";
+  const [amount, setAmount] = useState(st.remaining.toFixed(2));
+  const [date, setDate] = useState(todayISO());
+  const [mode, setMode] = useState("Cash");
+  const [reference, setReference] = useState("");
+  const [receivedBy, setReceivedBy] = useState(isReturn ? (currentUser || "") : disbursement.employee);
+  const [reasonSel, setReasonSel] = useState("");
+  const [reasonNote, setReasonNote] = useState("");
+  const [ackFile, setAckFile] = useState(null);
+  const [uploadNote, setUploadNote] = useState("");
+
+  const amt = round2(amount);
+  const left = round2(st.remaining - amt);
+  const needsReason = amt > 0 && left !== 0;
+
+  const pickAck = (file) => {
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) { setUploadNote(`"${file.name}" is larger than 2 MB. Please compress it first.`); return; }
+    if (!fileStore()) { setUploadNote(STALE_PAGE_NOTE); return; }
+    const id = uid("ack");
+    setUploadNote(`Uploading "${file.name}"…`);
+    storeFile(id, file).then((path) => {
+      if (!path) { setUploadNote(`"${file.name}" could not be uploaded. Check your connection and try again.`); return; }
+      setUploadNote("");
+      setAckFile({ id, name: file.name, type: file.type || "file", size: file.size, path, uploadedAt: todayISO() });
+    });
+  };
+
+  const confirm = () => {
+    if (!(amt > 0)) { window.alert("Enter the amount that actually moved. It must be greater than zero."); return; }
+    if (!date) { window.alert("Enter the date the cash changed hands."); return; }
+    if (!receivedBy.trim()) { window.alert("Enter who received the cash."); return; }
+    if (needsReason && !reasonSel) { window.alert("Select a reason — the amount does not clear the balance."); return; }
+    if (needsReason && reasonSel === "Other" && !reasonNote.trim()) { window.alert("Describe the reason."); return; }
+    if (uploadNote.startsWith("Uploading")) { window.alert("Wait for the acknowledgment upload to finish."); return; }
+    const reason = needsReason ? [reasonSel, reasonNote.trim()].filter(Boolean).join(" — ") : reasonNote.trim();
+    onConfirm({ amount: amt, date, mode, reference: reference.trim(), receivedBy: receivedBy.trim(), ackFile, reason });
+  };
+
+  return (
+    <div className="pcp-modal-backdrop" {...backdropCloseProps(onClose)}>
+      <div className="pcp-modal" style={{ maxWidth: 520 }} onClick={(e) => e.stopPropagation()}>
+        <div className="pcp-modal-head">
+          <h3>{isReturn ? "Record Cash Returned" : "Record Reimbursement Paid"}</h3>
+          <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose}><X size={15} /></button>
+        </div>
+        <div className="pcp-modal-body">
+          <div style={{ fontSize: 11.5, color: "var(--text-mut)", marginBottom: 10 }}>
+            {disbursement.voucherNo} · {disbursement.employee} · {peso(st.remaining)} still outstanding
+          </div>
+          <div className="pcp-field-row">
+            <div className="pcp-field">
+              <label>Amount {isReturn ? "returned" : "paid"} <span style={{ color: "var(--brand)" }}>*</span></label>
+              <input type="number" min="0" step="0.01" className="pcp-input" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            </div>
+            <div className="pcp-field">
+              <label>Date <span style={{ color: "var(--brand)" }}>*</span></label>
+              <input type="date" className="pcp-input" value={date} onChange={(e) => setDate(e.target.value)} />
+            </div>
+          </div>
+          <div className="pcp-field-row">
+            <div className="pcp-field">
+              <label>Mode</label>
+              <select className="pcp-select" value={mode} onChange={(e) => setMode(e.target.value)}>
+                {SETTLEMENT_MODES.map((m) => <option key={m}>{m}</option>)}
+              </select>
+            </div>
+            <div className="pcp-field">
+              <label>Reference / AR / OR No.</label>
+              <input className="pcp-input" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="e.g. AR-00123 or GCash ref." />
+            </div>
+          </div>
+          <div className="pcp-field">
+            <label>Received by <span style={{ color: "var(--brand)" }}>*</span></label>
+            <input className="pcp-input" value={receivedBy} onChange={(e) => setReceivedBy(e.target.value)} />
+          </div>
+          {needsReason && (
+            <div className="pcp-field">
+              <label>
+                Reason — this leaves {peso(Math.abs(left))} {left > 0 ? "still outstanding" : "overpaid"} <span style={{ color: "var(--brand)" }}>*</span>
+              </label>
+              <select className="pcp-select" value={reasonSel} onChange={(e) => setReasonSel(e.target.value)}>
+                <option value="">Select a reason</option>
+                {(left > 0 ? SETTLEMENT_SHORT_REASONS : ["Rounding / correction", "Other"]).map((r) => <option key={r}>{r}</option>)}
+              </select>
+            </div>
+          )}
+          <div className="pcp-field">
+            <label>{needsReason ? "Details" : "Remarks (optional)"}</label>
+            <input className="pcp-input" value={reasonNote} onChange={(e) => setReasonNote(e.target.value)} />
+          </div>
+          <div className="pcp-field" style={{ marginBottom: 0 }}>
+            <label>Signed acknowledgment (optional photo or scan)</label>
+            {ackFile ? (
+              <div style={{ display: "flex", gap: 8, alignItems: "center", fontSize: 12 }}>
+                <Paperclip size={12} /> {ackFile.name}
+                <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => setAckFile(null)}><X size={12} /></button>
+              </div>
+            ) : (
+              <input type="file" accept="image/*,application/pdf" onChange={(e) => pickAck(e.target.files && e.target.files[0])} style={{ fontSize: 12 }} />
+            )}
+            {uploadNote && <div style={{ fontSize: 11, color: "var(--brand)", marginTop: 4 }}>{uploadNote}</div>}
+          </div>
+        </div>
+        <div className="pcp-modal-foot">
+          <button className="pcp-btn" onClick={onClose}>Cancel</button>
+          <button className="pcp-btn pcp-btn-primary" onClick={confirm}><Check size={13} /> Record {peso(amt > 0 ? amt : 0)}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Close-as-Receivable form (replaces the two browser prompts). */
+function CloseReceivableModal({ disbursement, amount, onClose, onConfirm }) {
+  const [treatment, setTreatment] = useState(RECEIVABLE_TREATMENTS[0]);
+  const [other, setOther] = useState("");
+  const [reason, setReason] = useState("");
+  const confirm = () => {
+    const t = treatment === "Other" ? other.trim() : treatment;
+    if (!t) { window.alert("Describe how the balance is being treated."); return; }
+    if (!reason.trim()) { window.alert("A reason / authority is required to close a shortage."); return; }
+    onConfirm({ treatment: t, reason: reason.trim() });
+  };
+  return (
+    <div className="pcp-modal-backdrop" {...backdropCloseProps(onClose)}>
+      <div className="pcp-modal" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
+        <div className="pcp-modal-head">
+          <h3>Close {peso(amount)} as Receivable</h3>
+          <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose}><X size={15} /></button>
+        </div>
+        <div className="pcp-modal-body">
+          <div style={{ fontSize: 11.5, color: "var(--text-mut)", marginBottom: 10 }}>
+            {disbursement.voucherNo} · {disbursement.employee} — {peso(amount)} will remain unrecovered and the status
+            will read LIQUIDATED (SHORT). This is written to the audit trail against your name.
+          </div>
+          <div className="pcp-field">
+            <label>Treatment <span style={{ color: "var(--brand)" }}>*</span></label>
+            <select className="pcp-select" value={treatment} onChange={(e) => setTreatment(e.target.value)}>
+              {RECEIVABLE_TREATMENTS.map((t) => <option key={t}>{t}</option>)}
+            </select>
+            {treatment === "Other" && (
+              <input className="pcp-input" style={{ marginTop: 6 }} placeholder="Describe the treatment" value={other} onChange={(e) => setOther(e.target.value)} />
+            )}
+          </div>
+          <div className="pcp-field" style={{ marginBottom: 0 }}>
+            <label>Reason / authority <span style={{ color: "var(--brand)" }}>*</span></label>
+            <textarea className="pcp-input" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Approved by Finance Director for payroll deduction on the next cut-off" />
+          </div>
+        </div>
+        <div className="pcp-modal-foot">
+          <button className="pcp-btn" onClick={onClose}>Cancel</button>
+          <button className="pcp-btn pcp-btn-primary" onClick={confirm}><AlertTriangle size={13} /> Close as Receivable</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 /* Reject-liquidation dialog — a standardized Rejection Reason (required) plus an
    optional Reviewer Comment. Only the authorized approver reaches this dialog;
@@ -200,8 +465,9 @@ function LiquidationWorksheet({
   const [saved, setSaved] = useState(true);
   const [uploadNote, setUploadNote] = useState("");
   const [dupNote, setDupNote] = useState("");
-  /* Actual amount keyed in by the custodian when recording the settlement. */
-  const [actualInput, setActualInput] = useState("");
+  /* Open state of the Record Payment and Close as Receivable forms. */
+  const [showRecord, setShowRecord] = useState(false);
+  const [showReceivable, setShowReceivable] = useState(false);
   /* Open state of the standardized Reject Liquidation dialog. */
   const [showReject, setShowReject] = useState(false);
 
@@ -214,7 +480,8 @@ function LiquidationWorksheet({
     setSaved(true);
     setUploadNote("");
     setDupNote("");
-    setActualInput("");
+    setShowRecord(false);
+    setShowReceivable(false);
     setShowReject(false);
   }, [disbursement.id]);
 
@@ -372,6 +639,25 @@ function LiquidationWorksheet({
   /* Cash settlement is a custodian act: the person who owes the money must not
      be able to record that it came back. */
   const canSettle = !!canApproveReceipts && !finalLocked;
+  /* Settlement presentation: readiness, due date, colour and headline. Amber =
+     cash to return, blue = custodian to reimburse, green = nothing owed / done,
+     red only for a real problem (overdue or over-settled). */
+  const settleDue = settlementInfo(disbursement, liveLiq);
+  const settleReady = settleDue.ready;
+  const settleTone = st.remaining < 0 || settleDue.overdue ? "red"
+    : st.type === "exact" || st.remaining === 0 ? "green"
+      : st.closed ? "gray"
+        : st.type === "excess" ? "amber" : "blue";
+  const settleHeadline = st.type === "exact" ? "Exact amount — no refund or reimbursement needed"
+    : st.remaining < 0 ? `Over-settled — ${peso(st.actual)} recorded against ${peso(st.expected)} due`
+      : st.remaining === 0
+        ? (st.type === "excess"
+          ? `Requestor returned ${peso(st.expected)} to the PCF Custodian`
+          : `PCF Custodian reimbursed ${peso(st.expected)} to the requestor`)
+        : st.closed ? `${peso(st.remaining)} unrecovered — closed as ${st.closure.treatment}`
+          : st.type === "excess"
+            ? `Requestor must return ${peso(st.remaining)} to the PCF Custodian`
+            : `PCF Custodian must reimburse ${peso(st.remaining)} to the requestor`;
   /* The encoded expense lines should agree with the approved receipts. */
   const linesVsReceipts = round2(total - receiptSummary.approvedTotal);
 
@@ -521,32 +807,12 @@ function LiquidationWorksheet({
      total rather than replacing it, so a settlement paid in instalments keeps
      every payment. A movement that leaves a balance outstanding must carry a
      reason — a shortage with no explanation is the thing that used to vanish. */
-  const handleRecordSettlement = () => {
+  const handleRecordSettlement = (form) => {
     if (!onRecordSettlement) return;
-    const amount = round2(actualInput === "" ? st.remaining : actualInput);
-    if (!(amount > 0)) { window.alert("Enter the amount that actually moved. It must be greater than zero."); return; }
-
-    const left = round2(st.remaining - amount);
-    let reason = "";
-    if (left !== 0) {
-      const question = left > 0
-        ? `This records ${peso(amount)} against the ${peso(st.remaining)} still outstanding, leaving ${peso(left)} SHORT.\n\n`
-          + "Reason for the shortfall (required) — e.g. balance to follow, lost receipt, for payroll deduction:"
-        : `This records ${peso(amount)}, which is ${peso(Math.abs(left))} MORE than the ${peso(st.remaining)} outstanding.\n\n`
-          + "Reason for the overpayment (required):";
-      const answer = window.prompt(question, "");
-      if (answer == null) return;
-      if (!answer.trim()) {
-        window.alert("A reason is required whenever the amount does not clear the balance. Nothing was recorded.");
-        return;
-      }
-      reason = answer.trim();
-    }
-
     onRecordSettlement(disbursement.id, {
-      amount, reason, expectedAmount: st.expected, runningTotal: st.actual, type: st.type,
+      ...form, expectedAmount: st.expected, runningTotal: st.actual, type: st.type,
     });
-    setActualInput("");
+    setShowRecord(false);
   };
 
   const handleUndoSettlement = () => {
@@ -563,26 +829,10 @@ function LiquidationWorksheet({
   /* Accepts an unrecovered balance as a receivable so the liquidation can
      complete. Restricted to Custodian / Finance / Accounting / SuperAdmin — a
      Requestor closing their own shortage would be signing off their own debt. */
-  const handleCloseShortage = () => {
+  const handleCloseShortage = ({ treatment, reason }) => {
     if (!onCloseShortage || !canApproveShortage) return;
-    const treatment = window.prompt(
-      `Close the ${peso(st.remaining)} shortage on ${disbursement.voucherNo}?\n\n`
-      + "How is the balance being treated? (required)\n"
-      + "e.g. Receivable from requestor, For payroll deduction, Approved write-off",
-      "Receivable from requestor"
-    );
-    if (treatment == null) return;
-    if (!treatment.trim()) { window.alert("The treatment is required."); return; }
-    const reason = window.prompt(
-      `${peso(st.remaining)} will remain unrecovered on ${disbursement.voucherNo}.\n\n`
-      + "Reason / authority for closing it (required). This is written to the audit trail"
-      + " against your name:", ""
-    );
-    if (reason == null) return;
-    if (!reason.trim()) { window.alert("A reason is required to close a shortage."); return; }
-    onCloseShortage(disbursement.id, {
-      shortageAmount: st.remaining, treatment: treatment.trim(), reason: reason.trim(),
-    });
+    onCloseShortage(disbursement.id, { shortageAmount: st.remaining, treatment, reason });
+    setShowReceivable(false);
   };
 
   const handleReopenShortage = () => {
@@ -802,60 +1052,49 @@ function LiquidationWorksheet({
         </div>
       </Collapsible>
 
-      {/* Cash Settlement — collapsible, open by default since it drives completion. */}
+      {/* Cash Settlement — collapsible, open by default since it drives completion.
+          The one header badge is the settlement status (the duplicate inside was dropped). */}
       <Collapsible title="Reconciliation & Cash Settlement" defaultOpen right={<Badge status={st.settled ? "SETTLED" : "UNSETTLED"} />}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
-          <div className="pcp-section-title" style={{ margin: 0 }}>Cash Settlement</div>
-          <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-            <span style={{ fontSize: 11, color: "var(--text-mut)" }}>Settlement Status</span>
-            <Badge status={st.settled ? "SETTLED" : "UNSETTLED"} />
+        {!settleReady && !st.entries.length ? (
+          /* Nothing is owed until the receipts are final, so instead of an
+             "amount due" this shows exactly what is still missing. */
+          <div className="pcp-stl-banner tone-gray">
+            <div className="pcp-stl-top">
+              <div className="pcp-stl-head">Waiting for receipts</div>
+              {!st.settled && <SettlementDueChip dueDate={settleDue.dueDate} daysLeft={settleDue.daysLeft} />}
+            </div>
+            <div className="pcp-stl-sub">
+              The cash settlement is worked out once every receipt has an amount and has been approved by the custodian.
+              {" "}{peso(st.released)} was released.
+            </div>
+            <ul className="pcp-stl-check">
+              {[
+                [receiptSummary.docCount > 0, "At least one supporting document uploaded"],
+                [receiptSummary.docCount > 0 && receiptSummary.missing === 0, "Every document has a receipt amount"],
+                [approvalSummary.allApproved, "Every receipt approved by the custodian"],
+                [saved, "Worksheet saved"],
+              ].map(([ok, text]) => (
+                <li key={text} className={ok ? "ok" : ""}>{ok ? <Check size={12} /> : <span className="box" />} {text}</li>
+              ))}
+            </ul>
           </div>
-        </div>
+        ) : (
+          <div className={"pcp-stl-banner tone-" + settleTone}>
+            <div className="pcp-stl-top">
+              <div className="pcp-stl-head">{settleHeadline}</div>
+              {settleDue.owing && <SettlementDueChip dueDate={settleDue.dueDate} daysLeft={settleDue.daysLeft} />}
+            </div>
+            <div className="pcp-stl-sub pcp-num">
+              {peso(st.released)} released − {peso(st.receiptTotal)} approved receipts ={" "}
+              <strong>{st.difference < 0 ? "−" : ""}{peso(Math.abs(st.difference))}</strong>
+              {" · "}<strong>{settlementOwes(st.type)}</strong>
+            </div>
+          </div>
+        )}
 
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 18, fontSize: 12.5, marginBottom: 12 }}>
-          <div><div className="pcp-kpi-label">PCF Released Amount</div><div className="pcp-num" style={{ fontWeight: 700 }}>{peso(st.released)}</div></div>
-          <div><div className="pcp-kpi-label">Total Receipt Amount</div><div className="pcp-num" style={{ fontWeight: 700 }}>{peso(st.receiptTotal)}</div></div>
-          <div><div className="pcp-kpi-label">Difference</div><div className="pcp-num" style={{ fontWeight: 700, color: st.type === "reimburse" ? "var(--brand)" : st.type === "excess" ? "var(--amber)" : "var(--green)" }}>{st.difference < 0 ? "-" : ""}{peso(Math.abs(st.difference))}</div></div>
-        </div>
-
-        {/* Auto-classification of what has to happen, if anything. */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-          {[
-            { key: "excess", label: "Excess Cash Returned to PCF Custodian", desc: "Receipts came to less than the cash released — the requestor returns the unused cash." },
-            /* Deliberately not called a "shortfall". That word is reserved for a
-               CASH SHORTAGE — the requestor failing to return what they owe —
-               which is the opposite direction of money and a different problem
-               entirely. Calling both a shortfall is what made the two
-               indistinguishable on screen. */
-            { key: "reimburse", label: "Reimbursed by PCF Custodian to PCF Requestor", desc: "Receipts exceeded the cash released — the custodian pays the requestor the excess they spent." },
-            { key: "exact", label: "Exact Amount — No Refund, No Reimbursement", desc: "Receipts match the cash released exactly, so no cash settlement is required." },
-          ].map((opt) => {
-            const active = st.type === opt.key;
-            /* For the two settlement types the tick means "already completed";
-               for the exact case nothing needs to move, so it is inherently done. */
-            /* Ticked means DONE, so a part payment must not tick it — the whole
-               point is that a settlement with a balance outstanding is not
-               finished. A closed shortage counts as resolved. */
-            const ticked = active && (opt.key === "exact" ? true : (st.matches || st.closed));
-            return (
-              <label key={opt.key} style={{ display: "flex", gap: 9, alignItems: "flex-start", padding: "9px 11px", borderRadius: 8,
-                border: "1px solid " + (active ? "var(--brand)" : "var(--line)"),
-                background: active ? "var(--red-bg)" : "transparent", cursor: "default" }}>
-                <input type="checkbox" checked={ticked} readOnly style={{ marginTop: 2, pointerEvents: "none" }} />
-                <span>
-                  <span style={{ fontSize: 12.5, fontWeight: 700, color: active ? "var(--brand-dark)" : "var(--text)" }}>{opt.label}</span>
-                  <span style={{ display: "block", fontSize: 11, color: "var(--text-mut)", marginTop: 1 }}>{opt.desc}</span>
-                </span>
-              </label>
-            );
-          })}
-        </div>
-
-        {/* Expected / settled / remaining — the control that turns an intention
-            into a fact. `Remaining` is the figure that used to exist nowhere:
-            a part-paid settlement showed only "(does not match)" and the
-            outstanding balance was unrecorded, unreportable and uncollectable. */}
-        {st.type !== "exact" && (
+        {/* Expected / paid / outstanding and the recorded movements. Hidden
+            while waiting for receipts — until then there is nothing to record. */}
+        {st.type !== "exact" && (settleReady || st.entries.length > 0) && (
           <div style={{ marginTop: 12, padding: "11px 12px", borderRadius: 8, border: "1px solid var(--line)" }}>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 18, alignItems: "flex-end" }}>
               <div>
@@ -870,43 +1109,20 @@ function LiquidationWorksheet({
                 <div className="pcp-kpi-label">
                   {st.remaining > 0 ? "Still outstanding" : st.remaining < 0 ? "Overpaid by" : "Remaining"}
                 </div>
-                <div
-                  className="pcp-num"
-                  style={{
-                    fontWeight: 700, fontSize: 14,
-                    color: st.remaining === 0 ? "var(--green)" : "var(--brand)",
-                  }}
-                >
+                <div className="pcp-num" style={{ fontWeight: 700, fontSize: 14, color: st.remaining === 0 ? "var(--green)" : "var(--brand)" }}>
                   {peso(Math.abs(st.remaining))}
                 </div>
               </div>
-              {/* Only while cash is still DUE. Recording another movement on an
-                  already over-settled liquidation would just deepen the error;
-                  the fix there is to clear and re-record. */}
-              {st.remaining > 0 && canSettle && (
-                <div>
-                  <div className="pcp-kpi-label">{st.type === "excess" ? "Amount returned now" : "Amount paid now"}</div>
-                  <input
-                    type="number" min="0" step="0.01" className="pcp-input"
-                    style={{ width: 140 }}
-                    placeholder={String(st.remaining.toFixed(2))}
-                    value={actualInput}
-                    onChange={(e) => setActualInput(e.target.value)}
-                  />
-                </div>
-              )}
-              <div style={{ display: "flex", gap: 8 }}>
+              <div style={{ display: "flex", gap: 8, marginLeft: "auto", flexWrap: "wrap" }}>
+                {/* Only while cash is still DUE. Recording another movement on an
+                    already over-settled liquidation would just deepen the error;
+                    the fix there is to clear and re-record. */}
                 {st.remaining > 0 && canSettle && (
                   <button
                     className="pcp-btn pcp-btn-sm pcp-btn-primary"
-                    onClick={handleRecordSettlement}
-                    disabled={!saved || !receiptSummary.complete || !approvalSummary.allApproved}
-                    title={
-                      !saved ? "Save your changes first"
-                        : !receiptSummary.complete ? "Every document needs a receipt amount first"
-                          : !approvalSummary.allApproved ? "The custodian must approve every receipt first"
-                            : "Record cash that has actually changed hands. Leave the amount blank to record the full outstanding balance."
-                    }
+                    onClick={() => setShowRecord(true)}
+                    disabled={!saved || !settleReady}
+                    title="Record cash that has actually changed hands"
                   >
                     <Check size={12} /> {st.type === "excess" ? "Record Cash Returned" : "Record Reimbursement Paid"}
                   </button>
@@ -917,7 +1133,7 @@ function LiquidationWorksheet({
                 {st.remaining > 0 && !st.closed && canApproveShortage && !finalLocked && (
                   <button
                     className="pcp-btn pcp-btn-sm pcp-btn-danger"
-                    onClick={handleCloseShortage}
+                    onClick={() => setShowReceivable(true)}
                     title="Accept the outstanding balance as a receivable from the requestor so this liquidation can complete"
                   >
                     <AlertTriangle size={12} /> Close {peso(st.remaining)} as Receivable
@@ -931,19 +1147,46 @@ function LiquidationWorksheet({
               </div>
             </div>
 
+            {/* Why the Record button is disabled, spelled out instead of hidden in a tooltip. */}
+            {st.remaining > 0 && canSettle && (!saved || !settleReady) && (
+              <ul className="pcp-stl-check" style={{ marginTop: 10 }}>
+                {[
+                  [saved, "Worksheet saved"],
+                  [receiptSummary.docCount > 0 && receiptSummary.missing === 0, "Every document has a receipt amount"],
+                  [approvalSummary.allApproved, "Every receipt approved by the custodian"],
+                ].map(([ok, text]) => (
+                  <li key={text} className={ok ? "ok" : ""}>{ok ? <Check size={12} /> : <span className="box" />} {text}</li>
+                ))}
+              </ul>
+            )}
+            {st.remaining > 0 && !canSettle && !finalLocked && (
+              <div style={{ fontSize: 11, color: "var(--text-mut)", marginTop: 8 }}>
+                The PCF Custodian records the settlement once the cash has physically changed hands.
+              </div>
+            )}
+
             {/* Every movement, so two payments a week apart both stay visible
-                with who took them in and why the first fell short. */}
+                with who took them in, how, and why the first fell short. */}
             {!!st.entries.length && (
               <div style={{ marginTop: 10, borderTop: "1px solid var(--line)", paddingTop: 8 }}>
                 <div className="pcp-kpi-label" style={{ marginBottom: 4 }}>Recorded movements</div>
                 {st.entries.map((e, i) => (
-                  <div key={e.id || i} style={{ fontSize: 11.5, display: "flex", gap: 10, flexWrap: "wrap", padding: "2px 0" }}>
+                  <div key={e.id || i} className="pcp-stl-entry">
                     <span className="pcp-num" style={{ fontWeight: 700, minWidth: 90 }}>{peso(e.amount)}</span>
-                    <span style={{ color: "var(--text-mut)" }}>{e.date || "—"}</span>
+                    <span>{e.date ? fmtDate(e.date) : "—"}</span>
+                    <span className="pcp-badge pcp-badge-gray">{e.mode || "Cash"}</span>
+                    {e.reference && <span>Ref {e.reference}</span>}
                     <span style={{ color: "var(--text-mut)" }}>
-                      {e.recordedBy || "—"}{e.legacy ? " (recorded before movements were itemised)" : ""}
+                      {e.receivedBy ? `received by ${e.receivedBy} · ` : ""}recorded by {e.recordedBy || "—"}
+                      {e.legacy ? " (recorded before movements were itemised)" : ""}
                     </span>
                     {e.reason && <span style={{ color: "var(--text-mut)" }}>· {e.reason}</span>}
+                    <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+                      {e.ackFile && <AttachmentLinks att={e.ackFile} />}
+                      <button className="pcp-btn pcp-btn-sm" onClick={() => printSettlementSlip(disbursement, st, e)} title="Print acknowledgment slip for signing">
+                        <Printer size={12} /> Slip
+                      </button>
+                    </span>
                   </div>
                 ))}
               </div>
@@ -1375,6 +1618,20 @@ function LiquidationWorksheet({
           onConfirm={handleConfirmReject}
         />
       )}
+      {showRecord && (
+        <RecordSettlementModal
+          disbursement={disbursement} st={st} currentUser={currentUser}
+          onClose={() => setShowRecord(false)}
+          onConfirm={handleRecordSettlement}
+        />
+      )}
+      {showReceivable && (
+        <CloseReceivableModal
+          disbursement={disbursement} amount={st.remaining}
+          onClose={() => setShowReceivable(false)}
+          onConfirm={handleCloseShortage}
+        />
+      )}
     </div>
   );
 }
@@ -1509,6 +1766,8 @@ function LiquidationTab({
   /* Free-text search, shared by both sources, plus one column sort per source.
      Picking a row opens its worksheet in a resizable pop-up (selectedId). */
   const [search, setSearch] = useState("");
+  /* Who-owes-whom filter (petty cash only) — e.g. everyone who still owes cash. */
+  const [settleFilter, setSettleFilter] = useState(SETTLEMENT_FILTERS[0]);
   const pettySort = useTableSort("date", "desc");
   const reimbSort = useTableSort("requestDate", "desc");
   /* Unsaved worksheet edits live only in the pop-up, so closing it asks first. */
@@ -1524,6 +1783,7 @@ function LiquidationTab({
     ...d,
     liqStatus: liqStatusFor(d, liquidations),
     finalStatus: liqFinalStatus(d, liquidationFor(d.id, liquidations)),
+    stl: settlementInfo(d, liquidationFor(d.id, liquidations)),
   }));
   /* A voucher stays on the worklist until it is genuinely LIQUIDATED — that is,
      until any refund or reimbursement has actually been settled. Picking an
@@ -1532,11 +1792,15 @@ function LiquidationTab({
      has to be ticked as well. */
   const q = search.trim().toLowerCase();
   const hit = (...vals) => !q || vals.some((v) => String(v || "").toLowerCase().includes(q));
+  /* A settlement filter, like a status filter, overrides the worklist gate. */
+  const settleFilterOn = settleFilter !== SETTLEMENT_FILTERS[0];
   const pettyFiltered = (pettyStatus === LIQ_STATUS_FILTER_ALL
-    ? (showAll ? enriched : enriched.filter((d) => !liqIsComplete(d.finalStatus)))
+    ? (showAll || settleFilterOn ? enriched : enriched.filter((d) => !liqIsComplete(d.finalStatus)))
     : enriched.filter((d) => d.liqStatus === PCA_STATUS_FILTERS[pettyStatus]))
     .filter((d) => hit(d.voucherNo, d.requestNo, d.employee, d.branchCode, plantLabel(d.branchCode),
-      subaccountLabel(d.department), disbExpense(d), d.liqStatus, d.finalStatus));
+      subaccountLabel(d.department), disbExpense(d), d.liqStatus, d.finalStatus))
+    .filter((d) => settleFilter === SETTLEMENT_FILTERS[0]
+      || (settleFilter === "Overdue settlement" ? d.stl.overdue : d.stl.category === settleFilter));
   const list = pettySort.sortRows(pettyFiltered, LIQ_PETTY_SORT_FIELDS);
   /* Looked up in `enriched`, not `list`, so the open pop-up stays put when an
      action moves the voucher out of the current filter (e.g. it completes). */
@@ -1561,7 +1825,7 @@ function LiquidationTab({
   /* An explicit status filter already decides what the list shows, so the
      completed-vs-open toggle is only meaningful on "All statuses". */
   const activeStatus = source === "pettycash" ? pettyStatus : reimbStatus;
-  const statusFilterOn = activeStatus !== LIQ_STATUS_FILTER_ALL;
+  const statusFilterOn = activeStatus !== LIQ_STATUS_FILTER_ALL || (source === "pettycash" && settleFilterOn);
   const pettyCount = list.length;
   const reimbCount = reimbActive.length;
 
@@ -1622,11 +1886,19 @@ function LiquidationTab({
             searchPlaceholder="Search status…"
             style={{ width: 240 }}
           />
+          {source === "pettycash" && (
+            <>
+              <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mut)" }}>Settlement</span>
+              <select className="pcp-select" style={{ width: 210 }} value={settleFilter} onChange={(e) => setSettleFilter(e.target.value)}>
+                {SETTLEMENT_FILTERS.map((f) => <option key={f}>{f}</option>)}
+              </select>
+            </>
+          )}
           {statusFilterOn && (
             <button
               className="pcp-btn pcp-btn-ghost pcp-btn-sm"
               onClick={() => {
-                if (source === "pettycash") setPettyStatus(LIQ_STATUS_FILTER_ALL);
+                if (source === "pettycash") { setPettyStatus(LIQ_STATUS_FILTER_ALL); setSettleFilter(SETTLEMENT_FILTERS[0]); }
                 else setReimbStatus(LIQ_STATUS_FILTER_ALL);
               }}
             ><X size={12} /> Clear</button>
@@ -1653,6 +1925,7 @@ function LiquidationTab({
                     <SortTh field="amount" sort={pettySort} align="right">PCF Released</SortTh>
                     <SortTh field="liqStatus" sort={pettySort}>Liquidation</SortTh>
                     <SortTh field="finalStatus" sort={pettySort}>Settlement</SortTh>
+                    <SortTh field="balance" sort={pettySort}>Balance Due</SortTh>
                     <th></th>
                   </tr>
                 </thead>
@@ -1668,14 +1941,28 @@ function LiquidationTab({
                       <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700 }}>{peso(d.amount)}</td>
                       <td><Badge status={d.liqStatus} /></td>
                       <td><Badge status={d.finalStatus} /></td>
+                      <td>
+                        {d.stl.owing ? (
+                          <div style={{ lineHeight: 1.3 }}>
+                            <div className="pcp-num" style={{ fontWeight: 700, color: d.stl.overdue ? "var(--brand)" : d.stl.st.type === "excess" ? "var(--amber)" : "var(--blue)" }}>
+                              {d.stl.st.type === "excess" ? "Return " : "Reimburse "}{peso(d.stl.st.remaining)}
+                            </div>
+                            <div style={{ fontSize: 10.5, color: d.stl.overdue ? "var(--brand)" : "var(--text-mut)", fontWeight: d.stl.overdue ? 700 : 400 }}>
+                              {d.stl.overdue ? `Overdue ${-d.stl.daysLeft}d` : d.stl.daysLeft === 0 ? "Due today" : `Due ${fmtDate(d.stl.dueDate)}`}
+                            </div>
+                          </div>
+                        ) : (
+                          <span style={{ fontSize: 11, color: "var(--text-mut)" }}>{d.stl.category === "Waiting for receipts" ? "Awaiting receipts" : "—"}</span>
+                        )}
+                      </td>
                       <td><button className="pcp-btn pcp-btn-sm" title="Open liquidation"><Eye size={12} /></button></td>
                     </tr>
                   )) : (
-                    <tr><td colSpan={10} className="pcp-empty">
+                    <tr><td colSpan={11} className="pcp-empty">
                       {q
                         ? "No cash advance matches “" + search.trim() + "”"
                         : statusFilterOn
-                          ? "No cash advance has the status " + pettyStatus
+                          ? "No cash advance matches the selected filters"
                           : showAll ? "No vouchers yet" : "Every voucher is fully liquidated and settled"}
                     </td></tr>
                   )}

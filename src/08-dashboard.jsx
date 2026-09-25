@@ -725,6 +725,16 @@ function Dashboard({ funds, requests, disbursements, liquidations, replenishment
     return ageDays > 5; // liquidation due within 5 calendar days
   }).length, [disbursements, liquidations]);
 
+  /* Cash still owed past the settlement due date (see settlementInfo). */
+  const overdueSettlements = useMemo(() => {
+    let count = 0, amount = 0;
+    disbursements.forEach((d) => {
+      const info = settlementInfo(d, liquidationFor(d.id, liquidations));
+      if (info.overdue) { count++; amount += info.st.remaining; }
+    });
+    return { count, amount };
+  }, [disbursements, liquidations]);
+
   const completedLiquidations = useMemo(() =>
     disbursements.filter((d) => liqStatusFor(d, liquidations) === "Fully Liquidated").length,
     [disbursements, liquidations]);
@@ -800,6 +810,10 @@ function Dashboard({ funds, requests, disbursements, liquidations, replenishment
         <KpiCard label="Liquidations For Revision" value={receiptStats.forRevision} icon={AlertTriangle} tint="#c8102e" foot="Rejected receipt(s) — needs correction" onClick={onNavigate ? () => onNavigate("liquidation") : undefined} />
         <KpiCard label="Pending Liquidations" value={m.pendingLiquidationCount} icon={FileSpreadsheet} tint="#2054a3" foot="Vouchers not fully liquidated" onClick={onNavigate ? () => onNavigate("liquidation") : undefined} />
         <KpiCard label="Overdue Liquidations" value={overdueLiquidations} icon={AlertTriangle} tint="#c8102e" foot="Past 5-day liquidation deadline" onClick={onNavigate ? () => onNavigate("aging") : undefined} />
+        <KpiCard label="Overdue Cash Settlements" value={overdueSettlements.count} icon={CircleDollarSign}
+          tint={overdueSettlements.count ? "#c8102e" : "#15803d"}
+          foot={overdueSettlements.count ? `${peso(overdueSettlements.amount)} still to be returned / reimbursed` : "No overdue cash returns or reimbursements"}
+          onClick={onNavigate ? () => onNavigate("aging") : undefined} />
         <KpiCard label="Completed Liquidations" value={completedLiquidations} icon={Check} tint="#15803d" foot="Fully liquidated vouchers" onClick={onNavigate ? () => onNavigate("liquidation") : undefined} />
         <KpiCard label="Pending Replenishments" value={m.pendingReplenishments} icon={RefreshCw} tint="#b9790a" foot="Awaiting completion" onClick={onNavigate ? () => onNavigate("replenishment") : undefined} />
         <KpiCard label="Monthly Expenses" value={peso(m.monthlyExpenses)} icon={TrendingUp} tint="#c8102e" foot="Liquidated this month" onClick={onNavigate ? () => onNavigate("history") : undefined} />

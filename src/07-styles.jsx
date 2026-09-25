@@ -232,6 +232,29 @@ const CSS = `
   /* ---- Liquidation workspace (Section 25 — maximize screen space) ---- */
   .pcp-liq-full .pcp-content { padding: 14px 18px 48px 18px; }
   table.pcp-table tbody tr.pcp-liq-row { cursor: pointer; }
+  /* Cash settlement result banner — tone by direction, red only for problems. */
+  .pcp-stl-banner { border: 1px solid var(--line); border-left-width: 4px; border-radius: 8px; padding: 11px 13px; }
+  .pcp-stl-banner.tone-amber { background: var(--amber-bg); border-color: #efd49a; border-left-color: var(--amber); }
+  .pcp-stl-banner.tone-blue  { background: var(--blue-bg);  border-color: #c4d6f0; border-left-color: var(--blue); }
+  .pcp-stl-banner.tone-green { background: var(--green-bg); border-color: #b9dfc5; border-left-color: var(--green); }
+  .pcp-stl-banner.tone-red   { background: var(--red-bg);   border-color: #f0bcbc; border-left-color: var(--brand); }
+  .pcp-stl-banner.tone-gray  { background: var(--paper);    border-left-color: #9aa0ad; }
+  .pcp-stl-top { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .pcp-stl-head { font-size: 14px; font-weight: 700; }
+  .pcp-stl-sub { font-size: 12px; color: var(--text-mut); margin-top: 3px; }
+  .pcp-stl-sub strong { color: var(--text); }
+  .pcp-stl-check { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 3px; font-size: 12px; }
+  .pcp-stl-check li { display: flex; align-items: center; gap: 7px; color: var(--text-mut); }
+  .pcp-stl-check li.ok { color: var(--green); }
+  .pcp-stl-check .box { width: 12px; height: 12px; border: 1.5px solid #9aa0ad; border-radius: 3px; display: inline-block; }
+  .pcp-stl-due {
+    display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600;
+    padding: 3px 9px; border-radius: 99px; background: #fff; border: 1px solid var(--line); color: var(--text-mut); white-space: nowrap;
+  }
+  .pcp-stl-due.soon { color: var(--amber); border-color: #efd49a; }
+  .pcp-stl-due.overdue { color: #fff; background: var(--brand); border-color: var(--brand); }
+  .pcp-stl-entry { font-size: 11.5px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 4px 0; border-bottom: 1px dashed #eef0f3; }
+  .pcp-stl-entry:last-child { border-bottom: none; }
   /* Liquidation worksheet pop-up: wide and tall by default (still resizable). */
   .pcp-modal.pcp-liq-modal { width: min(1300px, 96vw); height: calc(100vh - 80px); }
   .pcp-liq-modal .pcp-modal-body { background: var(--paper); padding: 14px 16px; }

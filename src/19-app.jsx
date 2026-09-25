@@ -723,6 +723,9 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       const entries = (Array.isArray(prev.entries) ? prev.entries : settlementEntries(l)).concat([{
         id: uid("stl"), amount, date: p.date || todayISO(),
         recordedBy: actor, recordedAt: ts, reason: p.reason || "",
+        /* How the cash moved and the proof of it (RecordSettlementModal). */
+        mode: p.mode || "Cash", reference: p.reference || "", receivedBy: p.receivedBy || "",
+        ackFile: p.ackFile || null,
       }]);
       const total = round2(entries.reduce((t, e) => t + (Number(e.amount) || 0), 0));
       return {
@@ -745,7 +748,10 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     const label = p.type === "excess" ? "cash returned" : "reimbursement paid";
     const outstanding = round2(round2(p.expectedAmount) - round2(p.runningTotal || 0) - amount);
     logAudit("Cash Settlement Recorded", voucher,
-      `${label} ${peso(amount)} · expected ${peso(p.expectedAmount)}`
+      `${label} ${peso(amount)} · ${p.mode || "Cash"}`
+      + (p.reference ? ` ref ${p.reference}` : "")
+      + (p.receivedBy ? ` · received by ${p.receivedBy}` : "")
+      + ` · expected ${peso(p.expectedAmount)}`
       + (outstanding > 0 ? ` · SHORT by ${peso(outstanding)}` : "")
       + (outstanding < 0 ? ` · OVER by ${peso(Math.abs(outstanding))}` : "")
       + (p.reason ? ` · ${p.reason}` : ""));

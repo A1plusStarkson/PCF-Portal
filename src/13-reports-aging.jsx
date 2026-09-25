@@ -287,6 +287,17 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
     return { released, outstanding, pending, dueToday, overdue, completed };
   }, [records]);
 
+  /* Cash still owed after the receipts are final — excess to return or a
+     reimbursement to pay — scoped by the same filters, most overdue first. */
+  const openSettlements = useMemo(() => {
+    const ids = new Set(records.map((r) => r.id));
+    return (disbursements || [])
+      .filter((d) => ids.has(d.id))
+      .map((d) => ({ d, info: settlementInfo(d, liquidationFor(d.id, liquidations), today) }))
+      .filter((x) => x.info.owing)
+      .sort((a, b) => a.info.daysLeft - b.info.daysLeft);
+  }, [records, disbursements, liquidations, today]);
+
   /* ---- Analytics datasets ---- */
   const overdueByPlant = useMemo(
     () => byPlant.filter((p) => p.overdue > 0).map((p) => ({ name: p.plantLabel, value: p.overdue })).sort((a, b) => b.value - a.value),
@@ -505,6 +516,42 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
           <KpiCard label="Total Overdue Liquidations" value={cards.overdue} icon={AlertTriangle} tint="#c8102e" foot={`Past ${AGING_DUE_DAYS}-day due date`} />
           <KpiCard label="Total Completed Liquidations" value={cards.completed} icon={Check} tint="#15803d" foot="Fully liquidated vouchers" />
           <KpiCard label="Total Outstanding Amount" value={peso(cards.outstanding)} icon={CircleDollarSign} tint={cards.outstanding > 0 ? "#c8102e" : "#15803d"} foot="Unliquidated balance" />
+        </div>
+
+        {/* ---- Outstanding cash settlements ---- */}
+        <div className="pcp-card" style={{ marginBottom: 16 }}>
+          <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+            <span><CircleDollarSign size={14} style={{ verticalAlign: "-2px", marginRight: 6 }} />Outstanding Cash Settlements ({openSettlements.length})</span>
+            <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-mut)" }}>
+              {openSettlements.filter((x) => x.info.overdue).length} overdue · due {AGING_DUE_DAYS} days after release · record payments in the Liquidation module
+            </span>
+          </div>
+          <div className="pcp-table-wrap">
+            <table className="pcp-table">
+              <thead>
+                <tr>
+                  <th>Voucher No.</th><th>Employee</th><th>Plant</th><th>Who Owes</th>
+                  <th style={{ textAlign: "right" }}>Expected</th><th style={{ textAlign: "right" }}>Paid</th>
+                  <th style={{ textAlign: "right" }}>Balance</th><th>Due Date</th><th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {openSettlements.length ? openSettlements.map(({ d, info }) => (
+                  <tr key={d.id}>
+                    <td>{d.voucherNo}</td>
+                    <td>{d.employee}</td>
+                    <td>{d.branchCode}</td>
+                    <td>{settlementOwes(info.st.type)}</td>
+                    <td className="pcp-num" style={{ textAlign: "right" }}>{peso(info.st.expected)}</td>
+                    <td className="pcp-num" style={{ textAlign: "right" }}>{peso(info.st.actual)}</td>
+                    <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700, color: info.overdue ? "var(--brand)" : "var(--text)" }}>{peso(info.st.remaining)}</td>
+                    <td>{fmtDate(info.dueDate)}</td>
+                    <td><SettlementDueChip dueDate={info.dueDate} daysLeft={info.daysLeft} /></td>
+                  </tr>
+                )) : <tr><td colSpan={9} className="pcp-empty">No cash is waiting to be returned or reimbursed</td></tr>}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* ---- Aging by plant (drill-down) ---- */}
