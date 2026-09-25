@@ -232,6 +232,26 @@ const CSS = `
   /* ---- Liquidation workspace (Section 25 — maximize screen space) ---- */
   .pcp-liq-full .pcp-content { padding: 14px 18px 48px 18px; }
   table.pcp-table tbody tr.pcp-liq-row { cursor: pointer; }
+  /* Replenishment — Ready for Replenishment panel (cut-off chips, selection). */
+  .pcp-rr-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+  .pcp-rr-chip {
+    display: flex; flex-direction: column; align-items: flex-start; gap: 1px; text-align: left;
+    padding: 7px 12px; border: 1px solid var(--line); border-radius: 9px; background: #fff; cursor: pointer; font-family: inherit;
+  }
+  .pcp-rr-chip:hover { border-color: var(--brand); }
+  .pcp-rr-chip .lbl { font-size: 12.5px; font-weight: 700; color: var(--text); }
+  .pcp-rr-chip .sub { font-size: 10.5px; color: var(--text-mut); }
+  .pcp-rr-chip.due .sub { color: var(--brand); font-weight: 700; }
+  .pcp-rr-chip.active { border-color: var(--brand); background: var(--red-bg); box-shadow: inset 0 -2px 0 var(--brand); }
+  .pcp-rr-plant { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+  .pcp-rr-plant-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 9px 12px; background: var(--paper); border-bottom: 1px solid var(--line); }
+  table.pcp-table tbody tr.pcp-rr-row { cursor: pointer; }
+  table.pcp-table tbody tr.pcp-rr-row.on { background: #fff4f5; }
+  .pcp-rr-bar {
+    position: sticky; bottom: 10px; z-index: 4; display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+    margin-top: 6px; padding: 10px 14px; border-radius: 10px; background: var(--ink); color: #fff; font-size: 12.5px;
+    box-shadow: 0 8px 24px rgba(15,18,30,0.25);
+  }
   /* Cash settlement result banner — tone by direction, red only for problems. */
   .pcp-stl-banner { border: 1px solid var(--line); border-left-width: 4px; border-radius: 8px; padding: 11px 13px; }
   .pcp-stl-banner.tone-amber { background: var(--amber-bg); border-color: #efd49a; border-left-color: var(--amber); }
