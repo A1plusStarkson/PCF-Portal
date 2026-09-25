@@ -754,6 +754,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, reimb, nextRei
             </button>
           </div>
         </div>
+        <ModalResizeGrip />
       </div>
     </div>
   );

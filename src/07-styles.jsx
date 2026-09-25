@@ -172,14 +172,20 @@ const CSS = `
     background: #fff; border-radius: 14px; width: 100%; max-width: 620px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.25);
   }
-  /* Larger modal the user can resize by dragging the bottom-right corner.
-     Pair with backdropCloseProps() on the backdrop. */
+  /* Larger modal the user can resize by dragging <ModalResizeGrip /> in the
+     bottom-right corner. Pair with backdropCloseProps() on the backdrop. */
   .pcp-modal.pcp-modal-resizable {
-    width: min(1000px, 96vw); max-width: 98vw; min-width: min(600px, 96vw);
-    max-height: calc(100vh - 40px); min-height: 360px;
-    resize: both; overflow: hidden; display: flex; flex-direction: column;
+    position: relative; width: min(1000px, 96vw); max-width: 98vw; min-width: min(360px, 96vw);
+    max-height: calc(100vh - 40px); min-height: 300px;
+    overflow: hidden; display: flex; flex-direction: column;
   }
   .pcp-modal-resizable .pcp-modal-body { flex: 1; min-height: 0; max-height: none; overflow-y: auto; }
+  .pcp-modal-grip {
+    position: absolute; right: 0; bottom: 0; width: 22px; height: 22px; z-index: 2;
+    display: flex; align-items: flex-end; justify-content: flex-end; padding: 0 5px 5px 0;
+    cursor: nwse-resize; color: var(--text-mut); touch-action: none;
+  }
+  .pcp-modal-grip:hover { color: var(--brand); }
   .pcp-modal-head {
     padding: 18px 22px; border-bottom: 1px solid var(--line); display: flex;
     align-items: center; justify-content: space-between;

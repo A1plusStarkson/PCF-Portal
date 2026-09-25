@@ -30,6 +30,44 @@ const backdropCloseProps = (onClose) => ({
   onClick: (e) => { if (e.target === e.currentTarget && e.currentTarget.dataset.downOnBackdrop === "1") onClose(); },
 });
 
+/* ---- Modal resize grip ----
+   Drop <ModalResizeGrip /> as the last child of a .pcp-modal-resizable box to
+   get a visible drag handle in its bottom-right corner. (CSS `resize` was
+   tried first, but the rounded, overflow-hidden corner clips the browser's own
+   handle so nobody could grab it.) The modal is horizontally centred, so width
+   changes by twice the pointer move to keep the right edge under the cursor. */
+function ModalResizeGrip() {
+  const onPointerDown = (e) => {
+    const modal = e.currentTarget.closest(".pcp-modal");
+    if (!modal) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const start = modal.getBoundingClientRect();
+    const sx = e.clientX, sy = e.clientY;
+    const move = (ev) => {
+      const w = Math.min(window.innerWidth - 16, Math.max(360, start.width + 2 * (ev.clientX - sx)));
+      const h = Math.min(window.innerHeight - start.top - 8, Math.max(300, start.height + (ev.clientY - sy)));
+      modal.style.width = w + "px";
+      modal.style.height = h + "px";
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      document.body.style.userSelect = "";
+    };
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  };
+  return (
+    <div className="pcp-modal-grip" onPointerDown={onPointerDown} title="Drag to resize">
+      <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden="true">
+        <path d="M11 1L1 11M11 5L5 11M11 9L9 11" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      </svg>
+    </div>
+  );
+}
+
 const uid = (prefix) => prefix + "-" + Math.random().toString(36).slice(2, 9).toUpperCase();
 
 /* ---- Matching a person by name ----

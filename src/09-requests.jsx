@@ -151,6 +151,7 @@ function RequestFormModal({ onClose, onSave, nextRequestNoFor, request, plantOpt
           <button className="pcp-btn" onClick={onClose}>Cancel</button>
           <button className="pcp-btn pcp-btn-primary" disabled={!valid} onClick={() => onSave({ ...form, requestNo: typedRequestNo })}>{isEdit ? "Save Changes" : "Submit Request"}</button>
         </div>
+        <ModalResizeGrip />
       </div>
     </div>
   );
