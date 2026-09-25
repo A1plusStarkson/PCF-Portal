@@ -169,7 +169,7 @@ const REQUEST_SORT_FIELDS = {
   status: (r) => r.status,
 };
 
-function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, onDisburse, plantOptions, canApprove, canRelease, plantTitle, canDelete, onDelete, canEditRequestNo, isRequestNoTaken, nextRequestNoFor: nextRequestNoForProp }) {
+function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, onDisburse, canEditDisbursed, plantOptions, canApprove, canRelease, plantTitle, canDelete, onDelete, canEditRequestNo, isRequestNoTaken, nextRequestNoFor: nextRequestNoForProp }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All");
@@ -285,8 +285,12 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
                             <button className="pcp-btn pcp-btn-sm pcp-btn-danger" onClick={() => onReject(r.id)} title="Reject request"><X size={12} /></button>
                           </>
                         )}
-                        {r.status !== "Disbursed" && (
-                          <button className="pcp-btn pcp-btn-sm" onClick={() => setEditing(r)} title="Edit request"><Edit3 size={12} /></button>
+                        {/* Disbursed requests are locked, except for the Accounting override. */}
+                        {(r.status !== "Disbursed" || canEditDisbursed) && (
+                          <button className="pcp-btn pcp-btn-sm" onClick={() => setEditing(r)}
+                            title={r.status === "Disbursed" ? "Edit released request (Accounting) — the Release Ledger voucher is not changed" : "Edit request"}>
+                            <Edit3 size={12} />
+                          </button>
                         )}
                         {canDelete && onDelete && (
                           <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => onDelete(r.id)} title="Delete request (super admin)">

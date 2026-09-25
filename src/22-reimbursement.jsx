@@ -373,7 +373,7 @@ function PurposeSelect({ value, onChange }) {
   );
 }
 
-function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, reimb, nextReimbNo, plantOptions, allReimbursements, currentUser }) {
+function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride, reimb, nextReimbNo, plantOptions, allReimbursements, currentUser }) {
   const isEdit = !!reimb;
   const defaultBranch = (plantOptions && plantOptions[0]) ? plantOptions[0].code : BRANCHES[0].code;
   const [step, setStep] = useState(1);
@@ -742,6 +742,14 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, reimb, nextRei
             <button className="pcp-btn" onClick={() => setStep((s) => Math.max(1, s - 1))} disabled={step === 1}>Back</button>
             <button className="pcp-btn" onClick={() => setStep((s) => Math.min(5, s + 1))} disabled={step === 5}>Next</button>
           </div>
+          {/* Accounting override on a reimbursement past Draft/Returned: save the
+              content in place — status and approvals are kept. */}
+          {onSaveOverride ? (
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <span style={{ fontSize: 11, color: "var(--text-mut)" }}>Accounting edit · status stays <strong>{reimb.status}</strong></span>
+              <button className="pcp-btn pcp-btn-primary" onClick={() => onSaveOverride(payload())}><Check size={13} /> Save Changes</button>
+            </div>
+          ) : (
           <div style={{ display: "flex", gap: 8 }}>
             <button className="pcp-btn" onClick={() => onSaveDraft(payload())}>Save Draft</button>
             <button
@@ -753,6 +761,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, reimb, nextRei
               {isEdit && reimb.status === REIMB_STATUS.RETURNED ? "Resubmit Request" : "Submit Request"}
             </button>
           </div>
+          )}
         </div>
         <ModalResizeGrip />
       </div>
@@ -1037,8 +1046,11 @@ const REIMB_SORT_FIELDS = {
 function ReimbursementTab({
   reimbursements, allReimbursements, onSaveDraft, onSubmit, onUpdate, onAction, onRecordPayment,
   onExportAcumatica, onExportReport, onDelete, plantOptions, plantTitle, currentUser,
-  isChecker, isFinalApprover, canFinance, canDelete,
+  isChecker, isFinalApprover, canFinance, canDelete, canEditOverride,
 }) {
+  /* Draft / Returned are editable by anyone in scope; any other stage only
+     through the Accounting override (Save Changes keeps the status). */
+  const isDraftLike = (r) => r.status === REIMB_STATUS.DRAFT || r.status === REIMB_STATUS.RETURNED;
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [detail, setDetail] = useState(null);
@@ -1209,8 +1221,9 @@ function ReimbursementTab({
                     <td>
                       <div style={{ display: "flex", gap: 6 }}>
                         <button className="pcp-btn pcp-btn-sm" onClick={() => setDetail(r)} title="View / action"><Eye size={12} /></button>
-                        {(r.status === REIMB_STATUS.DRAFT || r.status === REIMB_STATUS.RETURNED) && (
-                          <button className="pcp-btn pcp-btn-sm" onClick={() => { setEditing(r); setShowForm(true); }} title="Edit"><Edit3 size={12} /></button>
+                        {(isDraftLike(r) || canEditOverride) && (
+                          <button className="pcp-btn pcp-btn-sm" onClick={() => { setEditing(r); setShowForm(true); }}
+                            title={isDraftLike(r) ? "Edit" : "Edit (Accounting) — status and approvals are kept"}><Edit3 size={12} /></button>
                         )}
                         {canDelete && onDelete && (
                           <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => onDelete(r.id)} title="Delete (super admin)"><Trash2 size={13} color="var(--brand)" /></button>
@@ -1235,6 +1248,9 @@ function ReimbursementTab({
           onClose={() => { setShowForm(false); setEditing(null); }}
           onSaveDraft={(form) => { editing ? onUpdate(editing.id, form, "draft") : onSaveDraft(form); setShowForm(false); setEditing(null); }}
           onSubmit={(form) => { editing ? onUpdate(editing.id, form, "submit") : onSubmit(form); setShowForm(false); setEditing(null); }}
+          onSaveOverride={editing && !isDraftLike(editing) && canEditOverride
+            ? (form) => { onUpdate(editing.id, form, "override"); setShowForm(false); setEditing(null); }
+            : null}
         />
       )}
       {detail && (
