@@ -231,6 +231,10 @@ const CSS = `
 
   /* ---- Liquidation workspace (Section 25 — maximize screen space) ---- */
   .pcp-liq-full .pcp-content { padding: 14px 18px 48px 18px; }
+  table.pcp-table tbody tr.pcp-liq-row { cursor: pointer; }
+  /* Liquidation worksheet pop-up: wide and tall by default (still resizable). */
+  .pcp-modal.pcp-liq-modal { width: min(1300px, 96vw); height: calc(100vh - 80px); }
+  .pcp-liq-modal .pcp-modal-body { background: var(--paper); padding: 14px 16px; }
   .pcp-liq-workspace { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 14px; align-items: start; }
   .pcp-liq-sticky {
     position: sticky; top: 8px; z-index: 5; background: var(--card, #fff);

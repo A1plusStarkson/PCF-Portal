@@ -57,6 +57,32 @@ const reimbStatusFilter = (label) => ({
   "Completed": REIMB_STATUS.COMPLETED,
 }[label]);
 
+/* ---- Liquidation list columns ----
+   Sort accessors for the two list tables (see useTableSort). Functions, not
+   values, so reimbTotal / REIMB_* from later fragments resolve at render time. */
+const LIQ_PETTY_SORT_FIELDS = {
+  voucherNo: (d) => d.voucherNo,
+  date: (d) => d.date,
+  employee: (d) => d.employee,
+  branchCode: (d) => d.branchCode,
+  department: (d) => subaccountLabel(d.department),
+  expense: (d) => disbExpense(d),
+  amount: (d) => Number(d.amount) || 0,
+  liqStatus: (d) => d.liqStatus,
+  finalStatus: (d) => d.finalStatus,
+};
+const LIQ_REIMB_SORT_FIELDS = {
+  reimbNo: (r) => r.reimbNo,
+  requestDate: (r) => r.requestDate,
+  employee: (r) => r.employee,
+  branchCode: (r) => r.branchCode,
+  department: (r) => subaccountLabel(r.department),
+  purpose: (r) => r.purpose,
+  amount: (r) => reimbTotal(r),
+  status: (r) => r.status,
+};
+const LIQ_CLIP_CELL = { maxWidth: 170, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" };
+
 /* Reject-liquidation dialog — a standardized Rejection Reason (required) plus an
    optional Reviewer Comment. Only the authorized approver reaches this dialog;
    the asterisk marks the reason field alone. */
@@ -165,7 +191,7 @@ function LiquidationWorksheet({
   onRecordSettlement, onCloseShortage, onReopenShortage, canApproveShortage,
   onReviewOverLiquidation, canDelete, onDeleteLiquidation,
   canRejectLiquidation, onRejectLiquidation,
-  onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser,
+  onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser, onDirtyChange,
 }) {
   const [lines, setLines] = useState(liquidation ? liquidation.lines.map((l) => ({ ...l })) : [emptyLine()]);
   const [attachments, setAttachments] = useState(
@@ -178,6 +204,9 @@ function LiquidationWorksheet({
   const [actualInput, setActualInput] = useState("");
   /* Open state of the standardized Reject Liquidation dialog. */
   const [showReject, setShowReject] = useState(false);
+
+  /* Tell the host pop-up about unsaved edits so closing it can warn first. */
+  useEffect(() => { if (onDirtyChange) onDirtyChange(!saved); }, [saved]);
 
   useEffect(() => {
     setLines(liquidation ? liquidation.lines.map((l) => ({ ...l })) : [emptyLine()]);
@@ -1477,6 +1506,18 @@ function LiquidationTab({
      meaningless the moment you switch tabs. */
   const [pettyStatus, setPettyStatus] = useState(LIQ_STATUS_FILTER_ALL);
   const [reimbStatus, setReimbStatus] = useState(LIQ_STATUS_FILTER_ALL);
+  /* Free-text search, shared by both sources, plus one column sort per source.
+     Picking a row opens its worksheet in a resizable pop-up (selectedId). */
+  const [search, setSearch] = useState("");
+  const pettySort = useTableSort("date", "desc");
+  const reimbSort = useTableSort("requestDate", "desc");
+  /* Unsaved worksheet edits live only in the pop-up, so closing it asks first. */
+  const worksheetDirty = useRef(false);
+  const closeWorksheet = () => {
+    if (worksheetDirty.current && !window.confirm("This liquidation has unsaved changes. Close without saving?")) return;
+    worksheetDirty.current = false;
+    setSelectedId(null);
+  };
 
   const scoped = plant === "ALL" ? disbursements : disbursements.filter((d) => d.branchCode === plant);
   const enriched = scoped.map((d) => ({
@@ -1489,10 +1530,17 @@ function LiquidationTab({
      explicit status overrides that worklist gate: someone filtering for "Fully
      Liquidated" is asking to see completed work, so "Show completed" no longer
      has to be ticked as well. */
-  const list = pettyStatus === LIQ_STATUS_FILTER_ALL
+  const q = search.trim().toLowerCase();
+  const hit = (...vals) => !q || vals.some((v) => String(v || "").toLowerCase().includes(q));
+  const pettyFiltered = (pettyStatus === LIQ_STATUS_FILTER_ALL
     ? (showAll ? enriched : enriched.filter((d) => !liqIsComplete(d.finalStatus)))
-    : enriched.filter((d) => d.liqStatus === PCA_STATUS_FILTERS[pettyStatus]);
-  const selected = enriched.find((d) => d.id === selectedId) || list[0] || null;
+    : enriched.filter((d) => d.liqStatus === PCA_STATUS_FILTERS[pettyStatus]))
+    .filter((d) => hit(d.voucherNo, d.requestNo, d.employee, d.branchCode, plantLabel(d.branchCode),
+      subaccountLabel(d.department), disbExpense(d), d.liqStatus, d.finalStatus));
+  const list = pettySort.sortRows(pettyFiltered, LIQ_PETTY_SORT_FIELDS);
+  /* Looked up in `enriched`, not `list`, so the open pop-up stays put when an
+     action moves the voucher out of the current filter (e.g. it completes). */
+  const selected = enriched.find((d) => d.id === selectedId) || null;
   const exportableCount = disbursements.filter((d) => {
     const liq = liquidationFor(d.id, liquidations);
     return liq && liq.lines && liq.lines.length;
@@ -1502,10 +1550,13 @@ function LiquidationTab({
      to the Liquidation Module, carrying their reference back to the request. */
   const reimbScoped = (reimbursements || []).filter((r) => plant === "ALL" || r.branchCode === plant);
   const reimbLiq = reimbScoped.filter((r) => REIMB_LIQUIDATION_STATUSES.includes(r.status));
-  const reimbActive = reimbStatus === LIQ_STATUS_FILTER_ALL
+  const reimbFiltered = (reimbStatus === LIQ_STATUS_FILTER_ALL
     ? (showAll ? reimbLiq : reimbLiq.filter((r) => r.status === REIMB_STATUS.FOR_LIQUIDATION || r.status === REIMB_STATUS.UNDER_REVIEW))
-    : reimbLiq.filter((r) => r.status === reimbStatusFilter(reimbStatus));
-  const selectedReimb = reimbLiq.find((r) => r.id === selectedReimbId) || reimbActive[0] || null;
+    : reimbLiq.filter((r) => r.status === reimbStatusFilter(reimbStatus)))
+    .filter((r) => hit(r.reimbNo, r.employee, r.branchCode, plantLabel(r.branchCode),
+      subaccountLabel(r.department), r.purpose, r.status));
+  const reimbActive = reimbSort.sortRows(reimbFiltered, LIQ_REIMB_SORT_FIELDS);
+  const selectedReimb = reimbScoped.find((r) => r.id === selectedReimbId) || null;
 
   /* An explicit status filter already decides what the list shows, so the
      completed-vs-open toggle is only meaningful on "All statuses". */
@@ -1545,8 +1596,18 @@ function LiquidationTab({
           </label>
         </div>
 
-        {/* Status filter — the options follow the selected source's workflow. */}
+        {/* Search + status filter — the status options follow the selected source's workflow. */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+          <div style={{ position: "relative", flex: 1, minWidth: 220, maxWidth: 340 }}>
+            <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#9098b3" }} />
+            <input
+              className="pcp-input" style={{ paddingLeft: 28 }}
+              placeholder={source === "pettycash"
+                ? "Search voucher no., employee, plant, department…"
+                : "Search reimbursement no., employee, plant, purpose…"}
+              value={search} onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
           <FilterIcon size={14} color="var(--text-mut)" />
           <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mut)" }}>Status</span>
           <SearchSelect
@@ -1577,55 +1638,102 @@ function LiquidationTab({
           </span>
         </div>
 
-        <div className="pcp-liq-workspace">
-          <div className="pcp-card pcp-card-pad">
-            <div className="pcp-section-title" style={{ margin: "0 0 10px" }}>
-              {source === "pettycash" ? "Vouchers" : "Reimbursements"}
-            </div>
+        <div className="pcp-card">
+          <div className="pcp-table-wrap">
             {source === "pettycash" ? (
-              list.length ? list.map((d) => (
-                <div key={d.id} className={"pcp-voucher-card" + (selected && selected.id === d.id ? " active" : "")} onClick={() => setSelectedId(d.id)}>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <strong style={{ fontSize: 12.5 }}>{d.voucherNo}</strong>
-                    <span className="pcp-num" style={{ fontSize: 12.5, fontWeight: 700 }}>{peso(d.amount)}</span>
-                  </div>
-                  <div style={{ fontSize: 11.5, color: "var(--text-mut)", marginTop: 2 }}>{d.employee} · {d.branchCode}</div>
-                  <div style={{ marginTop: 6, display: "flex", gap: 5, flexWrap: "wrap" }}>
-                    <Badge status={d.liqStatus} />
-                    <Badge status={d.finalStatus} />
-                  </div>
-                </div>
-              )) : (
-                <div className="pcp-empty">
-                  {statusFilterOn
-                    ? "No cash advance has the status " + pettyStatus
-                    : showAll ? "No vouchers yet" : "Every voucher is fully liquidated and settled"}
-                </div>
-              )
+              <table className="pcp-table">
+                <thead>
+                  <tr>
+                    <SortTh field="voucherNo" sort={pettySort}>Voucher No.</SortTh>
+                    <SortTh field="date" sort={pettySort}>Date</SortTh>
+                    <SortTh field="employee" sort={pettySort}>Employee</SortTh>
+                    <SortTh field="branchCode" sort={pettySort}>Plant</SortTh>
+                    <SortTh field="department" sort={pettySort}>Department</SortTh>
+                    <SortTh field="expense" sort={pettySort}>Expense</SortTh>
+                    <SortTh field="amount" sort={pettySort} align="right">PCF Released</SortTh>
+                    <SortTh field="liqStatus" sort={pettySort}>Liquidation</SortTh>
+                    <SortTh field="finalStatus" sort={pettySort}>Settlement</SortTh>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {list.length ? list.map((d) => (
+                    <tr key={d.id} className="pcp-liq-row" onClick={() => setSelectedId(d.id)} title="Open liquidation">
+                      <td><strong>{d.voucherNo}</strong></td>
+                      <td>{fmtDate(d.date)}</td>
+                      <td>{d.employee}</td>
+                      <td>{d.branchCode}</td>
+                      <td title={subaccountLabel(d.department)} style={LIQ_CLIP_CELL}>{subaccountLabel(d.department)}</td>
+                      <td title={disbExpense(d)} style={LIQ_CLIP_CELL}>{disbExpense(d) || "—"}</td>
+                      <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700 }}>{peso(d.amount)}</td>
+                      <td><Badge status={d.liqStatus} /></td>
+                      <td><Badge status={d.finalStatus} /></td>
+                      <td><button className="pcp-btn pcp-btn-sm" title="Open liquidation"><Eye size={12} /></button></td>
+                    </tr>
+                  )) : (
+                    <tr><td colSpan={10} className="pcp-empty">
+                      {q
+                        ? "No cash advance matches “" + search.trim() + "”"
+                        : statusFilterOn
+                          ? "No cash advance has the status " + pettyStatus
+                          : showAll ? "No vouchers yet" : "Every voucher is fully liquidated and settled"}
+                    </td></tr>
+                  )}
+                </tbody>
+              </table>
             ) : (
-              reimbActive.length ? reimbActive.map((r) => (
-                <div key={r.id} className={"pcp-voucher-card" + (selectedReimb && selectedReimb.id === r.id ? " active" : "")} onClick={() => setSelectedReimbId(r.id)}>
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <strong style={{ fontSize: 12.5 }}>{r.reimbNo}</strong>
-                    <span className="pcp-num" style={{ fontSize: 12.5, fontWeight: 700 }}>{peso(reimbTotal(r))}</span>
-                  </div>
-                  <div style={{ fontSize: 11.5, color: "var(--text-mut)", marginTop: 2 }}>{r.employee} · {r.branchCode}</div>
-                  <div style={{ marginTop: 6, display: "flex", gap: 5, flexWrap: "wrap" }}>
-                    <Badge status={r.status} />
-                  </div>
-                </div>
-              )) : (
-                <div className="pcp-empty">
-                  {statusFilterOn
-                    ? "No reimbursement has the status " + reimbStatus
-                    : showAll ? "No reimbursement liquidations yet" : "No reimbursements awaiting liquidation"}
-                </div>
-              )
+              <table className="pcp-table">
+                <thead>
+                  <tr>
+                    <SortTh field="reimbNo" sort={reimbSort}>Reimb No.</SortTh>
+                    <SortTh field="requestDate" sort={reimbSort}>Req Date</SortTh>
+                    <SortTh field="employee" sort={reimbSort}>Employee</SortTh>
+                    <SortTh field="branchCode" sort={reimbSort}>Plant</SortTh>
+                    <SortTh field="department" sort={reimbSort}>Department</SortTh>
+                    <SortTh field="purpose" sort={reimbSort}>Purpose</SortTh>
+                    <SortTh field="amount" sort={reimbSort} align="right">Amount</SortTh>
+                    <SortTh field="status" sort={reimbSort}>Status</SortTh>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reimbActive.length ? reimbActive.map((r) => (
+                    <tr key={r.id} className="pcp-liq-row" onClick={() => setSelectedReimbId(r.id)} title="Open reimbursement liquidation">
+                      <td><strong>{r.reimbNo}</strong></td>
+                      <td>{fmtDate(r.requestDate)}</td>
+                      <td>{r.employee}</td>
+                      <td>{r.branchCode}</td>
+                      <td title={subaccountLabel(r.department)} style={LIQ_CLIP_CELL}>{subaccountLabel(r.department)}</td>
+                      <td title={r.purpose || ""} style={LIQ_CLIP_CELL}>{r.purpose || "—"}</td>
+                      <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700 }}>{peso(reimbTotal(r))}</td>
+                      <td><Badge status={r.status} /></td>
+                      <td><button className="pcp-btn pcp-btn-sm" title="Open reimbursement liquidation"><Eye size={12} /></button></td>
+                    </tr>
+                  )) : (
+                    <tr><td colSpan={9} className="pcp-empty">
+                      {q
+                        ? "No reimbursement matches “" + search.trim() + "”"
+                        : statusFilterOn
+                          ? "No reimbursement has the status " + reimbStatus
+                          : showAll ? "No reimbursement liquidations yet" : "No reimbursements awaiting liquidation"}
+                    </td></tr>
+                  )}
+                </tbody>
+              </table>
             )}
           </div>
+        </div>
+      </div>
 
-          {source === "pettycash" ? (
-            selected ? (
+      {/* Worksheet pop-up — large by default, resizable from the corner grip. */}
+      {source === "pettycash" && selected && (
+        <div className="pcp-modal-backdrop" {...backdropCloseProps(closeWorksheet)}>
+          <div className="pcp-modal pcp-modal-resizable pcp-liq-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pcp-modal-head">
+              <h3>Liquidation · {selected.voucherNo} · {selected.employee}</h3>
+              <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={closeWorksheet} title="Close"><X size={15} /></button>
+            </div>
+            <div className="pcp-modal-body">
               <LiquidationWorksheet
                 disbursement={selected}
                 liquidation={liquidationFor(selected.id, liquidations)}
@@ -1650,19 +1758,27 @@ function LiquidationTab({
                 canFinalApprove={canFinalApprove}
                 onFinalApprove={onFinalApprove}
                 currentUser={currentUser}
+                onDirtyChange={(d) => { worksheetDirty.current = d; }}
               />
-            ) : (
-              <div className="pcp-card pcp-card-pad"><div className="pcp-empty">Select a voucher to begin liquidation</div></div>
-            )
-          ) : (
-            selectedReimb ? (
-              <ReimbursementLiquidationPanel reimb={selectedReimb} canFinance={canFinance} onAction={onReimbursementAction} />
-            ) : (
-              <div className="pcp-card pcp-card-pad"><div className="pcp-empty">Select a reimbursement to process its liquidation</div></div>
-            )
-          )}
+            </div>
+            <ModalResizeGrip />
+          </div>
         </div>
-      </div>
+      )}
+      {source === "reimbursement" && selectedReimb && (
+        <div className="pcp-modal-backdrop" {...backdropCloseProps(() => setSelectedReimbId(null))}>
+          <div className="pcp-modal pcp-modal-resizable pcp-liq-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="pcp-modal-head">
+              <h3>Reimbursement Liquidation · {selectedReimb.reimbNo} · {selectedReimb.employee}</h3>
+              <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={() => setSelectedReimbId(null)} title="Close"><X size={15} /></button>
+            </div>
+            <div className="pcp-modal-body">
+              <ReimbursementLiquidationPanel reimb={selectedReimb} canFinance={canFinance} onAction={onReimbursementAction} />
+            </div>
+            <ModalResizeGrip />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
