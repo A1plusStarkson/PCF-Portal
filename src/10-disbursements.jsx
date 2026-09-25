@@ -247,14 +247,14 @@ function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemar
               <tbody>
                 {rows.length ? rows.map((d) => (
                   <tr key={d.id}>
-                    <td>{d.voucherNo}</td>
+                    <td><strong>{d.voucherNo}</strong></td>
                     <td>{fmtDate(d.date)}</td>
-                    <td>{d.employee}</td>
+                    <td><strong>{d.employee}</strong></td>
                     <td>{d.branchCode}</td>
                     <td style={{ fontSize: 11.5, color: "var(--text-mut)" }}>{companyOfBranch(d.branchCode)}</td>
                     <td title={subaccountLabel(d.department)} style={{ maxWidth: 140, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{subaccountLabel(d.department)}</td>
                     <td style={{ maxWidth: 150, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={disbExpense(d)}>{disbExpense(d) || "—"}</td>
-                    <td className="pcp-num">{peso(d.amount)}</td>
+                    <td className="pcp-num"><strong>{peso(d.amount)}</strong></td>
                     <td><Badge status={d.liqStatus} /></td>
                     <td>
                       {canEdit ? (

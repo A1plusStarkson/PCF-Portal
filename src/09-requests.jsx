@@ -255,7 +255,7 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
                         without anyone having to remember the renumbering. Only
                         shown on records that actually carry one. */}
                     <td>
-                      {r.requestNo}
+                      <strong>{r.requestNo}</strong>
                       {r.legacyRequestNo && (
                         <div
                           style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 1 }}
@@ -266,7 +266,7 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
                       )}
                     </td>
                     <td>{fmtDate(r.date)}</td>
-                    <td>{r.employee}</td>
+                    <td><strong>{r.employee}</strong></td>
                     <td title={subaccountLabel(r.department)}>{subaccountLabel(r.department)}</td>
                     <td>{plantLabel(r.branchCode)}</td>
                     <td style={{ maxWidth: 220, whiteSpace: "normal" }}>
@@ -274,7 +274,7 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
                         ? <span title={r.purposeJustification}>{OTHERS_PURPOSE}: {r.purposeJustification}</span>
                         : r.purpose}
                     </td>
-                    <td className="pcp-num">{peso(r.amount)}</td>
+                    <td className="pcp-num"><strong>{peso(r.amount)}</strong></td>
                     <td>{r.approver || "—"}</td>
                     <td><Badge status={r.status} /></td>
                     <td>

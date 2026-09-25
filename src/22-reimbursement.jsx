@@ -1165,9 +1165,9 @@ function ReimbursementTab({
               <tbody>
                 {filtered.length ? filtered.map((r) => (
                   <tr key={r.id}>
-                    <td>{r.reimbNo}</td>
+                    <td><strong>{r.reimbNo}</strong></td>
                     <td>{fmtDate(r.requestDate)}</td>
-                    <td>{r.employee}</td>
+                    <td><strong>{r.employee}</strong></td>
                     <td title={subaccountLabel(r.department)}>{deptDesc(r.department)}</td>
                     <td>{plantLabel(r.branchCode)}</td>
                     <td title={r.purpose || ""}>
@@ -1176,7 +1176,7 @@ function ReimbursementTab({
                         : <span style={{ color: "var(--text-mut)" }}>—</span>}
                     </td>
                     <td>{(r.lines || []).length}</td>
-                    <td className="pcp-num">{peso(reimbTotal(r))}</td>
+                    <td className="pcp-num"><strong>{peso(reimbTotal(r))}</strong></td>
                     <td><CompliancePill level={(r.compliance && r.compliance.level) || "PASS"} /></td>
                     <td><Badge status={r.status} /></td>
                     <td>{reimbAgingBucket(r)}</td>
