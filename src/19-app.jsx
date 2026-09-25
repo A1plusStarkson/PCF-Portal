@@ -1686,7 +1686,9 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
           <ManagementReportTab
             key={tab}
             funds={scopedFunds} requests={scopedRequests} disbursements={scopedDisbursements} liquidations={scopedLiquidations} replenishments={scopedReplenishments}
-            auditLog={auditLog} generatedBy={userName || userEmail}
+            reimbursements={scopedReimbursements}
+            auditLog={isRequestor ? [] : auditLog} generatedBy={userName || userEmail}
+            reportCodes={isRequestor ? ["FINALAPP"] : null}
             plantTitle={activePlantLabel}
           />
         )}

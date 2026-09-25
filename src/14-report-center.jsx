@@ -1,5 +1,8 @@
-function ManagementReportTab({ funds, requests, disbursements, liquidations, replenishments, auditLog, plantTitle, generatedBy }) {
-  const [type, setType] = useState("CASHPOS");
+function ManagementReportTab({ funds, requests, disbursements, liquidations, replenishments, reimbursements, auditLog, plantTitle, generatedBy, reportCodes }) {
+  /* reportCodes limits the catalogue for roles that may only see some reports
+     (PCF Requestors see just the Grace Gan approval report). */
+  const reportTypes = reportCodes ? REPORT_TYPES.filter((r) => reportCodes.includes(r.code)) : REPORT_TYPES;
+  const [type, setType] = useState(reportCodes ? reportTypes[0].code : "CASHPOS");
   const [F, setF] = useState({ from: "", to: "", company: "", plant: "", branch: "", custodian: "", status: "", category: "", account: "" });
   const [watermark, setWatermark] = useState(false);
   const [orientation, setOrientation] = useState("");
@@ -7,8 +10,8 @@ function ManagementReportTab({ funds, requests, disbursements, liquidations, rep
 
   const def = REPORT_TYPES.find((r) => r.code === type) || REPORT_TYPES[0];
   const D = useMemo(
-    () => ({ funds, requests, disbursements, liquidations, replenishments, auditLog: auditLog || [] }),
-    [funds, requests, disbursements, liquidations, replenishments, auditLog]
+    () => ({ funds, requests, disbursements, liquidations, replenishments, reimbursements: reimbursements || [], auditLog: auditLog || [] }),
+    [funds, requests, disbursements, liquidations, replenishments, reimbursements, auditLog]
   );
   const built = useMemo(() => buildReport(type, D, F), [type, D, F]);
   const ort = orientation || def.orientation;
@@ -23,6 +26,7 @@ function ManagementReportTab({ funds, requests, disbursements, liquidations, rep
   const branchOpts = useMemo(() => (F.company ? branchesForCompany(F.company) : BRANCHES), [F.company]);
   const statusOpts = useMemo(() => {
     if (type === "REPL") return REPLENISH_STATUSES;
+    if (type === "FINALAPP") return ["For Replenishment", "In Replenishment", "Replenished"];
     if (type === "DISB" || type === "OUT") return ["Not Liquidated", "Partially Liquidated", "Fully Liquidated", "Over-Liquidated"];
     return [];
   }, [type]);
@@ -97,7 +101,7 @@ function ManagementReportTab({ funds, requests, disbursements, liquidations, rep
             <div className="pcp-rc-field" style={{ gridColumn: "span 2" }}>
               <label>Report</label>
               <select className="pcp-select" value={type} onChange={(e) => setType(e.target.value)}>
-                {REPORT_TYPES.map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}
+                {reportTypes.map((r) => <option key={r.code} value={r.code}>{r.label}</option>)}
               </select>
             </div>
             <div className="pcp-rc-field">

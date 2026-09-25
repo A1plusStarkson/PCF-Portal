@@ -907,8 +907,9 @@ const ROLES = {
   /* PCF Requestor: prepares transactions only. Full Petty Cash Requests + full
      Liquidation (except approval) + Reimbursement (prepare/submit, no approval);
      Release Ledger is view-only. No Dashboard. No approve/reject/release rights
-     (enforced by the permission flags in 19-app.jsx). */
-  "Requestor":  { label: "PCF Requestor",         tabs: ["requests", "disbursements", "liquidation", "reimbursement", "history"] },
+     (enforced by the permission flags in 19-app.jsx). Report Center is limited
+     to the Grace Gan approval report (reportCodes in 19-app.jsx). */
+  "Requestor":  { label: "PCF Requestor",         tabs: ["requests", "disbursements", "liquidation", "reimbursement", "history", "report"] },
 };
 const ROLE_NAMES = Object.keys(ROLES);
 

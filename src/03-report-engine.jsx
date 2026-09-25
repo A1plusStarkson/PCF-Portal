@@ -92,6 +92,7 @@ const REPORT_TYPES = [
   { code: "LEDGER",  label: "Petty Cash Ledger",             orientation: "landscape" },
   { code: "DISB",    label: "Cash Disbursement Report",      orientation: "landscape" },
   { code: "LIQ",     label: "Liquidation Report",            orientation: "landscape" },
+  { code: "FINALAPP", label: "Approved Liquidation Transactions by Grace Gan", orientation: "landscape" },
   { code: "REPL",    label: "Replenishment Report",          orientation: "portrait"  },
   { code: "OUT",     label: "Outstanding Liquidation Report", orientation: "landscape" },
   { code: "EXPSUM",  label: "Expense Summary",               orientation: "portrait"  },
@@ -225,6 +226,60 @@ function buildReport(type, D, F) {
       });
       tmp.sort((a, b) => (a._d || "").localeCompare(b._d || ""));
       return fin(columns, tmp, tmp.length, "GRAND TOTAL");
+    }
+
+    /* Every transaction carrying the FINAL approval (Grace Gan / System
+       Superuser) — petty cash liquidations and employee reimbursements — i.e.
+       what the custodian's fund is replenished for. Grouped by plant with a
+       subtotal each, dated by the final approval, and tagged with whether a
+       replenishment has claimed it yet (replenishment.liquidationIds /
+       reimbursementIds). Legacy liquidations approved before the two-level
+       review have no final approver and are left out. */
+    case "FINALAPP": {
+      const columns = [
+        c("approvedAt", "Final Approval"), c("ref", "Voucher / Reimb No."), c("kind", "Type", { align: "center" }),
+        c("employee", "Employee"), c("branch", "Branch"), c("checkedBy", "Custodian Approved By"),
+        c("finalBy", "Final Approved By"), c("repl", "Replenishment", { width: "16%" }),
+        c("amount", "Approved Amount", { money: true }),
+      ];
+      const replFor = (key, id) => reps.find((r) => (r[key] || []).includes(id));
+      const replStatus = (rp) => (!rp ? "For Replenishment"
+        : (rp.status === "Completed" ? "Replenished" : "In Replenishment"));
+      const items = [];
+      disbursements.forEach((d) => {
+        if (!okBranch(d.branchCode)) return;
+        const liq = liquidationFor(d.id, liquidations);
+        const rv = liqReview(liq);
+        if (!rv.final || rv.legacy || !rv.finalBy) return;
+        items.push({ d: d.branchCode, at: rv.finalAt, ref: d.voucherNo, kind: "Liquidation", employee: d.employee,
+          checkedBy: rv.checkedBy, finalBy: rv.finalBy, rp: replFor("liquidationIds", liq.id),
+          amount: receiptAmountSummary(liq).approvedTotal });
+      });
+      (D.reimbursements || []).forEach((r) => {
+        if (!okBranch(r.branchCode)) return;
+        const rv = reimbReview(r);
+        if (!rv.final) return;
+        items.push({ d: r.branchCode, at: rv.finalAt, ref: r.reimbNo, kind: "Reimbursement", employee: r.employee,
+          checkedBy: rv.checkedBy, finalBy: rv.finalBy, rp: replFor("reimbursementIds", r.id), amount: reimbTotal(r) });
+      });
+      const kept = items
+        .filter((x) => okDate(String(x.at || "").slice(0, 10)))
+        .filter((x) => !F.status || replStatus(x.rp) === F.status)
+        .sort((a, b) => a.d.localeCompare(b.d) || String(a.at).localeCompare(String(b.at)));
+      const rows = [];
+      [...new Set(kept.map((x) => x.d))].forEach((code) => {
+        const group = kept.filter((x) => x.d === code);
+        const fund = funds.find((f) => f.branchCode === code);
+        rows.push({ _group: true, approvedAt: `${(fund && fund.label) || plantLabel(code) || code} (${code}) — ${companyOfBranch(code)}${fund && fund.custodian ? " · Custodian: " + fund.custodian : ""}` });
+        group.forEach((x) => rows.push({
+          approvedAt: fmtDate(String(x.at || "").slice(0, 10)), ref: x.ref, kind: x.kind, employee: x.employee, branch: x.d,
+          checkedBy: x.checkedBy || "—", finalBy: x.finalBy,
+          repl: x.rp ? `${replStatus(x.rp)} — ${x.rp.replenishmentNo || ""}` : "For Replenishment",
+          amount: x.amount,
+        }));
+        rows.push({ _subtotal: true, approvedAt: `Subtotal — ${group.length} transaction(s)`, amount: group.reduce((s, x) => s + x.amount, 0) });
+      });
+      return fin(columns, rows, kept.length, "GRAND TOTAL");
     }
 
     case "REPL": {
