@@ -130,12 +130,20 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
      audit trail as "Request No. Changed". */
   /* ---- Accounting edit override ----
      By the owner's instruction, this account may also edit a Petty Cash
-     Request after it is Disbursed, and a reimbursement at ANY stage (keeping
-     its status and approvals). Final-approved liquidations stay locked for
+     Request after it is Disbursed. Final-approved liquidations stay locked for
      everyone. By email, and hidden while previewing another role. Every such
      edit is written to the audit trail. */
   const EDIT_OVERRIDE_EMAILS = ["accounting@a1plus.com"];
   const canEditOverride = EDIT_OVERRIDE_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
+  /* Reimbursements: editable at any stage (status and approvals kept) by these
+     accounts, for checking and verification — owner's instruction. PCF
+     Requestors are deliberately not on it. */
+  const REIMB_EDIT_OVERRIDE_EMAILS = [
+    "a1plusadmin@a1plus.com", "superuser@a1plus.com", "accounting@a1plus.com", "finance@a1plus.com",
+    "puradr@a1plus.com", "lita@a1plus.com", "mauwi@a1plus.com",
+  ];
+  const canEditReimbOverride = REIMB_EDIT_OVERRIDE_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
 
   const REQUEST_NO_EDITOR_ROLES = ["Accounting", "SuperAdmin"];
@@ -1215,17 +1223,18 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     }
     const ts = reimbTs();
     const base = buildReimbFromForm({ ...form, id });
-    /* Accounting override: edit in place at any stage — status, approvals and
-       submission stamps are kept; only the content changes. */
+    /* Checking / verification override (REIMB_EDIT_OVERRIDE_EMAILS): edit in
+       place at any stage — status, approvals and submission stamps are kept;
+       only the content changes. Plant scope still applies. */
     if (mode === "override") {
-      if (!canEditOverride) return;
       const r0 = reimbursements.find((x) => x.id === id);
+      if (!canEditReimbOverride || !r0 || !inScope(r0.branchCode)) return;
       setReimbursements((rs) => rs.map((r) => (r.id !== id ? r : {
         ...r, ...base, status: r.status, review: r.review,
         submittedBy: r.submittedBy, submittedAt: r.submittedAt,
-        history: [...(r.history || []), { ts, user: userName || role, action: "Edited by Accounting (override)", prevStatus: r.status, newStatus: r.status, comments: "" }],
+        history: [...(r.history || []), { ts, user: userName || role, action: "Edited for checking / verification", prevStatus: r.status, newStatus: r.status, comments: "" }],
       })));
-      logAudit("Reimbursement Edited (Accounting override)", r0 ? r0.reimbNo : id,
+      logAudit("Reimbursement Edited (checking / verification)", r0 ? r0.reimbNo : id,
         `${form.employee} · ${peso(reimbTotal(base))} · status kept: ${r0 ? r0.status : ""}`);
       return;
     }
@@ -1243,7 +1252,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     }));
     const r = reimbursements.find((x) => x.id === id);
     logAudit(mode === "submit" ? "Reimbursement Submitted" : "Reimbursement Edited", r ? r.reimbNo : id, `${form.employee} · ${peso(reimbTotal(base))}`);
-  }, [buildReimbFromForm, logAudit, reimbursements, userName, role, canEditOverride]);
+  }, [buildReimbFromForm, logAudit, reimbursements, userName, role, canEditReimbOverride, inScope]);
 
   /* Workflow transition. The two approval levels mirror the liquidation's
      (see 11-liquidation.jsx): a custodian-level checker (isLiquidationChecker)
@@ -1673,6 +1682,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             reimbursements={scopedReimbursements}
             onCreate={addReplenishment} onEdit={editReplenishment}
             onComplete={completeReplenishment} onDelete={deleteReplenishment}
+            generatedBy={userName || userEmail}
             plantOptions={scopedPlantOptions} canEdit={canEdit}
             plantTitle={activePlantLabel}
           />
@@ -1689,7 +1699,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             isFinalApprover={isFinalApprover}
             canFinance={["Accounting", "Finance", "SuperAdmin"].includes(role) || !!isAdmin}
             canDelete={isSuperAdmin}
-            canEditOverride={canEditOverride}
+            canEditOverride={canEditReimbOverride}
             onSaveDraft={(form) => addReimbursement(form, false)}
             onSubmit={(form) => addReimbursement(form, true)}
             onUpdate={(id, form, mode) => updateReimbursement(id, form, mode)}

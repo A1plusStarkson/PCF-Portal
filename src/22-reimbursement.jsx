@@ -746,7 +746,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
               content in place — status and approvals are kept. */}
           {onSaveOverride ? (
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span style={{ fontSize: 11, color: "var(--text-mut)" }}>Accounting edit · status stays <strong>{reimb.status}</strong></span>
+              <span style={{ fontSize: 11, color: "var(--text-mut)" }}>Checking / verification edit · status stays <strong>{reimb.status}</strong></span>
               <button className="pcp-btn pcp-btn-primary" onClick={() => onSaveOverride(payload())}><Check size={13} /> Save Changes</button>
             </div>
           ) : (
@@ -1049,7 +1049,7 @@ function ReimbursementTab({
   isChecker, isFinalApprover, canFinance, canDelete, canEditOverride,
 }) {
   /* Draft / Returned are editable by anyone in scope; any other stage only
-     through the Accounting override (Save Changes keeps the status). */
+     through the checking / verification override (Save Changes keeps the status). */
   const isDraftLike = (r) => r.status === REIMB_STATUS.DRAFT || r.status === REIMB_STATUS.RETURNED;
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
@@ -1223,7 +1223,7 @@ function ReimbursementTab({
                         <button className="pcp-btn pcp-btn-sm" onClick={() => setDetail(r)} title="View / action"><Eye size={12} /></button>
                         {(isDraftLike(r) || canEditOverride) && (
                           <button className="pcp-btn pcp-btn-sm" onClick={() => { setEditing(r); setShowForm(true); }}
-                            title={isDraftLike(r) ? "Edit" : "Edit (Accounting) — status and approvals are kept"}><Edit3 size={12} /></button>
+                            title={isDraftLike(r) ? "Edit" : "Edit for checking / verification — status and approvals are kept"}><Edit3 size={12} /></button>
                         )}
                         {canDelete && onDelete && (
                           <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => onDelete(r.id)} title="Delete (super admin)"><Trash2 size={13} color="var(--brand)" /></button>
