@@ -273,12 +273,27 @@ function buildReport(type, D, F) {
         items.push({ d: d.branchCode, at: rv.finalAt, ref: d.voucherNo, kind: "Liquidation", employee: d.employee,
           checkedBy: rv.checkedBy, finalBy: rv.finalBy, rp, amount });
       });
+      /* Reimbursements: new ones carry the final stamp; old ones (single-level
+         flow) are recognised by a status only an approved request reaches, and
+         dated/attributed from the approval step in their status history. */
+      const S = REIMB_STATUS;
+      const APPROVED_REIMB = [S.READY, S.APPROVED, S.FOR_LIQUIDATION, S.UNDER_REVIEW, S.LIQUIDATION_DONE, S.FOR_PAYMENT, S.PAID, S.COMPLETED];
       (D.reimbursements || []).forEach((r) => {
         if (!okBranch(r.branchCode)) return;
         const rv = reimbReview(r);
-        if (!rv.final) return;
-        items.push({ d: r.branchCode, at: rv.finalAt, ref: r.reimbNo, kind: "Reimbursement", employee: r.employee,
-          checkedBy: rv.checkedBy, finalBy: rv.finalBy, rp: replFor("reimbursementIds", r.id), amount: reimbTotal(r) });
+        const rp = replFor("reimbursementIds", r.id);
+        if (rv.final) {
+          items.push({ d: r.branchCode, at: rv.finalAt, ref: r.reimbNo, kind: "Reimbursement", employee: r.employee,
+            checkedBy: rv.checkedBy || "—", finalBy: rv.finalBy, rp, amount: reimbTotal(r) });
+          return;
+        }
+        if (!APPROVED_REIMB.includes(r.status)) return;
+        const step = [...(r.history || [])].reverse().find((h) => h.newStatus === S.APPROVED || h.newStatus === S.READY)
+          || [...(r.history || [])].find((h) => APPROVED_REIMB.includes(h.newStatus));
+        const at = (step && step.ts) || r.approvedAt || r.submittedAt || r.requestDate || "";
+        const by = (step && step.user) || r.approvedBy || "";
+        items.push({ d: r.branchCode, at, ref: r.reimbNo, kind: "Reimbursement (old)", employee: r.employee,
+          checkedBy: "—", finalBy: (by ? by + " " : "") + "(before two-level approval)", rp, amount: reimbTotal(r) });
       });
       const kept = items
         .filter((x) => okDate(String(x.at || "").slice(0, 10)))
