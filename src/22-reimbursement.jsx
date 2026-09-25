@@ -223,7 +223,7 @@ function evaluateReimbursement(form, allReimbursements, selfId) {
     else if (l.date > submitISO) add("fail", "line-date-future", `Line ${n}: expense date cannot be in the future.`);
     if (!(l.category || "").trim()) add("fail", "line-cat", `Line ${n}: expense category is required.`);
     if (!(l.description || "").trim()) add("fail", "line-desc", `Line ${n}: description is required.`);
-    if (!(l.businessPurpose || "").trim()) add("warn", "line-purpose", `Line ${n}: business purpose is recommended.`);
+    /* Business purpose is optional per line — a blank one raises no warning. */
     if (reimbLineAmount(l) <= 0) add("fail", "line-amt", `Line ${n}: amount must be greater than zero.`);
     if (!(l.account || "").trim()) add("warn", "line-acct", `Line ${n}: no GL account mapped for the selected category.`);
     // Non-reimbursable hints (Section 9)
@@ -566,7 +566,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, reimb, nextRei
                   <thead>
                     <tr>
                       <th>Date</th><th>Category</th><th>Description</th><th>Vendor</th>
-                      <th>Department</th><th>Tax</th><th>Business Purpose</th>
+                      <th>Department</th><th>Tax</th><th>Business Purpose <span style={{ fontWeight: 500, textTransform: "none" }}>(optional)</span></th>
                       <th>Receipt No.</th><th>Amount</th><th></th>
                     </tr>
                   </thead>
@@ -603,7 +603,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, reimb, nextRei
                             style={{ minWidth: 100 }} popStyle={{ minWidth: 300 }}
                           />
                         </td>
-                        <td><input className="pcp-input" style={{ minWidth: 120 }} value={l.businessPurpose} onChange={(e) => setLine(l.id, { businessPurpose: e.target.value })} /></td>
+                        <td><input className="pcp-input" style={{ minWidth: 120 }} value={l.businessPurpose} placeholder="Optional" onChange={(e) => setLine(l.id, { businessPurpose: e.target.value })} /></td>
                         <td><input className="pcp-input" style={{ minWidth: 90 }} value={l.receiptNo} onChange={(e) => setLine(l.id, { receiptNo: e.target.value })} /></td>
                         <td><input type="number" min="0" step="0.01" className="pcp-input" style={{ minWidth: 90 }} value={l.amount} onChange={(e) => setLine(l.id, { amount: e.target.value })} /></td>
                         <td><button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => removeLine(l.id)} title="Remove line"><Trash2 size={13} color="var(--brand)" /></button></td>
