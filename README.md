@@ -48,7 +48,7 @@ own funds while Accounting/Finance see everything.
 | **Replenishment** | per plant | Tops the fund back up to its float. |
 | **Transaction History** | per plant | One chronological view of every record. |
 | **Reports** | per plant | The Report Center — 15 print/PDF report types plus Excel/CSV builders. |
-| **Approval Module** | all plants | One queue for everything awaiting a decision: petty cash liquidations and employee reimbursements. |
+| **Approval Module** | all plants | a1plusadmin@, superuser@ and accounting@ only. A clickable list of everything awaiting the viewer's decision: petty cash liquidations and employee reimbursements. |
 | **Liquidation Aging** | all plants | Aging engine with buckets, editable balances and exports. |
 | **PCF Documents** | system-wide | Categorized document repository — upload, preview, version history, archive. |
 | **Audit Trail** | system-wide | Immutable log of every action, tagged with the signed-in user. |

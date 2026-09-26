@@ -200,7 +200,7 @@ Here's the same thing as a checklist:
 | Do a reimbursement | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Replenish the fund | ❌ | ✅ | ✅ | ✅ | ✅ |
 | See reports & aging | ❌ | ✅ | ✅ | ✅ | ✅ |
-| Use the Approval Module | ❌ | ✅ | ✅ | ✅ | ✅ |
+| Use the Approval Module | ❌ | ❌ | ❌ | ✅ *(accounting@ only)* | ✅ |
 | See PCF Documents | ❌ | ✅ | ✅ | ✅ | ✅ |
 | See the Audit Trail | ❌ | ❌ | ✅ | ✅ | ✅ |
 | Edit master data | ❌ | ❌ | ✅ | ✅ | ✅ |
@@ -260,8 +260,8 @@ liquidation approval**.
    employee may get a new advance even while an earlier one is not yet
    liquidated — the release window lists those earlier advances for reference
    only, and the Audit Trail notes them.
-4. When a liquidation is submitted, open the **Approval Module** (it opens on
-   *For Custodian Review*). Check every receipt and its amount, approve or reject
+4. When a liquidation is submitted, open it in **Liquidation** (or the
+   reimbursement in **Reimbursement**). Check every receipt and its amount, approve or reject
    each one, then click **Custodian Approve**. If something is wrong, **Reject
    Liquidation** with a reason so the requestor can fix it.
 5. In **Liquidation**, record the **cash settlement** — the refund returned to
@@ -272,8 +272,7 @@ liquidation approval**.
 7. Check **Liquidation Aging** to spot advances that are overdue.
 
 ### 🧾 If you are Finance
-Same as a Custodian, but for **all plants** — plus the **Approval Module**, the
-**Audit Trail**, and **Funds & Master Data** (plants, custodians, chart of
+Same as a Custodian, but for **all plants** — plus the **Audit Trail**, and **Funds & Master Data** (plants, custodians, chart of
 accounts). You don't manage user accounts.
 
 You also record the payment to the employee on a fully approved reimbursement,
@@ -408,20 +407,38 @@ finish.
 
 ## Step 8 — The Approval Module
 
-Custodians, Finance, Accounting Grace Gan and the Superuser each get an **Approval Module**
-covering every plant they can see, so nothing gets missed in a tab nobody opened.
-It holds two queues:
+Only three accounts see the **Approval Module**: **a1plusadmin@a1plus.com**
+(Grace Gan), **superuser@a1plus.com** and **accounting@a1plus.com**. Everyone
+else, custodians included, does not see it. Custodians review in
+**Liquidation** and **Reimbursement**.
 
-- **Petty Cash Advance** liquidations — the expense lines, the cash settlement
-  and every supporting document shown inline.
-- **Employee Reimbursements** — the full request with its documents and history.
+It is one **list** of every transaction waiting on *you*, across every plant:
 
-What you see depends on your level:
+| Series No. | Plant | Requestor | Transaction Type | Amount | Date | Current Status | Action |
+|---|---|---|---|---|---|---|---|
+| M-000125 | Manila | Juan Dela Cruz | Liquidation | ₱5,000.00 | Sep 27, 2026 | For Final Approval | Final approval |
 
-| You are | Your queue opens on | You can |
-|---------|--------------------|---------|
-| Custodian / Finance / Accounting / System Superuser | *For Custodian Review* | Approve or reject each receipt, **Custodian Approve**, reject the liquidation, reopen it · for reimbursements: review every document, **Custodian Approve**, return or reject |
-| Grace Gan / System Superuser | *For Final Approval* — **only** custodian-approved, cash-settled liquidations and custodian-approved reimbursements | **Final Approve** or reject |
+**Click any row** to open the complete transaction: every supporting document,
+the Accounting review, the custodian approval, and the **Approve / Reject**
+buttons. A liquidation opens in place of the list (**Back to Approval Queue**
+returns you); a reimbursement opens in its detail window.
+
+Click a column header to sort. Filter with the plant tabs, the
+*Liquidations / Reimbursements* tabs, the search box (series no., requestor,
+plant, batch), the status, the batch and a date range. A red **Duplicate No.**
+tag would mean two transactions carry the same series number. The database
+refuses that, so tell the administrator if you ever see one.
+
+What counts as *waiting on you* depends on your level:
+
+| You are | Your list holds | You can |
+|---------|-----------------|---------|
+| Accounting / System Superuser | *For Custodian Review*, *Needs Correction* | Approve or reject each receipt, **Custodian Approve**, reject the liquidation, reopen it · for reimbursements: review every document, **Custodian Approve**, return or reject |
+| Accounting | *For Accounting Check* | Assign a Batch Number and mark it checked |
+| Grace Gan / System Superuser | *For Final Approval*: **only** custodian-approved, Accounting-checked, cash-settled liquidations and reimbursements, never one you approved as custodian | **Final Approve** or reject, one at a time or a whole batch |
+
+Anything already decided leaves the list. Look it up in **Liquidation** or
+**Reimbursement**.
 
 The System Superuser works at **both** levels: custodian review and final
 approval. The portal never lets anyone give the final approval to something they
@@ -429,15 +446,8 @@ approved as custodian. If the Superuser does the custodian review, Grace Gan
 gives the final approval (and the other way round). Grace Gan does final
 approval only.
 
-The Superuser's Approval Module shows **everything Grace Gan's does**: the same
-transactions, receipts, amounts, custodian approvals, comments and dates. It
-opens the same way, on *For Final Approval* with the same counters at the top.
-To do custodian review, pick *For Custodian Review* in the status filter.
-
-Each row shows its stage: *For Custodian Review*, *Needs Correction*, *Awaiting
-Settlement*, *For Final Approval*, *Fully Approved / Ready for Replenishment*,
-*Replenished*, or *Rejected*. Liquidations finished before the two-level review
-existed show as *Approved (before two-level review)*.
+The Superuser's list holds both their custodian-review items and their
+final-approval items. Use the status filter to see just one of them.
 
 ```mermaid
 flowchart LR

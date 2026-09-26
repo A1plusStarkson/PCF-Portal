@@ -37,6 +37,14 @@ const LIQUIDATION_CHECKER_ROLES = ["Custodian", "Accounting", "Finance", "SuperA
    final-approve handler in 19-app.jsx. */
 const ACCOUNTING_CHECKER_EMAILS = ["accounting@a1plus.com"];
 
+/* ---- Approval Module access ----
+   By the owner's instruction the Approval Module is open to these three
+   accounts ONLY, matched by email. Everyone else (requestors, custodians,
+   Finance) neither sees it in the sidebar nor can navigate to it. Custodians
+   keep their review in the Liquidation and Reimbursement modules, which call
+   the same handlers. */
+const APPROVAL_MODULE_EMAILS = ["a1plusadmin@a1plus.com", "superuser@a1plus.com", "accounting@a1plus.com"];
+
 /* Accounting stamps are full ISO timestamps (with zone), shown in local time. */
 function fmtAcctStamp(ts) {
   if (!ts) return "—";

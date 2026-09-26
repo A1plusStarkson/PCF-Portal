@@ -201,6 +201,9 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   /* ACCOUNTING REVIEW: by email (ACCOUNTING_CHECKER_EMAILS), hidden while
      previewing another role. Re-checked inside accountingReview. */
   const isAccountingChecker = emailIn(ACCOUNTING_CHECKER_EMAILS) && role === (userRole || "Accounting");
+  /* APPROVAL MODULE: three accounts only (APPROVAL_MODULE_EMAILS), hidden while
+     previewing another role, like the approver flags above. */
+  const canUseApprovalModule = emailIn(APPROVAL_MODULE_EMAILS) && role === (userRole || "Accounting");
   /* Nothing under Grace Gan's final approval may move — it is what gets
      replenished. (Legacy approvals are not locked; they predate the lock.) */
   const isLiquidationFinalLocked = useCallback((disbursementId) => {
@@ -1865,7 +1868,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     });
     /* Approvals sit directly under the plants: it is the first place an approver
        looks, and it already spans every plant, so it is not repeated per plant. */
-    const apprMods = APPROVAL_MODULES.filter((m) => roleModuleKeys.includes(m.key));
+    const apprMods = canUseApprovalModule ? APPROVAL_MODULES.filter((m) => roleModuleKeys.includes(m.key)) : [];
     if (apprMods.length) {
       groups.push({ key: "approvals", label: "Approvals", items: apprMods.map((m) => ({ tabKey: m.key, label: m.label, icon: m.icon })) });
     }
@@ -1878,7 +1881,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       groups.push({ key: "admin", label: "Administration", items: globalMods.map((m) => ({ tabKey: m.key, label: m.label, icon: m.icon })) });
     }
     return groups;
-  }, [roleModuleKeys, orderedPlants]);
+  }, [roleModuleKeys, orderedPlants, canUseApprovalModule]);
 
   /* Flat set of every valid tab key for this user — used to block navigation to
      unauthorized pages, including manual URL/state tampering. */
@@ -2102,7 +2105,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             plantTitle={activePlantLabel}
           />
         )}
-        {activeModule === "approvals" && (
+        {activeModule === "approvals" && canUseApprovalModule && (
           <ApprovalModuleTab
             disbursements={visibleDisbursements} liquidations={visibleLiquidations}
             reimbursements={visibleReimbursements}

@@ -21,29 +21,49 @@
 
    Why it is not a per-plant tab: approvers sign off across plants, so splitting
    the queue by plant would mean opening four tabs to find out whether anything
-   is waiting. Plant scoping still applies — a custodian only ever sees their
-   own plants' liquidations.
+   is waiting. Plant scoping still applies to each viewer's own plants.
+
+   Who sees it: only Grace Gan, the System Superuser and Accounting
+   (APPROVAL_MODULE_EMAILS in 11-liquidation.jsx). Custodians review in the
+   Liquidation and Reimbursement modules.
+
+   Layout: one sortable, filterable list of what is pending on the viewer.
+   Clicking a row opens the whole transaction (documents, Accounting review,
+   custodian approval) with its approve / reject actions.
 
    It adds no new authority. Every action routes through the same handlers the
    Liquidation and Reimbursement modules use, and each handler re-checks who is
    calling it.
 --------------------------------------------------------------------------- */
 
-/* Stages the final approver's queue is limited to: custodian-approved, cash
-   settled, and what she has already approved (for reference). */
-const FINAL_APPROVER_STAGES = [LIQ_STAGE.FOR_FINAL, LIQ_STAGE.READY, LIQ_STAGE.REPLENISHED];
+/* The queue is a LIST of what is pending on THIS viewer, across both kinds of
+   transaction. What is "pending" follows the viewer's level:
+     custodian-level checker → For Custodian Review / Needs Correction
+     Accounting              → For Accounting Check
+     final approver          → For Final Approval, except what they approved
+                               as custodian (or, for a reimbursement, their own)
+   Liquidation stages are title case and reimbursement stages upper case, but
+   the shared ones read the same once upper-cased, so the status filter matches
+   on that. Anything no longer pending stays in the Liquidation and
+   Reimbursement modules. */
+const APPROVAL_ALL_PENDING = "All pending";
+const approvalStageKey = (stage) => String(stage || "").toUpperCase();
 
-/* Employee reimbursements follow the same two levels (22-reimbursement.jsx).
-   The final approver's queue is likewise limited to what custodians have
-   approved. Built on demand from REIMB_STATUS/REIMB_STAGE. */
-const reimbFinalApproverStages = () => [REIMB_STATUS.FOR_FINAL, REIMB_STATUS.READY, REIMB_STAGE.REPLENISHED];
-const reimbCheckerStages = () => [
-  REIMB_STAGE.FOR_CHECK, REIMB_STAGE.FOR_ACCOUNTING, REIMB_STATUS.FOR_FINAL, REIMB_STATUS.READY, REIMB_STAGE.REPLENISHED,
-  REIMB_STATUS.RETURNED, REIMB_STATUS.REJECTED,
-  /* Legacy single-level chain, still visible for records already in it. */
-  REIMB_STATUS.FOR_LIQUIDATION, REIMB_STATUS.UNDER_REVIEW, REIMB_STATUS.LIQUIDATION_DONE,
-  REIMB_STATUS.FOR_PAYMENT, REIMB_STATUS.PAID, REIMB_STATUS.COMPLETED,
-];
+function approvalPendingStages({ isChecker, isAcct, isFinalApprover }) {
+  const out = [];
+  if (isChecker) out.push(LIQ_STAGE.FOR_CHECK, LIQ_STAGE.NEEDS_CORRECTION);
+  if (isAcct) out.push(LIQ_STAGE.FOR_ACCOUNTING);
+  if (isFinalApprover) out.push(LIQ_STAGE.FOR_FINAL);
+  return out;
+}
+
+/* What the viewer does next with a pending row, for the Action column. */
+const APPROVAL_ACTION_LABEL = {
+  [approvalStageKey(LIQ_STAGE.FOR_CHECK)]: "Custodian review",
+  [approvalStageKey(LIQ_STAGE.NEEDS_CORRECTION)]: "Return for correction",
+  [approvalStageKey(LIQ_STAGE.FOR_ACCOUNTING)]: "Accounting check & batch no.",
+  [approvalStageKey(LIQ_STAGE.FOR_FINAL)]: "Final approval",
+};
 
 /* Submitted petty cash liquidations, newest first. A voucher with no
    liquidation, or one still in Draft, has nothing to decide yet. */
@@ -343,103 +363,141 @@ function ApprovalModuleTab({
   currentUser, plantOptions, accounting,
 }) {
   const isAcct = !!(accounting && accounting.isChecker);
-  /* Grace Gan: final approval only, so her queues hold only what custodians
-     have approved. The System Superuser is BOTH a checker and a final
-     approver. By the owner's instruction she sees everything Grace Gan sees,
-     opened the same way (For Final Approval, same KPIs), with the custodian
-     queue added one filter away. */
-  const finalOnly = isFinalApprover && !isChecker;
-  const [source, setSource] = useState("pettycash");
+  const me = String(currentUser || "").trim().toLowerCase();
   const [plant, setPlant] = useState("ALL");
+  const [kind, setKind] = useState("all");
   const [search, setSearch] = useState("");
-  /* Open on the viewer's own work: every final approver on what awaits final
-     approval, custodians on what awaits their review. */
-  const [pcaStage, setPcaStage] = useState(
-    isFinalApprover ? LIQ_STAGE.FOR_FINAL : isAcct ? LIQ_STAGE.FOR_ACCOUNTING : isChecker ? LIQ_STAGE.FOR_CHECK : "All statuses"
-  );
-  const [reimbStage, setReimbStage] = useState(
-    isFinalApprover ? REIMB_STATUS.FOR_FINAL : isAcct ? REIMB_STAGE.FOR_ACCOUNTING : isChecker ? REIMB_STAGE.FOR_CHECK : "All statuses"
-  );
-  const [selectedId, setSelectedId] = useState(null);
-  const [detail, setDetail] = useState(null);
+  const [stageFilter, setStageFilter] = useState(APPROVAL_ALL_PENDING);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   /* Batch Number filter — how Grace Gan reviews: one Accounting batch at a time. */
   const ALL_BATCHES = "All batches";
   const [batch, setBatch] = useState(ALL_BATCHES);
-  const inBatch = (b) => batch === ALL_BATCHES || b === batch;
-  /* Newest reimbursement no. first on open; any header can take over. */
-  const reimbSort = useTableSort("reimbNo", "desc");
+  /* The open transaction: a liquidation opens in place of the list, a
+     reimbursement in its usual detail window. */
+  const [openLiqId, setOpenLiqId] = useState(null);
+  const [detail, setDetail] = useState(null);
+  const sort = useTableSort("date", "desc");
 
-  const inPlant = (code) => plant === "ALL" || code === plant;
-  const matches = (...fields) => {
-    const s = search.trim().toLowerCase();
-    if (!s) return true;
-    return fields.some((f) => String(f || "").toLowerCase().includes(s));
-  };
-
-  /* ---- Petty Cash Advance liquidations ---- */
-  /* The final approver's queue holds ONLY what custodians have approved and
-     whose cash is settled — nothing earlier in the chain reaches her. */
-  const pcaAll = useMemo(() => {
-    const all = pcaApprovalQueue(disbursements, liquidations, replenishments);
-    return finalOnly ? all.filter((r) => FINAL_APPROVER_STAGES.includes(r.stage)) : all;
-  }, [disbursements, liquidations, replenishments, finalOnly]);
-  const pcaRows = pcaAll.filter((r) => inPlant(r.disb.branchCode)
-    && matches(r.disb.voucherNo, r.disb.employee, r.disb.branchCode, r.review.batchNo)
-    && inBatch(r.review.batchNo)
-    && (pcaStage === "All statuses" || r.stage === pcaStage));
-  const selected = pcaRows.find((r) => r.disb.id === selectedId) || pcaRows[0] || null;
-  const pcaStageOptions = ["All statuses"].concat(finalOnly
-    ? FINAL_APPROVER_STAGES
-    : [LIQ_STAGE.FOR_CHECK, LIQ_STAGE.NEEDS_CORRECTION, LIQ_STAGE.FOR_ACCOUNTING, LIQ_STAGE.AWAITING_SETTLEMENT, LIQ_STAGE.FOR_FINAL,
-       LIQ_STAGE.READY, LIQ_STAGE.REPLENISHED, LIQ_STAGE.REJECTED, LIQ_STAGE.LEGACY]);
-  const countStage = (s) => pcaAll.filter((r) => r.stage === s).length;
-  const pcaForCheck = countStage(LIQ_STAGE.FOR_CHECK) + countStage(LIQ_STAGE.NEEDS_CORRECTION);
-  const pcaForFinal = countStage(LIQ_STAGE.FOR_FINAL);
-  const pcaForAcct = countStage(LIQ_STAGE.FOR_ACCOUNTING);
-  const pcaReady = countStage(LIQ_STAGE.READY);
-
-  /* ---- Employee reimbursements ----
-     Each row carries its approval stage. As with liquidations, the final
-     approver's queue holds ONLY what a custodian has already approved. */
+  /* ---- Every submitted transaction, with its approval stage ---- */
+  const pcaAll = useMemo(
+    () => pcaApprovalQueue(disbursements, liquidations, replenishments),
+    [disbursements, liquidations, replenishments]
+  );
   const reimbAll = useMemo(() => {
     const replenishedIds = replenishedReimbursementIds(replenishments);
-    const finalStages = reimbFinalApproverStages();
     return (reimbursements || [])
       .filter((r) => r.status !== REIMB_STATUS.DRAFT)
-      .map((r) => ({ ...r, stage: reimbApprovalStage(r, replenishedIds), batchNo: reimbReview(r).batchNo }))
-      .filter((r) => !finalOnly || finalStages.includes(r.stage))
-      .sort((a, b) => String(b.requestDate || "").localeCompare(String(a.requestDate || "")));
-  }, [reimbursements, replenishments, finalOnly]);
-  const reimbRows = reimbSort.sortRows(
-    reimbAll.filter((r) => inPlant(r.branchCode)
-      && matches(r.reimbNo, r.employee, r.branchCode, r.purpose, r.batchNo)
-      && inBatch(r.batchNo)
-      && (reimbStage === "All statuses" || r.stage === reimbStage)),
-    { ...REIMB_SORT_FIELDS, status: (r) => r.stage, batchNo: (r) => r.batchNo }
+      .map((r) => ({ ...r, stage: reimbApprovalStage(r, replenishedIds), rv: reimbReview(r) }));
+  }, [reimbursements, replenishments]);
+
+  /* ---- Pending on this viewer ---- */
+  const pendingStages = approvalPendingStages({ isChecker, isAcct, isFinalApprover });
+  const pendingKeys = pendingStages.map(approvalStageKey);
+  const isPendingFor = (stage, review, own) => {
+    const k = approvalStageKey(stage);
+    if (!pendingKeys.includes(k)) return false;
+    /* Two levels, two people: whoever gave the custodian approval (or owns the
+       reimbursement) is not asked for the final one. */
+    if (k === approvalStageKey(LIQ_STAGE.FOR_FINAL)) {
+      if (String(review.checkedBy || "").toLowerCase() === me || own) return false;
+      if (!passesAccountingGate(review)) return false;
+    }
+    return true;
+  };
+
+  /* One row shape for both kinds, so the list sorts and filters as one. */
+  const allRows = useMemo(() => {
+    const liqRows = pcaAll.map((r) => ({
+      key: "liq:" + r.disb.id,
+      kind: "Liquidation",
+      id: r.disb.id,
+      seriesNo: r.disb.voucherNo || "",
+      plantCode: r.disb.branchCode,
+      requestor: r.disb.employee || "",
+      amount: liquidatedTotal(r.liq),
+      date: String(r.liq.submittedAt || r.disb.date || "").slice(0, 10),
+      stage: r.stage,
+      batchNo: r.review.batchNo || "",
+      pending: isPendingFor(r.stage, r.review, false),
+      src: r,
+    }));
+    const reimbRows = reimbAll.map((r) => ({
+      key: "reimb:" + r.id,
+      kind: "Reimbursement",
+      id: r.id,
+      seriesNo: r.reimbNo || "",
+      plantCode: r.branchCode,
+      requestor: r.employee || "",
+      amount: reimbTotal(r),
+      date: String(r.submittedAt || r.requestDate || "").slice(0, 10),
+      stage: r.stage,
+      batchNo: r.rv.batchNo || "",
+      pending: isPendingFor(r.stage, r.rv, [r.createdBy, r.employee].some((n) => (n || "").trim().toLowerCase() === me)),
+      src: r,
+    }));
+    return liqRows.concat(reimbRows);
+  }, [pcaAll, reimbAll, isChecker, isAcct, isFinalApprover, me]); // eslint-disable-line
+
+  /* A series number belongs to one transaction. The database refuses a second
+     holder (supabase-series-guard.sql); should one ever show up anyway, it is
+     flagged on the row rather than passing unnoticed. */
+  const dupSeries = useMemo(() => {
+    const seen = new Map();
+    allRows.forEach((r) => {
+      const n = r.seriesNo.trim().toUpperCase();
+      if (n) seen.set(n, (seen.get(n) || 0) + 1);
+    });
+    return new Set([...seen].filter(([, c]) => c > 1).map(([n]) => n));
+  }, [allRows]);
+
+  const pendingAll = allRows.filter((r) => r.pending);
+  const s = search.trim().toLowerCase();
+  const baseRows = pendingAll.filter((r) => (plant === "ALL" || r.plantCode === plant)
+    && (!s || [r.seriesNo, r.requestor, plantLabel(r.plantCode), r.batchNo].some((f) => String(f || "").toLowerCase().includes(s)))
+    && (stageFilter === APPROVAL_ALL_PENDING || approvalStageKey(r.stage) === approvalStageKey(stageFilter))
+    && (batch === ALL_BATCHES || r.batchNo === batch)
+    && (!dateFrom || r.date >= dateFrom)
+    && (!dateTo || r.date <= dateTo));
+  const countKind = (k) => baseRows.filter((r) => r.kind === k).length;
+  const rows = sort.sortRows(
+    baseRows.filter((r) => kind === "all" || r.kind === kind),
+    {
+      seriesNo: (r) => r.seriesNo,
+      plant: (r) => plantLabel(r.plantCode),
+      requestor: (r) => r.requestor,
+      kind: (r) => r.kind,
+      amount: (r) => r.amount,
+      date: (r) => r.date,
+      status: (r) => approvalStageKey(r.stage),
+      action: (r) => APPROVAL_ACTION_LABEL[approvalStageKey(r.stage)] || "",
+    }
   );
-  const reimbForCheck = reimbAll.filter((r) => r.stage === REIMB_STAGE.FOR_CHECK).length;
-  const reimbForFinal = reimbAll.filter((r) => r.stage === REIMB_STATUS.FOR_FINAL).length;
-  const reimbForAcct = reimbAll.filter((r) => r.stage === REIMB_STAGE.FOR_ACCOUNTING).length;
+  const filtersOn = plant !== "ALL" || kind !== "all" || !!s || stageFilter !== APPROVAL_ALL_PENDING
+    || batch !== ALL_BATCHES || !!dateFrom || !!dateTo;
+  const clearFilters = () => {
+    setPlant("ALL"); setKind("all"); setSearch(""); setStageFilter(APPROVAL_ALL_PENDING);
+    setBatch(ALL_BATCHES); setDateFrom(""); setDateTo("");
+  };
+
+  /* ---- KPIs ---- */
+  const countPending = (k, stage) => pendingAll.filter((r) => r.kind === k && approvalStageKey(r.stage) === approvalStageKey(stage)).length;
+  const pcaReady = pcaAll.filter((r) => r.stage === LIQ_STAGE.READY).length;
 
   /* ---- Batches ----
-     Every batch in the viewer's queues, and — for the final approver — what in
+     Every batch among the pending rows, and — for the final approver — what in
      each is awaiting final approval now. Only transactions that passed the
-     Accounting gate ever reach FOR_FINAL, and it is re-checked here and again
+     Accounting gate count as pending final approval, and it is re-checked again
      in each handler, so a batch can never carry an unchecked transaction into
      her approval. */
-  const batchNos = Array.from(new Set(pcaAll.map((r) => r.review.batchNo)
-    .concat(reimbAll.map((r) => r.batchNo)).filter(Boolean))).sort().reverse();
-  const me = String(currentUser || "").trim().toLowerCase();
+  const batchNos = Array.from(new Set(pendingAll.map((r) => r.batchNo).filter(Boolean))).sort().reverse();
   const batchPending = (b) => {
-    const pca = pcaAll.filter((r) => r.review.batchNo === b && inPlant(r.disb.branchCode)
-      && r.stage === LIQ_STAGE.FOR_FINAL && passesAccountingGate(r.review)
-      && String(r.review.checkedBy).toLowerCase() !== me);
-    const reimb = reimbAll.filter((r) => r.batchNo === b && inPlant(r.branchCode)
-      && r.stage === REIMB_STATUS.FOR_FINAL && passesAccountingGate(reimbReview(r))
-      && reimbReview(r).checkedBy.toLowerCase() !== me
-      && ![r.createdBy, r.employee].some((n) => (n || "").trim().toLowerCase() === me));
-    const total = pca.reduce((t, r) => t + r.amounts.approvedTotal, 0) + reimb.reduce((t, r) => t + reimbTotal(r), 0);
-    return { pca, reimb, count: pca.length + reimb.length, total };
+    const inB = pendingAll.filter((r) => r.batchNo === b && (plant === "ALL" || r.plantCode === plant)
+      && approvalStageKey(r.stage) === approvalStageKey(LIQ_STAGE.FOR_FINAL));
+    const pca = inB.filter((r) => r.kind === "Liquidation");
+    const reimb = inB.filter((r) => r.kind === "Reimbursement");
+    const total = pca.reduce((t, r) => t + r.src.amounts.approvedTotal, 0) + reimb.reduce((t, r) => t + r.amount, 0);
+    return { pca, reimb, count: inB.length, total };
   };
   const batchesAwaiting = isFinalApprover
     ? batchNos.map((b) => ({ batchNo: b, ...batchPending(b) })).filter((x) => x.count > 0) : [];
@@ -447,88 +505,115 @@ function ApprovalModuleTab({
     const x = batchPending(b);
     if (!x.count) return;
     if (!window.confirm(`Give final approval to the whole of ${b}?\n\n`
-      + x.pca.map((r) => `  ${r.disb.voucherNo} · Liquidation · ${peso(r.amounts.approvedTotal)}`)
-        .concat(x.reimb.map((r) => `  ${r.reimbNo} · Reimbursement · ${peso(reimbTotal(r))}`)).join("\n")
+      + x.pca.map((r) => `  ${r.seriesNo} · Liquidation · ${peso(r.src.amounts.approvedTotal)}`)
+        .concat(x.reimb.map((r) => `  ${r.seriesNo} · Reimbursement · ${peso(r.amount)}`)).join("\n")
       + `\n\n${x.count} transaction(s) · ${peso(x.total)}. Each becomes Fully Approved / Ready for Replenishment.`)) return;
-    x.pca.forEach((r) => onFinalApprove(r.disb.id, `Batch ${b} final approval`));
+    x.pca.forEach((r) => onFinalApprove(r.id, `Batch ${b} final approval`));
     x.reimb.forEach((r) => onReimbursementAction(r.id, "final-approve", { comments: `Batch ${b} final approval` }));
   };
 
-  const stageOptions = source === "pettycash"
-    ? pcaStageOptions
-    : ["All statuses"].concat(finalOnly ? reimbFinalApproverStages() : reimbCheckerStages());
+  const openRow = (r) => {
+    if (r.kind === "Liquidation") setOpenLiqId(r.id);
+    else setDetail(r.src);
+  };
+
+  /* ---- An open liquidation: its complete details in place of the list ----
+     Looked up in every stage, not just pending, so it stays on screen showing
+     its new stage straight after the viewer decides it. */
+  const openLiq = openLiqId ? pcaAll.find((r) => r.disb.id === openLiqId) : null;
+  if (openLiq) {
+    return (
+      <div className="pcp-liq-full">
+        <TopBar title="Approval Module" sub={`Liquidation ${openLiq.disb.voucherNo} · ${openLiq.disb.employee}`} />
+        <div className="pcp-content">
+          <button className="pcp-btn pcp-btn-sm" style={{ marginBottom: 12 }} onClick={() => setOpenLiqId(null)}>
+            <ChevronLeft size={12} /> Back to Approval Queue
+          </button>
+          <PcaApprovalPanel
+            key={openLiq.disb.id}
+            row={openLiq}
+            isChecker={isChecker}
+            isFinalApprover={isFinalApprover}
+            currentUser={currentUser}
+            accounting={accounting}
+            onDecideReceipt={onDecideReceipt}
+            onRejectLiquidation={onRejectLiquidation}
+            onReopenLiquidation={onReopenLiquidation}
+            onCheckLiquidation={onCheckLiquidation}
+            onFinalApprove={onFinalApprove}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  const statusOptions = [APPROVAL_ALL_PENDING].concat(pendingStages);
 
   return (
     <div className="pcp-liq-full">
       <TopBar
         title="Approval Module"
-        sub={finalOnly
-          ? "Final approval of custodian-approved liquidations and employee reimbursements"
-          : isFinalApprover
-            ? "Final approval of custodian-approved liquidations and employee reimbursements — plus custodian review (choose For Custodian Review in the status filter)"
-            : "Review and approve Petty Cash Advance liquidations and Employee Reimbursements for your plants"}
+        sub="Everything awaiting your decision, across all plants. Click a transaction to open it."
       />
       <div className="pcp-content">
         <div className="pcp-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12, marginBottom: 16 }}>
           {isFinalApprover && (
             <>
-              <KpiCard label="Liquidations Awaiting Your Final Approval" value={pcaForFinal} icon={ShieldCheck} tint="#b9790a" />
-              <KpiCard label="Reimbursements Awaiting Your Final Approval" value={reimbForFinal} icon={ArrowLeftRight} tint="#b9790a" />
+              <KpiCard label="Liquidations Awaiting Your Final Approval" value={countPending("Liquidation", LIQ_STAGE.FOR_FINAL)} icon={ShieldCheck} tint="#b9790a" />
+              <KpiCard label="Reimbursements Awaiting Your Final Approval" value={countPending("Reimbursement", LIQ_STAGE.FOR_FINAL)} icon={ArrowLeftRight} tint="#b9790a" />
             </>
           )}
           {isAcct && (
             <>
-              <KpiCard label="Liquidations Awaiting Accounting Check" value={pcaForAcct} icon={ShieldCheck} tint="#b9790a" />
-              <KpiCard label="Reimbursements Awaiting Accounting Check" value={reimbForAcct} icon={ArrowLeftRight} tint="#b9790a" />
+              <KpiCard label="Liquidations Awaiting Accounting Check" value={countPending("Liquidation", LIQ_STAGE.FOR_ACCOUNTING)} icon={ShieldCheck} tint="#b9790a" />
+              <KpiCard label="Reimbursements Awaiting Accounting Check" value={countPending("Reimbursement", LIQ_STAGE.FOR_ACCOUNTING)} icon={ArrowLeftRight} tint="#b9790a" />
             </>
           )}
           {isChecker && (
             <>
-              <KpiCard label="Liquidations Awaiting Custodian Review" value={pcaForCheck} icon={FileSpreadsheet} tint="#b9790a" />
-              <KpiCard label="Reimbursements Awaiting Custodian Review" value={reimbForCheck} icon={ArrowLeftRight} tint="#2054a3" />
-              {!isFinalApprover && <KpiCard label="Awaiting Final Approval" value={pcaForFinal + reimbForFinal} icon={ShieldCheck} tint="#7c3aed" />}
+              <KpiCard label="Liquidations Awaiting Custodian Review" value={countPending("Liquidation", LIQ_STAGE.FOR_CHECK) + countPending("Liquidation", LIQ_STAGE.NEEDS_CORRECTION)} icon={FileSpreadsheet} tint="#b9790a" />
+              <KpiCard label="Reimbursements Awaiting Custodian Review" value={countPending("Reimbursement", LIQ_STAGE.FOR_CHECK)} icon={ArrowLeftRight} tint="#2054a3" />
             </>
           )}
           <KpiCard label="Liquidations Ready for Replenishment" value={pcaReady} icon={RefreshCw} tint="#15803d" />
         </div>
 
-        <PlantScopeTabs plants={plantOptions} value={plant} onChange={(v) => { setPlant(v); setSelectedId(null); }} />
+        <PlantScopeTabs plants={plantOptions} value={plant} onChange={setPlant} />
 
         <div className="pcp-tabs" style={{ marginBottom: 14 }}>
-          <button className={"pcp-tab" + (source === "pettycash" ? " active" : "")} onClick={() => setSource("pettycash")}>
-            Petty Cash Advance Liquidations ({pcaRows.length})
+          <button className={"pcp-tab" + (kind === "all" ? " active" : "")} onClick={() => setKind("all")}>
+            All Pending ({baseRows.length})
           </button>
-          <button className={"pcp-tab" + (source === "reimbursement" ? " active" : "")} onClick={() => setSource("reimbursement")}>
-            Employee Reimbursements ({reimbRows.length})
+          <button className={"pcp-tab" + (kind === "Liquidation" ? " active" : "")} onClick={() => setKind("Liquidation")}>
+            Petty Cash Advance Liquidations ({countKind("Liquidation")})
+          </button>
+          <button className={"pcp-tab" + (kind === "Reimbursement" ? " active" : "")} onClick={() => setKind("Reimbursement")}>
+            Employee Reimbursements ({countKind("Reimbursement")})
           </button>
         </div>
 
         <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
-          <div style={{ position: "relative", flex: 1, maxWidth: 300 }}>
+          <div style={{ position: "relative", flex: 1, minWidth: 200, maxWidth: 300 }}>
             <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#9098b3" }} />
             <input
               className="pcp-input" style={{ paddingLeft: 28 }}
-              placeholder={source === "pettycash" ? "Search voucher, employee or branch" : "Search reimbursement no., employee or purpose"}
+              placeholder="Search series no., requestor, plant or batch"
               value={search} onChange={(e) => setSearch(e.target.value)}
             />
           </div>
           <FilterIcon size={14} color="var(--text-mut)" />
-          <SearchSelect
-            value={source === "pettycash" ? pcaStage : reimbStage}
-            onChange={(v) => {
-              if (source === "pettycash") setPcaStage(v || "All statuses");
-              else setReimbStage(v || "All statuses");
-              setSelectedId(null);
-            }}
-            options={stageOptions.map((s) => ({ value: s, label: s }))}
-            searchPlaceholder="Search status…"
-            style={{ width: 240 }}
-          />
+          <select className="pcp-select" style={{ width: 200 }} value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
+            {statusOptions.map((o) => <option key={o}>{o}</option>)}
+          </select>
           <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mut)" }}>Batch</span>
-          <select className="pcp-select" style={{ width: 170 }} value={batch}
-            onChange={(e) => { setBatch(e.target.value); setSelectedId(null); }}>
+          <select className="pcp-select" style={{ width: 150 }} value={batch} onChange={(e) => setBatch(e.target.value)}>
             {[ALL_BATCHES].concat(batchNos).map((b) => <option key={b}>{b}</option>)}
           </select>
+          <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mut)" }}>Date</span>
+          <input type="date" className="pcp-input" style={{ width: 140 }} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From" />
+          <span style={{ fontSize: 11.5, color: "var(--text-mut)" }}>to</span>
+          <input type="date" className="pcp-input" style={{ width: 140 }} value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To" />
+          {filtersOn && <button className="pcp-btn pcp-btn-sm" onClick={clearFilters}><X size={12} /> Clear</button>}
         </div>
 
         {/* Batches awaiting final approval: review a batch, then approve it whole. */}
@@ -542,7 +627,7 @@ function ApprovalModuleTab({
                   <span style={{ color: "var(--text-mut)" }}>
                     {x.pca.length} liquidation(s) · {x.reimb.length} reimbursement(s) · <span className="pcp-num">{peso(x.total)}</span>
                   </span>
-                  <button className="pcp-btn pcp-btn-sm" onClick={() => { setBatch(x.batchNo); setSelectedId(null); }}>
+                  <button className="pcp-btn pcp-btn-sm" onClick={() => setBatch(x.batchNo)}>
                     <Eye size={12} /> Review Batch
                   </button>
                   {batch === x.batchNo && (
@@ -556,103 +641,61 @@ function ApprovalModuleTab({
           </div>
         )}
 
-        {source === "pettycash" ? (
-          <div className="pcp-liq-workspace">
-            <div className="pcp-card pcp-card-pad">
-              <div className="pcp-section-title" style={{ margin: "0 0 10px" }}>Liquidations</div>
-              {pcaRows.length ? pcaRows.map((r) => (
-                <div
-                  key={r.disb.id}
-                  className={"pcp-voucher-card" + (selected && selected.disb.id === r.disb.id ? " active" : "")}
-                  onClick={() => setSelectedId(r.disb.id)}
-                >
-                  <div style={{ display: "flex", justifyContent: "space-between" }}>
-                    <strong style={{ fontSize: 12.5 }}>{r.disb.voucherNo}</strong>
-                    <span className="pcp-num" style={{ fontSize: 12.5, fontWeight: 700 }}>{peso(r.disb.amount)}</span>
-                  </div>
-                  <div style={{ fontSize: 11.5, color: "var(--text-mut)", marginTop: 2 }}>
-                    {r.disb.employee} · {plantLabel(r.disb.branchCode)}
-                  </div>
-                  <div style={{ marginTop: 6, display: "flex", gap: 5, flexWrap: "wrap" }}>
-                    <Badge status={r.stage} />
-                    {r.review.batchNo && <span className="pcp-badge pcp-badge-gray">{r.review.batchNo}</span>}
-                    <span style={{ fontSize: 10.5, color: "var(--text-mut)" }}>
-                      {r.approval.approved + r.approval.rejected}/{r.approval.total} docs decided
-                    </span>
-                  </div>
-                </div>
-              )) : <div className="pcp-empty">Nothing to approve here</div>}
-            </div>
-            {selected ? (
-              <PcaApprovalPanel
-                key={selected.disb.id}
-                row={selected}
-                isChecker={isChecker}
-                isFinalApprover={isFinalApprover}
-                currentUser={currentUser}
-                accounting={accounting}
-                onDecideReceipt={onDecideReceipt}
-                onRejectLiquidation={onRejectLiquidation}
-                onReopenLiquidation={onReopenLiquidation}
-                onCheckLiquidation={onCheckLiquidation}
-                onFinalApprove={onFinalApprove}
-              />
-            ) : (
-              <div className="pcp-card pcp-card-pad"><div className="pcp-empty">Select a liquidation to check and approve</div></div>
-            )}
-          </div>
-        ) : (
-          <div className="pcp-card">
-            <div className="pcp-table-wrap">
-              <table className="pcp-table">
-                <thead>
-                  <tr>
-                    <SortTh field="reimbNo" sort={reimbSort}>Reimb No.</SortTh>
-                    <SortTh field="requestDate" sort={reimbSort}>Req Date</SortTh>
-                    <SortTh field="employee" sort={reimbSort}>Employee</SortTh>
-                    <SortTh field="department" sort={reimbSort}>Department</SortTh>
-                    <SortTh field="branchCode" sort={reimbSort}>Plant</SortTh>
-                    <SortTh field="purpose" sort={reimbSort}>Purpose</SortTh>
-                    <SortTh field="docs" sort={reimbSort}>Docs</SortTh>
-                    <SortTh field="amount" sort={reimbSort}>Amount</SortTh>
-                    <SortTh field="compliance" sort={reimbSort}>Compliance</SortTh>
-                    <SortTh field="status" sort={reimbSort}>Status</SortTh>
-                    <SortTh field="batchNo" sort={reimbSort}>Batch No.</SortTh>
-                    <SortTh field="aging" sort={reimbSort}>Aging</SortTh>
-                    <th></th>
+        <div className="pcp-card">
+          <div className="pcp-table-wrap">
+            <table className="pcp-table">
+              <thead>
+                <tr>
+                  <SortTh field="seriesNo" sort={sort}>Series No.</SortTh>
+                  <SortTh field="plant" sort={sort}>Plant</SortTh>
+                  <SortTh field="requestor" sort={sort}>Requestor</SortTh>
+                  <SortTh field="kind" sort={sort}>Transaction Type</SortTh>
+                  <SortTh field="amount" sort={sort} align="right">Amount</SortTh>
+                  <SortTh field="date" sort={sort}>Date</SortTh>
+                  <SortTh field="status" sort={sort}>Current Status</SortTh>
+                  <SortTh field="action" sort={sort}>Action</SortTh>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.length ? rows.map((r) => (
+                  <tr
+                    key={r.key} className="pcp-liq-row" tabIndex={0}
+                    onClick={() => openRow(r)}
+                    onKeyDown={(e) => { if (e.key === "Enter") openRow(r); }}
+                    title={`Open ${r.seriesNo || "this transaction"}`}
+                  >
+                    <td>
+                      <strong>{r.seriesNo || "—"}</strong>
+                      {dupSeries.has(r.seriesNo.trim().toUpperCase()) && (
+                        <span className="pcp-badge pcp-badge-red" style={{ marginLeft: 6 }} title="Another transaction carries this series number">
+                          <AlertTriangle size={10} /> Duplicate No.
+                        </span>
+                      )}
+                      {r.batchNo && <div style={{ fontSize: 10.5, color: "var(--text-mut)" }}>{r.batchNo}</div>}
+                    </td>
+                    <td>{plantLabel(r.plantCode)}</td>
+                    <td>{r.requestor || "—"}</td>
+                    <td>{r.kind}</td>
+                    <td className="pcp-num" style={{ textAlign: "right" }}>{peso(r.amount)}</td>
+                    <td>{fmtDate(r.date)}</td>
+                    <td><Badge status={r.stage} /></td>
+                    <td style={{ fontWeight: 600 }}>{APPROVAL_ACTION_LABEL[approvalStageKey(r.stage)] || "—"}</td>
+                    <td>
+                      <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={(e) => { e.stopPropagation(); openRow(r); }}>
+                        <Eye size={12} /> Open
+                      </button>
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {reimbRows.length ? reimbRows.map((r) => (
-                    <tr key={r.id}>
-                      <td>{r.reimbNo}</td>
-                      <td>{fmtDate(r.requestDate)}</td>
-                      <td>{r.employee}</td>
-                      <td title={subaccountLabel(r.department)}>{deptDesc(r.department)}</td>
-                      <td>{plantLabel(r.branchCode)}</td>
-                      <td title={r.purpose || ""} style={{ maxWidth: 220, whiteSpace: "normal" }}>
-                        {r.purpose
-                          ? <span>{purposeCategory(r.purpose) && <span className="pcp-badge pcp-badge-gray" style={{ marginRight: 6 }}>{purposeCategory(r.purpose)}</span>}{r.purpose}</span>
-                          : <span style={{ color: "var(--text-mut)" }}>&mdash;</span>}
-                      </td>
-                      <td>{(r.attachments || []).length}</td>
-                      <td className="pcp-num">{peso(reimbTotal(r))}</td>
-                      <td><CompliancePill level={(r.compliance && r.compliance.level) || "PASS"} /></td>
-                      <td><Badge status={r.stage} /></td>
-                      <td>{r.batchNo || <span style={{ color: "var(--text-mut)" }}>—</span>}</td>
-                      <td>{reimbAgingBucket(r)}</td>
-                      <td>
-                        <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={() => setDetail(r)} title="Check documents and decide">
-                          <Eye size={12} /> Review
-                        </button>
-                      </td>
-                    </tr>
-                  )) : <tr><td colSpan={13} className="pcp-empty">Nothing to approve here</td></tr>}
-                </tbody>
-              </table>
-            </div>
+                )) : (
+                  <tr><td colSpan={9} className="pcp-empty">
+                    {pendingAll.length ? "Nothing pending matches these filters" : "Nothing is awaiting your approval"}
+                  </td></tr>
+                )}
+              </tbody>
+            </table>
           </div>
-        )}
+        </div>
       </div>
 
       {detail && (

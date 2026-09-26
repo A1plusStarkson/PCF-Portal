@@ -3,7 +3,7 @@ import { createRoot } from "react-dom/client";
 import {
   LayoutDashboard, FileText, Wallet, Receipt, Database, Plus, Download,
   Check, X, Search, AlertTriangle, TrendingUp, Users, Building2, Trash2,
-  Edit3, ChevronRight, Banknote, ClipboardList, PiggyBank, CircleDollarSign,
+  Edit3, ChevronRight, ChevronLeft, Banknote, ClipboardList, PiggyBank, CircleDollarSign,
   ArrowUpRight, ArrowDownRight, FileSpreadsheet, RefreshCw, Filter as FilterIcon,
   Printer, Bell, History, ShieldCheck, ArrowLeftRight, Clock, UserCog, Landmark, LogOut,
   Settings, KeyRound, FolderOpen, Upload, UploadCloud, Star, Archive, ArchiveRestore,
