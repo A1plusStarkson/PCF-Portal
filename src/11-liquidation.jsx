@@ -1911,7 +1911,7 @@ function LiquidationTab({
   disbursements, liquidations, onSaveLiquidation, onExport, onExportAll, plantOptions, plantTitle,
   canApproveReceipts, onDecideReceipt, onSubmitLiquidation, onReopenLiquidation,
   onRecordSettlement, onCloseShortage, onReopenShortage, canApproveShortage,
-  onReviewOverLiquidation, canDelete, onDeleteLiquidation,
+  onReviewOverLiquidation, canDelete, onDeleteLiquidation, onDeleteReimbursement,
   canRejectLiquidation, onRejectLiquidation,
   onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser,
   reimbursements, onReimbursementAction, canFinance, accounting,
@@ -2149,7 +2149,20 @@ function LiquidationTab({
                         )}
                       </td>
                       <AccountingCells review={d.acct} />
-                      <td><button className="pcp-btn pcp-btn-sm" title="Open liquidation"><Eye size={12} /></button></td>
+                      <td>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button className="pcp-btn pcp-btn-sm" title="Open liquidation"><Eye size={12} /></button>
+                          {/* System Superuser only (canDeleteTxn in 19-app.jsx). Only
+                              once a liquidation exists — the voucher itself is
+                              deleted from the Release Ledger. */}
+                          {canDelete && onDeleteLiquidation && liquidationFor(d.id, liquidations) && (
+                            <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" title="Delete this liquidation (System Superuser)"
+                              onClick={(e) => { e.stopPropagation(); onDeleteLiquidation(d.id); }}>
+                              <Trash2 size={13} color="var(--brand)" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   )) : (
                     <tr><td colSpan={15} className="pcp-empty">
@@ -2190,7 +2203,17 @@ function LiquidationTab({
                       <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700 }}>{peso(reimbTotal(r))}</td>
                       <td><Badge status={r.awaitingAcct ? REIMB_STAGE.FOR_ACCOUNTING : r.status} /></td>
                       <AccountingCells review={r.acct} />
-                      <td><button className="pcp-btn pcp-btn-sm" title="Open reimbursement liquidation"><Eye size={12} /></button></td>
+                      <td>
+                        <div style={{ display: "flex", gap: 6 }}>
+                          <button className="pcp-btn pcp-btn-sm" title="Open reimbursement liquidation"><Eye size={12} /></button>
+                          {canDelete && onDeleteReimbursement && (
+                            <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" title="Delete this reimbursement (System Superuser)"
+                              onClick={(e) => { e.stopPropagation(); onDeleteReimbursement(r.id); }}>
+                              <Trash2 size={13} color="var(--brand)" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
                     </tr>
                   )) : (
                     <tr><td colSpan={13} className="pcp-empty">

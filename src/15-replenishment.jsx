@@ -94,7 +94,7 @@ function readyReplenishmentDoc(readyByPlant, funds, plantTitle, generatedBy, sco
 const readyKey = (x) => x.kind + ":" + x.id;
 const readyKindLabel = (x) => (x.kind === "reimb" ? "Reimbursement" : "Liquidation");
 
-function ReplenishmentFormModal({ onClose, onSave, nextNo, funds, disbursements, liquidations, reimbursements, replenishments, replenishment, plantOptions, preselect }) {
+function ReplenishmentFormModal({ onClose, onSave, funds, disbursements, liquidations, reimbursements, replenishments, replenishment, plantOptions, preselect }) {
   const isEdit = !!replenishment;
   const defaultBranch = (preselect && preselect.branchCode)
     || ((plantOptions && plantOptions[0]) ? plantOptions[0].code : (funds[0] ? funds[0].branchCode : BRANCHES[0].code));
@@ -152,7 +152,7 @@ function ReplenishmentFormModal({ onClose, onSave, nextNo, funds, disbursements,
           <div className="pcp-field-row">
             <div className="pcp-field">
               <label>Replenishment No.</label>
-              <input className="pcp-input" value={isEdit ? replenishment.replenishmentNo : nextNo} disabled />
+              <input className="pcp-input" value={isEdit ? replenishment.replenishmentNo : `Assigned when saved (${replenishmentNoPrefix(form.branchCode)}…)`} disabled />
             </div>
             <div className="pcp-field">
               <label>Date</label>
@@ -259,7 +259,7 @@ const REPLENISH_SORT_FIELDS = {
   remarks: (r) => r.remarks,
 };
 
-function ReplenishmentTab({ replenishments, allReplenishmentNos, funds, disbursements, liquidations, reimbursements, onCreate, onEdit, onComplete, onDelete, plantOptions, canEdit, plantTitle, generatedBy }) {
+function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, reimbursements, onCreate, onEdit, onComplete, onDelete, canDelete, plantOptions, canEdit, plantTitle, generatedBy }) {
   const [showForm, setShowForm] = useState(false);
   /* Liquidations + amount handed to a new form from the Ready panel. */
   const [preselect, setPreselect] = useState(null);
@@ -269,11 +269,6 @@ function ReplenishmentTab({ replenishments, allReplenishmentNos, funds, disburse
   const [plant, setPlant] = useState("ALL");
   /* Newest replenishment no. first on open; any header can take over. */
   const sort = useTableSort("replenishmentNo", "desc");
-
-  /* Numbered from EVERY plant's replenishments, not this plant's slice — the
-     plant-scoped count restarted at 0001 for each plant, so every plant's
-     first replenishment carried the same number. */
-  const nextNo = nextSeriesNo("PCRP-2026-", allReplenishmentNos || replenishments.map((r) => r.replenishmentNo));
 
   /* Grace Gan-approved liquidations and reimbursements not yet claimed by a
      replenishment. */
@@ -520,7 +515,7 @@ function ReplenishmentTab({ replenishments, allReplenishmentNos, funds, disburse
               <tbody>
                 {filtered.length ? filtered.map((r) => (
                   <tr key={r.id}>
-                    <td>{r.replenishmentNo}</td>
+                    <td>{r.replenishmentNo}<PrevNo rec={r} /></td>
                     <td>{fmtDate(r.date)}</td>
                     <td>{plantLabel(r.branchCode)}</td>
                     <td className="pcp-num">{peso(r.amount)}</td>
@@ -541,8 +536,8 @@ function ReplenishmentTab({ replenishments, allReplenishmentNos, funds, disburse
                           <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={() => onComplete(r.id)} title="Mark completed"><Check size={12} /></button>
                         )}
                         <button className="pcp-btn pcp-btn-sm" onClick={() => setEditing(r)} title="Edit"><Edit3 size={12} /></button>
-                        {canEdit && (
-                          <button className="pcp-btn pcp-btn-sm pcp-btn-danger" onClick={() => onDelete(r.id)} title="Delete"><Trash2 size={12} /></button>
+                        {canDelete && onDelete && (
+                          <button className="pcp-btn pcp-btn-sm pcp-btn-danger" onClick={() => onDelete(r.id)} title="Delete replenishment (System Superuser)"><Trash2 size={12} /></button>
                         )}
                       </div>
                     </td>
@@ -555,11 +550,11 @@ function ReplenishmentTab({ replenishments, allReplenishmentNos, funds, disburse
       </div>
       {showForm && (
         <ReplenishmentFormModal
-          nextNo={nextNo} funds={funds} disbursements={disbursements} liquidations={liquidations} reimbursements={reimbursements} replenishments={replenishments}
+          funds={funds} disbursements={disbursements} liquidations={liquidations} reimbursements={reimbursements} replenishments={replenishments}
           plantOptions={preselect ? (plantOptions || []).filter((p) => plantOfBranch(p.code) === preselect.branchCode) : formPlantOptions}
           preselect={preselect}
           onClose={() => { setShowForm(false); setPreselect(null); }}
-          onSave={(form) => { onCreate({ ...form, replenishmentNo: nextNo }); setShowForm(false); setPreselect(null); }}
+          onSave={(form) => { onCreate(form); setShowForm(false); setPreselect(null); }}
         />
       )}
       {editing && (

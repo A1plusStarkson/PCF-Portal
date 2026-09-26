@@ -1,6 +1,6 @@
 /* ============================= REQUESTS ============================= */
 
-function RequestFormModal({ onClose, onSave, nextRequestNoFor, request, plantOptions, canEditRequestNo, isRequestNoTaken }) {
+function RequestFormModal({ onClose, onSave, request, plantOptions, canEditRequestNo, isRequestNoTaken }) {
   const isEdit = !!request;
   const defaultBranch = (plantOptions && plantOptions[0]) ? plantOptions[0].code : PCR_BRANCH_OPTIONS[0].code;
   const [form, setForm] = useState(
@@ -13,19 +13,14 @@ function RequestFormModal({ onClose, onSave, nextRequestNoFor, request, plantOpt
           amount: request.amount, approver: request.approver || "",
         }
       : {
-          /* Left blank on purpose. Each plant runs its own series, so for a new
-             request the number is DERIVED from the plant selected below rather
-             than fixed when the form opens — see effectiveRequestNo. */
+          /* Left blank on purpose. The number is issued by the database when the
+             request is saved (addRequest in 19-app.jsx), so two people saving at
+             once can never get the same one. Accounting may type an override. */
           requestNo: "",
           date: todayISO(), employee: "", department: SUBACCOUNTS[1].code,
           branchCode: defaultBranch, purpose: "", purposeJustification: "", amount: "", approver: "",
         }
   );
-  /* True once Accounting has typed into the Request No. field. Until then the
-     field mirrors the generated number for the plant currently selected, so
-     switching plant switches series. After that the typed value stands and is
-     never overwritten by a plant change. */
-  const [requestNoTouched, setRequestNoTouched] = useState(false);
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   /* Option lists for the searchable pickers. Same values as the old <select>s —
      only the way they are browsed changed (a search box over the list). */
@@ -35,20 +30,19 @@ function RequestFormModal({ onClose, onSave, nextRequestNoFor, request, plantOpt
     .concat([{ value: OTHERS_PURPOSE, label: `${OTHERS_PURPOSE} (requires justification)` }]);
   const isOthers = form.purpose === OTHERS_PURPOSE;
   const validPurpose = !!form.purpose && (!isOthers || form.purposeJustification.trim());
-  /* Request No. is system-generated and locked for every role except Accounting.
-     When Accounting overrides it, it must stay present and unique — a duplicated
-     series breaks the reference the audit trail and integrity report rely on.
-
-     For a new request the generated number follows the plant in the form, and
-     an existing one always keeps the number it was issued: a document number,
-     once given out, does not change because someone edited the plant. */
-  const autoRequestNo = isEdit ? "" : nextRequestNoFor(form.branchCode);
-  const effectiveRequestNo = (isEdit || requestNoTouched) ? form.requestNo : autoRequestNo;
-  const typedRequestNo = String(effectiveRequestNo || "").trim();
+  /* Request No. is issued by the database and locked for every role except
+     Accounting. A NEW request shows no number until it is saved — any number
+     shown earlier could be taken by someone else in the meantime. Accounting
+     may type an override (blank = issue the next one); an existing request
+     must keep a number. Uniqueness is checked here against what is on screen
+     and again in the database registry on save, which also refuses a number
+     that was ever issued before, even to a deleted request. */
+  const typedRequestNo = String(form.requestNo || "").trim();
   const requestNoDuplicate = !!canEditRequestNo && !!typedRequestNo && !!isRequestNoTaken
     && isRequestNoTaken(typedRequestNo, request ? request.id : null);
-  const validRequestNo = !canEditRequestNo || (!!typedRequestNo && !requestNoDuplicate);
+  const validRequestNo = !canEditRequestNo || (!requestNoDuplicate && (!isEdit || !!typedRequestNo));
   const valid = validRequestNo && form.employee.trim() && !!form.branchCode && validPurpose && Number(form.amount) > 0 && form.approver.trim();
+  const assignedLabel = `Assigned when saved (${requestNoPrefix(form.branchCode)}…)`;
 
   return (
     <div className="pcp-modal-backdrop" {...backdropCloseProps(onClose)}>
@@ -60,19 +54,19 @@ function RequestFormModal({ onClose, onSave, nextRequestNoFor, request, plantOpt
         <div className="pcp-modal-body">
           <div className="pcp-field-row">
             <div className="pcp-field">
-              <label>Request No.{canEditRequestNo && <span style={{ color: "var(--brand)" }}> *</span>}</label>
+              <label>Request No.{canEditRequestNo && isEdit && <span style={{ color: "var(--brand)" }}> *</span>}</label>
               {canEditRequestNo ? (
                 <input
                   className="pcp-input"
-                  value={effectiveRequestNo}
-                  onChange={(e) => { setRequestNoTouched(true); set("requestNo", e.target.value); }}
-                  placeholder={requestNoPrefix(form.branchCode) + "0001"}
-                  title="Accounting Department only — overrides the system-generated series"
+                  value={form.requestNo}
+                  onChange={(e) => set("requestNo", e.target.value)}
+                  placeholder={isEdit ? "" : assignedLabel}
+                  title="Accounting Department only — overrides the system-issued number"
                 />
               ) : (
-                <input className="pcp-input" value={effectiveRequestNo} disabled />
+                <input className="pcp-input" value={isEdit ? form.requestNo : assignedLabel} disabled />
               )}
-              {canEditRequestNo && !typedRequestNo && (
+              {canEditRequestNo && isEdit && !typedRequestNo && (
                 <div style={{ fontSize: 11.5, color: "var(--brand)" }}>Request No. is required.</div>
               )}
               {requestNoDuplicate && (
@@ -169,7 +163,7 @@ const REQUEST_SORT_FIELDS = {
   status: (r) => r.status,
 };
 
-function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, onDisburse, canEditDisbursed, plantOptions, canApprove, canRelease, plantTitle, canDelete, onDelete, canEditRequestNo, isRequestNoTaken, nextRequestNoFor: nextRequestNoForProp }) {
+function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, onDisburse, canEditDisbursed, plantOptions, canApprove, canRelease, plantTitle, canDelete, onDelete, canEditRequestNo, isRequestNoTaken }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All");
@@ -177,12 +171,6 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
   const [plant, setPlant] = useState("ALL");
   /* Newest request no. first on open; any header can take over from there. */
   const sort = useTableSort("requestNo", "desc");
-
-  /* Always supplied by App, which sees every plant's numbers. The local
-     fallback only exists for the plant-scoped `requests` prop and is therefore
-     a last resort — App is the single source of the series. */
-  const nextRequestNoFor = nextRequestNoForProp
-    || ((branchCode) => nextSeriesNo(requestNoPrefix(branchCode), requests.map((r) => r.requestNo)));
 
   /* Sort on what the column actually shows, not the raw field, so Department
      and Plant order the way the reader sees them. */
@@ -199,7 +187,8 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
         const q = search.toLowerCase();
         const hit = r.employee.toLowerCase().includes(q)
           || r.requestNo.toLowerCase().includes(q)
-          || String(r.legacyRequestNo || "").toLowerCase().includes(q);
+          || String(r.legacyRequestNo || "").toLowerCase().includes(q)
+          || (r.numberHistory || []).some((h) => String(h.from || "").toLowerCase().includes(q));
         if (!hit) return false;
       }
       return true;
@@ -256,14 +245,7 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
                         shown on records that actually carry one. */}
                     <td>
                       <strong>{r.requestNo}</strong>
-                      {r.legacyRequestNo && (
-                        <div
-                          style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 1 }}
-                          title={`Previously numbered ${r.legacyRequestNo} before the series became per-plant`}
-                        >
-                          was {r.legacyRequestNo}
-                        </div>
-                      )}
+                      <PrevNo rec={r} legacy={r.legacyRequestNo} />
                     </td>
                     <td>{fmtDate(r.date)}</td>
                     <td><strong>{r.employee}</strong></td>
@@ -316,7 +298,6 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
           nothing here has to second-guess the form. */}
       {showForm && (
         <RequestFormModal
-          nextRequestNoFor={nextRequestNoFor}
           plantOptions={formPlantOptions}
           canEditRequestNo={canEditRequestNo}
           isRequestNoTaken={isRequestNoTaken}

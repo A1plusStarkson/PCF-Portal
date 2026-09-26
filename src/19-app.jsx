@@ -114,6 +114,15 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
      assigned role and the role currently being viewed, so an admin using
      "view as Custodian" sees an honest preview with the delete actions hidden. */
   const isSuperAdmin = (userRole || "") === "SuperAdmin" && role === "SuperAdmin";
+  /* Deleting a TRANSACTION (request, voucher, liquidation, reimbursement,
+     replenishment) is narrower still: this one account, by the owner's
+     instruction. By email, not role — Grace Gan is a SuperAdmin too and must
+     not see a Delete button. Hidden while previewing another role, re-checked
+     inside every delete handler, and enforced in the database by
+     supabase-delete-gate.sql. Keep the three lists in step. */
+  const DELETE_ACCOUNT_EMAILS = ["superuser@a1plus.com"];
+  const canDeleteTxn = DELETE_ACCOUNT_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
 
   /* ---- Request No. override ----
      The Petty Cash Request No. is system-generated and locked for every role
@@ -205,6 +214,117 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       id: uid("aud"), ts: new Date().toISOString().slice(0, 19), user: userName || role, action, entity, remarks: remarks || "",
     }]);
   }, [role, userName]);
+
+  /* ---- Series numbers: issued by the database, never reused ----
+     Every numbered module runs its own series per plant (seriesPrefix in
+     05-master-data.jsx). In the cloud the NUMBER COMES FROM THE DATABASE
+     (window.storage.series -> supabase-series-guard.sql): a counter per series
+     that only goes up, so two people saving at the same instant get
+     different numbers, and a registry of every number ever issued, so a
+     deleted, rejected or renumbered record's number is retired for good. A
+     database trigger refuses any write that would give a registered number
+     to a different record, so this holds even if the app is bypassed.
+
+     If the database cannot issue a number, the record is NOT created — a
+     locally invented number could already be taken. Only single-user local
+     mode, which has no database, numbers locally (nextSeriesNo). */
+  const seriesApi = (window.storage && window.storage.series) || null;
+  /* The next number in `prefix`, bound to record `id`. Throws on failure. */
+  const issueSeriesNo = async (prefix, collection, id, localNos) => {
+    const no = seriesApi ? await seriesApi.issue(prefix, collection, id) : null;
+    if (no === null) return nextSeriesNo(prefix, localNos);
+    if (!no) throw new Error("The database did not return a number.");
+    return no;
+  };
+  /* Claims `no` for record `id`. exact: "" when taken; otherwise a "-1",
+     "-2"… suffix is added until free. Throws on failure. */
+  const claimSeriesNo = async (no, collection, id, exact, localNos) => {
+    const got = seriesApi ? await seriesApi.claim(no, collection, id, exact) : null;
+    if (got !== null) return got;
+    const taken = (localNos || []).some((v) => String(v || "").trim().toUpperCase() === no.toUpperCase());
+    if (!taken) return no;
+    return exact ? "" : nextSeriesNo(no + "-", localNos, 1);
+  };
+  const seriesFailed = (e, what) => {
+    const msg = (e && e.message) || String(e || "");
+    window.alert(
+      `Could not get a ${what} number from the database, so nothing was saved. Please try again.\n\n${msg}`
+      + (/pcp_(issue|claim)_series_no|PGRST202|does not exist/i.test(msg)
+        ? "\n\nAdministrator: run supabase-series-guard.sql in Supabase." : "")
+    );
+  };
+  /* The database refused a save whose number belongs to another record (the
+     storage adapter drops just that row and reports it here). */
+  useEffect(() => {
+    const onRefused = (ev) => {
+      const d = (ev && ev.detail) || {};
+      window.alert(`A ${d.collection || "record"} was NOT saved: its number has already been issued to another transaction.\n\n`
+        + "Reload the portal (Ctrl+F5) and enter it again.");
+    };
+    window.addEventListener("pcp-series-refused", onRefused);
+    return () => window.removeEventListener("pcp-series-refused", onRefused);
+  }, []);
+
+  const numberStamp = (reason) => ({ ts: new Date().toISOString().slice(0, 19), user: userName || userEmail || role, reason });
+  /* Gives one record a new number; the old one stays retired. */
+  const renumberOne = (setter, key, id, from, to, reason) => {
+    setter((rs) => rs.map((x) => (x.id === id ? withRenumber(x, key, to, numberStamp(reason)) : x)));
+    logAudit("Renumbered", to, `was ${from} · ${reason}`);
+  };
+  /* True when a record edited onto a branch of ANOTHER plant must leave its
+     old plant's series. Only a number in the standard format moves — one
+     Accounting typed by hand stays as typed. */
+  const leavesPlantSeries = (rec, key, newBranch, tag) => {
+    if (!rec || !newBranch) return false;
+    const fromCode = plantSeriesCode(rec.branchCode);
+    if (fromCode === plantSeriesCode(newBranch)) return false;
+    const esc = String(fromCode).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp("^" + tag + "-" + esc + "-\\d{4}-\\d+$", "i").test(String(rec[key] || "").trim());
+  };
+  /* Moves a record into its new plant's series: a freshly issued number
+     there; the old one is retired, never reused. */
+  const moveToPlantSeries = async (setter, key, rec, newBranch, tag, collection, localNos) => {
+    if (!leavesPlantSeries(rec, key, newBranch, tag)) return;
+    let to;
+    try { to = await issueSeriesNo(seriesPrefix(tag, newBranch), collection, rec.id, localNos); }
+    catch (e) {
+      window.alert(`${rec[key]} was saved, but could not be given a ${plantNameOf(newBranch)} number, so it keeps ${rec[key]} for now. Edit and save it again to retry.\n\n${(e && e.message) || e}`);
+      return;
+    }
+    renumberOne(setter, key, rec.id, rec[key], to, `Moved to ${plantNameOf(newBranch)}`);
+  };
+
+  /* ---- Transaction delete: confirmation, reason, record ----
+     Every transaction delete goes through here. It states the exact
+     confirmation the owner asked for, lists any numbers the delete will move,
+     and will not proceed without a reason. Returns the reason, or null when
+     the user backs out at any point. */
+  const plantNameOf = (branchCode) => plantLabel(plantOfBranch(branchCode)) || branchCode || "—";
+  const confirmTxnDelete = (no, details) => {
+    if (!canDeleteTxn) {
+      window.alert(`Only ${DELETE_ACCOUNT_EMAILS.join(", ")} can delete transactions.`);
+      return null;
+    }
+    const msg = "Are you sure you want to delete this transaction? This action cannot be undone.\n\n"
+      + [no, ...details].filter(Boolean).join("\n")
+      + "\n\nIts number is retired and will never be issued again. No other number changes.";
+    if (!window.confirm(msg)) return null;
+    for (;;) {
+      const reason = window.prompt(`Reason for deleting ${no} (required):`, "");
+      if (reason === null) return null;
+      if (reason.trim()) return reason.trim();
+      window.alert("A reason is required to delete a transaction.");
+    }
+  };
+  /* Written onto the deleted record's own row in the database (diffSync). */
+  const stampDeleted = (id, no, branchCode, reason) => TOMBSTONE_META.set(id, {
+    deletedNo: no, deletedPlant: plantNameOf(branchCode), deleteReason: reason,
+    deletedBy: userName || userEmail || role, deletedByEmail: userEmail || "",
+    deletedAt: new Date().toISOString().slice(0, 19),
+  });
+  /* The replenishment that has already claimed a liquidation / reimbursement.
+     Such a record cannot be deleted: the fund was topped up against it. */
+  const claimedBy = (field, id) => replenishments.find((rp) => (rp[field] || []).includes(id));
 
   /* Record sign-in once per session, and sign-out via a wrapped handler. */
   const loginLoggedRef = useRef(false);
@@ -409,57 +529,90 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     return requests.some((r) => r.id !== exceptId && String(r.requestNo || "").trim().toUpperCase() === key);
   }, [requests]);
 
-  /* The next auto-generated Request No. FOR A GIVEN PLANT.
-     A function, not a value: each plant runs its own series now, and the plant
-     is chosen inside the request form and can be changed while it is open, so
-     there is no single "next number" to hand down.
-
-     The candidate is still matched against every number in use across ALL
-     plants — the Requests screen only ever sees its own scope, so it cannot
-     generate this itself without risking a collision, and Accounting may have
-     typed anything into any plant's series. */
+  /* Every Request No. in use across ALL plants — the local-mode fallback
+     numbers from this, and the Accounting override is checked against it
+     before the database is asked. */
   const allRequestNos = useMemo(() => requests.map((r) => r.requestNo), [requests]);
-  const nextRequestNoFor = useCallback(
-    (branchCode) => nextSeriesNo(requestNoPrefix(branchCode), allRequestNos),
-    [allRequestNos]
-  );
 
-  const addRequest = useCallback((form) => {
-    /* The number is always system-assigned; Accounting may type over it. Either
-       way it is re-validated here rather than trusted from the form, and a
-       blank or already-taken number falls back to a freshly generated one — so
-       a new request can never enter the ledger with a duplicate number. */
-    const typedNo = String(form.requestNo || "").trim();
-    const requestNo = (typedNo && !isRequestNoTaken(typedNo, null))
-      ? typedNo
-      : nextSeriesNo(requestNoPrefix(form.branchCode), requests.map((r) => r.requestNo));
+  const addRequest = useCallback(async (form) => {
+    /* The number is issued by the database (issueSeriesNo) the moment the
+       request is saved — never taken from the form, so two people submitting
+       at once cannot get the same one. Accounting may type an override; it is
+       claimed in the database registry, and one that was EVER issued before
+       (even to a deleted request) is refused and a fresh number issued. */
+    const id = uid("req");
+    const typedNo = canEditRequestNo ? String(form.requestNo || "").trim() : "";
+    let requestNo = "";
+    try {
+      if (typedNo && !isRequestNoTaken(typedNo, null)) {
+        requestNo = await claimSeriesNo(typedNo, "requests", id, true, allRequestNos);
+      }
+      if (!requestNo) {
+        requestNo = await issueSeriesNo(requestNoPrefix(form.branchCode), "requests", id, allRequestNos);
+        if (typedNo) window.alert(`${typedNo} has already been issued (possibly to a deleted request) and cannot be used again.\n\nThis request was saved as ${requestNo}.`);
+      }
+    } catch (e) { seriesFailed(e, "Request"); return; }
     setRequests((rs) => [...rs, {
-      id: uid("req"), requestNo, date: form.date, employee: form.employee,
+      id, requestNo, date: form.date, employee: form.employee,
       department: form.department, branchCode: form.branchCode, purpose: form.purpose,
       purposeJustification: form.purposeJustification || "",
       amount: Number(form.amount), approver: form.approver, status: "Pending",
     }]);
     logAudit("Request Created", requestNo, `${form.employee} · ${peso(Number(form.amount))} · ${form.purpose}`);
-  }, [logAudit, requests, isRequestNoTaken]);
+  }, [logAudit, allRequestNos, isRequestNoTaken, canEditRequestNo]); // eslint-disable-line
 
-  const editRequest = useCallback((id, form) => {
+  const editRequest = useCallback(async (id, form) => {
     const r = requests.find((x) => x.id === id);
-    /* Request No. override — Accounting only, never blank and never onto a
-       number another request already uses. Re-checked here (not just in the
-       form) so a bypassed or stale UI still cannot break the series. */
+    if (!r) return;
     const typedNo = String(form.requestNo || "").trim();
-    const renamed = !!canEditRequestNo && !!r && !!typedNo && typedNo !== r.requestNo && !isRequestNoTaken(typedNo, id);
-    setRequests((rs) => rs.map((x) => (x.id === id ? {
-      ...x, requestNo: renamed ? typedNo : x.requestNo,
-      date: form.date, employee: form.employee, department: form.department,
+    const released = disbursements.filter((d) => d.requestId === id);
+    /* A released request cannot change plant: its voucher, liquidation and
+       the fund they were drawn from all belong to the plant it was released
+       under, and moving the request alone would give it the wrong prefix. */
+    if (released.length && plantSeriesCode(r.branchCode) !== plantSeriesCode(form.branchCode)) {
+      window.alert(
+        `${r.requestNo} has already been released (${released.map((d) => d.voucherNo).join(", ")}) `
+        + `and cannot be moved from ${plantNameOf(r.branchCode)} to ${plantNameOf(form.branchCode)}.\n\nNothing was saved.`
+      );
+      return;
+    }
+    setRequests((rs) => rs.map((x) => (x.id !== id ? x : {
+      ...x, date: form.date, employee: form.employee, department: form.department,
       branchCode: form.branchCode, purpose: form.purpose,
       purposeJustification: form.purposeJustification || "", amount: Number(form.amount),
       approver: form.approver,
-    } : x)));
-    logAudit("Edited", r ? r.requestNo : id, `Request updated · ${form.employee} · ${peso(Number(form.amount))}`
-      + (r && r.status === "Disbursed" ? " · edited after release (Accounting override — Release Ledger voucher unchanged)" : ""));
-    if (renamed) logAudit("Request No. Changed", typedNo, `Request No. changed from ${r.requestNo} to ${typedNo} by Accounting`);
-  }, [logAudit, requests, canEditRequestNo, isRequestNoTaken]);
+    })));
+    logAudit("Edited", r.requestNo, `Request updated · ${form.employee} · ${peso(Number(form.amount))}`
+      + (r.status === "Disbursed" ? " · edited after release (Accounting override — Release Ledger voucher unchanged)" : ""));
+
+    /* Request No. override — Accounting only. The new number is claimed in
+       the database registry first; one ever issued before is refused. The
+       old number stays retired. Re-checked here, not just in the form. */
+    const wantsRename = !!canEditRequestNo && !!typedNo && typedNo !== r.requestNo;
+    if (wantsRename) {
+      let got = "";
+      try {
+        got = isRequestNoTaken(typedNo, id) ? "" : await claimSeriesNo(typedNo, "requests", id, true, allRequestNos);
+      } catch (e) { seriesFailed(e, "Request"); return; }
+      if (!got) {
+        window.alert(`${typedNo} has already been issued (possibly to a deleted request) and cannot be used again.\n\nThe Request No. stays ${r.requestNo}; your other changes were saved.`);
+        return;
+      }
+      renumberOne(setRequests, "requestNo", id, r.requestNo, got, "Changed by Accounting");
+      logAudit("Request No. Changed", got, `Request No. changed from ${r.requestNo} to ${got} by Accounting`);
+      /* The voucher carries its request's number, so it follows — under a
+         freshly claimed voucher number; the old one stays retired. */
+      for (const d of released.filter((x) => x.voucherNo === voucherNoForRequest(r.requestNo))) {
+        try {
+          const vNo = await claimSeriesNo(voucherNoForRequest(got), "disbursements", d.id, false, disbursements.map((x) => x.voucherNo));
+          renumberOne(setDisbursements, "voucherNo", d.id, d.voucherNo, vNo, `Request renumbered ${r.requestNo} → ${got}`);
+        } catch (e) { seriesFailed(e, "voucher"); }
+      }
+      return;
+    }
+    /* Moved to another plant's branch: a new number in that plant's series. */
+    await moveToPlantSeries(setRequests, "requestNo", r, form.branchCode, "PCR", "requests", allRequestNos);
+  }, [logAudit, requests, disbursements, allRequestNos, canEditRequestNo, isRequestNoTaken, userName, userEmail, role]); // eslint-disable-line
 
   /* Simple single-step approve / reject (the multi-level approval matrix was removed). */
   const approveRequest = useCallback((id) => {
@@ -474,8 +627,19 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     logAudit("Rejected", r ? r.requestNo : id, "Request rejected");
   }, [logAudit, requests]);
 
-  /* ---- Disbursements ---- */
-  const nextVoucherNo = "PCV-2026-" + String(disbursements.length + 1).padStart(4, "0");
+  /* ---- Disbursements ----
+     The voucher carries its request's number (voucherNoForRequest), so the
+     release stays traceable to the request on sight and follows it if the
+     request is ever renumbered. The number used to be a portal-wide COUNT of
+     vouchers, which re-issued an existing number after every delete.
+
+     The number is claimed in the database registry at release. A voucher
+     number is never issued twice, so when a request is released AGAIN after
+     its first voucher was deleted, the retired number is skipped and the
+     voucher is issued as PCV-M-2026-0007-1 — still visibly tied to its
+     request. The dialog shows the expected number; the final one is claimed
+     on confirm. */
+  const nextVoucherNo = disburseTarget ? voucherNoForRequest(disburseTarget.requestNo) : "";
 
   /* The employee's advances that are not yet fully liquidated — shown on the
      release dialog and noted in the audit trail for MONITORING ONLY.
@@ -494,23 +658,34 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     .map((d) => ({ disb: d, status: liqFinalStatus(d, liquidationFor(d.id, liquidations)) })),
   [disbursements, liquidations]);
 
-  const confirmDisburse = useCallback((extra) => {
+  const confirmDisburse = useCallback(async (extra) => {
     const req = disburseTarget;
     if (!req) return;
+    /* Closed first, so a second click cannot release twice while the
+       database is claiming the number. */
+    setDisburseTarget(null);
     const outstanding = outstandingAdvancesFor(req.employee);
+    if (disbursements.some((d) => d.requestId === req.id)) {
+      window.alert(`${req.requestNo} has already been released.`);
+      return;
+    }
+    const id = uid("dv");
+    let voucherNo;
+    try {
+      voucherNo = await claimSeriesNo(voucherNoForRequest(req.requestNo), "disbursements", id, false, disbursements.map((d) => d.voucherNo));
+    } catch (e) { seriesFailed(e, "voucher"); return; }
     setDisbursements((ds) => [...ds, {
-      id: uid("dv"), voucherNo: nextVoucherNo, date: extra.date, requestId: req.id,
+      id, voucherNo, date: extra.date, requestId: req.id,
       employee: req.employee, branchCode: req.branchCode, department: req.department,
       expense: extra.expense || "", amount: extra.amount, status: "Open",
       remarks: extra.remarks, billed: false,
     }]);
     setRequests((rs) => rs.map((r) => (r.id === req.id ? { ...r, status: "Disbursed" } : r)));
-    logAudit("Released", nextVoucherNo, `Cash released to ${req.employee} · ${peso(extra.amount)}`
+    logAudit("Released", voucherNo, `Cash released to ${req.employee} · ${peso(extra.amount)}`
       + (outstanding.length
         ? ` · employee has ${outstanding.length} unliquidated advance(s): ${outstanding.map((o) => `${o.disb.voucherNo} (${o.status})`).join(", ")}`
         : ""));
-    setDisburseTarget(null);
-  }, [disburseTarget, nextVoucherNo, logAudit, outstandingAdvancesFor]);
+  }, [disburseTarget, logAudit, outstandingAdvancesFor, disbursements]); // eslint-disable-line
 
   const updateRemarks = useCallback((id, remarks) => {
     setDisbursements((ds) => ds.map((d) => (d.id === id ? { ...d, remarks } : d)));
@@ -1045,14 +1220,18 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     );
   }, [isLiquidationChecker, isLiquidationFinalLocked, liquidations, logAudit, disbursements, userName, role]);
 
-  /* ---- Deletion (SuperAdmin only) ----
+  /* ---- Deletion (System Superuser only — canDeleteTxn) ----
      Each delete leaves the surviving records consistent: a voucher takes its
      liquidation with it and frees the source request, and removing a liquidation
-     reopens its voucher. Every deletion is written to the audit trail. Balances
-     are always derived, never stored, so they re-compute on their own. */
+     reopens its voucher. Anything a replenishment has claimed is refused — the
+     fund was already topped up against it. A deleted record's number is
+     RETIRED, never reused or handed down: the gap it leaves is permanent and
+     no other record is renumbered. Every deletion records the number, plant, who, when and why, in
+     the audit trail and on the deleted row. Balances are always derived,
+     never stored, so they re-compute on their own. */
   const deleteRequest = useCallback((id) => {
     const r = requests.find((x) => x.id === id);
-    if (!r) return;
+    if (!r || !canDeleteTxn) return;
     /* A request that already produced a voucher must be deleted bottom-up, so
        the ledger never contains a voucher pointing at a missing request. */
     const linked = disbursements.filter((d) => d.requestId === id);
@@ -1064,44 +1243,69 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       );
       return;
     }
-    if (!window.confirm(`Delete request ${r.requestNo}?\n\n${r.employee} · ${peso(r.amount)} · ${r.purpose}\n\nThis cannot be undone.`)) return;
+    const reason = confirmTxnDelete(r.requestNo,
+      [`${plantNameOf(r.branchCode)} · ${r.employee} · ${peso(r.amount)} · ${r.purpose}`]);
+    if (reason == null) return;
+    stampDeleted(id, r.requestNo, r.branchCode, reason);
     setRequests((rs) => rs.filter((x) => x.id !== id));
-    logAudit("Deleted", r.requestNo, `Request deleted · ${r.employee} · ${peso(r.amount)}`);
-  }, [logAudit, requests, disbursements]);
+    logAudit("Deleted", r.requestNo, `Request deleted · Plant: ${plantNameOf(r.branchCode)} · ${r.employee} · ${peso(r.amount)} · Reason: ${reason} · number retired`);
+  }, [logAudit, requests, disbursements, canDeleteTxn, userName, userEmail, role]); // eslint-disable-line
 
+  /* A voucher has no run of its own — it carries its request's number, and
+     the request (returned to Approved) keeps that number, so releasing it
+     again re-issues the same voucher number. Nothing else is renumbered. */
   const deleteDisbursement = useCallback((id) => {
     const d = disbursements.find((x) => x.id === id);
-    if (!d) return;
+    if (!d || !canDeleteTxn) return;
     const liq = liquidations.find((l) => l.disbursementId === id);
     const req = requests.find((r) => r.id === d.requestId);
-    let msg = `Delete voucher ${d.voucherNo}?\n\n${d.employee} · ${peso(d.amount)}\n\n`;
-    if (liq) msg += `Its liquidation will also be deleted (${(liq.lines || []).length} expense line(s), ${(liq.attachments || []).length} supporting document(s)).\n`;
-    if (req) msg += `Request ${req.requestNo} will return to "Approved" so it can be released again.\n`;
-    msg += "\nThis cannot be undone.";
-    if (!window.confirm(msg)) return;
+    const claim = liq && claimedBy("liquidationIds", liq.id);
+    if (claim) {
+      window.alert(`${d.voucherNo} cannot be deleted — its liquidation is part of replenishment ${claim.replenishmentNo}.\n\n`
+        + "Remove it from that replenishment (or delete the replenishment) first.");
+      return;
+    }
+    const reason = confirmTxnDelete(d.voucherNo, [
+      `${plantNameOf(d.branchCode)} · ${d.employee} · ${peso(d.amount)}`,
+      liq ? `Its liquidation will also be deleted (${(liq.lines || []).length} expense line(s), ${(liq.attachments || []).length} supporting document(s)).` : "",
+      req ? `Request ${req.requestNo} will return to "Approved" so it can be released again.` : "",
+    ]);
+    if (reason == null) return;
+    stampDeleted(id, d.voucherNo, d.branchCode, reason);
+    if (liq) stampDeleted(liq.id, d.voucherNo, d.branchCode, `${reason} (voucher deleted)`);
     setDisbursements((ds) => ds.filter((x) => x.id !== id));
     if (liq) setLiquidations((ls) => ls.filter((l) => l.disbursementId !== id));
     if (req) setRequests((rs) => rs.map((r) => (r.id === req.id ? { ...r, status: "Approved" } : r)));
-    logAudit("Deleted", d.voucherNo, `Disbursement deleted · ${d.employee} · ${peso(d.amount)}`
+    logAudit("Deleted", d.voucherNo, `Disbursement deleted · Plant: ${plantNameOf(d.branchCode)} · ${d.employee} · ${peso(d.amount)}`
       + (liq ? " · liquidation removed" : "")
-      + (req ? ` · ${req.requestNo} returned to Approved` : ""));
-  }, [logAudit, disbursements, liquidations, requests]);
+      + (req ? ` · ${req.requestNo} returned to Approved` : "")
+      + ` · Reason: ${reason}`);
+  }, [logAudit, disbursements, liquidations, requests, replenishments, canDeleteTxn, userName, userEmail, role]); // eslint-disable-line
 
+  /* A liquidation is filed under its voucher's number and has none of its
+     own, so deleting one renumbers nothing. */
   const deleteLiquidation = useCallback((disbursementId) => {
     const liq = liquidations.find((l) => l.disbursementId === disbursementId);
-    if (!liq) return;
+    if (!liq || !canDeleteTxn) return;
     const d = disbursements.find((x) => x.id === disbursementId);
     const voucher = d ? d.voucherNo : disbursementId;
-    if (!window.confirm(
-      `Delete the liquidation for ${voucher}?\n\n`
-      + `${(liq.lines || []).length} expense line(s) and ${(liq.attachments || []).length} supporting document(s) `
-      + "will be removed, along with any recorded cash settlement. The voucher returns to the liquidation worklist.\n\n"
-      + "This cannot be undone."
-    )) return;
+    const claim = claimedBy("liquidationIds", liq.id);
+    if (claim) {
+      window.alert(`The liquidation for ${voucher} cannot be deleted — it is part of replenishment ${claim.replenishmentNo}.\n\n`
+        + "Remove it from that replenishment (or delete the replenishment) first.");
+      return;
+    }
+    const reason = confirmTxnDelete(`Liquidation for ${voucher}`, [
+      d ? `${plantNameOf(d.branchCode)} · ${d.employee} · ${peso(d.amount)}` : "",
+      `${(liq.lines || []).length} expense line(s) and ${(liq.attachments || []).length} supporting document(s) `
+        + "will be removed, along with any recorded cash settlement and approvals. The voucher returns to the liquidation worklist.",
+    ]);
+    if (reason == null) return;
+    stampDeleted(liq.id, voucher, d && d.branchCode, reason);
     setLiquidations((ls) => ls.filter((l) => l.disbursementId !== disbursementId));
     setDisbursements((ds) => ds.map((x) => (x.id === disbursementId ? { ...x, status: "Open" } : x)));
-    logAudit("Deleted", voucher, `Liquidation deleted · ${(liq.lines || []).length} line(s) · ${(liq.attachments || []).length} document(s)`);
-  }, [logAudit, liquidations, disbursements]);
+    logAudit("Deleted", voucher, `Liquidation deleted · Plant: ${plantNameOf(d && d.branchCode)} · ${(liq.lines || []).length} line(s) · ${(liq.attachments || []).length} document(s) · Reason: ${reason}`);
+  }, [logAudit, liquidations, disbursements, replenishments, canDeleteTxn, userName, userEmail, role]); // eslint-disable-line
 
   /* Audit entries are deletable by the SuperAdmin. One summary entry replaces
      what was removed so a deletion is not completely silent — note that the
@@ -1139,23 +1343,37 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     return r ? r.reimbNo : rid;
   });
 
-  const addReplenishment = useCallback((form) => {
-    setReplenishments((rs) => [...rs, { id: uid("rep"), ...form }]);
+  /* The next Replenishment No. for a plant, checked against every plant's
+     numbers. Assigned here on save, never trusted from the form. */
+  const addReplenishment = useCallback(async (form) => {
+    /* Issued by the database on save (issueSeriesNo), never from the form. */
+    const id = uid("rep");
+    let replenishmentNo;
+    try {
+      replenishmentNo = await issueSeriesNo(replenishmentNoPrefix(form.branchCode), "replenishments", id,
+        replenishments.map((r) => r.replenishmentNo));
+    } catch (e) { seriesFailed(e, "Replenishment"); return; }
+    setReplenishments((rs) => [...rs, { ...form, id, replenishmentNo }]);
     const linked = linkedVouchers(form.liquidationIds);
     const linkedR = linkedReimbNos(form.reimbursementIds);
-    logAudit("Replenished", form.replenishmentNo, `${peso(Number(form.amount))}${form.status ? ` · ${form.status}` : ""}`
+    logAudit("Replenished", replenishmentNo, `${peso(Number(form.amount))}${form.status ? ` · ${form.status}` : ""}`
       + (linked.length ? ` · liquidations: ${linked.join(", ")}` : "")
       + (linkedR.length ? ` · reimbursements: ${linkedR.join(", ")}` : ""));
-  }, [logAudit, liquidations, disbursements, reimbursements]); // eslint-disable-line
+  }, [logAudit, liquidations, disbursements, reimbursements, replenishments]); // eslint-disable-line
 
-  const editReplenishment = useCallback((id, form) => {
-    setReplenishments((rs) => rs.map((r) => (r.id === id ? { ...r, ...form } : r)));
+  const editReplenishment = useCallback(async (id, form) => {
+    const r0 = replenishments.find((x) => x.id === id);
+    /* The number is never taken from the form; only a plant move changes it. */
+    const { replenishmentNo: _ignored, ...fields } = form;
+    setReplenishments((rs) => rs.map((r) => (r.id === id ? { ...r, ...fields } : r)));
     const linked = linkedVouchers(form.liquidationIds);
     const linkedR = linkedReimbNos(form.reimbursementIds);
-    logAudit("Edited", form.replenishmentNo || id, `Replenishment updated · ${peso(Number(form.amount))}${form.status ? ` · ${form.status}` : ""}`
+    logAudit("Edited", (r0 && r0.replenishmentNo) || id, `Replenishment updated · ${peso(Number(form.amount))}${form.status ? ` · ${form.status}` : ""}`
       + (linked.length ? ` · liquidations: ${linked.join(", ")}` : "")
       + (linkedR.length ? ` · reimbursements: ${linkedR.join(", ")}` : ""));
-  }, [logAudit, liquidations, disbursements, reimbursements]); // eslint-disable-line
+    await moveToPlantSeries(setReplenishments, "replenishmentNo", r0, form.branchCode, "RPL", "replenishments",
+      replenishments.map((r) => r.replenishmentNo));
+  }, [logAudit, liquidations, disbursements, reimbursements, replenishments, userName, userEmail, role]); // eslint-disable-line
 
   const completeReplenishment = useCallback((id) => {
     setReplenishments((rs) => rs.map((r) => (r.id === id ? { ...r, status: "Completed" } : r)));
@@ -1165,9 +1383,17 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
 
   const deleteReplenishment = useCallback((id) => {
     const r = replenishments.find((x) => x.id === id);
+    if (!r || !canDeleteTxn) return;
+    const claims = (r.liquidationIds || []).length + (r.reimbursementIds || []).length;
+    const reason = confirmTxnDelete(r.replenishmentNo, [
+      `${plantNameOf(r.branchCode)} · ${peso(Number(r.amount))}${r.status ? ` · ${r.status}` : ""}`,
+      claims ? `${claims} approved liquidation(s) / reimbursement(s) it claims will return to Ready for Replenishment.` : "",
+    ]);
+    if (reason == null) return;
+    stampDeleted(id, r.replenishmentNo, r.branchCode, reason);
     setReplenishments((rs) => rs.filter((x) => x.id !== id));
-    logAudit("Deleted", r ? r.replenishmentNo : id, "Replenishment record removed");
-  }, [logAudit, replenishments]);
+    logAudit("Deleted", r.replenishmentNo, `Replenishment deleted · Plant: ${plantNameOf(r.branchCode)} · ${peso(Number(r.amount))} · Reason: ${reason} · number retired`);
+  }, [logAudit, replenishments, canDeleteTxn, userName, userEmail, role]); // eslint-disable-line
 
   const exportLiquidation = useCallback((disbursement, liq) => {
     const rows = buildLiquidationExportRows(disbursement, liq);
@@ -1307,9 +1533,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     };
   }, [reimbursements]);
 
-  const nextReimbNo = () => "REIM-2026-" + String(reimbursements.length + 1).padStart(6, "0");
-
-  const addReimbursement = useCallback((form, submit) => {
+  const addReimbursement = useCallback(async (form, submit) => {
     /* Backend enforcement (Section 7): a SUBMITTED reimbursement must carry one
        approved, ACTIVE purpose — never blank, free-text or injected. Drafts may
        still be saved with an incomplete purpose. */
@@ -1319,19 +1543,32 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
         : "Purpose is required. Please select an approved expense category.");
       return;
     }
-    const reimbNo = nextReimbNo();
+    /* One series per plant (RMB-M-2026-0001), issued by the database on save
+       (issueSeriesNo). It used to be a portal-wide COUNT, which re-issued an
+       existing number after every delete. A draft is numbered when first
+       saved, and keeps that number through submission and resubmission. */
+    const id = uid("reimb");
+    let reimbNo;
+    try {
+      reimbNo = await issueSeriesNo(reimbNoPrefix(form.branchCode), "reimbursements", id, reimbursements.map((r) => r.reimbNo));
+    } catch (e) { seriesFailed(e, "Reimbursement"); return; }
     const ts = reimbTs();
     const base = buildReimbFromForm(form);
     const status = submit ? REIMB_STATUS.SUBMITTED : REIMB_STATUS.DRAFT;
     const history = [{ ts, user: userName || role, action: submit ? "Submitted" : "Created (Draft)", prevStatus: "", newStatus: status, comments: "" }];
     setReimbursements((rs) => [...rs, {
-      id: uid("reimb"), reimbNo, ...base, status,
+      id, reimbNo, ...base, status,
       createdBy: userName || role, createdAt: ts,
       submittedBy: submit ? (userName || role) : "", submittedAt: submit ? ts : "",
       acumaticaStatus: "Not Yet Exported", payment: null, history,
     }]);
     logAudit(submit ? "Reimbursement Submitted" : "Reimbursement Drafted", reimbNo, `${form.employee} · ${peso(reimbTotal(base))}`);
-  }, [buildReimbFromForm, logAudit, reimbursements, userName, role]);
+  }, [buildReimbFromForm, logAudit, reimbursements, userName, role]); // eslint-disable-line
+
+  /* A reimbursement edited onto another plant's branch moves to that plant's
+     series under a freshly issued number; the old one is retired. */
+  const moveReimbPlant = (r0, branchCode) => moveToPlantSeries(setReimbursements, "reimbNo", r0, branchCode, "RMB",
+    "reimbursements", reimbursements.map((r) => r.reimbNo));
 
   const updateReimbursement = useCallback((id, form, mode) => {
     /* Same backend purpose check as addReimbursement, applied on resubmission. */
@@ -1356,6 +1593,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       })));
       logAudit("Reimbursement Edited (checking / verification)", r0 ? r0.reimbNo : id,
         `${form.employee} · ${peso(reimbTotal(base))} · status kept: ${r0 ? r0.status : ""}`);
+      moveReimbPlant(r0, base.branchCode);
       return;
     }
     setReimbursements((rs) => rs.map((r) => {
@@ -1372,7 +1610,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     }));
     const r = reimbursements.find((x) => x.id === id);
     logAudit(mode === "submit" ? "Reimbursement Submitted" : "Reimbursement Edited", r ? r.reimbNo : id, `${form.employee} · ${peso(reimbTotal(base))}`);
-  }, [buildReimbFromForm, logAudit, reimbursements, userName, role, canEditReimbOverride, inScope]);
+    if (r) moveReimbPlant(r, base.branchCode);
+  }, [buildReimbFromForm, logAudit, reimbursements, userName, role, canEditReimbOverride, inScope]); // eslint-disable-line
 
   /* Workflow transition. The two approval levels mirror the liquidation's
      (see 11-liquidation.jsx): a custodian-level checker (isLiquidationChecker)
@@ -1482,11 +1721,20 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
 
   const deleteReimbursement = useCallback((id) => {
     const r = reimbursements.find((x) => x.id === id);
-    if (!r) return;
-    if (!window.confirm(`Delete reimbursement ${r.reimbNo}?\n\n${r.employee} · ${peso(reimbTotal(r))}\n\nThis cannot be undone.`)) return;
+    if (!r || !canDeleteTxn) return;
+    const claim = claimedBy("reimbursementIds", id);
+    if (claim) {
+      window.alert(`${r.reimbNo} cannot be deleted — it is part of replenishment ${claim.replenishmentNo}.\n\n`
+        + "Remove it from that replenishment (or delete the replenishment) first.");
+      return;
+    }
+    const reason = confirmTxnDelete(r.reimbNo,
+      [`${plantNameOf(r.branchCode)} · ${r.employee} · ${peso(reimbTotal(r))} · ${r.status}`]);
+    if (reason == null) return;
+    stampDeleted(id, r.reimbNo, r.branchCode, reason);
     setReimbursements((rs) => rs.filter((x) => x.id !== id));
-    logAudit("Deleted", r.reimbNo, `Reimbursement deleted · ${r.employee} · ${peso(reimbTotal(r))}`);
-  }, [logAudit, reimbursements]);
+    logAudit("Deleted", r.reimbNo, `Reimbursement deleted · Plant: ${plantNameOf(r.branchCode)} · ${r.employee} · ${peso(reimbTotal(r))} · Reason: ${reason} · number retired`);
+  }, [logAudit, reimbursements, replenishments, canDeleteTxn, userName, userEmail, role]); // eslint-disable-line
 
   const exportReimbursementAcumatica = useCallback((reimb) => {
     const rows = (reimb.lines || []).map((l) => ({
@@ -1753,9 +2001,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             canEditDisbursed={canEditOverride}
             plantOptions={scopedPlantOptions} canApprove={canApprove} canRelease={canRelease}
             plantTitle={activePlantLabel}
-            canDelete={isSuperAdmin} onDelete={deleteRequest}
+            canDelete={canDeleteTxn} onDelete={deleteRequest}
             canEditRequestNo={canEditRequestNo} isRequestNoTaken={isRequestNoTaken}
-            nextRequestNoFor={nextRequestNoFor}
           />
         )}
         {activeModule === "disbursements" && (
@@ -1766,7 +2013,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             plantOptions={scopedPlantOptions}
             plantTitle={activePlantLabel}
             canEdit={canEditLedger}
-            canDelete={isSuperAdmin} onDelete={deleteDisbursement}
+            canDelete={canDeleteTxn} onDelete={deleteDisbursement}
           />
         )}
         {activeModule === "liquidation" && (
@@ -1782,7 +2029,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             onCloseShortage={closeShortage} onReopenShortage={reopenShortage}
             canApproveShortage={canApproveShortage}
             onReviewOverLiquidation={reviewOverLiquidation}
-            canDelete={isSuperAdmin} onDeleteLiquidation={deleteLiquidation}
+            canDelete={canDeleteTxn} onDeleteLiquidation={deleteLiquidation}
+            onDeleteReimbursement={deleteReimbursement}
             canApproveReceipts={isLiquidationChecker}
             canRejectLiquidation={isLiquidationChecker || isFinalApprover}
             onRejectLiquidation={rejectLiquidation}
@@ -1802,11 +2050,11 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
           <ReplenishmentTab
             key={tab}
             replenishments={scopedReplenishments} funds={scopedFunds}
-            allReplenishmentNos={replenishments.map((r) => r.replenishmentNo)}
             disbursements={scopedDisbursements} liquidations={scopedLiquidations}
             reimbursements={scopedReimbursements}
             onCreate={addReplenishment} onEdit={editReplenishment}
             onComplete={completeReplenishment} onDelete={deleteReplenishment}
+            canDelete={canDeleteTxn}
             generatedBy={userName || userEmail}
             plantOptions={scopedPlantOptions} canEdit={canEdit}
             plantTitle={activePlantLabel}
@@ -1823,7 +2071,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             isChecker={isLiquidationChecker}
             isFinalApprover={isFinalApprover}
             canFinance={["Accounting", "Finance", "SuperAdmin"].includes(role) || !!isAdmin}
-            canDelete={isSuperAdmin}
+            canDelete={canDeleteTxn}
             canEditOverride={canEditReimbOverride}
             onSaveDraft={(form) => addReimbursement(form, false)}
             onSubmit={(form) => addReimbursement(form, true)}

@@ -240,11 +240,43 @@ const branchesOfPlant = (plant) => {
 
    The generator (nextSeriesNo) still checks every candidate against EVERY
    number in the portal, so two plants can never mint the same string even
-   though they now count independently. */
-const PLANT_SERIES_LETTER = { "A1+": "M", WARNER: "W", ST: "D", RG: "RG" };
-const requestNoPrefix = (branchCode) => {
+   though they now count independently.
+
+   The same rule covers every numbered module, one run per MODULE x PLANT x
+   YEAR:  PCR (request) · PCV (release voucher) · RMB (reimbursement) ·
+   RPL (replenishment), e.g. PCR-M-2026-0001, RMB-RGC-2026-0004. In the
+   cloud each number is ISSUED BY THE DATABASE and never reused, not even
+   after a delete (supabase-series-guard.sql; issueSeriesNo in 19-app.jsx).
+
+   The year is the year the number is ISSUED, not the transaction date, so a
+   document number never changes because somebody corrected a date, and a
+   backdated entry still joins the current run.
+
+   A release voucher is not a series of its own: it carries its request's
+   number (PCR-M-2026-0007 -> PCV-M-2026-0007) — see voucherNoForRequest —
+   and its liquidation is filed under that voucher. One number follows the
+   advance through Request -> Release Ledger -> Liquidation. */
+const PLANT_SERIES_LETTER = { "A1+": "M", WARNER: "W", ST: "D", RG: "RGC" };
+/* A branch outside the four plants numbers under its own code, reduced to
+   letters and digits ("HAMFI(HO)" -> HAMFIHO) — the only characters the
+   database accepts in a series prefix. Same rule as series_plant in
+   supabase-renumber-series-per-plant.sql. */
+const plantSeriesCode = (branchCode) => {
   const plant = plantOfBranch(branchCode);
-  return "PCR-" + (PLANT_SERIES_LETTER[plant] || plant) + "-2026-";
+  return PLANT_SERIES_LETTER[plant]
+    || String(plant || "").toUpperCase().replace(/[^A-Z0-9]/g, "") || "UNKNOWN";
+};
+const seriesPrefix = (tag, branchCode) =>
+  tag + "-" + plantSeriesCode(branchCode) + "-" + new Date().getFullYear() + "-";
+const requestNoPrefix = (branchCode) => seriesPrefix("PCR", branchCode);
+const reimbNoPrefix = (branchCode) => seriesPrefix("RMB", branchCode);
+const replenishmentNoPrefix = (branchCode) => seriesPrefix("RPL", branchCode);
+/* The release voucher number for a request. A request number Accounting typed
+   by hand (no PCR- tag) is still carried, just prefixed, so it stays unique. */
+const voucherNoForRequest = (requestNo) => {
+  const no = String(requestNo || "").trim();
+  if (!no) return "";
+  return /^PCR-/i.test(no) ? "PCV-" + no.slice(4) : "PCV-" + no;
 };
 /* Widen a branch grant to the full family of every plant it touches, so a
    partial grant cannot create a blind spot. */

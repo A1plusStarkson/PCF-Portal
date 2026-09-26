@@ -414,6 +414,24 @@
       recPending = {};
       return client.from(RECORD_TABLE).upsert(rows, { onConflict: "id" })
         .then(function (r) {
+          if (r.error && /PCF_SERIES/.test(r.error.message || "")) {
+            // The series guard refused a row whose number belongs to another
+            // record. One bad row must not hold the whole batch hostage, so
+            // retry row by row: the rest land, and only the refused row is
+            // dropped and reported (the app alerts on pcp-series-refused).
+            return Promise.all(rows.map(function (row) {
+              return client.from(RECORD_TABLE).upsert([row], { onConflict: "id" }).then(function (r1) {
+                if (!r1.error) return;
+                if (/PCF_SERIES/.test(r1.error.message || "")) {
+                  console.error("Refused by the series guard:", row.collection, row.id, r1.error.message);
+                  try { window.dispatchEvent(new CustomEvent("pcp-series-refused", { detail: { id: row.id, collection: row.collection, message: r1.error.message } })); } catch (e) {}
+                  return;
+                }
+                if (!recPending[row.id]) recPending[row.id] = row;
+                clearTimeout(recTimer); recTimer = setTimeout(flushRecords, 4000);
+              });
+            }));
+          }
           if (r.error) {
             noteRecordsUnavailable(r.error);
             console.warn("Cloud record save failed:", r.error.message);
@@ -658,6 +676,38 @@
         }
       },
 
+      // Document numbers, issued BY THE DATABASE (supabase-series-guard.sql).
+      // A per-series counter hands each caller a different number even when
+      // two people submit in the same instant, and every number issued is
+      // registered forever, so a deleted, rejected or renumbered record's
+      // number is never handed out again.
+      //
+      // Both resolve to the number, or to null when the portal runs without a
+      // cloud database (single-user local mode, where the app numbers
+      // locally). Any database error REJECTS — the caller must then refuse to
+      // create the record rather than invent a number that might be taken.
+      series: {
+        // Next number in `prefix` (e.g. "PCR-M-2026-"), bound to recordId.
+        issue: function (prefix, collection, recordId) {
+          return sbReady.then(function (c) {
+            if (!c) return null;
+            return c.rpc("pcp_issue_series_no", { p_prefix: prefix, p_collection: collection, p_record_id: recordId })
+              .then(function (r) { if (r.error) throw r.error; return r.data; });
+          });
+        },
+        // Claims an exact number for recordId (a hand-typed Request No., or a
+        // voucher taking its request's number). exact === false allows a
+        // "-1", "-2"… suffix when the number is taken; exact === true resolves
+        // to "" instead. Already owned by recordId resolves to the number.
+        claim: function (no, collection, recordId, exact) {
+          return sbReady.then(function (c) {
+            if (!c) return null;
+            return c.rpc("pcp_claim_series_no", { p_no: no, p_collection: collection, p_record_id: recordId, p_exact: !!exact })
+              .then(function (r) { if (r.error) throw r.error; return r.data || ""; });
+          });
+        }
+      },
+
       // ---- File store (table `pcp_files`, one row per upload) ----
       // Receipt scans and PCF document uploads. Kept OUT of the transaction
       // record on purpose: a record write rewrites the whole `data` column
@@ -765,7 +815,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20260926b";
+  window.PCP_SRC_VERSION = "20260926c";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",

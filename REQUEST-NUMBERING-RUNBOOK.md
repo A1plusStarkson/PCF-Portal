@@ -179,9 +179,71 @@ sequence and has to be renumbered by hand.
 
 ---
 
-# Known issue, not yet addressed
+# Phase C — Every module per plant; numbers issued once, never reused
 
-`19-app.jsx` generates the voucher number as `"PCV-2026-" + (disbursements.length + 1)`.
-That is **count-based**, which is exactly what `nextSeriesNo` exists to avoid: delete one
-voucher and the next release re-issues a number that is already in use. This is a
-correctness bug, separate from the per-plant question, and worth fixing in the same pass.
+This phase fixes the count-based voucher number that used to be listed here as a known
+issue, and the same bug in the reimbursement number.
+
+### The rule
+
+**Once a series number has been issued it is never issued to another transaction.** That
+holds after a delete, rejection, edit or resubmission, and when a record moves to another
+plant or module. It also holds when two people save at the same instant. A deleted
+number leaves a permanent gap. **Nothing is ever renumbered to close a gap.**
+
+| Module | Format | Notes |
+|---|---|---|
+| Petty Cash Request | `PCR-M-2026-0001` | RG & Co is now `RGC` (was `RG`) |
+| Release Ledger | `PCV-M-2026-0001` | **Takes its request's number** (`PCR-M-2026-0007` → `PCV-M-2026-0007`) |
+| Liquidation | — | Filed under its voucher's number; has none of its own |
+| Reimbursement | `RMB-M-2026-0001` | Was `REIM-2026-000001`, one series for all plants |
+| Replenishment | `RPL-M-2026-0001` | Was `PCRP-2026-0001`, one series for all plants |
+
+Plant letters: Manila `M`, Disney `D`, Warner `W`, RG & Co `RGC`. Each module counts separately
+per plant and per year. The year is the year the number is **issued**.
+
+### How it is enforced (`supabase-series-guard.sql`)
+
+- **`pcp_series_counters`**: one counter per series, only ever incremented, inside the database.
+  Simultaneous saves queue on the counter row and get consecutive, different numbers.
+- **`pcp_series_registry`**: every number ever issued or used, with the record it belongs to.
+  The number is the primary key, so a duplicate cannot exist. The table is append-only
+  (a trigger refuses updates and deletes), so a deleted transaction's number stays retired.
+  One registry covers all modules.
+- **`pcp_issue_series_no` / `pcp_claim_series_no`**: the only way the app gets a number. The app
+  **refuses to save** when the database cannot issue one; it never invents a number.
+  Single-user local mode, which has no database, is the one exception.
+- **`pcp_series_guard` trigger** on `pcp_records` refuses any write, from the app, the API or SQL,
+  that would put a registered number on a different record. If it refuses a row, the
+  portal saves the rest of that batch and alerts the user.
+
+### Behaviour in the app
+
+- Forms show **"Assigned when saved"**; the number appears once the record is saved.
+- **Delete** (only `superuser@a1plus.com`, all five modules): shows the confirmation *"Are you sure
+  you want to delete this transaction? This action cannot be undone."* and requires a reason.
+  The number is retired and nothing else is renumbered. Number, plant, reason, user and time
+  go to the Audit Trail and onto the deleted row (`deletedNo`, `deletedPlant`, `deleteReason`,
+  `deletedBy`, `deletedAt`).
+- **Re-release after a voucher delete**: the request keeps its number, but the old voucher
+  number is retired, so the new voucher is `PCV-M-2026-0007-1`, still visibly tied to its request.
+- **Plant change** on an unreleased request, reimbursement or replenishment: it gets a new number
+  in the new plant's series, and the old one is retired. A released request cannot change plant.
+- **Accounting's Request No. override**: a number that was ever issued before, even to a deleted
+  request, is refused.
+- A renumbered record shows its previous number as "was …".
+- A liquidation or reimbursement already claimed by a replenishment cannot be deleted.
+
+### Steps, in this order
+
+1. **`supabase-series-guard.sql` PART A**, **before deploying**. It creates the counters,
+   registry and functions, registers every existing number, and starts each counter after
+   the highest number used. The new app cannot save anything until this has run.
+2. **Deploy** the app; everyone reloads (Ctrl+F5).
+3. **`supabase-renumber-series-per-plant.sql`**, in a quiet window with everyone out of the
+   portal. It renames RG → RGC, gives vouchers their request's number, and moves
+   reimbursements and replenishments onto per-plant series. Nothing is compacted or reused,
+   and every new number is claimed in the registry. Check 3c must be empty.
+4. **`supabase-series-guard.sql` PART B**: switches on the enforcing trigger. It refuses to switch
+   on while two live records share a number.
+5. **`supabase-delete-gate.sql`**: only the superuser can delete through the API.

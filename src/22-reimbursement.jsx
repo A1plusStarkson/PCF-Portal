@@ -400,7 +400,7 @@ function PurposeSelect({ value, onChange }) {
   );
 }
 
-function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride, reimb, nextReimbNo, plantOptions, allReimbursements, currentUser }) {
+function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride, reimb, plantOptions, allReimbursements, currentUser }) {
   const isEdit = !!reimb;
   const defaultBranch = (plantOptions && plantOptions[0]) ? plantOptions[0].code : BRANCHES[0].code;
   const [step, setStep] = useState(1);
@@ -525,7 +525,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
               <div className="pcp-field-row">
                 <div className="pcp-field">
                   <label>Reimbursement No.</label>
-                  <input className="pcp-input" value={isEdit ? reimb.reimbNo : nextReimbNo} disabled />
+                  <input className="pcp-input" value={isEdit ? reimb.reimbNo : `Assigned when saved (${reimbNoPrefix(form.branchCode)}…)`} disabled />
                 </div>
                 <div className="pcp-field">
                   <label>Request Date</label>
@@ -1107,9 +1107,6 @@ function ReimbursementTab({
   /* Newest reimbursement no. first on open; any header can take over. */
   const sort = useTableSort("reimbNo", "desc");
 
-  const seq = (allReimbursements || reimbursements).length + 1;
-  const nextReimbNo = "REIM-2026-" + String(seq).padStart(6, "0");
-
   /* Summary cards double as filters: each card's statuses, exactly as counted.
      Clicking one filters the table below (and scrolls to it); clicking it
      again, or picking a status in the dropdown, clears it. */
@@ -1247,7 +1244,7 @@ function ReimbursementTab({
               <tbody>
                 {filtered.length ? filtered.map((r) => (
                   <tr key={r.id}>
-                    <td><strong>{r.reimbNo}</strong></td>
+                    <td><strong>{r.reimbNo}</strong><PrevNo rec={r} /></td>
                     <td>{fmtDate(r.requestDate)}</td>
                     <td><strong>{r.employee}</strong></td>
                     <td title={subaccountLabel(r.department)}>{deptDesc(r.department)}</td>
@@ -1270,7 +1267,7 @@ function ReimbursementTab({
                             title={isDraftLike(r) ? "Edit" : "Edit for checking / verification — status and approvals are kept"}><Edit3 size={12} /></button>
                         )}
                         {canDelete && onDelete && (
-                          <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => onDelete(r.id)} title="Delete (super admin)"><Trash2 size={13} color="var(--brand)" /></button>
+                          <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => onDelete(r.id)} title="Delete reimbursement (System Superuser)"><Trash2 size={13} color="var(--brand)" /></button>
                         )}
                       </div>
                     </td>
@@ -1285,7 +1282,6 @@ function ReimbursementTab({
       {showForm && (
         <ReimbursementFormModal
           reimb={editing}
-          nextReimbNo={nextReimbNo}
           plantOptions={formPlantOptions}
           allReimbursements={allReimbursements || reimbursements}
           currentUser={currentUser}

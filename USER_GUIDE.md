@@ -184,7 +184,7 @@ Think of the roles like this:
 - **Accounting** = *"I run the system"* — everything Finance can do, plus User
   Management and System Settings.
 - **System Administrator (Grace Gan or the System Superuser)** = *"I have the final say"* — gives the
-  **final approval** on every liquidation, and is the only one who can delete data.
+  **final approval** on every liquidation. Only the **System Superuser** (superuser@a1plus.com) can delete transactions.
 
 Here's the same thing as a checklist:
 
@@ -206,7 +206,7 @@ Here's the same thing as a checklist:
 | Edit master data | ❌ | ❌ | ✅ | ✅ | ✅ |
 | Manage users/settings | ❌ | ❌ | ❌ | ✅ | ✅ |
 | **Edit a Request No.** | ❌ | ❌ | ❌ | ✅ | ❌ |
-| Delete a record | ❌ | ❌ | ❌ | ❌ | ✅ *(Grace Gan / Superuser)* |
+| Delete a record | ❌ | ❌ | ❌ | ❌ | ✅ *(System Superuser only)* |
 
 > ⭐ **Important:** Every liquidation is approved **twice**: first by the
 > **custodian** (who checks every receipt and the amounts), then by **Grace Gan or the System Superuser**
@@ -313,7 +313,7 @@ You have full control and are the **only** person who can:
   is settled — it opens on *For Final Approval*. Your approval makes the
   liquidation **LIQUIDATED — Fully Approved / Ready for Replenishment**, and
   locks it.
-- **Delete** a record.
+- **Delete** a transaction — System Superuser only. You must give a reason. Its number is retired and never issued again; no other number changes.
 
 You do not check receipts yourself — that is the custodian's level, so the two
 approvals always come from two different people.
@@ -534,7 +534,7 @@ kept), archive or restore. Every document gets a reference number
   rejected.
 - ✅ Liquidate within **5 days** of receiving cash.
 - ✅ Submit reimbursements within **5 working days**, with the original OR.
-- ✅ Custodians check and approve liquidations; only **Grace Gan and the System Superuser** give the final approval and can delete records.
+- ✅ Custodians check and approve liquidations; only **Grace Gan and the System Superuser** give the final approval; only the **System Superuser** can delete transactions.
 - ✅ Refresh (**Ctrl + F5**) if something looks out of date.
 
 ---

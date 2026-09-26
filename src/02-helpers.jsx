@@ -122,6 +122,30 @@ function nextSeriesNo(prefix, existing, width) {
    plant families it depends on are defined. This file loads before that one,
    so the prefix cannot live here. */
 
+/* ---- Series numbers are issued once and never reused ----
+   In the cloud, numbers come from the DATABASE (window.storage.series,
+   backed by supabase-series-guard.sql): a counter per series that only ever
+   goes up, and a registry of every number ever issued. A deleted, rejected
+   or renumbered record's number is retired, never handed to anything else,
+   so a delete leaves a permanent gap by design. nextSeriesNo below is only
+   the fallback for single-user local mode, which has no database.
+
+   A record's number changed (moved to another plant, or Accounting's
+   override). The old one stays retired and is kept on the record, so
+   paperwork already issued under it still leads back here. */
+function withRenumber(rec, key, to, stamp) {
+  return {
+    ...rec, [key]: to,
+    numberHistory: [...(rec.numberHistory || []), { from: rec[key], to, ...stamp }],
+  };
+}
+
+/* Details written onto a record's tombstone row when it is deleted: who, when,
+   which plant and why. Filled by the delete handlers immediately before they
+   remove the record, drained by diffSync when it writes the tombstone, so the
+   deleted row in pcp_records explains itself without the audit trail. */
+const TOMBSTONE_META = new Map();
+
 const branchByCode = (code) => BRANCHES.find((b) => b.code === code);
 const companyOfBranch = (code) => branchByCode(code)?.company || "—";
 const subaccountLabel = (code) => {
@@ -490,6 +514,7 @@ function diffSync(snap, state) {
            otherwise occupy the database forever; the metadata an audit actually
            needs (name, size, who uploaded it, when) is all retained. */
         data = stripFileBytes(data);
+        if (TOMBSTONE_META.has(id)) { data = { ...data, ...TOMBSTONE_META.get(id) }; TOMBSTONE_META.delete(id); }
         rows.push({ id, collection: c, data, deleted: true, updated_at: nowIso });
       }
     });

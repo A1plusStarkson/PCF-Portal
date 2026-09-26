@@ -186,7 +186,7 @@ Two independent layers: **role** (which modules you see) and **plant scope**
 
 | Role (`window.PCP_USERS`) | Label | Modules |
 |---|---|---|
-| `SuperAdmin` | System Administrator | Everything. The **only** role that can delete records. |
+| `SuperAdmin` | System Administrator | Everything. Deleting transactions is limited further, to the superuser@a1plus.com account only. |
 | `Accounting` | Accounting Department | Everything. The **only** role that can override a Request No. |
 | `Finance` | Finance Department | Everything except User Management and System Settings. |
 | `Custodian` | Custodian | Dashboard, Requests, Release Ledger, Liquidation, Reimbursement, Replenishment, History, Reports, Approval Module, Aging, Documents. |

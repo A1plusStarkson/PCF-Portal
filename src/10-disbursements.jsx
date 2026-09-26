@@ -247,7 +247,7 @@ function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemar
               <tbody>
                 {rows.length ? rows.map((d) => (
                   <tr key={d.id}>
-                    <td><strong>{d.voucherNo}</strong></td>
+                    <td><strong>{d.voucherNo}</strong><PrevNo rec={d} /></td>
                     <td>{fmtDate(d.date)}</td>
                     <td><strong>{d.employee}</strong></td>
                     <td>{d.branchCode}</td>

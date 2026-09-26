@@ -699,6 +699,25 @@ function TopBar({ title, sub, right }) {
   );
 }
 
+/* The number a record carried before it was last renumbered — a plant move,
+   Accounting's override, or the per-plant migration (the old number stays
+   retired; it is never issued again) — shown
+   under the current one so paper already issued under the old number can be
+   matched to the record on sight. Falls back to the pre-per-plant request
+   number. Renders nothing for a record that was never renumbered. */
+function PrevNo({ rec, legacy }) {
+  const h = (rec && rec.numberHistory) || [];
+  const last = h.length ? h[h.length - 1] : null;
+  const prev = last ? last.from : legacy;
+  if (!prev) return null;
+  const why = last ? [last.reason, last.user, last.ts && fmtDate(last.ts.slice(0, 10))].filter(Boolean).join(" · ") : "before the series became per-plant";
+  return (
+    <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 1 }} title={`Previously numbered ${prev}${why ? ` — ${why}` : ""}`}>
+      was {prev}
+    </div>
+  );
+}
+
 function Badge({ status }) {
   const map = {
     Pending: "amber", Approved: "blue", Rejected: "red", Disbursed: "green",
