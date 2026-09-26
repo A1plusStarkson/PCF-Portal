@@ -712,6 +712,8 @@ function Badge({ status }) {
     "For Final Approval": "blue", "Fully Approved / Ready for Replenishment": "green",
     Replenished: "green", "Approved (before two-level review)": "gray",
     "FOR CUSTODIAN REVIEW": "amber", "FOR FINAL APPROVAL": "blue",
+    /* Accounting review, between the custodian and the final approver */
+    "For Accounting Check": "amber", "FOR ACCOUNTING CHECK": "amber", YES: "green",
     /* Cash-settlement / final liquidation states.
        PARTIALLY SETTLED and OVER-SETTLED exist so a cash variance somebody has
        to chase is never shown as plain "NOT YET LIQUIDATED", and

@@ -6,6 +6,9 @@
      1. Custodian review — every Custodian, Accounting and Finance account and
         the System Superuser, within its plant scope: decide each receipt,
         approve the liquidation, settle the cash.
+     1b. Accounting check — Accounting reviews it, assigns a Batch Number and
+        marks it checked (For Accounting Check). Until then it is not in the
+        final approver's queue, which is grouped and approvable by batch.
      2. Final approval — Grace Gan or the System Superuser. Grace Gan's queue
         holds ONLY liquidations a custodian has approved and whose cash is
         settled; their approval makes them Fully Approved / Ready for
@@ -35,7 +38,7 @@ const FINAL_APPROVER_STAGES = [LIQ_STAGE.FOR_FINAL, LIQ_STAGE.READY, LIQ_STAGE.R
    approved. Built on demand from REIMB_STATUS/REIMB_STAGE. */
 const reimbFinalApproverStages = () => [REIMB_STATUS.FOR_FINAL, REIMB_STATUS.READY, REIMB_STAGE.REPLENISHED];
 const reimbCheckerStages = () => [
-  REIMB_STAGE.FOR_CHECK, REIMB_STATUS.FOR_FINAL, REIMB_STATUS.READY, REIMB_STAGE.REPLENISHED,
+  REIMB_STAGE.FOR_CHECK, REIMB_STAGE.FOR_ACCOUNTING, REIMB_STATUS.FOR_FINAL, REIMB_STATUS.READY, REIMB_STAGE.REPLENISHED,
   REIMB_STATUS.RETURNED, REIMB_STATUS.REJECTED,
   /* Legacy single-level chain, still visible for records already in it. */
   REIMB_STATUS.FOR_LIQUIDATION, REIMB_STATUS.UNDER_REVIEW, REIMB_STATUS.LIQUIDATION_DONE,
@@ -73,7 +76,7 @@ function pcaApprovalQueue(disbursements, liquidations, replenishments) {
    lines, the cash settlement and every supporting document rendered inline —
    with only the actions this viewer's level allows. */
 function PcaApprovalPanel({
-  row, isChecker, isFinalApprover, currentUser,
+  row, isChecker, isFinalApprover, currentUser, accounting,
   onDecideReceipt, onRejectLiquidation, onReopenLiquidation, onCheckLiquidation, onFinalApprove,
 }) {
   const [remarks, setRemarks] = useState("");
@@ -106,7 +109,8 @@ function PcaApprovalPanel({
     setRemarks("");
   };
   const finalApprove = () => {
-    if (!window.confirm(`Give final approval to ${disb.voucherNo}?\n\nApproved receipts: ${peso(amounts.approvedTotal)} · checked by ${review.checkedBy}.\n\nIt becomes Fully Approved / Ready for Replenishment and can no longer be edited.`)) return;
+    if (!passesAccountingGate(review)) { window.alert(ACCOUNTING_GATE_MESSAGE); return; }
+    if (!window.confirm(`Give final approval to ${disb.voucherNo}?\n\nApproved receipts: ${peso(amounts.approvedTotal)} · custodian approved by ${review.checkedBy} · Accounting checked, batch ${review.batchNo}.\n\nIt becomes Fully Approved / Ready for Replenishment and can no longer be edited.`)) return;
     onFinalApprove(disb.id, remarks.trim());
     setRemarks("");
   };
@@ -122,12 +126,15 @@ function PcaApprovalPanel({
     if (stage === LIQ_STAGE.NEEDS_CORRECTION) return isChecker
       ? "A receipt was rejected. Reject the liquidation to return it to the requestor for correction."
       : "A receipt was rejected; the liquidation is being returned for correction.";
-    if (stage === LIQ_STAGE.AWAITING_SETTLEMENT) return `Custodian approved. The ${rec.type === "excess" ? "refund" : "reimbursement"} of ${peso(st.expected)} must be settled in the Liquidation module before it goes to ${FINAL_APPROVER_NAME}.`;
+    if (stage === LIQ_STAGE.FOR_ACCOUNTING) return accounting && accounting.isChecker
+      ? "Custodian approved — review the details and every document below, assign a Batch Number and mark it checked."
+      : "Custodian approved — awaiting Accounting's check and Batch Number before final approval.";
+    if (stage === LIQ_STAGE.AWAITING_SETTLEMENT) return `Custodian approved and checked by Accounting (batch ${review.batchNo}). The ${rec.type === "excess" ? "refund" : "reimbursement"} of ${peso(st.expected)} must be settled in the Liquidation module before it goes to ${FINAL_APPROVER_NAME}.`;
     if (stage === LIQ_STAGE.FOR_FINAL) return !isFinalApprover
       ? `Awaiting final approval by ${FINAL_APPROVER_NAME}.`
       : checkedBySelf
         ? "You approved this as custodian, so the final approval must come from the other final approver."
-        : "Custodian approved and cash settled — ready for your final approval.";
+        : `Custodian approved, checked by Accounting (batch ${review.batchNo}) and cash settled — ready for your final approval.`;
     if (stage === LIQ_STAGE.READY) return "Fully approved — available in the Replenishment module.";
     if (stage === LIQ_STAGE.REPLENISHED) return "Fully approved and included in a replenishment.";
     if (stage === LIQ_STAGE.LEGACY) return "Approved under the previous single-level process.";
@@ -156,6 +163,7 @@ function PcaApprovalPanel({
             {!review.legacy && (review.checked || review.final) && (
               <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 5, lineHeight: 1.5 }}>
                 {review.checked && <div>Custodian approved by <b>{review.checkedBy}</b> · {review.checkedAt.replace("T", " ")}{review.checkRemarks ? ` · "${review.checkRemarks}"` : ""}</div>}
+                {review.acctChecked && <div>Accounting checked by <b>{review.acctCheckedBy}</b> · {fmtAcctStamp(review.acctCheckedAt)} · batch <b>{review.batchNo}</b></div>}
                 {review.final && <div>Final approval by <b>{review.finalBy}</b> · {review.finalAt.replace("T", " ")}{review.finalRemarks ? ` · "${review.finalRemarks}"` : ""}</div>}
               </div>
             )}
@@ -202,6 +210,13 @@ function PcaApprovalPanel({
       </div>
 
       {guidance && <div className="pcp-hint" style={{ marginBottom: 12 }}>{guidance}</div>}
+
+      {(review.checked || review.legacy) && (
+        <AccountingReviewBox
+          kind="liq" id={disb.id} refNo={disb.voucherNo} review={review}
+          mode={liqAcctMode(liq)} accounting={accounting}
+        />
+      )}
 
       {!!rejections.length && (
         <div className="pcp-card pcp-card-pad" style={{ marginBottom: 12, borderColor: "#f0c0c0" }}>
@@ -325,8 +340,9 @@ function ApprovalModuleTab({
   onDecideReceipt, onRejectLiquidation, onReopenLiquidation, onCheckLiquidation, onFinalApprove,
   onReimbursementAction, onExportReimbursementAcumatica,
   isChecker, isFinalApprover, canFinance,
-  currentUser, plantOptions,
+  currentUser, plantOptions, accounting,
 }) {
+  const isAcct = !!(accounting && accounting.isChecker);
   /* Grace Gan: final approval only, so her queues hold only what custodians
      have approved. The System Superuser is BOTH a checker and a final
      approver. By the owner's instruction she sees everything Grace Gan sees,
@@ -339,13 +355,17 @@ function ApprovalModuleTab({
   /* Open on the viewer's own work: every final approver on what awaits final
      approval, custodians on what awaits their review. */
   const [pcaStage, setPcaStage] = useState(
-    isFinalApprover ? LIQ_STAGE.FOR_FINAL : isChecker ? LIQ_STAGE.FOR_CHECK : "All statuses"
+    isFinalApprover ? LIQ_STAGE.FOR_FINAL : isAcct ? LIQ_STAGE.FOR_ACCOUNTING : isChecker ? LIQ_STAGE.FOR_CHECK : "All statuses"
   );
   const [reimbStage, setReimbStage] = useState(
-    isFinalApprover ? REIMB_STATUS.FOR_FINAL : isChecker ? REIMB_STAGE.FOR_CHECK : "All statuses"
+    isFinalApprover ? REIMB_STATUS.FOR_FINAL : isAcct ? REIMB_STAGE.FOR_ACCOUNTING : isChecker ? REIMB_STAGE.FOR_CHECK : "All statuses"
   );
   const [selectedId, setSelectedId] = useState(null);
   const [detail, setDetail] = useState(null);
+  /* Batch Number filter — how Grace Gan reviews: one Accounting batch at a time. */
+  const ALL_BATCHES = "All batches";
+  const [batch, setBatch] = useState(ALL_BATCHES);
+  const inBatch = (b) => batch === ALL_BATCHES || b === batch;
   /* Newest reimbursement no. first on open; any header can take over. */
   const reimbSort = useTableSort("reimbNo", "desc");
 
@@ -364,16 +384,18 @@ function ApprovalModuleTab({
     return finalOnly ? all.filter((r) => FINAL_APPROVER_STAGES.includes(r.stage)) : all;
   }, [disbursements, liquidations, replenishments, finalOnly]);
   const pcaRows = pcaAll.filter((r) => inPlant(r.disb.branchCode)
-    && matches(r.disb.voucherNo, r.disb.employee, r.disb.branchCode)
+    && matches(r.disb.voucherNo, r.disb.employee, r.disb.branchCode, r.review.batchNo)
+    && inBatch(r.review.batchNo)
     && (pcaStage === "All statuses" || r.stage === pcaStage));
   const selected = pcaRows.find((r) => r.disb.id === selectedId) || pcaRows[0] || null;
   const pcaStageOptions = ["All statuses"].concat(finalOnly
     ? FINAL_APPROVER_STAGES
-    : [LIQ_STAGE.FOR_CHECK, LIQ_STAGE.NEEDS_CORRECTION, LIQ_STAGE.AWAITING_SETTLEMENT, LIQ_STAGE.FOR_FINAL,
+    : [LIQ_STAGE.FOR_CHECK, LIQ_STAGE.NEEDS_CORRECTION, LIQ_STAGE.FOR_ACCOUNTING, LIQ_STAGE.AWAITING_SETTLEMENT, LIQ_STAGE.FOR_FINAL,
        LIQ_STAGE.READY, LIQ_STAGE.REPLENISHED, LIQ_STAGE.REJECTED, LIQ_STAGE.LEGACY]);
   const countStage = (s) => pcaAll.filter((r) => r.stage === s).length;
   const pcaForCheck = countStage(LIQ_STAGE.FOR_CHECK) + countStage(LIQ_STAGE.NEEDS_CORRECTION);
   const pcaForFinal = countStage(LIQ_STAGE.FOR_FINAL);
+  const pcaForAcct = countStage(LIQ_STAGE.FOR_ACCOUNTING);
   const pcaReady = countStage(LIQ_STAGE.READY);
 
   /* ---- Employee reimbursements ----
@@ -384,18 +406,53 @@ function ApprovalModuleTab({
     const finalStages = reimbFinalApproverStages();
     return (reimbursements || [])
       .filter((r) => r.status !== REIMB_STATUS.DRAFT)
-      .map((r) => ({ ...r, stage: reimbApprovalStage(r, replenishedIds) }))
+      .map((r) => ({ ...r, stage: reimbApprovalStage(r, replenishedIds), batchNo: reimbReview(r).batchNo }))
       .filter((r) => !finalOnly || finalStages.includes(r.stage))
       .sort((a, b) => String(b.requestDate || "").localeCompare(String(a.requestDate || "")));
   }, [reimbursements, replenishments, finalOnly]);
   const reimbRows = reimbSort.sortRows(
     reimbAll.filter((r) => inPlant(r.branchCode)
-      && matches(r.reimbNo, r.employee, r.branchCode, r.purpose)
+      && matches(r.reimbNo, r.employee, r.branchCode, r.purpose, r.batchNo)
+      && inBatch(r.batchNo)
       && (reimbStage === "All statuses" || r.stage === reimbStage)),
-    { ...REIMB_SORT_FIELDS, status: (r) => r.stage }
+    { ...REIMB_SORT_FIELDS, status: (r) => r.stage, batchNo: (r) => r.batchNo }
   );
   const reimbForCheck = reimbAll.filter((r) => r.stage === REIMB_STAGE.FOR_CHECK).length;
   const reimbForFinal = reimbAll.filter((r) => r.stage === REIMB_STATUS.FOR_FINAL).length;
+  const reimbForAcct = reimbAll.filter((r) => r.stage === REIMB_STAGE.FOR_ACCOUNTING).length;
+
+  /* ---- Batches ----
+     Every batch in the viewer's queues, and — for the final approver — what in
+     each is awaiting final approval now. Only transactions that passed the
+     Accounting gate ever reach FOR_FINAL, and it is re-checked here and again
+     in each handler, so a batch can never carry an unchecked transaction into
+     her approval. */
+  const batchNos = Array.from(new Set(pcaAll.map((r) => r.review.batchNo)
+    .concat(reimbAll.map((r) => r.batchNo)).filter(Boolean))).sort().reverse();
+  const me = String(currentUser || "").trim().toLowerCase();
+  const batchPending = (b) => {
+    const pca = pcaAll.filter((r) => r.review.batchNo === b && inPlant(r.disb.branchCode)
+      && r.stage === LIQ_STAGE.FOR_FINAL && passesAccountingGate(r.review)
+      && String(r.review.checkedBy).toLowerCase() !== me);
+    const reimb = reimbAll.filter((r) => r.batchNo === b && inPlant(r.branchCode)
+      && r.stage === REIMB_STATUS.FOR_FINAL && passesAccountingGate(reimbReview(r))
+      && reimbReview(r).checkedBy.toLowerCase() !== me
+      && ![r.createdBy, r.employee].some((n) => (n || "").trim().toLowerCase() === me));
+    const total = pca.reduce((t, r) => t + r.amounts.approvedTotal, 0) + reimb.reduce((t, r) => t + reimbTotal(r), 0);
+    return { pca, reimb, count: pca.length + reimb.length, total };
+  };
+  const batchesAwaiting = isFinalApprover
+    ? batchNos.map((b) => ({ batchNo: b, ...batchPending(b) })).filter((x) => x.count > 0) : [];
+  const approveBatch = (b) => {
+    const x = batchPending(b);
+    if (!x.count) return;
+    if (!window.confirm(`Give final approval to the whole of ${b}?\n\n`
+      + x.pca.map((r) => `  ${r.disb.voucherNo} · Liquidation · ${peso(r.amounts.approvedTotal)}`)
+        .concat(x.reimb.map((r) => `  ${r.reimbNo} · Reimbursement · ${peso(reimbTotal(r))}`)).join("\n")
+      + `\n\n${x.count} transaction(s) · ${peso(x.total)}. Each becomes Fully Approved / Ready for Replenishment.`)) return;
+    x.pca.forEach((r) => onFinalApprove(r.disb.id, `Batch ${b} final approval`));
+    x.reimb.forEach((r) => onReimbursementAction(r.id, "final-approve", { comments: `Batch ${b} final approval` }));
+  };
 
   const stageOptions = source === "pettycash"
     ? pcaStageOptions
@@ -417,6 +474,12 @@ function ApprovalModuleTab({
             <>
               <KpiCard label="Liquidations Awaiting Your Final Approval" value={pcaForFinal} icon={ShieldCheck} tint="#b9790a" />
               <KpiCard label="Reimbursements Awaiting Your Final Approval" value={reimbForFinal} icon={ArrowLeftRight} tint="#b9790a" />
+            </>
+          )}
+          {isAcct && (
+            <>
+              <KpiCard label="Liquidations Awaiting Accounting Check" value={pcaForAcct} icon={ShieldCheck} tint="#b9790a" />
+              <KpiCard label="Reimbursements Awaiting Accounting Check" value={reimbForAcct} icon={ArrowLeftRight} tint="#b9790a" />
             </>
           )}
           {isChecker && (
@@ -461,7 +524,37 @@ function ApprovalModuleTab({
             searchPlaceholder="Search status…"
             style={{ width: 240 }}
           />
+          <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mut)" }}>Batch</span>
+          <select className="pcp-select" style={{ width: 170 }} value={batch}
+            onChange={(e) => { setBatch(e.target.value); setSelectedId(null); }}>
+            {[ALL_BATCHES].concat(batchNos).map((b) => <option key={b}>{b}</option>)}
+          </select>
         </div>
+
+        {/* Batches awaiting final approval: review a batch, then approve it whole. */}
+        {batchesAwaiting.length > 0 && (
+          <div className="pcp-card pcp-card-pad" style={{ marginBottom: 14 }}>
+            <div className="pcp-section-title" style={{ margin: "0 0 8px" }}><ShieldCheck size={15} /> Batches Awaiting Your Final Approval</div>
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              {batchesAwaiting.map((x) => (
+                <div key={x.batchNo} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 12.5 }}>
+                  <strong style={{ minWidth: 110 }}>{x.batchNo}</strong>
+                  <span style={{ color: "var(--text-mut)" }}>
+                    {x.pca.length} liquidation(s) · {x.reimb.length} reimbursement(s) · <span className="pcp-num">{peso(x.total)}</span>
+                  </span>
+                  <button className="pcp-btn pcp-btn-sm" onClick={() => { setBatch(x.batchNo); setSelectedId(null); }}>
+                    <Eye size={12} /> Review Batch
+                  </button>
+                  {batch === x.batchNo && (
+                    <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={() => approveBatch(x.batchNo)}>
+                      <ShieldCheck size={12} /> Final Approve {x.batchNo} ({x.count})
+                    </button>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {source === "pettycash" ? (
           <div className="pcp-liq-workspace">
@@ -482,6 +575,7 @@ function ApprovalModuleTab({
                   </div>
                   <div style={{ marginTop: 6, display: "flex", gap: 5, flexWrap: "wrap" }}>
                     <Badge status={r.stage} />
+                    {r.review.batchNo && <span className="pcp-badge pcp-badge-gray">{r.review.batchNo}</span>}
                     <span style={{ fontSize: 10.5, color: "var(--text-mut)" }}>
                       {r.approval.approved + r.approval.rejected}/{r.approval.total} docs decided
                     </span>
@@ -496,6 +590,7 @@ function ApprovalModuleTab({
                 isChecker={isChecker}
                 isFinalApprover={isFinalApprover}
                 currentUser={currentUser}
+                accounting={accounting}
                 onDecideReceipt={onDecideReceipt}
                 onRejectLiquidation={onRejectLiquidation}
                 onReopenLiquidation={onReopenLiquidation}
@@ -522,6 +617,7 @@ function ApprovalModuleTab({
                     <SortTh field="amount" sort={reimbSort}>Amount</SortTh>
                     <SortTh field="compliance" sort={reimbSort}>Compliance</SortTh>
                     <SortTh field="status" sort={reimbSort}>Status</SortTh>
+                    <SortTh field="batchNo" sort={reimbSort}>Batch No.</SortTh>
                     <SortTh field="aging" sort={reimbSort}>Aging</SortTh>
                     <th></th>
                   </tr>
@@ -543,6 +639,7 @@ function ApprovalModuleTab({
                       <td className="pcp-num">{peso(reimbTotal(r))}</td>
                       <td><CompliancePill level={(r.compliance && r.compliance.level) || "PASS"} /></td>
                       <td><Badge status={r.stage} /></td>
+                      <td>{r.batchNo || <span style={{ color: "var(--text-mut)" }}>—</span>}</td>
                       <td>{reimbAgingBucket(r)}</td>
                       <td>
                         <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={() => setDetail(r)} title="Check documents and decide">
@@ -550,7 +647,7 @@ function ApprovalModuleTab({
                         </button>
                       </td>
                     </tr>
-                  )) : <tr><td colSpan={12} className="pcp-empty">Nothing to approve here</td></tr>}
+                  )) : <tr><td colSpan={13} className="pcp-empty">Nothing to approve here</td></tr>}
                 </tbody>
               </table>
             </div>
@@ -565,6 +662,7 @@ function ApprovalModuleTab({
           isChecker={isChecker}
           isFinalApprover={isFinalApprover}
           canFinance={canFinance}
+          accounting={accounting}
           onExportAcumatica={onExportReimbursementAcumatica}
           onAction={(id, action, opts) => { onReimbursementAction(id, action, opts); setDetail(null); }}
           onClose={() => setDetail(null)}

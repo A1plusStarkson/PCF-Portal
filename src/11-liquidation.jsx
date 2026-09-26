@@ -7,6 +7,9 @@
       liquidation within their plant scope:
       approve/reject each receipt, approve the liquidation, record the cash
       settlement.
+   1b. ACCOUNTING (accounting@a1plus.com, ACCOUNTING_CHECKER_EMAILS) reviews
+      each custodian-approved transaction, assigns a Batch Number and marks it
+      checked. No Accounting check + no Batch Number = no final approval.
    2. FINAL APPROVERS — Grace Gan (a1plusadmin) and the System Superuser, who
       hold identical final-approval authority by the owner's instruction.
       Matched by EMAIL (a display name is not an identity). Grace Gan only
@@ -26,6 +29,145 @@ const LIQUIDATION_FINAL_APPROVER_EMAILS = ["a1plusadmin@a1plus.com", "superuser@
 const LIQUIDATION_FINAL_ONLY_EMAILS = ["a1plusadmin@a1plus.com"];
 const LIQUIDATION_CHECKER_ROLES = ["Custodian", "Accounting", "Finance", "SuperAdmin"];
 
+/* ---- Accounting review (between the custodian and the final approver) ----
+   Matched by EMAIL, like the final approvers. Accounting reviews each
+   custodian-approved liquidation / reimbursement, assigns a Batch Number and
+   marks it checked; only then does it reach Grace Gan, grouped by batch. The
+   gate itself is passesAccountingGate in 02-helpers.jsx, re-checked in every
+   final-approve handler in 19-app.jsx. */
+const ACCOUNTING_CHECKER_EMAILS = ["accounting@a1plus.com"];
+
+/* Accounting stamps are full ISO timestamps (with zone), shown in local time. */
+function fmtAcctStamp(ts) {
+  if (!ts) return "—";
+  const d = new Date(ts);
+  if (isNaN(d)) return String(ts).replace("T", " ");
+  return d.toLocaleString("en-PH", { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+/* The four Accounting columns, shared by every list that shows them. */
+function AccountingHeadCells() {
+  return (<>
+    <th>Accounting Checked</th><th>Accounting Checked By</th><th>Accounting Checked Date</th><th>Batch Number</th>
+  </>);
+}
+function AccountingCells({ review }) {
+  const rv = review || {};
+  const mut = { color: "var(--text-mut)" };
+  return (<>
+    <td>{rv.acctChecked ? <Badge status="YES" /> : <span style={mut}>NO</span>}</td>
+    <td>{rv.acctCheckedBy || <span style={mut}>—</span>}</td>
+    <td style={{ whiteSpace: "nowrap" }}>{rv.acctChecked ? fmtAcctStamp(rv.acctCheckedAt) : <span style={mut}>—</span>}</td>
+    <td>{rv.batchNo ? <strong>{rv.batchNo}</strong> : <span style={mut}>—</span>}</td>
+  </>);
+}
+
+/* ---- Accounting Review box ----
+   Shows the Accounting stamps and, for Accounting while the transaction sits
+   at its stage, the Assign Batch Number / Mark as Checked actions.
+   `accounting` = { isChecker, batches, nextBatchNo, onReview } from App;
+   onReview(kind, id, action, payload) re-checks everything itself.
+   `mode` — liqAcctMode / reimbAcctMode: "flow" (awaiting final approval),
+   "retro" (an old, already-approved transaction) or null. */
+function AccountingReviewBox({ kind, id, refNo, review, mode, accounting }) {
+  const rv = review || {};
+  const acc = accounting || {};
+  const [batch, setBatch] = useState(rv.batchNo || "");
+  const [remarks, setRemarks] = useState("");
+  useEffect(() => { setBatch(rv.batchNo || ""); }, [id, rv.batchNo]); // eslint-disable-line
+  const retro = mode === "retro";
+  const canAct = !!acc.isChecker && !!acc.onReview && !!mode;
+  /* Never undo a check the final approval relied on. */
+  const canUndo = canAct && rv.acctChecked && (mode === "flow" || rv.acctRetro);
+  const typed = normalizeBatchNo(batch);
+  const listId = "acct-batches-" + String(id).replace(/[^A-Za-z0-9_-]/g, "");
+  const row = (label, value) => (
+    <div style={{ display: "flex", gap: 8, fontSize: 12, lineHeight: 1.7 }}>
+      <span style={{ minWidth: 150, color: "var(--text-mut)" }}>{label}:</span><span>{value}</span>
+    </div>
+  );
+  const assign = () => {
+    if (!typed) { window.alert("Enter a Batch Number first."); return; }
+    acc.onReview(kind, id, "assign-batch", { batchNo: typed });
+  };
+  const check = () => {
+    if (!typed) { window.alert("Assign a Batch Number before marking this transaction as checked."); return; }
+    if (!window.confirm(retro
+      ? `Mark ${refNo} as checked by Accounting under batch ${typed}?\n\nThis transaction is already approved — only the Accounting check and Batch Number are added; its approval and status stay as they are.`
+      : `Mark ${refNo} as checked by Accounting under batch ${typed}?\n\nIt then goes to ${FINAL_APPROVER_NAME} for final approval with the rest of ${typed}.`)) return;
+    acc.onReview(kind, id, "check", { batchNo: typed, remarks: remarks.trim() });
+    setRemarks("");
+  };
+  const undo = () => {
+    const reason = window.prompt(`Undo the Accounting check on ${refNo}?${retro ? "" : ` It leaves ${FINAL_APPROVER_NAME}'s queue.`}\n\nReason (required):`, "");
+    if (reason == null) return;
+    if (!reason.trim()) { window.alert("A reason is required."); return; }
+    acc.onReview(kind, id, "undo", { remarks: reason.trim() });
+  };
+
+  return (
+    <div className="pcp-card pcp-card-pad" style={{ marginBottom: 12, borderColor: rv.acctChecked ? "#bfe3c8" : undefined }}>
+      <div className="pcp-section-title" style={{ margin: "0 0 8px" }}><ShieldCheck size={15} /> Accounting Review</div>
+      {row("Accounting Checked", rv.acctChecked ? <b style={{ color: "var(--green)" }}>YES</b> : "NO")}
+      {row("Checked By", rv.acctCheckedBy || "—")}
+      {row("Checked Date", rv.acctChecked ? fmtAcctStamp(rv.acctCheckedAt) : "—")}
+      {row("Batch Number", rv.batchNo ? <b>{rv.batchNo}</b> : "—")}
+      {rv.acctRemarks && row("Remarks", `"${rv.acctRemarks}"`)}
+      {rv.acctChecked && rv.acctRetro && (
+        <div style={{ fontSize: 11, color: "var(--text-mut)", marginTop: 4 }}>Checked after the transaction was already approved — its approval was not changed.</div>
+      )}
+      {retro && !rv.acctChecked && (
+        <div style={{ fontSize: 11, color: "var(--text-mut)", marginTop: 4 }}>
+          Approved before the Accounting review step existed — not yet checked by Accounting.
+        </div>
+      )}
+      {!mode && !rv.checked && (
+        <div style={{ fontSize: 11, color: "var(--text-mut)", marginTop: 4 }}>Accounting reviews it once the custodian has approved it.</div>
+      )}
+      {canAct && !rv.acctChecked && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
+          <div className="pcp-hint" style={{ marginBottom: 8 }}>
+            {retro
+              ? "Old transaction, already approved. Review its details and documents, then assign a Batch Number and mark it checked — only the Accounting fields are added."
+              : "Review the transaction details and every supporting document, verify the amounts, then assign a Batch Number and mark it checked."}
+          </div>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+            <div className="pcp-field" style={{ margin: 0 }}>
+              <label>Batch Number</label>
+              <input className="pcp-input" style={{ width: 170 }} list={listId} value={batch}
+                onChange={(e) => setBatch(e.target.value)} placeholder={acc.nextBatchNo || "BATCH-001"} />
+              <datalist id={listId}>
+                {(acc.batches || []).map((b) => <option key={b.batchNo} value={b.batchNo}>{`${b.count} transaction(s)`}</option>)}
+              </datalist>
+            </div>
+            {acc.nextBatchNo && (
+              <button className="pcp-btn pcp-btn-sm" onClick={() => setBatch(acc.nextBatchNo)} title="Start a new batch">
+                <Plus size={12} /> New: {acc.nextBatchNo}
+              </button>
+            )}
+            <button className="pcp-btn pcp-btn-sm" onClick={assign} disabled={!typed || typed === rv.batchNo}>
+              Assign Batch Number
+            </button>
+            <div className="pcp-field" style={{ margin: 0, flex: 1, minWidth: 180 }}>
+              <label>Remarks (optional)</label>
+              <input className="pcp-input" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="e.g. amounts agree with ORs" />
+            </div>
+            <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={check} disabled={!typed}
+              title={typed ? "Mark as checked by Accounting" : "Assign a Batch Number first"}>
+              <ShieldCheck size={12} /> Mark as Checked
+            </button>
+          </div>
+        </div>
+      )}
+      {canUndo && (
+        <div style={{ marginTop: 8 }}>
+          <button className="pcp-btn pcp-btn-sm" onClick={undo}><RefreshCw size={12} /> Undo Accounting Check</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* The cash settlement classification now derives from the per-document receipt
    amounts — see reconcileReceipts / settlementStateFor in 02-helpers.jsx. */
 
@@ -44,8 +186,20 @@ const PCA_STATUS_FILTERS = {
 };
 const PCA_STATUS_FILTER_KEYS = [LIQ_STATUS_FILTER_ALL].concat(Object.keys(PCA_STATUS_FILTERS));
 const REIMB_STATUS_FILTER_KEYS = [
-  LIQ_STATUS_FILTER_ALL, "For Liquidation", "Liquidation Completed", "For Payment", "Completed",
+  LIQ_STATUS_FILTER_ALL, "For Accounting Check", "For Final Approval", "Fully Approved",
+  "For Liquidation", "Liquidation Completed", "For Payment", "Completed",
 ];
+/* Two-level reimbursements shown in the Liquidation Module from custodian
+   approval onward, so Accounting sees and checks them here too. The first
+   three filter labels are stages of that flow, not stored statuses. */
+const reimbTwoLevelFilter = (label, r) => ({
+  "For Accounting Check": () => reimbAwaitingAccounting(r),
+  "For Final Approval": () => r.status === REIMB_STATUS.FOR_FINAL && !reimbAwaitingAccounting(r),
+  "Fully Approved": () => r.status === REIMB_STATUS.READY,
+}[label]);
+/* Accounting column filter (both sources). */
+const ACCT_FILTER_OLD = "Old / Approved — Not Checked";
+const ACCT_FILTERS = ["All", "For Accounting Check", ACCT_FILTER_OLD, "Accounting Checked", "Not Checked"];
 /* Label -> the status actually stored on a reimbursement. Resolved on demand,
    not as a module-level object: REIMB_STATUS is declared in
    22-reimbursement.jsx, which the loader concatenates AFTER this file, so it is
@@ -456,7 +610,7 @@ function LiquidationWorksheet({
   onRecordSettlement, onCloseShortage, onReopenShortage, canApproveShortage,
   onReviewOverLiquidation, canDelete, onDeleteLiquidation,
   canRejectLiquidation, onRejectLiquidation,
-  onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser, onDirtyChange,
+  onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser, onDirtyChange, accounting,
 }) {
   const [lines, setLines] = useState(liquidation ? liquidation.lines.map((l) => ({ ...l })) : [emptyLine()]);
   const [attachments, setAttachments] = useState(
@@ -880,6 +1034,7 @@ function LiquidationWorksheet({
             {(review.checked || review.final) && !review.legacy && (
               <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 5, lineHeight: 1.5 }}>
                 {review.checked && <div>Custodian approved by <b>{review.checkedBy}</b> · {review.checkedAt.replace("T", " ")}{review.checkRemarks ? ` · "${review.checkRemarks}"` : ""}</div>}
+                {review.acctChecked && <div>Accounting checked by <b>{review.acctCheckedBy}</b> · {fmtAcctStamp(review.acctCheckedAt)} · batch <b>{review.batchNo}</b></div>}
                 {review.final && <div>Final approval by <b>{review.finalBy}</b> · {review.finalAt.replace("T", " ")}{review.finalRemarks ? ` · "${review.finalRemarks}"` : ""}</div>}
               </div>
             )}
@@ -971,6 +1126,13 @@ function LiquidationWorksheet({
           </div>
         )}
       </div>
+
+      {liquidation && (review.checked || review.legacy) && (
+        <AccountingReviewBox
+          kind="liq" id={disbursement.id} refNo={disbursement.voucherNo} review={review}
+          mode={liqAcctMode(liquidation)} accounting={accounting}
+        />
+      )}
 
       {/* Rejection history — every rejection kept as its own record and never
           overwritten. The most recent appears first. */}
@@ -1287,7 +1449,8 @@ function LiquidationWorksheet({
             {finalStatus === "For Revision" && <>{approvalSummary.rejected} receipt(s) were rejected — correct them and re-save.</>}
             {finalStatus === "Not Liquidated" && <>No supporting documents uploaded yet.</>}
             {finalStatus === "FOR CUSTODIAN REVIEW" && <>Submitted — awaiting the custodian's review of the receipts and approval of the liquidation.</>}
-            {finalStatus === "FOR FINAL APPROVAL" && <>Custodian approved and cash settled — awaiting final approval by {FINAL_APPROVER_NAME}.</>}
+            {finalStatus === "FOR ACCOUNTING CHECK" && <>Custodian approved and cash settled — awaiting Accounting's check and Batch Number before final approval.</>}
+            {finalStatus === "FOR FINAL APPROVAL" && <>Custodian approved, checked by Accounting (batch {review.batchNo}) and cash settled — awaiting final approval by {FINAL_APPROVER_NAME}.</>}
             {finalStatus === "NOT YET LIQUIDATED" && (
               !receiptSummary.complete ? <>Capture the receipt amount on every supporting document.</>
                 : !approvalSummary.allApproved ? <>Submit the liquidation for the custodian's review.</>
@@ -1751,8 +1914,9 @@ function LiquidationTab({
   onReviewOverLiquidation, canDelete, onDeleteLiquidation,
   canRejectLiquidation, onRejectLiquidation,
   onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser,
-  reimbursements, onReimbursementAction, canFinance,
+  reimbursements, onReimbursementAction, canFinance, accounting,
 }) {
+  const [acctFilter, setAcctFilter] = useState(accounting && accounting.isChecker ? "For Accounting Check" : "All");
   const [selectedId, setSelectedId] = useState(null);
   const [selectedReimbId, setSelectedReimbId] = useState(null);
   const [showAll, setShowAll] = useState(false);
@@ -1784,7 +1948,18 @@ function LiquidationTab({
     liqStatus: liqStatusFor(d, liquidations),
     finalStatus: liqFinalStatus(d, liquidationFor(d.id, liquidations)),
     stl: settlementInfo(d, liquidationFor(d.id, liquidations)),
+    acct: liqReview(liquidationFor(d.id, liquidations)),
+    stage: liqApprovalStage(d, liquidationFor(d.id, liquidations)),
+    acctMode: liqAcctMode(liquidationFor(d.id, liquidations)),
   }));
+  /* Accounting filter. Like a status filter it overrides the worklist gate.
+     "Old / Approved — Not Checked" is the backlog of already-approved
+     transactions Accounting can still check and batch (acctMode "retro"). */
+  const acctFilterOn = acctFilter !== "All";
+  const acctMatch = (rv, awaiting, mode) => acctFilter === "All"
+    || (acctFilter === "For Accounting Check" ? awaiting
+      : acctFilter === ACCT_FILTER_OLD ? mode === "retro" && !rv.acctChecked
+        : acctFilter === "Accounting Checked" ? !!rv.acctChecked : !rv.acctChecked);
   /* A voucher stays on the worklist until it is genuinely LIQUIDATED — that is,
      until any refund or reimbursement has actually been settled. Picking an
      explicit status overrides that worklist gate: someone filtering for "Fully
@@ -1795,10 +1970,11 @@ function LiquidationTab({
   /* A settlement filter, like a status filter, overrides the worklist gate. */
   const settleFilterOn = settleFilter !== SETTLEMENT_FILTERS[0];
   const pettyFiltered = (pettyStatus === LIQ_STATUS_FILTER_ALL
-    ? (showAll || settleFilterOn ? enriched : enriched.filter((d) => !liqIsComplete(d.finalStatus)))
+    ? (showAll || settleFilterOn || acctFilterOn ? enriched : enriched.filter((d) => !liqIsComplete(d.finalStatus)))
     : enriched.filter((d) => d.liqStatus === PCA_STATUS_FILTERS[pettyStatus]))
     .filter((d) => hit(d.voucherNo, d.requestNo, d.employee, d.branchCode, plantLabel(d.branchCode),
-      subaccountLabel(d.department), disbExpense(d), d.liqStatus, d.finalStatus))
+      subaccountLabel(d.department), disbExpense(d), d.liqStatus, d.finalStatus, d.acct.batchNo))
+    .filter((d) => acctMatch(d.acct, d.stage === LIQ_STAGE.FOR_ACCOUNTING, d.acctMode))
     .filter((d) => settleFilter === SETTLEMENT_FILTERS[0]
       || (settleFilter === "Overdue settlement" ? d.stl.overdue : d.stl.category === settleFilter));
   const list = pettySort.sortRows(pettyFiltered, LIQ_PETTY_SORT_FIELDS);
@@ -1813,19 +1989,30 @@ function LiquidationTab({
   /* Reimbursement liquidations (Section 26) — approved reimbursements handed off
      to the Liquidation Module, carrying their reference back to the request. */
   const reimbScoped = (reimbursements || []).filter((r) => plant === "ALL" || r.branchCode === plant);
-  const reimbLiq = reimbScoped.filter((r) => REIMB_LIQUIDATION_STATUSES.includes(r.status));
+  /* Plus the two-level flow from custodian approval on (FOR FINAL APPROVAL,
+     FULLY APPROVED), which is where Accounting checks and batches them. */
+  /* APPROVED (old single-level flow, never handed to liquidation) is listed
+     too, so Accounting can check and batch every old reimbursement. */
+  const isTwoLevel = (r) => r.status === REIMB_STATUS.FOR_FINAL || r.status === REIMB_STATUS.READY
+    || r.status === REIMB_STATUS.APPROVED;
+  const reimbLiq = reimbScoped
+    .filter((r) => REIMB_LIQUIDATION_STATUSES.includes(r.status) || isTwoLevel(r))
+    .map((r) => ({ ...r, acct: reimbReview(r), awaitingAcct: reimbAwaitingAccounting(r) }));
   const reimbFiltered = (reimbStatus === LIQ_STATUS_FILTER_ALL
-    ? (showAll ? reimbLiq : reimbLiq.filter((r) => r.status === REIMB_STATUS.FOR_LIQUIDATION || r.status === REIMB_STATUS.UNDER_REVIEW))
-    : reimbLiq.filter((r) => r.status === reimbStatusFilter(reimbStatus)))
+    ? (showAll || acctFilterOn ? reimbLiq : reimbLiq.filter((r) => r.status === REIMB_STATUS.FOR_LIQUIDATION
+      || r.status === REIMB_STATUS.UNDER_REVIEW || r.status === REIMB_STATUS.FOR_FINAL))
+    : reimbLiq.filter((r) => (reimbTwoLevelFilter(reimbStatus, r)
+      ? reimbTwoLevelFilter(reimbStatus, r)() : r.status === reimbStatusFilter(reimbStatus))))
     .filter((r) => hit(r.reimbNo, r.employee, r.branchCode, plantLabel(r.branchCode),
-      subaccountLabel(r.department), r.purpose, r.status));
+      subaccountLabel(r.department), r.purpose, r.status, r.acct.batchNo))
+    .filter((r) => acctMatch(r.acct, r.awaitingAcct, reimbAcctMode(r)));
   const reimbActive = reimbSort.sortRows(reimbFiltered, LIQ_REIMB_SORT_FIELDS);
   const selectedReimb = reimbScoped.find((r) => r.id === selectedReimbId) || null;
 
   /* An explicit status filter already decides what the list shows, so the
      completed-vs-open toggle is only meaningful on "All statuses". */
   const activeStatus = source === "pettycash" ? pettyStatus : reimbStatus;
-  const statusFilterOn = activeStatus !== LIQ_STATUS_FILTER_ALL || (source === "pettycash" && settleFilterOn);
+  const statusFilterOn = activeStatus !== LIQ_STATUS_FILTER_ALL || (source === "pettycash" && settleFilterOn) || acctFilterOn;
   const pettyCount = list.length;
   const reimbCount = reimbActive.length;
 
@@ -1894,12 +2081,17 @@ function LiquidationTab({
               </select>
             </>
           )}
+          <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mut)" }}>Accounting</span>
+          <select className="pcp-select" style={{ width: 190 }} value={acctFilter} onChange={(e) => setAcctFilter(e.target.value)}>
+            {ACCT_FILTERS.map((f) => <option key={f}>{f}</option>)}
+          </select>
           {statusFilterOn && (
             <button
               className="pcp-btn pcp-btn-ghost pcp-btn-sm"
               onClick={() => {
                 if (source === "pettycash") { setPettyStatus(LIQ_STATUS_FILTER_ALL); setSettleFilter(SETTLEMENT_FILTERS[0]); }
                 else setReimbStatus(LIQ_STATUS_FILTER_ALL);
+                setAcctFilter("All");
               }}
             ><X size={12} /> Clear</button>
           )}
@@ -1926,6 +2118,7 @@ function LiquidationTab({
                     <SortTh field="liqStatus" sort={pettySort}>Liquidation</SortTh>
                     <SortTh field="finalStatus" sort={pettySort}>Settlement</SortTh>
                     <SortTh field="balance" sort={pettySort}>Balance Due</SortTh>
+                    <AccountingHeadCells />
                     <th></th>
                   </tr>
                 </thead>
@@ -1955,10 +2148,11 @@ function LiquidationTab({
                           <span style={{ fontSize: 11, color: "var(--text-mut)" }}>{d.stl.category === "Waiting for receipts" ? "Awaiting receipts" : "—"}</span>
                         )}
                       </td>
+                      <AccountingCells review={d.acct} />
                       <td><button className="pcp-btn pcp-btn-sm" title="Open liquidation"><Eye size={12} /></button></td>
                     </tr>
                   )) : (
-                    <tr><td colSpan={11} className="pcp-empty">
+                    <tr><td colSpan={15} className="pcp-empty">
                       {q
                         ? "No cash advance matches “" + search.trim() + "”"
                         : statusFilterOn
@@ -1980,6 +2174,7 @@ function LiquidationTab({
                     <SortTh field="purpose" sort={reimbSort}>Purpose</SortTh>
                     <SortTh field="amount" sort={reimbSort} align="right">Amount</SortTh>
                     <SortTh field="status" sort={reimbSort}>Status</SortTh>
+                    <AccountingHeadCells />
                     <th></th>
                   </tr>
                 </thead>
@@ -1993,11 +2188,12 @@ function LiquidationTab({
                       <td title={subaccountLabel(r.department)} style={LIQ_CLIP_CELL}>{subaccountLabel(r.department)}</td>
                       <td title={r.purpose || ""} style={LIQ_CLIP_CELL}>{r.purpose || "—"}</td>
                       <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700 }}>{peso(reimbTotal(r))}</td>
-                      <td><Badge status={r.status} /></td>
+                      <td><Badge status={r.awaitingAcct ? REIMB_STAGE.FOR_ACCOUNTING : r.status} /></td>
+                      <AccountingCells review={r.acct} />
                       <td><button className="pcp-btn pcp-btn-sm" title="Open reimbursement liquidation"><Eye size={12} /></button></td>
                     </tr>
                   )) : (
-                    <tr><td colSpan={9} className="pcp-empty">
+                    <tr><td colSpan={13} className="pcp-empty">
                       {q
                         ? "No reimbursement matches “" + search.trim() + "”"
                         : statusFilterOn
@@ -2045,6 +2241,7 @@ function LiquidationTab({
                 canFinalApprove={canFinalApprove}
                 onFinalApprove={onFinalApprove}
                 currentUser={currentUser}
+                accounting={accounting}
                 onDirtyChange={(d) => { worksheetDirty.current = d; }}
               />
             </div>
@@ -2052,7 +2249,19 @@ function LiquidationTab({
           </div>
         </div>
       )}
-      {source === "reimbursement" && selectedReimb && (
+      {source === "reimbursement" && selectedReimb && isTwoLevel(selectedReimb) && (
+        <ReimbursementDetail
+          reimb={selectedReimb}
+          currentUser={currentUser}
+          isChecker={canApproveReceipts}
+          isFinalApprover={canFinalApprove}
+          canFinance={canFinance}
+          accounting={accounting}
+          onAction={(id, action, opts) => { onReimbursementAction(id, action, opts); setSelectedReimbId(null); }}
+          onClose={() => setSelectedReimbId(null)}
+        />
+      )}
+      {source === "reimbursement" && selectedReimb && !isTwoLevel(selectedReimb) && (
         <div className="pcp-modal-backdrop" {...backdropCloseProps(() => setSelectedReimbId(null))}>
           <div className="pcp-modal pcp-modal-resizable pcp-liq-modal" onClick={(e) => e.stopPropagation()}>
             <div className="pcp-modal-head">
@@ -2060,6 +2269,10 @@ function LiquidationTab({
               <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={() => setSelectedReimbId(null)} title="Close"><X size={15} /></button>
             </div>
             <div className="pcp-modal-body">
+              <AccountingReviewBox
+                kind="reimb" id={selectedReimb.id} refNo={selectedReimb.reimbNo} review={reimbReview(selectedReimb)}
+                mode={reimbAcctMode(selectedReimb)} accounting={accounting}
+              />
               <ReimbursementLiquidationPanel reimb={selectedReimb} canFinance={canFinance} onAction={onReimbursementAction} />
             </div>
             <ModalResizeGrip />

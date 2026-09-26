@@ -189,6 +189,9 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   const isLiquidationChecker = !isFinalOnlyAccount
     && LIQUIDATION_CHECKER_ROLES.includes(userRole || "Accounting")
     && LIQUIDATION_CHECKER_ROLES.includes(role);
+  /* ACCOUNTING REVIEW: by email (ACCOUNTING_CHECKER_EMAILS), hidden while
+     previewing another role. Re-checked inside accountingReview. */
+  const isAccountingChecker = emailIn(ACCOUNTING_CHECKER_EMAILS) && role === (userRole || "Accounting");
   /* Nothing under Grace Gan's final approval may move — it is what gets
      replenished. (Legacy approvals are not locked; they predate the lock.) */
   const isLiquidationFinalLocked = useCallback((disbursementId) => {
@@ -664,7 +667,10 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     const actor = userName || role;
     setLiquidations((ls) => ls.map((l) => (l.disbursementId === disbursementId ? {
       ...l, workflow: 2,
-      review: { ...(l.review || {}), checkedBy: actor, checkedAt: ts, checkRemarks: remarks || "", finalBy: "", finalAt: "", finalRemarks: "" },
+      review: {
+        ...(l.review || {}), checkedBy: actor, checkedAt: ts, checkRemarks: remarks || "", finalBy: "", finalAt: "", finalRemarks: "",
+        acctCheckedBy: "", acctCheckedByName: "", acctCheckedAt: "", acctRemarks: "", batchNo: "",
+      },
     } : l)));
     const d = disbursements.find((x) => x.id === disbursementId);
     logAudit("Liquidation Custodian Approved", d ? d.voucherNo : disbursementId,
@@ -682,6 +688,12 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     const d = disbursements.find((x) => x.id === disbursementId);
     const liq = liquidations.find((l) => l.disbursementId === disbursementId);
     if (!d || !liq) return;
+    /* Custodian Approved AND Accounting Checked AND a Batch Number — or no
+       final approval, whatever the UI showed. */
+    if (!passesAccountingGate(liqReview(liq))) {
+      window.alert(ACCOUNTING_GATE_MESSAGE);
+      return;
+    }
     if (liqApprovalStage(d, liq) !== LIQ_STAGE.FOR_FINAL) {
       window.alert("Only a liquidation the custodian has approved, with its cash settled, can be given final approval.");
       return;
@@ -696,8 +708,116 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       ...l, review: { ...(l.review || {}), finalBy: actor, finalAt: ts, finalRemarks: remarks || "" },
     } : l)));
     logAudit("Liquidation Final Approved", d.voucherNo,
-      `${peso(receiptAmountSummary(liq).approvedTotal)} · ready for replenishment${remarks ? ` · ${remarks}` : ""}`);
+      `${peso(receiptAmountSummary(liq).approvedTotal)} · batch ${liqReview(liq).batchNo} · ready for replenishment${remarks ? ` · ${remarks}` : ""}`);
   }, [isFinalApprover, liquidations, disbursements, logAudit, userName, role]);
+
+  /* ---- Accounting review: Assign Batch Number / Mark as Checked / Undo ----
+     kind "liq" (id = disbursementId) or "reimb" (id = reimbursement id).
+     Only Accounting. Applies to NEW and OLD transactions alike:
+       "flow"  — custodian approved, awaiting final approval (the gate);
+       "retro" — an old transaction already approved, checked after the fact
+                 so every record carries its Accounting check and batch.
+     A retro check ONLY adds the Accounting fields — approvals, status and
+     every other field stay exactly as they were. The checker is stamped by
+     EMAIL with the system time. Every rule is re-checked here so a bypassed
+     UI still fails. */
+  const accountingReview = useCallback((kind, id, action, payload) => {
+    if (!isAccountingChecker) {
+      window.alert("Only Accounting can review a transaction and assign its Batch Number.");
+      return;
+    }
+    const p = payload || {};
+    const batchNo = normalizeBatchNo(p.batchNo);
+    const remarks = String(p.remarks || "").trim();
+    const ts = new Date().toISOString();
+    const by = (userEmail || "").trim().toLowerCase();
+    const byName = userName || role;
+    if ((action === "assign-batch" || action === "check") && !batchNo) {
+      window.alert("Assign a Batch Number first.");
+      return;
+    }
+    const stamp = (cur, mode) => {
+      if (action === "assign-batch") return { ...cur, batchNo };
+      if (action === "check") {
+        return {
+          ...cur, batchNo, acctCheckedBy: by, acctCheckedByName: byName, acctCheckedAt: ts, acctRemarks: remarks,
+          acctRetro: mode === "retro",
+        };
+      }
+      /* undo — the old stamps go to review.history, never silently lost. */
+      return {
+        ...cur, acctCheckedBy: "", acctCheckedByName: "", acctCheckedAt: "", acctRemarks: "", acctRetro: false,
+        history: (cur.history || []).concat([{
+          action: `Accounting check undone${remarks ? ` — ${remarks}` : ""}`, user: byName, ts,
+          acctCheckedBy: cur.acctCheckedBy || "", acctCheckedAt: cur.acctCheckedAt || "", batchNo: cur.batchNo || "",
+        }]),
+      };
+    };
+    const verb = action === "assign-batch" ? "Batch Number Assigned" : action === "check" ? "Accounting Checked" : "Accounting Check Undone";
+    /* Undo never strips a check that a final approval relied on: allowed
+       before final approval, or on a check that was itself made after the
+       fact (retro). */
+    const undoAllowed = (mode, rv) => mode === "flow" || (mode === "retro" && rv.acctRetro);
+    const tag = (mode) => (mode === "retro" ? " · recorded on an already-approved transaction (approval unchanged)" : "");
+    const note = (mode) => (action === "undo" ? (remarks || "") : `Batch ${batchNo}${remarks ? ` · ${remarks}` : ""}${tag(mode)}`);
+
+    if (kind === "liq") {
+      const d = disbursements.find((x) => x.id === id);
+      const liq = liquidations.find((l) => l.disbursementId === id);
+      const rv = liqReview(liq);
+      const mode = liqAcctMode(liq);
+      if (!d || !liq || !inScope(d.branchCode) || !mode) {
+        window.alert("Accounting can review a liquidation once the custodian has approved it (or an old liquidation that is already approved).");
+        return;
+      }
+      if (action !== "undo" && rv.acctChecked) { window.alert("This liquidation is already checked by Accounting."); return; }
+      if (action === "undo" && (!rv.acctChecked || !undoAllowed(mode, rv))) {
+        window.alert("This Accounting check was relied on by the final approval and cannot be undone.");
+        return;
+      }
+      setLiquidations((ls) => ls.map((l) => (l.disbursementId === id ? { ...l, review: stamp(l.review || {}, mode) } : l)));
+      logAudit("Liquidation " + verb, d.voucherNo, note(mode));
+      return;
+    }
+    if (kind === "reimb") {
+      const r0 = reimbursements.find((x) => x.id === id);
+      const rv = reimbReview(r0);
+      const mode = reimbAcctMode(r0);
+      if (!r0 || !inScope(r0.branchCode) || !mode) {
+        window.alert("Accounting can review a reimbursement once the custodian has approved it (or an old reimbursement that is already approved).");
+        return;
+      }
+      if ([r0.createdBy, r0.employee].some((n) => (n || "").trim().toLowerCase() === String(byName).toLowerCase())) {
+        window.alert("Segregation of duties: you cannot check your own reimbursement request.");
+        return;
+      }
+      if (action !== "undo" && rv.acctChecked) { window.alert("This reimbursement is already checked by Accounting."); return; }
+      if (action === "undo" && (!rv.acctChecked || !undoAllowed(mode, rv))) {
+        window.alert("This Accounting check was relied on by the final approval and cannot be undone.");
+        return;
+      }
+      setReimbursements((rs) => rs.map((r) => (r.id !== id ? r : {
+        ...r, review: stamp(r.review || {}, mode),
+        history: [...(r.history || []), { ts: reimbTs(), user: byName, action: verb, prevStatus: r.status, newStatus: r.status, comments: note(mode) }],
+      })));
+      logAudit("Reimbursement " + verb, r0.reimbNo, note(mode));
+    }
+  }, [isAccountingChecker, userEmail, userName, role, disbursements, liquidations, reimbursements, inScope, logAudit]); // eslint-disable-line
+
+  /* Every Batch Number in use, with how many transactions carry it, and the
+     next free one — for the Accounting batch picker. */
+  const accountingBatches = useMemo(() => {
+    const counts = {};
+    const add = (rv) => { if (rv.batchNo) counts[rv.batchNo] = (counts[rv.batchNo] || 0) + 1; };
+    liquidations.forEach((l) => add(liqReview(l)));
+    reimbursements.forEach((r) => add(reimbReview(r)));
+    const batches = Object.keys(counts).sort().reverse().map((b) => ({ batchNo: b, count: counts[b] }));
+    return { batches, nextBatchNo: nextBatchNumber(Object.keys(counts)) };
+  }, [liquidations, reimbursements]);
+  const accountingProps = useMemo(() => ({
+    isChecker: isAccountingChecker, batches: accountingBatches.batches,
+    nextBatchNo: accountingBatches.nextBatchNo, onReview: accountingReview,
+  }), [isAccountingChecker, accountingBatches, accountingReview]);
 
   /* Record that the refund or reimbursement cash has ACTUALLY changed hands.
      The actual amount is stored so it can be checked against the expected one. */
@@ -1288,6 +1408,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
           return;
         }
         if (isOwn) { window.alert("Segregation of duties: you cannot approve your own reimbursement request."); return; }
+        if (!passesAccountingGate(rv)) { window.alert(ACCOUNTING_GATE_MESSAGE); return; }
         if (rv.checkedBy.toLowerCase() === actor.toLowerCase()) {
           window.alert("You approved this reimbursement as custodian — the final approval must come from someone else.");
           return;
@@ -1298,8 +1419,10 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       case "reject":
         /* The custodian while it is under review, or the final approver at
            final approval — the same rule as rejecting a liquidation. */
-        if (!((isLiquidationChecker && atCheck) || (isFinalApprover && atFinal))) {
-          window.alert(`Only the custodian (while it is under review) or ${FINAL_APPROVER_NAME} (at final approval) can ${action} this reimbursement.`);
+        /* Accounting may also send back what it is reviewing. */
+        if (!((isLiquidationChecker && atCheck) || (isFinalApprover && atFinal && passesAccountingGate(rv))
+          || (isAccountingChecker && atFinal && !rv.acctChecked))) {
+          window.alert(`Only the custodian (while it is under review), Accounting (while it checks it) or ${FINAL_APPROVER_NAME} (at final approval) can ${action} this reimbursement.`);
           return;
         }
         if (!comments) { window.alert("Enter the reason in Comments first."); return; }
@@ -1331,13 +1454,14 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
         patch.review = {
           history: (cur.history || []).concat(cur.checkedBy ? [{
             action: label, user: actor, ts, checkedBy: cur.checkedBy, checkedAt: cur.checkedAt || "",
+            acctCheckedBy: cur.acctCheckedBy || "", acctCheckedAt: cur.acctCheckedAt || "", batchNo: cur.batchNo || "",
           }] : []),
         };
       }
       return { ...r, ...patch };
     }));
     logAudit("Reimbursement " + label, r0.reimbNo, comments);
-  }, [logAudit, reimbursements, userName, role, inScope, isLiquidationChecker, isFinalApprover]);
+  }, [logAudit, reimbursements, userName, role, inScope, isLiquidationChecker, isFinalApprover, isAccountingChecker]);
 
   const recordReimbursementPayment = useCallback((id, payment) => {
     const ts = reimbTs();
@@ -1665,6 +1789,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             onCheckLiquidation={checkLiquidation}
             canFinalApprove={isFinalApprover}
             onFinalApprove={finalApproveLiquidation}
+            accounting={accountingProps}
             currentUser={userName || role}
             reimbursements={scopedReimbursements}
             onReimbursementAction={reimbursementAction}
@@ -1704,6 +1829,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             onSubmit={(form) => addReimbursement(form, true)}
             onUpdate={(id, form, mode) => updateReimbursement(id, form, mode)}
             onAction={reimbursementAction}
+            accounting={accountingProps}
             onRecordPayment={recordReimbursementPayment}
             onExportAcumatica={exportReimbursementAcumatica}
             onExportReport={exportReimbursementReport}
@@ -1738,6 +1864,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             onReopenLiquidation={reopenLiquidation}
             onCheckLiquidation={checkLiquidation}
             onFinalApprove={finalApproveLiquidation}
+            accounting={accountingProps}
             onReimbursementAction={reimbursementAction}
             onExportReimbursementAcumatica={exportReimbursementAcumatica}
             isChecker={isLiquidationChecker}

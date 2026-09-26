@@ -886,7 +886,7 @@ function liqFinalStatus(disb, liq) {
     /* Settled cash is what makes it eligible for Grace Gan's final approval;
        only her approval makes it LIQUIDATED. Closed over an unrecovered
        balance is still complete but never reads as a clean one. */
-    if (!rv.final) return "FOR FINAL APPROVAL";
+    if (!rv.final) return passesAccountingGate(rv) ? "FOR FINAL APPROVAL" : "FOR ACCOUNTING CHECK";
     return (st.closed && st.remaining > 0) ? "LIQUIDATED (SHORT)" : "LIQUIDATED";
   }
   if (st.variance === "short") return "PARTIALLY SETTLED";
@@ -916,14 +916,77 @@ function liqReview(liq) {
        and left it with no way forward. It now goes through the two-level
        review like any new liquidation. */
     const legacy = receiptApprovalSummary(liq).allApproved && receiptAmountSummary(liq).complete;
-    return { checked: legacy, final: legacy, legacy, history: [] };
+    /* Accounting stamps are read even here: Accounting may check and batch an
+       old liquidation after the fact (liqAcctMode), which only adds fields. */
+    return { checked: legacy, final: legacy, legacy, history: [], ...acctStamps(liq.review) };
   }
   const r = liq.review || {};
   return {
     checked: !!r.checkedBy, checkedBy: r.checkedBy || "", checkedAt: r.checkedAt || "", checkRemarks: r.checkRemarks || "",
     final: !!r.finalBy, finalBy: r.finalBy || "", finalAt: r.finalAt || "", finalRemarks: r.finalRemarks || "",
     legacy: false, history: r.history || [],
+    ...acctStamps(r),
   };
+}
+
+/* ---- Accounting review (between custodian approval and final approval) ----
+     Custodian approves → Accounting reviews, assigns a Batch Number and marks
+     it checked → Grace Gan final-approves, batch by batch.
+
+   The stamps live on the same `review` object as the custodian and final
+   stamps, so every path that voids a review (clearReview: reopen, rejection,
+   resubmission, receipts changed) voids the Accounting check with it.
+   Nothing is written to existing records: a transaction final-approved before
+   this step existed simply has no Accounting stamps and stays approved, and
+   one awaiting final approval now waits for Accounting first. */
+function acctStamps(r) {
+  const x = r || {};
+  return {
+    acctChecked: !!x.acctCheckedBy, acctCheckedBy: x.acctCheckedBy || "", acctCheckedByName: x.acctCheckedByName || "",
+    acctCheckedAt: x.acctCheckedAt || "", acctRemarks: x.acctRemarks || "",
+    batchNo: String(x.batchNo || "").trim(),
+    /* Checked after the transaction was already approved (see liqAcctMode). */
+    acctRetro: !!x.acctRetro,
+  };
+}
+
+/* Which Accounting review a liquidation is open to, if any:
+     "flow"  — custodian approved, awaiting final approval: the gate itself.
+     "retro" — an OLD transaction already approved (final-approved, or legacy
+               under the pre-two-level process). Accounting may still check it
+               and assign a Batch Number so every record carries them; the
+               approval and status are never touched.
+     null    — nothing for Accounting to do yet. */
+function liqAcctMode(liq) {
+  if (!liq) return null;
+  const rv = liqReview(liq);
+  if (rv.final || rv.legacy) return "retro";
+  if (liq.workflow && (liq.submissionStatus || "Draft") === "Submitted" && rv.checked) return "flow";
+  return null;
+}
+
+const ACCOUNTING_GATE_MESSAGE = "Cannot approve this transaction. The transaction must first be checked and assigned a Batch Number by Accounting.";
+
+/* The one rule every final-approval path goes through:
+   Custodian Approved AND Accounting Checked AND a Batch Number. */
+function passesAccountingGate(rv) {
+  return !!(rv && rv.checked && rv.acctChecked && rv.batchNo);
+}
+
+/* Batch numbers are compared and stored in one canonical form, so "batch-001 "
+   and "BATCH-001" are the same batch. */
+function normalizeBatchNo(v) {
+  return String(v || "").trim().replace(/\s+/g, "-").toUpperCase();
+}
+
+/* The next unused BATCH-### number, from every batch already assigned. */
+function nextBatchNumber(batchNos) {
+  let max = 0;
+  (batchNos || []).forEach((b) => {
+    const m = /^BATCH-(\d+)$/.exec(String(b || ""));
+    if (m) max = Math.max(max, Number(m[1]));
+  });
+  return "BATCH-" + String(max + 1).padStart(3, "0");
 }
 
 /* Review stamps are never silently lost: clearing them (reopen, rejection,
@@ -931,11 +994,12 @@ function liqReview(liq) {
    review.history first. */
 function clearReview(liq, actor, ts, note) {
   const r = (liq && liq.review) || {};
-  const had = !!(r.checkedBy || r.finalBy);
+  const had = !!(r.checkedBy || r.finalBy || r.acctCheckedBy || r.batchNo);
   return {
     history: (r.history || []).concat(had ? [{
       action: note, user: actor, ts,
       checkedBy: r.checkedBy || "", checkedAt: r.checkedAt || "",
+      acctCheckedBy: r.acctCheckedBy || "", acctCheckedAt: r.acctCheckedAt || "", batchNo: r.batchNo || "",
       finalBy: r.finalBy || "", finalAt: r.finalAt || "",
     }] : []),
   };
@@ -947,6 +1011,7 @@ function clearReview(liq, actor, ts, note) {
 const LIQ_STAGE = {
   DRAFT: "Draft",
   FOR_CHECK: "For Custodian Review",
+  FOR_ACCOUNTING: "For Accounting Check",
   NEEDS_CORRECTION: "Needs Correction",
   AWAITING_SETTLEMENT: "Awaiting Settlement",
   FOR_FINAL: "For Final Approval",
@@ -966,6 +1031,9 @@ function liqApprovalStage(disb, liq, replenishedIds) {
   if (sub === "Draft") return LIQ_STAGE.DRAFT;
   if (receiptApprovalSummary(liq).anyRejected) return LIQ_STAGE.NEEDS_CORRECTION;
   if (!rv.checked) return LIQ_STAGE.FOR_CHECK;
+  /* Straight after the custodian: Accounting may check it while the cash is
+     still being settled, and Grace Gan sees it only once both are done. */
+  if (!passesAccountingGate(rv)) return LIQ_STAGE.FOR_ACCOUNTING;
   if (!settlementStateFor(disb, liq).settled) return LIQ_STAGE.AWAITING_SETTLEMENT;
   return LIQ_STAGE.FOR_FINAL;
 }

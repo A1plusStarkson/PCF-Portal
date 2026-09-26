@@ -77,11 +77,37 @@ const REIMB_OPEN_STATUSES = [
    deleting the replenishment puts it straight back to ready. */
 const REIMB_STAGE = {
   FOR_CHECK: "FOR CUSTODIAN REVIEW",
+  FOR_ACCOUNTING: "FOR ACCOUNTING CHECK",
   REPLENISHED: "REPLENISHED",
 };
 
+/* A custodian-approved reimbursement keeps its stored FOR FINAL APPROVAL
+   status; until Accounting has checked it and assigned a Batch Number it READS
+   as FOR ACCOUNTING CHECK and is not in Grace Gan's queue (passesAccountingGate
+   in 02-helpers.jsx). Derived, never stored, so no existing record changes. */
+function reimbAwaitingAccounting(r) {
+  return !!r && r.status === REIMB_STATUS.FOR_FINAL && !passesAccountingGate(reimbReview(r));
+}
+
+/* Parallel to liqAcctMode: "flow" while custodian approved and awaiting final
+   approval; "retro" for an OLD reimbursement already past approval (fully
+   approved, or anywhere in the earlier single-level approved chain), which
+   Accounting may still check and batch without its status changing. */
+const reimbRetroStatuses = () => [
+  REIMB_STATUS.READY, REIMB_STATUS.APPROVED, REIMB_STATUS.FOR_LIQUIDATION, REIMB_STATUS.UNDER_REVIEW,
+  REIMB_STATUS.LIQUIDATION_DONE, REIMB_STATUS.FOR_PAYMENT, REIMB_STATUS.PAID, REIMB_STATUS.COMPLETED,
+];
+function reimbAcctMode(r) {
+  if (!r) return null;
+  const rv = reimbReview(r);
+  if (r.status === REIMB_STATUS.FOR_FINAL && rv.checked && !rv.final) return "flow";
+  if (reimbRetroStatuses().includes(r.status)) return "retro";
+  return null;
+}
+
 function reimbApprovalStage(r, replenishedIds) {
   if (REIMB_CUSTODIAN_REVIEW_STATUSES.includes(r.status)) return REIMB_STAGE.FOR_CHECK;
+  if (reimbAwaitingAccounting(r)) return REIMB_STAGE.FOR_ACCOUNTING;
   if (r.status === REIMB_STATUS.READY && replenishedIds && replenishedIds.has(r.id)) return REIMB_STAGE.REPLENISHED;
   return r.status;
 }
@@ -93,6 +119,7 @@ function reimbReview(r) {
     checked: !!rv.checkedBy, checkedBy: rv.checkedBy || "", checkedAt: rv.checkedAt || "", checkRemarks: rv.checkRemarks || "",
     final: !!rv.finalBy, finalBy: rv.finalBy || "", finalAt: rv.finalAt || "", finalRemarks: rv.finalRemarks || "",
     history: rv.history || [],
+    ...acctStamps(rv),
   };
 }
 
@@ -773,7 +800,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
 
 /* allowPayment: only the Reimbursement tab owns the payment modal, so the
    Approval Module leaves it off rather than show a button that does nothing. */
-function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, currentUser, isChecker, isFinalApprover, canFinance, allowPayment }) {
+function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, currentUser, isChecker, isFinalApprover, canFinance, allowPayment, accounting }) {
   const [comments, setComments] = useState("");
   const total = reimbTotal(reimb);
   const me = (currentUser || "").trim().toLowerCase();
@@ -786,12 +813,18 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
      Level 2 — the final approver, only once a custodian has approved, and
      never on a reimbursement she checked herself. */
   const atCheck = REIMB_CUSTODIAN_REVIEW_STATUSES.includes(st);
-  const atFinal = st === REIMB_STATUS.FOR_FINAL;
+  /* FOR FINAL APPROVAL splits in two: Accounting's check (with its Batch
+     Number) first, and only then the final approver's decision. */
+  const atAccounting = reimbAwaitingAccounting(reimb);
+  const atFinal = st === REIMB_STATUS.FOR_FINAL && !atAccounting;
+  const isAcct = !!(accounting && accounting.isChecker);
   const canCheck = !!isChecker && atCheck;
   const canFinal = !!isFinalApprover && atFinal && review.checkedBy.toLowerCase() !== me;
+  /* Accounting may return / reject what it is checking. */
+  const canAcctReturn = isAcct && atAccounting && !review.acctChecked;
   const canRecordPayment = !!allowPayment && canFinance && st === REIMB_STATUS.READY && !(reimb.payment && reimb.payment.date);
-  const showComments = canCheck || canFinal
-    || (canFinance && REIMB_OPEN_STATUSES.includes(st) && !atCheck && !atFinal);
+  const showComments = canCheck || canFinal || canAcctReturn
+    || (canFinance && REIMB_OPEN_STATUSES.includes(st) && !atCheck && st !== REIMB_STATUS.FOR_FINAL);
 
   const act = (action) => { onAction(reimb.id, action, { comments }); setComments(""); };
   const custodianApprove = () => {
@@ -799,7 +832,8 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
     act("custodian-approve");
   };
   const finalApprove = () => {
-    if (!window.confirm(`Give final approval to ${reimb.reimbNo}?\n\n${reimb.employee} · ${peso(total)} · custodian approved by ${review.checkedBy}.\n\nIt becomes Fully Approved / Ready for Replenishment.`)) return;
+    if (!passesAccountingGate(review)) { window.alert(ACCOUNTING_GATE_MESSAGE); return; }
+    if (!window.confirm(`Give final approval to ${reimb.reimbNo}?\n\n${reimb.employee} · ${peso(total)} · custodian approved by ${review.checkedBy} · Accounting checked, batch ${review.batchNo}.\n\nIt becomes Fully Approved / Ready for Replenishment.`)) return;
     act("final-approve");
   };
 
@@ -808,10 +842,13 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
     if (atCheck) return isChecker
       ? "Check the amount and every supporting document below, then approve as custodian — or return it with a comment."
       : "Awaiting the custodian's review.";
+    if (atAccounting) return isAcct
+      ? "Custodian approved — review the details and documents, assign a Batch Number and mark it checked. It then goes to final approval."
+      : "Custodian approved — awaiting Accounting's check and Batch Number before final approval.";
     if (atFinal) {
-      if (!isFinalApprover) return `Custodian approved — awaiting final approval by ${FINAL_APPROVER_NAME}.`;
+      if (!isFinalApprover) return `Custodian approved and checked by Accounting (batch ${review.batchNo}) — awaiting final approval by ${FINAL_APPROVER_NAME}.`;
       if (!canFinal) return "You approved this as custodian, so the final approval must come from the other final approver.";
-      return "Custodian approved — ready for your final approval.";
+      return `Custodian approved and checked by Accounting (batch ${review.batchNo}) — ready for your final approval.`;
     }
     if (st === REIMB_STATUS.READY) return "Fully approved — available in the Replenishment module.";
     return "";
@@ -821,7 +858,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
     <div className="pcp-modal-backdrop" onClick={onClose}>
       <div className="pcp-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 860, width: "94%" }}>
         <div className="pcp-modal-head">
-          <h3>{reimb.reimbNo} · <Badge status={st} /></h3>
+          <h3>{reimb.reimbNo} · <Badge status={atAccounting ? REIMB_STAGE.FOR_ACCOUNTING : st} /></h3>
           <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose}><X size={15} /></button>
         </div>
         <div className="pcp-modal-body" style={{ maxHeight: "72vh", overflowY: "auto" }}>
@@ -841,10 +878,17 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
           {(review.checked || review.final) && (
             <div style={{ fontSize: 11.5, color: "var(--text-mut)", marginBottom: 10, lineHeight: 1.5 }}>
               {review.checked && <div>Custodian approved by <b>{review.checkedBy}</b> · {review.checkedAt}{review.checkRemarks ? ` · "${review.checkRemarks}"` : ""}</div>}
+              {review.acctChecked && <div>Accounting checked by <b>{review.acctCheckedBy}</b> · {fmtAcctStamp(review.acctCheckedAt)} · batch <b>{review.batchNo}</b></div>}
               {review.final && <div>Final approval by <b>{review.finalBy}</b> · {review.finalAt}{review.finalRemarks ? ` · "${review.finalRemarks}"` : ""}</div>}
             </div>
           )}
           {guidance && <div className="pcp-hint" style={{ marginBottom: 10 }}>{guidance}</div>}
+          {reimbAcctMode(reimb) && (
+            <AccountingReviewBox
+              kind="reimb" id={reimb.id} refNo={reimb.reimbNo} review={review}
+              mode={isOwn ? null : reimbAcctMode(reimb)} accounting={accounting}
+            />
+          )}
 
           <div className="pcp-table-wrap">
             <table className="pcp-table">
@@ -920,7 +964,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
         <div className="pcp-modal-foot" style={{ flexWrap: "wrap", gap: 8 }}>
           {/* Custodian review (level 1) and final approval (level 2).
               Segregation of duties: nobody approves their own reimbursement. */}
-          {(canCheck || canFinal) && (
+          {(canCheck || canFinal || canAcctReturn) && (
             isOwn ? (
               <div style={{ fontSize: 12, color: "var(--brand)" }}>Segregation of duties: you cannot approve your own reimbursement.</div>
             ) : (
@@ -1046,7 +1090,7 @@ const REIMB_SORT_FIELDS = {
 function ReimbursementTab({
   reimbursements, allReimbursements, onSaveDraft, onSubmit, onUpdate, onAction, onRecordPayment,
   onExportAcumatica, onExportReport, onDelete, plantOptions, plantTitle, currentUser,
-  isChecker, isFinalApprover, canFinance, canDelete, canEditOverride,
+  isChecker, isFinalApprover, canFinance, canDelete, canEditOverride, accounting,
 }) {
   /* Draft / Returned are editable by anyone in scope; any other stage only
      through the checking / verification override (Save Changes keeps the status). */
@@ -1216,7 +1260,7 @@ function ReimbursementTab({
                     <td>{(r.lines || []).length}</td>
                     <td className="pcp-num"><strong>{peso(reimbTotal(r))}</strong></td>
                     <td><CompliancePill level={(r.compliance && r.compliance.level) || "PASS"} /></td>
-                    <td><Badge status={r.status} /></td>
+                    <td><Badge status={reimbAwaitingAccounting(r) ? REIMB_STAGE.FOR_ACCOUNTING : r.status} /></td>
                     <td>{reimbAgingBucket(r)}</td>
                     <td>
                       <div style={{ display: "flex", gap: 6 }}>
@@ -1261,6 +1305,7 @@ function ReimbursementTab({
           isFinalApprover={isFinalApprover}
           canFinance={canFinance}
           allowPayment
+          accounting={accounting}
           onExportAcumatica={onExportAcumatica}
           onAction={handleAction}
           onClose={() => setDetail(null)}
