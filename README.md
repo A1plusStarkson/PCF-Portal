@@ -190,7 +190,7 @@ Two independent layers: **role** (which modules you see) and **plant scope**
 | `Accounting` | Accounting Department | Everything. The **only** role that can override a Request No. |
 | `Finance` | Finance Department | Everything except User Management and System Settings. |
 | `Custodian` | Custodian | Dashboard, Requests, Release Ledger, Liquidation, Reimbursement, Replenishment, History, Reports, Approval Module, Aging, Documents. |
-| `Requestor` | PCF Requestor | Requests, Release Ledger (view-only), Liquidation, Reimbursement, History. No approve/reject/release rights, no dashboard. |
+| `Requestor` | PCF Requestor | Requests, Release Ledger (view-only), Liquidation, Reimbursement, History, Liquidation Aging (own plant), plus the liquidation reminder bell. No approve/reject/release rights, no dashboard. |
 
 Petty cash liquidations are approved at **two levels** (constants in
 [src/11-liquidation.jsx](src/11-liquidation.jsx), status engine in

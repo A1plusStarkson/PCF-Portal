@@ -1921,7 +1921,35 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     else if (n.type === "replenished" || n.type === "replenish-pending") navigate("replenishment");
   }, [navigate]);
 
-  const uiValue = useMemo(() => ({ notifications, role, setRole: guardedSetRole, canSwitchRole: !!isAdmin, onNotifClick }), [notifications, role, guardedSetRole, isAdmin, onNotifClick]);
+  /* ---- Requestor liquidation reminders (large bell in every TopBar) ----
+     PCF Requestor accounts only, from their own plants' vouchers (visible*
+     is already plant-scoped). Recomputed on every change and at each new day.
+     Their general bell then drops its own liquidation-pending notices, so the
+     same voucher is never announced twice. */
+  const today = todayISO();
+  const showReminders = role === "Requestor";
+  const reminders = useMemo(
+    () => (showReminders ? liquidationReminders(visibleDisbursements, visibleLiquidations, today) : null),
+    [showReminders, visibleDisbursements, visibleLiquidations, today]
+  );
+  const bellNotifications = useMemo(
+    () => (showReminders ? notifications.filter((n) => !/^n-(over|due|rem|liq)-/.test(n.id)) : notifications),
+    [showReminders, notifications]
+  );
+  /* A clicked reminder opens that voucher's liquidation worksheet, on the tab
+     of the plant it belongs to. */
+  const [liqOpenRequest, setLiqOpenRequest] = useState(null);
+  const onReminderClick = useCallback((r) => {
+    const p = orderedPlants.find((x) => branchesOfPlant(x.code).includes(r.branchCode) || x.code === r.branchCode);
+    const target = p ? plantTabKey(p.code, "liquidation") : "liquidation";
+    setLiqOpenRequest({ id: r.id, at: Date.now() });
+    navigate(target);
+  }, [orderedPlants, navigate]);
+
+  const uiValue = useMemo(
+    () => ({ notifications: bellNotifications, reminders, onReminderClick, role, setRole: guardedSetRole, canSwitchRole: !!isAdmin, onNotifClick }),
+    [bellNotifications, reminders, onReminderClick, role, guardedSetRole, isAdmin, onNotifClick]
+  );
 
   if (!loaded) {
     return (
@@ -2047,6 +2075,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             canFinance={["Accounting", "Finance", "SuperAdmin"].includes(role) || !!isAdmin}
             plantOptions={scopedPlantOptions}
             plantTitle={activePlantLabel}
+            openRequest={liqOpenRequest}
+            onOpenHandled={() => setLiqOpenRequest(null)}
           />
         )}
         {activeModule === "replenishment" && (

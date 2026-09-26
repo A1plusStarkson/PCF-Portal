@@ -1923,6 +1923,7 @@ function LiquidationTab({
   canRejectLiquidation, onRejectLiquidation,
   onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser,
   reimbursements, onReimbursementAction, canFinance, accounting,
+  openRequest, onOpenHandled,
 }) {
   const [acctFilter, setAcctFilter] = useState(accounting && accounting.isChecker ? "For Accounting Check" : "All");
   const [selectedId, setSelectedId] = useState(null);
@@ -1949,6 +1950,17 @@ function LiquidationTab({
     worksheetDirty.current = false;
     setSelectedId(null);
   };
+  /* Opened from a requestor's liquidation reminder: show that voucher's
+     worksheet, with the plant filter cleared so it cannot be hidden. */
+  useEffect(() => {
+    if (!openRequest) return;
+    if (onOpenHandled) onOpenHandled();
+    if (worksheetDirty.current && selectedId !== openRequest.id
+      && !window.confirm("This liquidation has unsaved changes. Close without saving?")) return;
+    worksheetDirty.current = false;
+    setPlant("ALL"); setSource("pettycash"); setSelectedReimbId(null);
+    setSelectedId(openRequest.id);
+  }, [openRequest]); // eslint-disable-line
 
   const scoped = plant === "ALL" ? disbursements : disbursements.filter((d) => d.branchCode === plant);
   const enriched = scoped.map((d) => ({

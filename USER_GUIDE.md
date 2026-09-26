@@ -199,7 +199,8 @@ Here's the same thing as a checklist:
 | **Final approval of a liquidation** (level 2) | ❌ | ❌ | ❌ | ❌ | ✅ |
 | Do a reimbursement | ✅ | ✅ | ✅ | ✅ | ✅ |
 | Replenish the fund | ❌ | ✅ | ✅ | ✅ | ✅ |
-| See reports & aging | ❌ | ✅ | ✅ | ✅ | ✅ |
+| See reports | ❌ | ✅ | ✅ | ✅ | ✅ |
+| See Liquidation Aging | ✅ *(own plant)* | ✅ | ✅ | ✅ | ✅ |
 | Use the Approval Module | ❌ | ❌ | ❌ | ✅ *(accounting@ only)* | ✅ |
 | See PCF Documents | ❌ | ✅ | ✅ | ✅ | ✅ |
 | See the Audit Trail | ❌ | ❌ | ✅ | ✅ | ✅ |
@@ -234,7 +235,25 @@ You prepare paperwork. You cannot approve or hand out cash.
 4. **Submit** the liquidation. The custodian then checks it, and Grace Gan (or the Superuser) gives
    the final approval. If anything is wrong it comes back to you as
    **Rejected** with the reason — correct it and resubmit.
-5. Use **Transaction History** anytime to check the status of your submissions.
+5. Use **Transaction History** anytime to check the status of your submissions,
+   and **Liquidation Aging** to see what is due or overdue for your plant.
+
+**🔔 Liquidation reminders.** The large bell at the top right of every page
+shows how many liquidations are waiting on you. Each one is due **5 calendar
+days after the cash was released to you** (Cash Received Date + 5 = Due Date).
+Click the bell for the list (Series #, Plant, Cash Received, Due Date, Status),
+then click a row to open that liquidation.
+
+| Colour | When | Message |
+|--------|------|---------|
+| 🟢 | More than 3 days left | Liquidation for M-000125 is due on Oct 2, 2026. |
+| 🟡 | 2–3 days left | Reminder: … is due soon. |
+| 🟠 | 1 day left | URGENT: … is due tomorrow. |
+| 🔴 | Due today or overdue | ACTION REQUIRED: … is due today / overdue. |
+
+A reminder disappears when you **submit** the liquidation. If it is returned to
+you for correction, the reminder comes back until you resubmit. Overdue
+reminders stay until the liquidation is submitted.
 
 ```mermaid
 flowchart TD

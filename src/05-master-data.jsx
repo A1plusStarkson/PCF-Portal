@@ -939,8 +939,9 @@ const ROLES = {
   /* PCF Requestor: prepares transactions only. Full Petty Cash Requests + full
      Liquidation (except approval) + Reimbursement (prepare/submit, no approval);
      Release Ledger is view-only. No Dashboard. No approve/reject/release rights
-     (enforced by the permission flags in 19-app.jsx). No Report Center. */
-  "Requestor":  { label: "PCF Requestor",         tabs: ["requests", "disbursements", "liquidation", "reimbursement", "history"] },
+     (enforced by the permission flags in 19-app.jsx). No Report Center.
+     Liquidation Aging (read-only, own plant) so they can see what is due. */
+  "Requestor":  { label: "PCF Requestor",         tabs: ["requests", "disbursements", "liquidation", "reimbursement", "history", "aging"] },
 };
 const ROLE_NAMES = Object.keys(ROLES);
 

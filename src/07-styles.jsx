@@ -351,6 +351,20 @@ const CSS = `
   .pcp-notif-item:hover { background: #fafbfd; }
   .pcp-notif-item:last-child { border-bottom: none; }
   .pcp-notif-ic { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  /* Requestor liquidation reminders: a large bell with its count beside it. */
+  .pcp-reminder-bell {
+    display: flex; align-items: center; gap: 8px; padding: 8px 14px 8px 12px; background: #fff;
+    border: 2px solid; border-radius: 12px; cursor: pointer; font-family: inherit;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+  }
+  .pcp-reminder-bell:hover { background: #fafbfd; }
+  .pcp-reminder-count {
+    min-width: 26px; height: 26px; padding: 0 7px; border-radius: 99px; color: #fff;
+    font-size: 14px; font-weight: 800; display: flex; align-items: center; justify-content: center;
+  }
+  .pcp-reminder-panel { width: min(640px, calc(100vw - 32px)); }
+  .pcp-reminder-list { max-height: 420px; overflow: auto; }
+  .pcp-reminder-pill { display: inline-block; padding: 3px 8px; border-radius: 99px; font-size: 11px; font-weight: 700; white-space: nowrap; }
   .pcp-role-badge {
     display: flex; align-items: center; gap: 6px; padding: 7px 10px; margin: 0 6px 10px 6px;
     background: rgba(255,255,255,0.06); border-radius: 8px; color: #cfd3e0; font-size: 11.5px; font-weight: 600;
@@ -693,6 +707,7 @@ function TopBar({ title, sub, right }) {
       </div>
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         {right}
+        <LiquidationReminderBell />
         <NotificationBell />
       </div>
     </div>

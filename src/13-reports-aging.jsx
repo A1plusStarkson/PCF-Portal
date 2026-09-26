@@ -121,6 +121,136 @@ function buildAgingRecords(disbursements, liquidations, funds, requests, today) 
   });
 }
 
+/* ---- Requestor liquidation reminders ----
+   One reminder per released voucher (keyed by its id, so never twice) whose
+   liquidation is still in the requestor's hands: none started, a draft, or
+   returned (Rejected) for correction. Cash Received is the release date the
+   custodian records when the cash is handed over; the liquidation is due
+   AGING_DUE_DAYS (5) calendar days later. Submitting removes the reminder; a
+   liquidation returned for correction brings it back, overdue or not, until
+   it is submitted again. */
+function liquidationReminders(disbursements, liquidations, today) {
+  const t = today || todayISO();
+  return (disbursements || [])
+    .map((d) => {
+      const liq = liquidationFor(d.id, liquidations);
+      const sub = (liq && liq.submissionStatus) || "Draft";
+      if (sub !== "Draft" && sub !== "Rejected") return null;
+      const rv = liqReview(liq);
+      if (rv.final || rv.legacy) return null;
+      const receivedDate = d.date || t;
+      const dueDate = addDaysISO(receivedDate, AGING_DUE_DAYS);
+      const daysLeft = daysBetween(t, dueDate);
+      return {
+        id: d.id, seriesNo: d.voucherNo || "—", branchCode: d.branchCode,
+        employee: d.employee, amount: Number(d.amount) || 0,
+        receivedDate, dueDate, daysLeft, returned: sub === "Rejected",
+        level: reminderLevel(daysLeft),
+      };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.daysLeft - b.daysLeft || String(a.seriesNo).localeCompare(String(b.seriesNo)));
+}
+
+/* Four levels by days remaining: more than 3, 2–3, 1, and due today / overdue. */
+function reminderLevel(daysLeft) {
+  if (daysLeft <= 0) return "red";
+  if (daysLeft === 1) return "orange";
+  if (daysLeft <= 3) return "yellow";
+  return "green";
+}
+
+const REMINDER_TINT = { green: "#15803d", yellow: "#b9790a", orange: "#ea580c", red: "#c8102e" };
+
+function reminderMessage(r) {
+  const no = r.seriesNo;
+  if (r.daysLeft < 0) return `ACTION REQUIRED: Liquidation for ${no} is overdue by ${-r.daysLeft} day${r.daysLeft === -1 ? "" : "s"} (was due ${fmtDate(r.dueDate)}).`;
+  if (r.daysLeft === 0) return `ACTION REQUIRED: Liquidation for ${no} is due today.`;
+  if (r.daysLeft === 1) return `URGENT: Liquidation for ${no} is due tomorrow.`;
+  if (r.daysLeft <= 3) return `Reminder: Liquidation for ${no} is due soon (${fmtDate(r.dueDate)}).`;
+  return `Liquidation for ${no} is due on ${fmtDate(r.dueDate)}.`;
+}
+
+function reminderStatusText(r) {
+  if (r.daysLeft < 0) return `Overdue ${-r.daysLeft} day${r.daysLeft === -1 ? "" : "s"}`;
+  if (r.daysLeft === 0) return "Due today";
+  if (r.daysLeft === 1) return "Due tomorrow";
+  return `Due in ${r.daysLeft} days`;
+}
+
+/* The requestor's large reminder bell, shown in every TopBar when the app
+   supplies reminders (PCF Requestor accounts only). Clicking a reminder opens
+   that voucher's liquidation. */
+function LiquidationReminderBell() {
+  const ui = useContext(AppUI);
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  useEffect(() => {
+    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", h);
+    return () => document.removeEventListener("mousedown", h);
+  }, []);
+  if (!ui || !ui.reminders) return null;
+  const list = ui.reminders;
+  const count = list.length;
+  /* The bell takes the colour of the most urgent reminder. */
+  const worst = list.length ? REMINDER_TINT[list[0].level] : "var(--text-mut)";
+  return (
+    <div style={{ position: "relative" }} ref={ref}>
+      <button
+        className="pcp-reminder-bell" style={{ borderColor: worst, color: worst }}
+        onClick={() => setOpen((o) => !o)}
+        title={count ? `${count} liquidation reminder${count === 1 ? "" : "s"}` : "No liquidation reminders"}
+      >
+        <Bell size={22} />
+        <span className="pcp-reminder-count" style={{ background: count ? worst : "#9098b3" }}>{count}</span>
+      </button>
+      {open && (
+        <div className="pcp-notif-panel pcp-reminder-panel">
+          <div className="pcp-notif-head">
+            <strong><Bell size={14} /> Liquidation Reminders</strong>
+            <span style={{ fontSize: 11, color: "var(--text-mut)" }}>Due {AGING_DUE_DAYS} days after cash received</span>
+          </div>
+          {count ? (
+            <div className="pcp-reminder-list">
+              <table className="pcp-table">
+                <thead>
+                  <tr><th>Series #</th><th>Plant</th><th>Cash Received</th><th>Due Date</th><th>Status</th></tr>
+                </thead>
+                <tbody>
+                  {list.map((r) => (
+                    <tr
+                      key={r.id} className="pcp-liq-row" tabIndex={0}
+                      onClick={() => { if (ui.onReminderClick) ui.onReminderClick(r); setOpen(false); }}
+                      onKeyDown={(e) => { if (e.key === "Enter") { if (ui.onReminderClick) ui.onReminderClick(r); setOpen(false); } }}
+                      title={reminderMessage(r)}
+                    >
+                      <td>
+                        <strong>{r.seriesNo}</strong>
+                        <div style={{ fontSize: 10.5, color: REMINDER_TINT[r.level], fontWeight: 600, whiteSpace: "normal", maxWidth: 260 }}>
+                          {reminderMessage(r)}{r.returned ? " Returned for correction." : ""}
+                        </div>
+                      </td>
+                      <td>{plantLabel(r.branchCode)}</td>
+                      <td>{fmtDate(r.receivedDate)}</td>
+                      <td>{fmtDate(r.dueDate)}</td>
+                      <td>
+                        <span className="pcp-reminder-pill" style={{ background: REMINDER_TINT[r.level] + "1a", color: REMINDER_TINT[r.level] }}>
+                          {reminderStatusText(r)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : <div className="pcp-empty" style={{ padding: 24 }}>No liquidations waiting on you</div>}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* Roll aging records up to one row per plant. Every fund/plant is seeded first
    so plants with no transactions yet still appear (compliance shown as 100%). */
 function summarizeAgingByPlant(records, funds) {
