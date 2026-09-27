@@ -213,6 +213,9 @@ select regexp_replace(prefix, '^(PCR|RMB|RPL)-RG-', '\1-RGC-'), last_no
  where prefix ~ '^(PCR|RMB|RPL)-RG-'
 on conflict (prefix) do update set last_no = greatest(pcp_series_counters.last_no, excluded.last_no), updated_at = now();
 
+-- Make the new functions visible to the app's API immediately.
+notify pgrst, 'reload schema';
+
 -- Result: the counters, and any LIVE records sharing one number (these must be
 -- resolved before Part B — the migration script resolves the vouchers).
 select prefix, last_no from public.pcp_series_counters order by prefix;
