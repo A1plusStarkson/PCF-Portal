@@ -428,6 +428,30 @@ const CSS = `
   .pcp-login-foot { font-size: 11px; color: var(--text-mut); text-align: center; margin-top: 14px; }
 
   /* Sign-in page: brand panel + form, stacked on narrow screens. */
+  /* ---- Liquidation alarm bell (25-liq-alarms.jsx) ---- */
+  .pcp-alarm-bell.ringing svg { animation: pcp-bell-ring 2.4s ease-in-out infinite; transform-origin: 50% 8%; }
+  .pcp-alarm-bell.critical { animation: pcp-bell-pulse 1.6s ease-out infinite; }
+  @keyframes pcp-bell-ring { 0%, 55%, 100% { transform: rotate(0); } 5% { transform: rotate(16deg); } 12% { transform: rotate(-14deg); } 19% { transform: rotate(11deg); } 26% { transform: rotate(-8deg); } 33% { transform: rotate(5deg); } 40% { transform: rotate(-3deg); } }
+  @keyframes pcp-bell-pulse { 0% { box-shadow: 0 0 0 0 rgba(200,16,46,0.45); } 100% { box-shadow: 0 0 0 12px rgba(200,16,46,0); } }
+  @media (prefers-reduced-motion: reduce) { .pcp-alarm-bell.ringing svg, .pcp-alarm-bell.critical { animation: none; } }
+  .pcp-alarm-panel { width: min(640px, 94vw); }
+  .pcp-alarm-tabs { display: flex; gap: 4px; padding: 8px 12px 0; border-bottom: 1px solid var(--line); }
+  .pcp-alarm-tabs button { border: none; background: none; padding: 7px 10px; font: inherit; font-size: 12px; font-weight: 600; color: var(--text-mut); cursor: pointer; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+  .pcp-alarm-tabs button.active { color: var(--brand); border-bottom-color: var(--brand); }
+  .pcp-alarm-body { max-height: min(62vh, 560px); overflow-y: auto; padding: 10px 12px; display: flex; flex-direction: column; gap: 10px; }
+  .pcp-alarm-card { border: 1px solid; border-left-width: 4px; border-radius: 10px; padding: 10px 12px; }
+  .pcp-alarm-card.read { opacity: 0.85; }
+  .pcp-alarm-card-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; font-size: 12.5px; font-weight: 800; letter-spacing: 0.2px; }
+  .pcp-alarm-new { color: #fff; font-size: 9.5px; font-weight: 800; padding: 2px 7px; border-radius: 99px; letter-spacing: 0.6px; }
+  .pcp-alarm-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 6px 14px; margin-top: 8px; }
+  .pcp-alarm-grid div { display: flex; flex-direction: column; min-width: 0; }
+  .pcp-alarm-grid span { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-mut); }
+  .pcp-alarm-grid b { font-size: 12.5px; overflow-wrap: anywhere; }
+  .pcp-alarm-note { margin-top: 8px; font-size: 11.5px; line-height: 1.5; color: var(--brand-dark); background: rgba(200,16,46,0.06); border-radius: 6px; padding: 7px 9px; }
+  .pcp-alarm-foot { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; margin-top: 9px; font-size: 10.5px; color: var(--text-mut); }
+  .pcp-alarm-desktop { display: flex; gap: 8px; align-items: center; font-size: 11.5px; color: var(--text-mut); padding: 9px 12px; border-top: 1px solid var(--line); cursor: pointer; }
+  .pcp-row-focus td { background: #fff4d6 !important; transition: background 0.4s; }
+
   .pcp-login-split { flex: 1; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); min-height: 100vh; }
   .pcp-login-brand {
     position: relative; overflow: hidden; color: #fff; padding: 40px 48px;
@@ -873,6 +897,7 @@ function TopBar({ title, sub, right }) {
       <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
         {right}
         <LiquidationReminderBell />
+        <LiquidationAlarmBell />
         <NotificationBell />
       </div>
     </div>

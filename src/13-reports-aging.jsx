@@ -129,8 +129,9 @@ function buildAgingRecords(disbursements, liquidations, funds, requests, today) 
    AGING_DUE_DAYS (5) calendar days later. Submitting removes the reminder; a
    liquidation returned for correction brings it back, overdue or not, until
    it is submitted again. */
-function liquidationReminders(disbursements, liquidations, today) {
+function liquidationReminders(disbursements, liquidations, today, funds) {
   const t = today || todayISO();
+  const fundByBranch = new Map((funds || []).map((f) => [f.branchCode, f]));
   return (disbursements || [])
     .map((d) => {
       const liq = liquidationFor(d.id, liquidations);
@@ -146,6 +147,8 @@ function liquidationReminders(disbursements, liquidations, today) {
         employee: d.employee, amount: Number(d.amount) || 0,
         receivedDate, dueDate, daysLeft, returned: sub === "Rejected",
         level: reminderLevel(daysLeft),
+        liqStatus: !liq ? "Not started" : sub === "Rejected" ? "Returned for correction" : "Draft — not yet submitted",
+        custodian: (fundByBranch.get(d.branchCode) || {}).custodian || "",
       };
     })
     .filter(Boolean)
@@ -327,7 +330,7 @@ const AGING_DETAIL_SORT_FIELDS = {
   agingBucket: (r) => Number(r.overdueDays) || 0,
 };
 
-function LiquidationAgingTab({ funds, requests, disbursements, liquidations, replenishments }) {
+function LiquidationAgingTab({ funds, requests, disbursements, liquidations, replenishments, focus }) {
   const today = todayISO();
   const [filters, setFilters] = useState({
     txnType: "ALL", company: "ALL", plant: "ALL", branch: "ALL", custodian: "ALL",
@@ -335,6 +338,21 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
     from: "", to: "",
   });
   const setF = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
+  /* Opened from a liquidation alarm: clear the filters so the record is in the
+     list, then scroll to it and highlight it for a few seconds. */
+  const [focusId, setFocusId] = useState(null);
+  useEffect(() => {
+    if (!focus || !focus.id) return undefined;
+    setFilters({ txnType: "ALL", company: "ALL", plant: "ALL", branch: "ALL", custodian: "ALL",
+      requestor: "ALL", department: "ALL", status: "ALL", bucket: "ALL", from: "", to: "" });
+    setFocusId(focus.id);
+    const t1 = setTimeout(() => {
+      const el = document.getElementById("aging-row-" + focus.id);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 120);
+    const t2 = setTimeout(() => setFocusId(null), 6000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [focus && focus.at]); // eslint-disable-line
   const resetFilters = () => setFilters({
     txnType: "ALL", company: "ALL", plant: "ALL", branch: "ALL", custodian: "ALL",
     requestor: "ALL", department: "ALL", status: "ALL", bucket: "ALL", from: "", to: "",
@@ -809,7 +827,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
               </thead>
               <tbody>
                 {detailRows.length ? detailRows.map((r) => (
-                  <tr key={r.id}>
+                  <tr key={r.id} id={"aging-row-" + r.id} className={focusId === r.id ? "pcp-row-focus" : undefined}>
                     <td><span className={"pcp-badge " + (r.transactionType === "Reimbursement" ? "pcp-badge-blue" : "pcp-badge-gray")}>{r.transactionType}</span></td>
                     <td>{r.requestNo}</td>
                     <td>{r.requestor}</td>

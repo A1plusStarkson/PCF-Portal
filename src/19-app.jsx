@@ -1975,15 +1975,27 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
      is already plant-scoped). Recomputed on every change and at each new day.
      Their general bell then drops its own liquidation-pending notices, so the
      same voucher is never announced twice. */
-  const today = todayISO();
-  const showReminders = role === "Requestor";
-  const reminders = useMemo(
-    () => (showReminders ? liquidationReminders(visibleDisbursements, visibleLiquidations, today) : null),
-    [showReminders, visibleDisbursements, visibleLiquidations, today]
+  /* The date, re-checked every minute so reminders and alarms move on to the
+     next day (due tomorrow -> due today -> overdue) with no page refresh. */
+  const [today, setToday] = useState(() => todayISO());
+  useEffect(() => {
+    const t = setInterval(() => setToday((d) => { const n = todayISO(); return n === d ? d : n; }), 60000);
+    return () => clearInterval(t);
+  }, []);
+  /* Live liquidation alarms (25-liq-alarms.jsx) for LIQ_ALARM_EMAILS, over the
+     plants each account can already see — a custodian gets their own plants'
+     employees. Hidden while previewing another role. */
+  const alarmsOn = LIQ_ALARM_EMAILS.includes((userEmail || "").trim().toLowerCase()) && role === (userRole || "Accounting");
+  const showReminders = role === "Requestor" && !alarmsOn;
+  const liveReminders = useMemo(
+    () => ((showReminders || alarmsOn) ? liquidationReminders(visibleDisbursements, visibleLiquidations, today, visibleFunds) : null),
+    [showReminders, alarmsOn, visibleDisbursements, visibleLiquidations, today, visibleFunds]
   );
+  const reminders = showReminders ? liveReminders : null;
+  const liqAlarms = useLiqAlarms(alarmsOn ? liveReminders : null, userEmail, alarmsOn);
   const bellNotifications = useMemo(
-    () => (showReminders ? notifications.filter((n) => !/^n-(over|due|rem|liq)-/.test(n.id)) : notifications),
-    [showReminders, notifications]
+    () => ((showReminders || alarmsOn) ? notifications.filter((n) => !/^n-(over|due|rem|liq)-/.test(n.id)) : notifications),
+    [showReminders, alarmsOn, notifications]
   );
   /* A clicked reminder opens that voucher's liquidation worksheet, on the tab
      of the plant it belongs to. */
@@ -2030,9 +2042,17 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       foot: peso(ready.reduce((s, x) => s + (Number(x.amount) || 0), 0)), onClick: () => navigate("replenishment") });
   }
 
+  /* An alarm opens its record in Liquidation Aging (or, without access to
+     it, the liquidation itself). */
+  const [agingFocus, setAgingFocus] = useState(null);
+  const onAlarmOpen = useCallback((r) => {
+    if (allowedTabs.has("aging")) { setAgingFocus({ id: r.id, at: Date.now() }); navigate("aging"); }
+    else onReminderClick(r);
+  }, [allowedTabs, navigate, onReminderClick]);
+
   const uiValue = useMemo(
-    () => ({ notifications: bellNotifications, reminders, onReminderClick, role, setRole: guardedSetRole, canSwitchRole: !!isAdmin, onNotifClick }),
-    [bellNotifications, reminders, onReminderClick, role, guardedSetRole, isAdmin, onNotifClick]
+    () => ({ notifications: bellNotifications, reminders, onReminderClick, role, setRole: guardedSetRole, canSwitchRole: !!isAdmin, onNotifClick, liqAlarms, onAlarmOpen }),
+    [bellNotifications, reminders, onReminderClick, role, guardedSetRole, isAdmin, onNotifClick, liqAlarms, onAlarmOpen]
   );
 
   if (!loaded) {
@@ -2260,6 +2280,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
           <LiquidationAgingTab
             funds={visibleFunds} requests={visibleRequests} disbursements={visibleDisbursements}
             liquidations={visibleLiquidations} replenishments={visibleReplenishments}
+            focus={agingFocus}
           />
         )}
         {activeModule === "audit" && (
