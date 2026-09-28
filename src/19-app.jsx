@@ -1,6 +1,6 @@
 /* ============================= APP ============================= */
 
-export default function App({ userEmail, userName, onSignOut, userRole, isAdmin, userPlants }) {
+export default function App({ userEmail, userName, onSignOut, userRole, isAdmin, userPlants, userExcludePlants }) {
   const [loaded, setLoaded] = useState(false);
   /* Everyone starts on the Home landing page (24-home.jsx). */
   const [tab, setTab] = useState("home");
@@ -42,20 +42,29 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
      LIVE, any branch appearing in the funds data — so a plant newly created in
      Funds & Master Data is automatically included across the dashboard, aging
      report, notifications and management reports with no code change. */
+  /* Plants taken away from this account (excludePlants in index.html), as
+     plant codes. Applied last, to the WHOLE family of each, so no branch of
+     an excluded plant survives — whatever the grant says. This single scope
+     is what every module, list, form, dropdown, notification and handler
+     reads (inScope / branchOptions / plantOptions), so an excluded plant's
+     records can be neither seen nor acted on anywhere in the app. */
+  const excludedPlantKey = (userExcludePlants || []).join("|");
   const allowedPlants = useMemo(() => {
+    const excluded = new Set((userExcludePlants || []).map(plantOfBranch));
+    const keep = (codes) => codes.filter((c) => !excluded.has(plantOfBranch(c)));
     if (userPlants === "ALL" || !userPlants) {
       /* EVERY branch, not just the four fund-holding plant codes. Those four
          alone left management blind to anything filed against a sub-branch
          (HASBRO, D5, …) — records its own requestors had created. */
       const codes = new Set(ALL_BRANCH_CODES);
       funds.forEach((f) => { if (f.branchCode) codes.add(f.branchCode); });
-      return Array.from(codes);
+      return keep(Array.from(codes));
     }
     /* Explicitly granted plants (custodians, requestors) — widened to the whole
        plant family, so a grant can never cover part of a plant and leave the
        rest of it visible only to somebody else. */
-    return Array.from(new Set(expandPlantFamilies(userPlants)));
-  }, [userPlants, funds]);
+    return keep(Array.from(new Set(expandPlantFamilies(userPlants))));
+  }, [userPlants, excludedPlantKey, funds]); // eslint-disable-line
   /* ---- Branch-level options ----
      Every branch the user may file a record against, in canonical order: the
      plants first, then any additional master-data plant so new plants surface
@@ -1836,6 +1845,26 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     const ids = new Set(visibleDisbursements.map((d) => d.id));
     return liquidations.filter((l) => ids.has(l.disbursementId));
   }, [liquidations, visibleDisbursements]);
+  /* Accounts with excluded plants (excludePlants) also must not see those
+     plants in the shared, otherwise plant-wide screens: Funds & Master Data,
+     PCF Documents and the Audit Trail. Applied ONLY to such accounts, so
+     everyone else's view of those screens is unchanged. Display filters only —
+     the full lists are still what every save writes to. */
+  const plantRestricted = (userExcludePlants || []).length > 0;
+  const docsForUser = useMemo(
+    () => (plantRestricted ? documents.filter((d) => !d.plant || inScope(d.plant)) : documents),
+    [plantRestricted, documents, inScope]
+  );
+  const auditForUser = useMemo(() => {
+    if (!plantRestricted) return auditLog;
+    /* Hide entries about a record of an excluded plant (matched by number). */
+    const hidden = new Set();
+    const note = (list, key) => list.forEach((r) => { if (r && !inScope(r.branchCode) && r[key]) hidden.add(String(r[key]).trim().toUpperCase()); });
+    note(requests, "requestNo"); note(disbursements, "voucherNo"); note(reimbursements, "reimbNo"); note(replenishments, "replenishmentNo");
+    funds.forEach((f) => { if (!inScope(f.branchCode)) { if (f.label) hidden.add(String(f.label).trim().toUpperCase()); hidden.add(String(f.branchCode).trim().toUpperCase()); } });
+    documents.forEach((d) => { if (d.plant && !inScope(d.plant) && d.refNo) hidden.add(String(d.refNo).trim().toUpperCase()); });
+    return auditLog.filter((a) => !hidden.has(String(a.entity || "").trim().toUpperCase()));
+  }, [plantRestricted, auditLog, requests, disbursements, reimbursements, replenishments, funds, documents, inScope]);
   /* Dashboard plant tabs limited to the user's plants. */
 
   /* ---- Separate tab per plant ---- */
@@ -2265,7 +2294,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             key={tab}
             funds={scopedFunds} requests={scopedRequests} disbursements={scopedDisbursements} liquidations={scopedLiquidations} replenishments={scopedReplenishments}
             reimbursements={scopedReimbursements}
-            auditLog={auditLog} generatedBy={userName || userEmail}
+            auditLog={auditForUser} generatedBy={userName || userEmail}
             plantTitle={activePlantLabel}
           />
         )}
@@ -2299,18 +2328,22 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
           />
         )}
         {activeModule === "audit" && (
-          <AuditTrailTab auditLog={auditLog} canDelete={isSuperAdmin} onDelete={deleteAuditEntries} />
+          <AuditTrailTab auditLog={auditForUser} canDelete={isSuperAdmin} onDelete={deleteAuditEntries} />
         )}
         {activeModule === "documents" && (
           <PcfDocumentsTab
-            documents={documents} funds={funds} plantOptions={plantOptions}
+            documents={docsForUser} allDocCount={documents.length}
+            funds={plantRestricted ? visibleFunds : funds} plantOptions={plantOptions}
             userName={userName} role={role} isAdmin={isAdmin}
             onAdd={addDocuments} onReplace={replaceDocument} onUpdate={updateDocument}
             onDelete={deleteDocument} onActivity={docActivity}
           />
         )}        {activeModule === "masterdata" && (
           <MasterDataTab
-            funds={funds} disbursements={disbursements} liquidations={liquidations} replenishments={replenishments}
+            funds={plantRestricted ? visibleFunds : funds}
+            disbursements={plantRestricted ? visibleDisbursements : disbursements}
+            liquidations={plantRestricted ? visibleLiquidations : liquidations}
+            replenishments={plantRestricted ? visibleReplenishments : replenishments}
             onAddFund={addFund} onEditFund={editFund} onDeleteFund={deleteFund}
           />
         )}

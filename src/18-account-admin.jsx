@@ -59,7 +59,15 @@ function ChangePasswordModal({ onClose, onDone }) {
    documents who has access to what. */
 function UserManagementTab({ currentEmail, onChangePassword }) {
   const users = window.PCP_USERS || {};
-  const plantsLabel = (p) => (p === "ALL" || !p) ? "All plants" : resolvePlants(p).map(plantLabel).join(", ");
+  const basePlantsLabel = (p) => (p === "ALL" || !p) ? "All plants" : resolvePlants(p).map(plantLabel).join(", ");
+  /* excludePlants (index.html) is shown too, so the roster states the
+     restriction rather than implying "All plants". */
+  const plantsLabel = (p, ex) => {
+    const base = basePlantsLabel(p);
+    const names = (ex || []).map(plantLabel);
+    if (!names.length) return base;
+    return (p === "ALL" || !p ? "All plants except " : base + " — no access to ") + names.join(", ");
+  };
   /* No sort key on open, so the roster keeps its configured order. */
   const sort = useTableSort(null);
   const rows = sort.sortRows(
@@ -68,7 +76,7 @@ function UserManagementTab({ currentEmail, onChangePassword }) {
       name: (u) => u.name,
       email: (u) => u.email,
       role: (u) => (ROLES[u.role] ? ROLES[u.role].label : (u.role || "Custodian")),
-      plants: (u) => plantsLabel(u.plants),
+      plants: (u) => plantsLabel(u.plants, u.excludePlants),
       admin: (u) => (u.role === "Accounting" ? 0 : 1),
     }
   );
@@ -96,7 +104,7 @@ function UserManagementTab({ currentEmail, onChangePassword }) {
                     <td style={{ fontWeight: 600 }}>{u.name}{String(u.email).toLowerCase() === String(currentEmail || "").toLowerCase() ? " (you)" : ""}</td>
                     <td>{u.email}</td>
                     <td>{ROLES[u.role] ? ROLES[u.role].label : (u.role || "Custodian")}</td>
-                    <td>{plantsLabel(u.plants)}</td>
+                    <td>{plantsLabel(u.plants, u.excludePlants)}</td>
                     <td>{(u.role === "Accounting") ? <Badge status="Approved" /> : <span style={{ color: "var(--text-mut)" }}>—</span>}</td>
                   </tr>
                 )) : <tr><td colSpan={5} className="pcp-empty">No users configured. Add them in index.html (window.PCP_USERS) and in your Supabase project.</td></tr>}

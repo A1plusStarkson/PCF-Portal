@@ -186,7 +186,7 @@ function DocDetailsModal({ doc, onClose }) {
   );
 }
 
-function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdmin, onAdd, onReplace, onUpdate, onDelete, onActivity }) {
+function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdmin, onAdd, onReplace, onUpdate, onDelete, onActivity, allDocCount }) {
   const canUpload = isAdmin || role === "Accounting" || role === "Custodian";
   const canEdit = isAdmin || role === "Accounting";
   const canDelete = isAdmin || role === "Accounting";
@@ -236,7 +236,9 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
     setUploading(true); setProgress(0);
     const built = [];
     let done = 0;
-    const baseSeq = (documents ? documents.length : 0) + 1;
+    /* Numbered from the FULL document count — `documents` may be only the
+       plants this user can see. */
+    const baseSeq = (allDocCount != null ? allDocCount : (documents ? documents.length : 0)) + 1;
     let failed = 0;
     valid.forEach((file, idx) => {
       /* Bytes go to the Storage bucket; the record keeps only the path. A
@@ -281,7 +283,7 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
         }
       });
     });
-  }, [canUpload, documents, meta, userName, role, onAdd, plantOpts]);
+  }, [canUpload, documents, meta, userName, role, onAdd, plantOpts, allDocCount]);
 
   const onDrop = (e) => { e.preventDefault(); setDragOver(false); ingest(e.dataTransfer.files); };
 

@@ -141,10 +141,14 @@
        Keep the two entries in step — any change to one belongs on both. */
     "superuser@a1plus.com":   { name: "System Superuser",      role: "SuperAdmin", plants: "ALL" },
     "accounting@a1plus.com": { name: "Accounting Department", role: "Accounting", plants: "ALL" },
-    "finance@a1plus.com":    { name: "Finance Department",    role: "Finance",    plants: "ALL" },
+    /* excludePlants removes whole plants (every branch of their family) from
+       the grant, whatever `plants` says — "WARNER" = Warner, "ST" = Disney
+       (ST + D1..D9), "RG" = RG and Co. Owner's instruction, Sep 2026: Finance
+       and Maureen Felix have no access to Warner, Disney or RG and Co. */
+    "finance@a1plus.com":    { name: "Finance Department",    role: "Finance",    plants: "ALL", excludePlants: ["WARNER", "ST", "RG"] },
     "puradr@a1plus.com":     { name: "Pura Barloso",          role: "Custodian",  plants: DISNEY_BRANCHES.concat(["RG"]) },
     "lita@a1plus.com":       { name: "Angelita Bayani",       role: "Custodian",  plants: ["WARNER"] },
-    "mauwi@a1plus.com":      { name: "Maureen Felix",         role: "Custodian",  plants: MANILA_BRANCHES },
+    "mauwi@a1plus.com":      { name: "Maureen Felix",         role: "Custodian",  plants: MANILA_BRANCHES, excludePlants: ["WARNER", "ST", "RG"] },
     "pcfrequestordisney@a1plus.com":  { name: "PCF REQUESTOR - Disney",      role: "Requestor", plants: DISNEY_BRANCHES },
     "pcfrequestormanila@a1plus.com":  { name: "PCF REQUESTOR - Manila",      role: "Requestor", plants: MANILA_BRANCHES },
     "pcfrequestorrgandco@a1plus.com": { name: "PCF REQUESTOR - RG and Co.",  role: "Requestor", plants: ["RG"] },
@@ -834,7 +838,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20260928r";
+  window.PCP_SRC_VERSION = "20260928s";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",

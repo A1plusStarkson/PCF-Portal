@@ -12,7 +12,7 @@ function localSignIn(username, password) {
     String(x.password) === String(password)
   );
   if (!u) return null;
-  return { user: u.user, role: (u.role && ROLES[u.role]) ? u.role : "Custodian", name: u.name || u.user, plants: u.plants || "ALL" };
+  return { user: u.user, role: (u.role && ROLES[u.role]) ? u.role : "Custodian", name: u.name || u.user, plants: u.plants || "ALL", excludePlants: u.excludePlants || [] };
 }
 
 /* Sign-in screen. mode="cloud" uses Supabase email/password; mode="local"

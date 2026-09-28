@@ -959,7 +959,7 @@ function resolveUserAccess(email) {
   if (u) {
     const role = ROLES[u.role] ? u.role : "Custodian";
     const isAdmin = role === "Accounting" || role === "SuperAdmin" || admins.includes(e) || admins.includes(username);
-    return { role, isAdmin, plants: u.plants || "ALL", name: u.name || email };
+    return { role, isAdmin, plants: u.plants || "ALL", excludePlants: u.excludePlants || [], name: u.name || email };
   }
   if (admins.includes(e) || admins.includes(username)) return { role: "Accounting", isAdmin: true, plants: "ALL", name: email };
   const fb = (window.PCP_DEFAULT_ROLE && ROLES[window.PCP_DEFAULT_ROLE]) ? window.PCP_DEFAULT_ROLE : "Custodian";
