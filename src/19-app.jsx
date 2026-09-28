@@ -2100,6 +2100,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             canFinance={["Accounting", "Finance", "SuperAdmin"].includes(role) || !!isAdmin}
             currentUser={userName || role}
             plantOptions={plantOptions}
+            onOpenReplenishment={[...allowedTabs].some((t) => parseTab(t).module === "replenishment")
+              ? () => navigate("replenishment") : undefined}
           />
         )}
         {activeModule === "aging" && (
