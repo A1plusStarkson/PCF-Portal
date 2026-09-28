@@ -472,8 +472,64 @@ const CSS = `
   .pcp-login-help { display: flex; gap: 8px; align-items: flex-start; margin-top: 16px; padding: 10px 12px; border-radius: 8px; background: #f6f7fb; font-size: 11.5px; line-height: 1.5; color: var(--text-mut); }
   .pcp-login-help svg { flex-shrink: 0; margin-top: 2px; }
   .pcp-login-copy { font-size: 11px; color: var(--text-mut); text-align: center; }
+  /* ---- Login ₱ visual (PesoVisual in 20-auth-gate.jsx) ---- */
+  .pcp-peso-scene { position: relative; height: 200px; max-width: 420px; margin-top: 4px; }
+  .pcp-peso-glow { position: absolute; left: 30%; top: 20%; width: 60%; height: 70%; border-radius: 50%; background: radial-gradient(circle, rgba(245,196,81,0.28), transparent 70%); filter: blur(6px); }
+  .pcp-peso-bills { position: absolute; left: 10px; top: 36px; width: 230px; height: 118px; }
+  .pcp-peso-bill {
+    position: absolute; inset: 0; border-radius: 10px; overflow: hidden;
+    background: linear-gradient(135deg, #f7ecd0 0%, #e9d6a4 55%, #d9bf7e 100%);
+    border: 2px solid rgba(146,96,10,0.55); box-shadow: 0 12px 26px rgba(0,0,0,0.35), inset 0 0 0 5px rgba(255,255,255,0.35);
+    animation: pcp-bill-float 6s ease-in-out infinite;
+  }
+  .pcp-peso-bill.b3 { transform: translate(34px, -26px) rotate(8deg); opacity: 0.55; animation-delay: -2s; }
+  .pcp-peso-bill.b2 { transform: translate(17px, -13px) rotate(4deg); opacity: 0.8; animation-delay: -1s; background: linear-gradient(135deg, #f3e3c0, #e2c98f 60%, #cfae67); }
+  .pcp-peso-bill.b1 { transform: rotate(-2deg); }
+  .pcp-peso-bill-val { position: absolute; font-weight: 800; color: #6b4a07; letter-spacing: -0.3px; }
+  .pcp-peso-bill-val.tl { left: 12px; top: 8px; font-size: 15px; }
+  .pcp-peso-bill-val.br { right: 12px; bottom: 7px; font-size: 13px; opacity: 0.75; }
+  .pcp-peso-bill-seal {
+    position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 800; color: #6b4a07;
+    border: 2px solid rgba(107,74,7,0.45); background: radial-gradient(circle, rgba(255,255,255,0.6), rgba(255,255,255,0.1));
+  }
+  .pcp-peso-bill-lines { position: absolute; left: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 4px; }
+  .pcp-peso-bill-lines i { display: block; height: 3px; width: 46px; border-radius: 2px; background: rgba(107,74,7,0.3); }
+  .pcp-peso-bill-lines i:nth-child(2) { width: 34px; }
+  .pcp-peso-bill-lines i:nth-child(3) { width: 40px; }
+  @keyframes pcp-bill-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -7px; } }
+
+  .pcp-peso-coin {
+    position: absolute; width: 38px; height: 38px; border-radius: 50%; opacity: 0;
+    background: radial-gradient(circle at 35% 30%, #fff3c4 0%, #f5c451 35%, #c98f12 75%, #9c6b06 100%);
+    box-shadow: 0 6px 14px rgba(0,0,0,0.35), inset 0 0 0 3px rgba(255,240,190,0.55);
+    display: flex; align-items: center; justify-content: center;
+    animation: pcp-coin-rise 7s ease-in-out infinite;
+  }
+  .pcp-peso-coin span { font-size: 19px; font-weight: 800; color: #7a4f02; animation: pcp-coin-turn 3.5s ease-in-out infinite; display: block; }
+  .pcp-peso-coin.c1 { left: 262px; bottom: 6px; animation-delay: 0s; }
+  .pcp-peso-coin.c2 { left: 310px; bottom: 30px; width: 30px; height: 30px; animation-delay: -1.4s; }
+  .pcp-peso-coin.c2 span { font-size: 15px; }
+  .pcp-peso-coin.c3 { left: 356px; bottom: 0; animation-delay: -2.8s; }
+  .pcp-peso-coin.c4 { left: 290px; bottom: 60px; width: 26px; height: 26px; animation-delay: -4.2s; }
+  .pcp-peso-coin.c4 span { font-size: 13px; }
+  .pcp-peso-coin.c5 { left: 222px; bottom: -4px; width: 32px; height: 32px; animation-delay: -5.6s; }
+  .pcp-peso-coin.c5 span { font-size: 16px; }
+  @keyframes pcp-coin-rise {
+    0% { opacity: 0; transform: translateY(18px) scale(0.9); }
+    15% { opacity: 0.95; }
+    70% { opacity: 0.9; }
+    100% { opacity: 0; transform: translateY(-120px) scale(1); }
+  }
+  @keyframes pcp-coin-turn { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(0.35); } }
+  @media (prefers-reduced-motion: reduce) {
+    .pcp-peso-bill, .pcp-peso-coin span { animation: none; }
+    .pcp-peso-coin { animation: none; opacity: 0.9; }
+  }
+
   @media (max-width: 860px) {
     .pcp-login-split { grid-template-columns: minmax(0, 1fr); }
+    .pcp-peso-scene { transform: scale(0.7); transform-origin: left top; margin-bottom: -60px; }
     .pcp-login-brand { padding: 24px 22px; gap: 16px; }
     .pcp-login-hero { font-size: 22px; margin-bottom: 8px; }
     .pcp-login-lead { margin-bottom: 0; font-size: 13px; }

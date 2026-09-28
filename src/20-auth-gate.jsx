@@ -43,6 +43,36 @@ function friendlyLoginError(err, cloud) {
   return { title: "Sign-in failed", text: e.message || "Please try again. If it keeps happening, contact your administrator." };
 }
 
+/* Decorative ₱ animation for the login brand panel: a stack of peso bills
+   floating gently with gold coins rising past them. Pure CSS (transform and
+   opacity only, no images or libraries), so it costs nothing to load; it
+   stands still for users who ask their system for reduced motion. */
+function PesoVisual() {
+  const bills = [
+    { cls: "b3", value: "1000" },
+    { cls: "b2", value: "500" },
+    { cls: "b1", value: "1000" },
+  ];
+  return (
+    <div className="pcp-peso-scene" aria-hidden="true">
+      <div className="pcp-peso-glow" />
+      <div className="pcp-peso-bills">
+        {bills.map((b) => (
+          <div key={b.cls} className={"pcp-peso-bill " + b.cls}>
+            <span className="pcp-peso-bill-val tl">₱{b.value}</span>
+            <span className="pcp-peso-bill-seal">₱</span>
+            <span className="pcp-peso-bill-lines"><i /><i /><i /></span>
+            <span className="pcp-peso-bill-val br">{b.value}</span>
+          </div>
+        ))}
+      </div>
+      {["c1", "c2", "c3", "c4", "c5"].map((c) => (
+        <div key={c} className={"pcp-peso-coin " + c}><span>₱</span></div>
+      ))}
+    </div>
+  );
+}
+
 function LoginScreen({ mode, onLocalLogin }) {
   const cloud = mode === "cloud";
   const [identifier, setIdentifier] = useState("");
@@ -99,12 +129,6 @@ function LoginScreen({ mode, onLocalLogin }) {
 
   /* Display only: reveals the typed password on request. */
   const [showPw, setShowPw] = useState(false);
-  const LOGIN_FEATURES = [
-    "Petty cash requests and release",
-    "Liquidation with receipt review",
-    "Employee reimbursements",
-    "Two-level approvals and replenishment",
-  ];
 
   return (
     <div className="pcp-root">
@@ -122,11 +146,7 @@ function LoginScreen({ mode, onLocalLogin }) {
           <div className="pcp-login-brand-mid">
             <h1 className="pcp-login-hero">Manage petty cash with confidence.</h1>
             <p className="pcp-login-lead">Request, release, liquidate and replenish — with every approval and receipt on record.</p>
-            <ul className="pcp-login-features">
-              {LOGIN_FEATURES.map((f) => (
-                <li key={f}><CircleCheck size={15} /> {f}</li>
-              ))}
-            </ul>
+            <PesoVisual />
           </div>
           <div className="pcp-login-logos">
             <img src={LOGO_A1} alt="A1+ Multinational Packaging, Inc" />
