@@ -2,7 +2,8 @@
 
 export default function App({ userEmail, userName, onSignOut, userRole, isAdmin, userPlants }) {
   const [loaded, setLoaded] = useState(false);
-  const [tab, setTab] = useState("dashboard");
+  /* Everyone starts on the Home landing page (24-home.jsx). */
+  const [tab, setTab] = useState("home");
   const [funds, setFunds] = useState([]);
   const [requests, setRequests] = useState([]);
   const [disbursements, setDisbursements] = useState([]);
@@ -1899,7 +1900,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   /* Build the grouped sidebar: an optional consolidated overview, one group per
      plant with that plant's modules, then the shared administration tabs. */
   const navGroups = useMemo(() => {
-    const groups = [];
+    /* Home (landing page) — every role. Read-only summary + links, see 24-home.jsx. */
+    const groups = [{ key: "home", label: "", items: [{ tabKey: "home", label: "Home", icon: House }] }];
     const plantMods = PLANT_MODULES.filter((m) => roleModuleKeys.includes(m.key));
     if (orderedPlants.length > 1 && roleModuleKeys.includes("dashboard")) {
       groups.push({ key: "overview", label: "Overview", items: [
@@ -1993,6 +1995,41 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     navigate(target);
   }, [orderedPlants, navigate]);
 
+  /* ---- Home (landing page) data — derived only, nothing is written ---- */
+  const tabFor = (key) => (PLANT_MODULE_KEYS.includes(key) && orderedPlants[0] ? plantTabKey(orderedPlants[0].code, key) : key);
+  const canOpen = (key) => allowedTabs.has(tabFor(key));
+  const homeDeadlines = useMemo(
+    () => liquidationReminders(visibleDisbursements, visibleLiquidations, today),
+    [visibleDisbursements, visibleLiquidations, today]
+  );
+  const homeQuickLinks = [
+    { key: "requests", label: "Petty Cash Request", desc: "Request a cash advance and track its approval", icon: ClipboardList, tint: "#c8102e" },
+    { key: "reimbursement", label: "Reimbursement", desc: "Claim back expenses you paid yourself", icon: ArrowLeftRight, tint: "#2054a3" },
+    { key: "liquidation", label: "Liquidation", desc: "Liquidate released cash with receipts", icon: FileSpreadsheet, tint: "#b9790a" },
+    { key: "disbursements", label: "Release Ledger", desc: "Vouchers released from the fund", icon: Receipt, tint: "#0891b2" },
+    { key: "replenishment", label: "Replenishment", desc: "Restore the fund for approved expenses", icon: RefreshCw, tint: "#15803d" },
+    { key: "approvals", label: "Approval", desc: "Everything awaiting your decision", icon: ClipboardCheck, tint: "#7c3aed" },
+  ].filter((q) => canOpen(q.key)).map((q) => ({ ...q, onClick: () => navigate(q.key) }));
+  const homeStats = [];
+  if (canOpen("requests")) {
+    const pend = visibleRequests.filter((r) => r.status === "Pending");
+    homeStats.push({ label: "Requests Awaiting Approval", value: pend.length, icon: ClipboardList, tint: "#b9790a",
+      foot: peso(pend.reduce((s, r) => s + (Number(r.amount) || 0), 0)), onClick: () => navigate("requests") });
+    const appr = visibleRequests.filter((r) => r.status === "Approved");
+    homeStats.push({ label: "Approved, Awaiting Release", value: appr.length, icon: Banknote, tint: "#2054a3",
+      foot: peso(appr.reduce((s, r) => s + (Number(r.amount) || 0), 0)), onClick: () => navigate(canOpen("disbursements") ? "disbursements" : "requests") });
+  }
+  if (canOpen("liquidation")) {
+    const overdue = homeDeadlines.filter((d) => d.daysLeft <= 0).length;
+    homeStats.push({ label: "Liquidations Outstanding", value: homeDeadlines.length, icon: FileSpreadsheet, tint: overdue ? "#c8102e" : "#15803d",
+      foot: overdue ? `${overdue} due today or overdue` : "None overdue", onClick: () => navigate("liquidation") });
+  }
+  if (canOpen("replenishment")) {
+    const ready = replenishmentReadyItems(visibleDisbursements, visibleLiquidations, visibleReimbursements, visibleReplenishments);
+    homeStats.push({ label: "Ready for Replenishment", value: ready.length, icon: RefreshCw, tint: "#15803d",
+      foot: peso(ready.reduce((s, x) => s + (Number(x.amount) || 0), 0)), onClick: () => navigate("replenishment") });
+  }
+
   const uiValue = useMemo(
     () => ({ notifications: bellNotifications, reminders, onReminderClick, role, setRole: guardedSetRole, canSwitchRole: !!isAdmin, onNotifClick }),
     [bellNotifications, reminders, onReminderClick, role, guardedSetRole, isAdmin, onNotifClick]
@@ -2037,6 +2074,21 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             setup SQL (see README → Data Storage &amp; Login) in Supabase to fully restore multi-user safety.
             No existing data will be affected.
           </div>
+        )}
+        {activeModule === "home" && (
+          <>
+            <TopBar title="Home" sub="Your petty cash overview and shortcuts" />
+            <div className="pcp-content">
+              <HomePage
+                userName={userName} userEmail={userEmail}
+                roleLabel={ROLES[role] ? ROLES[role].label : role}
+                plants={orderedPlants}
+                quickLinks={homeQuickLinks} stats={homeStats}
+                notifications={bellNotifications} onNotifClick={onNotifClick}
+                deadlines={homeDeadlines} onDeadlineClick={onReminderClick}
+              />
+            </div>
+          </>
         )}
         {activeModule === "dashboard" && (
           activePlant && activeBranch ? (

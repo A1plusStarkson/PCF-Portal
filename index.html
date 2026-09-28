@@ -68,6 +68,15 @@
   window.PCP_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_4DaKPkhmDZNr0sbie8WgDw_MHuvTcjB";
   window.PCP_SUPABASE_ANON_KEY = window.PCP_SUPABASE_PUBLISHABLE_KEY;
   window.PCP_TABLE = "pcp_state";
+  /* Announcements on the Home page. Edit, add or remove entries here, then
+     bump PCP_SRC_VERSION below. Leave the list empty ([]) to show the
+     built-in reminders instead. `date` is optional. */
+  window.PCP_ANNOUNCEMENTS = [
+    { title: "Welcome to the new Home page", text: "Use Quick Access to jump straight to Petty Cash Requests, Reimbursement, Liquidation, Release Ledger, Replenishment and Approvals.", date: "Sep 28, 2026" },
+    { title: "Liquidate on time", text: "Cash advances must be liquidated within 5 days of release. Check Upcoming Liquidation Deadlines on this page." },
+    { title: "Series numbers are system-generated", text: "Request and Reimbursement numbers are issued automatically when you submit. They cannot be typed or changed, and are never reused." },
+    { title: "Attach complete documents", text: "Upload the Original OR / Sales Invoice for every expense so custodians and approvers can check it on screen." }
+  ];
   window.PCP_RECORDS_TABLE = "pcp_records";
   /* ---- Where uploaded receipts live ----
      Never inside a transaction record. A record write rewrites the whole row
@@ -824,7 +833,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20260928f";
+  window.PCP_SRC_VERSION = "20260928g";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",
@@ -847,6 +856,7 @@
     "src/18b-pcf-documents.jsx",
     "src/22-reimbursement.jsx",
     "src/23-approvals.jsx",
+    "src/24-home.jsx",
     "src/19-app.jsx",
     "src/20-auth-gate.jsx",
     "src/21-root-mount.jsx"
