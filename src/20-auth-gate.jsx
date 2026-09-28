@@ -149,8 +149,8 @@ function LoginScreen({ mode, onLocalLogin }) {
             <PesoVisual />
           </div>
           <div className="pcp-login-logos">
-            <img src={LOGO_A1} alt="A1+ Multinational Packaging, Inc" />
-            <img src={LOGO_SPI} alt="Starkson Packaging, Inc." />
+            <img src={LOGO_A1_T} alt="A1+ Multinational Packaging, Inc" />
+            <img src={LOGO_SPI_T} alt="Starkson Packaging, Inc." />
           </div>
         </aside>
 
