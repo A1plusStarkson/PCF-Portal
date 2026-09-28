@@ -442,12 +442,28 @@ const CSS = `
   .pcp-login-split .pcp-login-body { padding: 22px 28px 26px; }
   .pcp-login-input { position: relative; display: flex; align-items: center; }
   .pcp-login-input > svg { position: absolute; left: 11px; color: #9098b3; pointer-events: none; }
-  .pcp-login-input .pcp-input { padding-left: 34px; height: 40px; }
+  .pcp-login-input > svg { left: 13px; }
+  .pcp-login-input .pcp-input { padding-left: 40px; height: 48px; font-size: 14.5px; border-radius: 10px; }
   .pcp-login-input .pcp-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(200,16,46,0.12); outline: none; }
-  .pcp-login-eye { position: absolute; right: 6px; border: none; background: none; color: #9098b3; cursor: pointer; padding: 6px; border-radius: 6px; display: flex; }
-  .pcp-login-eye:hover { color: var(--brand); }
-  .pcp-login-input:has(.pcp-login-eye) .pcp-input { padding-right: 36px; }
-  .pcp-login-submit { width: 100%; justify-content: center; height: 42px; font-size: 13.5px; margin-top: 6px; }
+  .pcp-login-input.invalid .pcp-input { border-color: var(--brand); background: #fff8f9; }
+  .pcp-login-split .pcp-field label { font-size: 12.5px; font-weight: 600; color: var(--text); }
+  .pcp-login-field-err { font-size: 12px; color: var(--brand); margin-top: 5px; }
+  .pcp-login-caps { font-size: 12px; color: #92600a; margin-top: 5px; }
+  .pcp-login-eye { position: absolute; right: 6px; border: none; background: none; color: #9098b3; cursor: pointer; padding: 8px; border-radius: 8px; display: flex; }
+  .pcp-login-eye:hover, .pcp-login-eye:focus-visible { color: var(--brand); background: #fff1f3; outline: none; }
+  .pcp-login-input:has(.pcp-login-eye) .pcp-input { padding-right: 44px; }
+  .pcp-login-submit {
+    width: 100%; justify-content: center; height: 48px; font-size: 15px; font-weight: 700; margin-top: 8px; border-radius: 10px;
+    box-shadow: 0 8px 20px rgba(200,16,46,0.25); transition: transform 0.08s, box-shadow 0.15s, background 0.15s;
+  }
+  .pcp-login-submit:hover:not(:disabled) { box-shadow: 0 10px 24px rgba(200,16,46,0.35); transform: translateY(-1px); }
+  .pcp-login-submit:active:not(:disabled) { transform: translateY(0); box-shadow: 0 4px 12px rgba(200,16,46,0.25); }
+  .pcp-login-submit:disabled { opacity: 0.85; cursor: progress; }
+  .pcp-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.45); border-top-color: #fff; border-radius: 50%; display: inline-block; animation: pcp-spin 0.7s linear infinite; }
+  @keyframes pcp-spin { to { transform: rotate(360deg); } }
+  .pcp-login-alert { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; line-height: 1.45; padding: 11px 13px; border: 1px solid #f5c2cb; }
+  .pcp-login-alert svg { flex-shrink: 0; margin-top: 1px; }
+  .pcp-login-alert b { display: block; margin-bottom: 2px; }
   .pcp-login-help { display: flex; gap: 8px; align-items: flex-start; margin-top: 16px; padding: 10px 12px; border-radius: 8px; background: #f6f7fb; font-size: 11.5px; line-height: 1.5; color: var(--text-mut); }
   .pcp-login-help svg { flex-shrink: 0; margin-top: 2px; }
   .pcp-login-copy { font-size: 11px; color: var(--text-mut); text-align: center; }
