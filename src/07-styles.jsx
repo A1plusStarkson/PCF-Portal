@@ -336,6 +336,20 @@ const CSS = `
   .pcp-doc-gallery-lg { grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 14px; }
   .pcp-doc-gallery-lg .pcp-doc-frame img { max-height: 640px; }
   .pcp-doc-gallery-lg .pcp-doc-frame iframe { height: 640px; }
+  /* Extra large (Approval Module): one or two documents per row, near
+     full-height, for checking before approval. */
+  .pcp-doc-gallery-xl { grid-template-columns: repeat(auto-fit, minmax(min(560px, 100%), 1fr)); gap: 16px; }
+  .pcp-doc-gallery-xl .pcp-doc-frame img { max-height: max(520px, 78vh); }
+  .pcp-doc-gallery-xl .pcp-doc-frame iframe { height: max(520px, 78vh); }
+  /* Zoomed image: scrolls inside a fixed-height frame; aspect ratio kept. */
+  .pcp-doc-frame.zoomed { overflow: auto; height: 640px; }
+  .pcp-doc-gallery-xl .pcp-doc-frame.zoomed { height: max(520px, 78vh); }
+  .pcp-doc-frame.zoomed img { max-height: none; margin: 0 auto; }
+  .pcp-doc-zoombar { display: inline-flex; align-items: center; gap: 2px; margin-left: 4px; }
+  .pcp-doc-zoombar button { border: 1px solid var(--line); background: #fff; border-radius: 6px; height: 24px; min-width: 24px; padding: 0 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 600; color: var(--text); }
+  .pcp-doc-zoombar button:hover { border-color: var(--brand); color: var(--brand); }
+  .pcp-doc-zoombar button:disabled { opacity: 0.4; cursor: default; }
+  .pcp-doc-zoomval { font-size: 10.5px; color: var(--text-mut); min-width: 34px; text-align: center; }
   .pcp-doc-frame .pcp-doc-none { padding: 22px 14px; text-align: center; font-size: 11.5px; color: var(--text-mut); }
 
   /* ---- Notifications & role ---- */
@@ -994,8 +1008,14 @@ function SearchSelect({
 --------------------------------------------------------------------------- */
 /* One tile. Its own component because useFileUrl is a hook and a hook cannot
    be called from inside a .map callback. */
+/* Zoom steps for large previews; 100 = fit to the frame. Display only. */
+const DOC_ZOOM_STEPS = [50, 75, 100, 125, 150, 200, 300];
+
 function AttachmentTile({ att, renderFooter, large }) {
   const src = useFileUrl(att);
+  const [zoom, setZoom] = useState(100);
+  const zi = DOC_ZOOM_STEPS.indexOf(zoom);
+  const stepZoom = (d) => setZoom(DOC_ZOOM_STEPS[Math.min(DOC_ZOOM_STEPS.length - 1, Math.max(0, zi + d))]);
   const name = att.name || "document";
   const type = String(att.type || "");
   const ext = String(name).split(".").pop().toLowerCase();
@@ -1010,14 +1030,29 @@ function AttachmentTile({ att, renderFooter, large }) {
         <Paperclip size={12} color="#2054a3" style={{ flexShrink: 0 }} />
         <span className="pcp-doc-tile-name" title={name}>{name}</span>
         {att.docType && <span className="pcp-badge pcp-badge-gray">{att.docType}</span>}
+        {large && src && (isImage || isPdf) && (
+          <span className="pcp-doc-zoombar" aria-label="Zoom">
+            <button type="button" onClick={() => stepZoom(-1)} disabled={zi <= 0} title="Zoom out"><ZoomOut size={12} /></button>
+            <span className="pcp-doc-zoomval">{zoom === 100 ? "Fit" : zoom + "%"}</span>
+            <button type="button" onClick={() => stepZoom(1)} disabled={zi >= DOC_ZOOM_STEPS.length - 1} title="Zoom in"><ZoomIn size={12} /></button>
+            {zoom !== 100 && <button type="button" onClick={() => setZoom(100)} title="Fit to frame">Fit</button>}
+          </span>
+        )}
         {src && <a className="pcp-iconbtn" href={src} target="_blank" rel="noopener noreferrer" title="Open full size"><Search size={13} /></a>}
         {src && <a className="pcp-iconbtn" href={src} download={name} title="Download"><Download size={13} /></a>}
       </div>
-      <div className="pcp-doc-frame">
+      <div className={"pcp-doc-frame" + (large && isImage && zoom !== 100 ? " zoomed" : "")}>
         {isImage && src ? (
-          <a href={src} target="_blank" rel="noopener noreferrer" title="Click to open full size"><img src={src} alt={name} /></a>
+          zoom === 100
+            ? <a href={src} target="_blank" rel="noopener noreferrer" title="Click to open full size"><img src={src} alt={name} /></a>
+            : <img src={src} alt={name} style={{ width: zoom + "%" }} />
         ) : isPdf && src ? (
-          <iframe title={name} src={large && !src.includes("#") ? src + "#view=FitH" : src} />
+          /* The PDF viewer reads the zoom from the URL fragment; the key
+             reloads it when the zoom changes. Its own toolbar also zooms. */
+          <iframe
+            key={large ? zoom : "pdf"} title={name}
+            src={large && !src.includes("#") ? src + (zoom === 100 ? "#view=FitH" : "#zoom=" + zoom) : src}
+          />
         ) : (
           <div className="pcp-doc-none">
             {pending
@@ -1033,13 +1068,15 @@ function AttachmentTile({ att, renderFooter, large }) {
 
 /* `large`: bigger tiles and previews (Reimbursement module), so receipts can
    be read without opening each one. Click an image to open it full size. */
+/* large="xl": larger still — the Approval Module, where documents are checked
+   before approval. Large tiles get zoom in / out / fit controls. */
 function AttachmentGallery({ attachments, emptyLabel, renderFooter, large }) {
   const list = attachments || [];
   if (!list.length) {
     return <div style={{ fontSize: 12, color: "var(--text-mut)" }}>{emptyLabel || "No documents attached."}</div>;
   }
   return (
-    <div className={"pcp-doc-gallery" + (large ? " pcp-doc-gallery-lg" : "")}>
+    <div className={"pcp-doc-gallery" + (large ? " pcp-doc-gallery-lg" : "") + (large === "xl" ? " pcp-doc-gallery-xl" : "")}>
       {list.map((a, i) => (
         <AttachmentTile key={a.id || (a.name || "document") + i} att={a} renderFooter={renderFooter} large={large} />
       ))}

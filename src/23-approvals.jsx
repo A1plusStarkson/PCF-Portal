@@ -308,6 +308,7 @@ function PcaApprovalPanel({
         {/* Each receipt is legible in place, with its decision on the same tile. */}
         <AttachmentGallery
           attachments={liq.attachments}
+          large="xl"
           emptyLabel="No supporting documents were uploaded for this liquidation."
           renderFooter={(a) => {
             const status = a.approvalStatus || "Pending";

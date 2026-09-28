@@ -7,7 +7,7 @@ import {
   ArrowUpRight, ArrowDownRight, FileSpreadsheet, RefreshCw, Filter as FilterIcon,
   Printer, Bell, History, ShieldCheck, ArrowLeftRight, Clock, UserCog, Landmark, LogOut,
   Settings, KeyRound, FolderOpen, Upload, UploadCloud, Star, Archive, ArchiveRestore,
-  Eye, File as FileIcon, Paperclip, ClipboardCheck, House, Megaphone, CalendarClock
+  Eye, File as FileIcon, Paperclip, ClipboardCheck, House, Megaphone, CalendarClock, ZoomIn, ZoomOut
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
