@@ -225,7 +225,7 @@ function ReplenishmentFormModal({ onClose, onSave, funds, disbursements, liquida
               <div style={{ fontSize: 11.5, marginTop: 4 }}>
                 {picked.size} item(s) selected · <b>{peso(pickedTotal)}</b>
                 {round2(form.amount) !== pickedTotal && (
-                  <span style={{ color: "var(--brand)" }}> — the amount differs from the selected items</span>
+                  <span style={{ color: "var(--danger)" }}> — the amount differs from the selected items</span>
                 )}
               </div>
             )}
@@ -380,7 +380,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
               {/* Search + bulk selection. */}
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "10px 0" }}>
                 <div style={{ position: "relative", flex: 1, minWidth: 200, maxWidth: 320 }}>
-                  <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#9098b3" }} />
+                  <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
                   <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search voucher / reimb no., employee, approver…"
                     value={readySearch} onChange={(e) => setReadySearch(e.target.value)} />
                 </div>
@@ -500,7 +500,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
         <div className="pcp-card">
           <div style={{ padding: "14px 18px", display: "flex", gap: 10, alignItems: "center", borderBottom: "1px solid var(--line)" }}>
             <div style={{ position: "relative", flex: 1, maxWidth: 280 }}>
-              <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#9098b3" }} />
+              <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
               <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search no. or preparer" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <select className="pcp-select" style={{ width: 170 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -540,7 +540,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                         <div style={{ fontSize: 10.5, color: "var(--text-mut)" }}>{r.reimbursementIds.length} approved reimbursement(s)</div>
                       )}
                       {r.status === "Reverted" && (
-                        <div style={{ fontSize: 10.5, color: "var(--brand)" }}>
+                        <div style={{ fontSize: 10.5, color: "var(--danger)" }}>
                           Reverted by {r.revertedBy || "—"} · {String(r.revertedAt || "").replace("T", " ")}{r.revertReason ? ` · "${r.revertReason}"` : ""}
                         </div>
                       )}

@@ -133,7 +133,7 @@ function MasterDataTab({ funds, disbursements, liquidations, replenishments, onA
                     <td style={{ fontSize: 11.5, color: "var(--text-mut)" }}>{companyOfBranch(f.branchCode)}</td>
                     <td>{f.custodian}</td>
                     <td className="pcp-num">{peso(f.beginningBalance)}</td>
-                    <td className="pcp-num" style={{ fontWeight: 700, color: f.available < 0 ? "var(--brand)" : "var(--green)" }}>{peso(f.available)}</td>
+                    <td className="pcp-num" style={{ fontWeight: 700, color: f.available < 0 ? "var(--danger)" : "var(--green)" }}>{peso(f.available)}</td>
                     <td>
                       <div style={{ display: "flex", gap: 6 }}>
                         {/* Edit the stored fund, not the row copy — the row carries a

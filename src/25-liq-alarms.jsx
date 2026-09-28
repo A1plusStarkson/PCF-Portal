@@ -31,7 +31,7 @@ const LIQ_ALARM_EMAILS = [
 const LIQ_ALARM_STAGE = {
   due1: { key: "due1", title: "LIQUIDATION DUE TOMORROW", icon: "🔔", tint: "#ea580c", bg: "#fff4ec" },
   due0: { key: "due0", title: "LIQUIDATION DUE TODAY", icon: "⏰", tint: "#c2410c", bg: "#ffefe5" },
-  overdue: { key: "overdue", title: "LIQUIDATION OVERDUE – AUTHORITY TO DEDUCT", icon: "⚠️", tint: "#c8102e", bg: "#fff1f3" },
+  overdue: { key: "overdue", title: "LIQUIDATION OVERDUE – AUTHORITY TO DEDUCT", icon: "⚠️", tint: "#c0392b", bg: "#fdf0ef" },
 };
 const LIQ_ALARM_HISTORY_MAX = 200;
 
@@ -234,7 +234,7 @@ function LiquidationAlarmBell() {
         aria-label="Liquidation alarms"
       >
         <Bell size={22} />
-        <span className="pcp-reminder-count" style={{ background: unreadCount ? worst : "#9098b3" }}>{unreadCount}</span>
+        <span className="pcp-reminder-count" style={{ background: unreadCount ? worst : "#8fa397" }}>{unreadCount}</span>
       </button>
       {open && (
         <div className="pcp-notif-panel pcp-reminder-panel pcp-alarm-panel">

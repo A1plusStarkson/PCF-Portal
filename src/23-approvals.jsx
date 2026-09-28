@@ -216,7 +216,7 @@ function PcaApprovalPanel({
           <div className="pcp-liq-metric"><div className="pcp-kpi-label">Approved Receipts</div><div className="pcp-num">{peso(amounts.approvedTotal)}</div></div>
           <div className="pcp-liq-metric">
             <div className="pcp-kpi-label">{rec.type === "excess" ? "Refund Due" : rec.type === "reimburse" ? "Reimbursement Due" : "Variance"}</div>
-            <div className="pcp-num" style={{ color: rec.type === "exact" ? "var(--green)" : "var(--brand)" }}>{peso(rec.expected)}</div>
+            <div className="pcp-num" style={{ color: rec.type === "exact" ? "var(--green)" : "var(--danger)" }}>{peso(rec.expected)}</div>
           </div>
           <div className="pcp-liq-metric">
             <div className="pcp-kpi-label">Cash Settlement</div>
@@ -240,7 +240,7 @@ function PcaApprovalPanel({
 
       {!!rejections.length && (
         <div className="pcp-card pcp-card-pad" style={{ marginBottom: 12, borderColor: "#f0c0c0" }}>
-          <div className="pcp-section-title" style={{ margin: "0 0 8px", color: "var(--brand)" }}>
+          <div className="pcp-section-title" style={{ margin: "0 0 8px", color: "var(--danger)" }}>
             <AlertTriangle size={15} /> Rejection History ({rejections.length})
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -294,7 +294,7 @@ function PcaApprovalPanel({
 
       <div className="pcp-card pcp-card-pad">
         <div className="pcp-section-title" style={{ margin: "0 0 10px" }}>
-          <Receipt size={15} color="#c8102e" /> Supporting Documents ({approval.total})
+          <Receipt size={15} color="#4e7d63" /> Supporting Documents ({approval.total})
         </div>
         {(canDecide || canCheck || canFinal || canReject) && (
           <div className="pcp-field">
@@ -613,7 +613,7 @@ function ApprovalModuleTab({
 
         <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
           <div style={{ position: "relative", flex: 1, minWidth: 200, maxWidth: 300 }}>
-            <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#9098b3" }} />
+            <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
             <input
               className="pcp-input" style={{ paddingLeft: 28 }}
               placeholder="Search series no., requestor, plant or batch"

@@ -12,8 +12,9 @@ const HOME_CSS = `
   .pcp-home { display: flex; flex-direction: column; gap: 18px; }
   .pcp-home-hero {
     display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); gap: 18px;
-    background: linear-gradient(120deg, #8e0b20 0%, var(--brand) 55%, #e0485f 100%);
-    color: #fff; border-radius: 16px; padding: 24px 26px; box-shadow: 0 10px 30px rgba(200,16,46,0.18);
+    background: radial-gradient(circle at 92% 10%, rgba(167,215,189,0.35), transparent 45%),
+                linear-gradient(120deg, #2c4a3c 0%, #3d654f 50%, #5a8d70 100%);
+    color: #fff; border-radius: 16px; padding: 24px 26px; box-shadow: 0 10px 30px rgba(78,125,99,0.18);
   }
   .pcp-home-kicker { font-size: 11px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; opacity: 0.85; }
   .pcp-home-title { margin: 6px 0 4px; font-size: 26px; font-weight: 800; letter-spacing: -0.3px; }
@@ -33,7 +34,7 @@ const HOME_CSS = `
     border-radius: 12px; padding: 14px; cursor: pointer; font: inherit; color: inherit;
     transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
   }
-  .pcp-home-link:hover, .pcp-home-link:focus-visible { border-color: var(--brand); box-shadow: 0 6px 18px rgba(200,16,46,0.12); transform: translateY(-1px); outline: none; }
+  .pcp-home-link:hover, .pcp-home-link:focus-visible { border-color: var(--brand); box-shadow: 0 6px 18px rgba(78,125,99,0.12); transform: translateY(-1px); outline: none; }
   .pcp-home-link-icon { flex-shrink: 0; width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
   .pcp-home-link-label { font-size: 13.5px; font-weight: 700; }
   .pcp-home-link-desc { font-size: 11.5px; color: var(--text-mut); margin-top: 2px; line-height: 1.4; }
@@ -46,17 +47,17 @@ const HOME_CSS = `
   }
   .pcp-home-item:last-child { border-bottom: none; }
   button.pcp-home-item { cursor: pointer; }
-  button.pcp-home-item:hover { background: #fafbfd; }
+  button.pcp-home-item:hover { background: var(--brand-soft); }
   .pcp-home-item-main { flex: 1; min-width: 0; }
   .pcp-home-item-title { font-size: 12.5px; font-weight: 600; }
   .pcp-home-item-sub { font-size: 11.5px; color: var(--text-mut); overflow-wrap: anywhere; }
   .pcp-home-due { flex-shrink: 0; font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 99px; white-space: nowrap; }
-  .pcp-home-due.red { background: var(--red-bg); color: var(--brand-dark); }
+  .pcp-home-due.red { background: var(--red-bg); color: var(--danger-dark); }
   .pcp-home-due.orange { background: #ffedd5; color: #c2410c; }
   .pcp-home-due.yellow { background: var(--amber-bg); color: #92600a; }
   .pcp-home-due.green { background: var(--green-bg); color: var(--green); }
   .pcp-home-empty { font-size: 12px; color: var(--text-mut); padding: 8px 0; }
-  .pcp-home-ann { border-left: 3px solid var(--brand); padding: 8px 12px; background: #fff8f9; border-radius: 0 8px 8px 0; margin-bottom: 8px; }
+  .pcp-home-ann { border-left: 3px solid var(--brand); padding: 8px 12px; background: var(--brand-soft); border-radius: 0 8px 8px 0; margin-bottom: 8px; }
   .pcp-home-ann:last-child { margin-bottom: 0; }
   .pcp-home-ann-title { font-size: 12.5px; font-weight: 700; }
   .pcp-home-ann-text { font-size: 12px; color: var(--text); margin-top: 2px; line-height: 1.5; }
@@ -197,7 +198,7 @@ function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, stats, n
 
         {/* System announcements */}
         <div className="pcp-card pcp-card-pad" style={{ minWidth: 0 }}>
-          <div className="pcp-home-section-title"><Megaphone size={16} color="#c8102e" /> Announcements</div>
+          <div className="pcp-home-section-title"><Megaphone size={16} color="#4e7d63" /> Announcements</div>
           {announcements.map((a, i) => (
             <div key={i} className="pcp-home-ann">
               {a.title && <div className="pcp-home-ann-title">{a.title}</div>}

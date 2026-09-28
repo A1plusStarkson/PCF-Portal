@@ -63,7 +63,7 @@ const makeDocRef = (seq) => `PCFDOC-${new Date().getFullYear()}-${String(seq).pa
 const docTypeMeta = (name) => {
   const e = extOf(name);
   if (["png", "jpg", "jpeg"].includes(e)) return { kind: "image", tint: "#2054a3" };
-  if (e === "pdf") return { kind: "pdf", tint: "#c8102e" };
+  if (e === "pdf") return { kind: "pdf", tint: "#c0392b" };
   if (["xls", "xlsx", "csv"].includes(e)) return { kind: "sheet", tint: "#15803d" };
   if (["doc", "docx"].includes(e)) return { kind: "word", tint: "#2054a3" };
   if (e === "zip") return { kind: "zip", tint: "#b9790a" };
@@ -425,7 +425,7 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
         {/* ---- Upload ---- */}
         {canUpload && (
           <div className="pcp-card pcp-card-pad" style={{ marginBottom: 16 }}>
-            <div className="pcp-section-title"><UploadCloud size={15} color="#c8102e" /> Upload Documents</div>
+            <div className="pcp-section-title"><UploadCloud size={15} color="#4e7d63" /> Upload Documents</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 12 }}>
               <div className="pcp-field" style={{ margin: 0 }}>
                 <label>Category</label>
@@ -465,7 +465,7 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
               onClick={() => fileInputRef.current && fileInputRef.current.click()}
               role="button" tabIndex={0}
             >
-              <Upload size={26} color="#9098b3" />
+              <Upload size={26} color="#8fa397" />
               <div style={{ fontWeight: 600, marginTop: 6 }}>Drag &amp; drop files here, or click to browse</div>
               <div style={{ color: "var(--text-mut)", fontSize: 12, marginTop: 2 }}>Multiple files supported · {DOC_EXTS.join(", ").toUpperCase()}</div>
               <input ref={fileInputRef} type="file" multiple accept={DOC_ACCEPT} style={{ display: "none" }}
@@ -485,11 +485,11 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
         {/* ---- Reports charts ---- */}
         <div className="pcp-grid-2" style={{ marginBottom: 16 }}>
           <div className="pcp-card pcp-card-pad">
-            <div className="pcp-section-title"><FolderOpen size={15} color="#c8102e" /> Documents by Category</div>
+            <div className="pcp-section-title"><FolderOpen size={15} color="#4e7d63" /> Documents by Category</div>
             <MiniBarChart data={byCategory} />
           </div>
           <div className="pcp-card pcp-card-pad">
-            <div className="pcp-section-title"><Building2 size={15} color="#c8102e" /> Documents by Company</div>
+            <div className="pcp-section-title"><Building2 size={15} color="#4e7d63" /> Documents by Company</div>
             <MiniBarChart data={byCompany} />
           </div>
         </div>
@@ -604,7 +604,7 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
                         {canEdit && (d.status === "Archived"
                           ? <button className="pcp-iconbtn" title="Restore" onClick={() => onUpdate(d.id, { status: "Active" }, "Restored")}><ArchiveRestore size={15} /></button>
                           : <button className="pcp-iconbtn" title="Archive" onClick={() => onUpdate(d.id, { status: "Archived" }, "Archived")}><Archive size={15} /></button>)}
-                        {canDelete && <button className="pcp-iconbtn" title="Delete" onClick={() => { if (window.confirm(`Delete "${d.name}"? This cannot be undone.`)) onDelete(d.id); }}><Trash2 size={15} color="#c8102e" /></button>}
+                        {canDelete && <button className="pcp-iconbtn" title="Delete" onClick={() => { if (window.confirm(`Delete "${d.name}"? This cannot be undone.`)) onDelete(d.id); }}><Trash2 size={15} color="#c0392b" /></button>}
                       </td>
                     </tr>
                   );

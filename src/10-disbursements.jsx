@@ -214,7 +214,7 @@ function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemar
         <div className="pcp-card">
           <div style={{ padding: "14px 18px", display: "flex", gap: 10, alignItems: "center", borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
             <div style={{ position: "relative", flex: 1, minWidth: 200, maxWidth: 280 }}>
-              <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#9098b3" }} />
+              <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
               <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search voucher or employee" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <select className="pcp-select" style={{ width: 160 }} value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
@@ -259,10 +259,10 @@ function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemar
                     <td>
                       {canEdit ? (
                         <button className="pcp-btn pcp-btn-sm" onClick={() => onToggleBilled(d.id)} title="Toggle billed">
-                          {d.billed ? <Check size={12} color="#15803d" /> : <span style={{ color: "#9098b3" }}>—</span>}
+                          {d.billed ? <Check size={12} color="#15803d" /> : <span style={{ color: "#8fa397" }}>—</span>}
                         </button>
                       ) : (
-                        d.billed ? <Check size={12} color="#15803d" /> : <span style={{ color: "#9098b3" }}>—</span>
+                        d.billed ? <Check size={12} color="#15803d" /> : <span style={{ color: "#8fa397" }}>—</span>
                       )}
                     </td>
                     <td style={{ minWidth: 150 }}>
@@ -278,7 +278,7 @@ function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemar
                       ) : (
                         <div style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }} onClick={() => { setEditingId(d.id); setEditValue(d.remarks || ""); }}>
                           <span style={{ color: d.remarks ? "inherit" : "var(--text-mut)" }}>{d.remarks || "Add remarks…"}</span>
-                          <Edit3 size={11} color="#9098b3" />
+                          <Edit3 size={11} color="#8fa397" />
                         </div>
                       )}
                     </td>
@@ -289,7 +289,7 @@ function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemar
                         )}
                         {canDelete && onDelete && (
                           <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => onDelete(d.id)} title="Delete voucher and its liquidation (super admin)">
-                            <Trash2 size={13} color="var(--brand)" />
+                            <Trash2 size={13} color="var(--danger)" />
                           </button>
                         )}
                       </div>

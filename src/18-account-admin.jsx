@@ -124,7 +124,7 @@ function SystemSettingsTab({ userName, userEmail, role, plants, requests, disbur
       <div className="pcp-content">
         <div className="pcp-grid-2">
           <div className="pcp-card pcp-card-pad">
-            <div className="pcp-section-title"><Settings size={15} color="#c8102e" /> Your Account</div>
+            <div className="pcp-section-title"><Settings size={15} color="#4e7d63" /> Your Account</div>
             <table className="pcp-table"><tbody>
               <tr><td style={{ fontWeight: 600 }}>Name</td><td>{userName || "—"}</td></tr>
               <tr><td style={{ fontWeight: 600 }}>Login</td><td>{userEmail || "Local mode"}</td></tr>
@@ -133,7 +133,7 @@ function SystemSettingsTab({ userName, userEmail, role, plants, requests, disbur
             </tbody></table>
           </div>
           <div className="pcp-card pcp-card-pad">
-            <div className="pcp-section-title"><ShieldCheck size={15} color="#c8102e" /> Security & Storage</div>
+            <div className="pcp-section-title"><ShieldCheck size={15} color="#4e7d63" /> Security & Storage</div>
             <table className="pcp-table"><tbody>
               <tr><td style={{ fontWeight: 600 }}>Authentication</td><td>{cloud ? "Supabase (secure, hashed passwords)" : "Local mode"}</td></tr>
               <tr><td style={{ fontWeight: 600 }}>Access control</td><td>Role-Based Access Control (RBAC) with plant scoping</td></tr>
@@ -184,7 +184,7 @@ function DataIntegrityPanel({ requests, disbursements, liquidations, replenishme
 
   return (
     <div className="pcp-card pcp-card-pad" style={{ marginTop: 16 }}>
-      <div className="pcp-section-title"><Database size={15} color="#c8102e" /> Data Integrity & Reconciliation</div>
+      <div className="pcp-section-title"><Database size={15} color="#4e7d63" /> Data Integrity & Reconciliation</div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "6px 0 14px" }}>
         <button className="pcp-btn" onClick={exportReconciliation}><Download size={14} /> Export reconciliation</button>
@@ -237,7 +237,7 @@ function DataIntegrityPanel({ requests, disbursements, liquidations, replenishme
         </table>
       </div>
 
-      <div className="pcp-section-title" style={{ fontSize: 13 }}><ArchiveRestore size={14} color="#c8102e" /> Backup &amp; recovery</div>
+      <div className="pcp-section-title" style={{ fontSize: 13 }}><ArchiveRestore size={14} color="#4e7d63" /> Backup &amp; recovery</div>
       <div className="pcp-hint" style={{ lineHeight: 1.7 }}>
         Every record lives in one place — the Supabase database — and backups are taken by Supabase itself:
         a <strong>daily backup retained for 7 days</strong> on the current plan. To restore, use

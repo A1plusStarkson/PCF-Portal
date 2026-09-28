@@ -403,11 +403,11 @@ function RecordSettlementModal({ disbursement, st, currentUser, onClose, onConfi
           </div>
           <div className="pcp-field-row">
             <div className="pcp-field">
-              <label>Amount {isReturn ? "returned" : "paid"} <span style={{ color: "var(--brand)" }}>*</span></label>
+              <label>Amount {isReturn ? "returned" : "paid"} <span style={{ color: "var(--danger)" }}>*</span></label>
               <input type="number" min="0" step="0.01" className="pcp-input" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </div>
             <div className="pcp-field">
-              <label>Date <span style={{ color: "var(--brand)" }}>*</span></label>
+              <label>Date <span style={{ color: "var(--danger)" }}>*</span></label>
               <input type="date" className="pcp-input" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
           </div>
@@ -424,13 +424,13 @@ function RecordSettlementModal({ disbursement, st, currentUser, onClose, onConfi
             </div>
           </div>
           <div className="pcp-field">
-            <label>Received by <span style={{ color: "var(--brand)" }}>*</span></label>
+            <label>Received by <span style={{ color: "var(--danger)" }}>*</span></label>
             <input className="pcp-input" value={receivedBy} onChange={(e) => setReceivedBy(e.target.value)} />
           </div>
           {needsReason && (
             <div className="pcp-field">
               <label>
-                Reason — this leaves {peso(Math.abs(left))} {left > 0 ? "still outstanding" : "overpaid"} <span style={{ color: "var(--brand)" }}>*</span>
+                Reason — this leaves {peso(Math.abs(left))} {left > 0 ? "still outstanding" : "overpaid"} <span style={{ color: "var(--danger)" }}>*</span>
               </label>
               <select className="pcp-select" value={reasonSel} onChange={(e) => setReasonSel(e.target.value)}>
                 <option value="">Select a reason</option>
@@ -452,7 +452,7 @@ function RecordSettlementModal({ disbursement, st, currentUser, onClose, onConfi
             ) : (
               <input type="file" accept="image/*,application/pdf" onChange={(e) => pickAck(e.target.files && e.target.files[0])} style={{ fontSize: 12 }} />
             )}
-            {uploadNote && <div style={{ fontSize: 11, color: "var(--brand)", marginTop: 4 }}>{uploadNote}</div>}
+            {uploadNote && <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 4 }}>{uploadNote}</div>}
           </div>
         </div>
         <div className="pcp-modal-foot">
@@ -488,7 +488,7 @@ function CloseReceivableModal({ disbursement, amount, onClose, onConfirm }) {
             will read LIQUIDATED (SHORT). This is written to the audit trail against your name.
           </div>
           <div className="pcp-field">
-            <label>Treatment <span style={{ color: "var(--brand)" }}>*</span></label>
+            <label>Treatment <span style={{ color: "var(--danger)" }}>*</span></label>
             <select className="pcp-select" value={treatment} onChange={(e) => setTreatment(e.target.value)}>
               {RECEIVABLE_TREATMENTS.map((t) => <option key={t}>{t}</option>)}
             </select>
@@ -497,7 +497,7 @@ function CloseReceivableModal({ disbursement, amount, onClose, onConfirm }) {
             )}
           </div>
           <div className="pcp-field" style={{ marginBottom: 0 }}>
-            <label>Reason / authority <span style={{ color: "var(--brand)" }}>*</span></label>
+            <label>Reason / authority <span style={{ color: "var(--danger)" }}>*</span></label>
             <textarea className="pcp-input" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Approved by Finance Director for payroll deduction on the next cut-off" />
           </div>
         </div>
@@ -532,7 +532,7 @@ function RejectLiquidationModal({ voucherNo, employee, onClose, onConfirm }) {
             {voucherNo}{employee ? ` · ${employee}` : ""}
           </div>
           <div className="pcp-field">
-            <label>Rejection Reason <span style={{ color: "var(--brand)" }}>*</span></label>
+            <label>Rejection Reason <span style={{ color: "var(--danger)" }}>*</span></label>
             <select className="pcp-select" value={reason} onChange={(e) => setReason(e.target.value)}>
               <option value="">Select reason for rejection</option>
               {LIQUIDATION_REJECTION_REASONS.map((g) => (
@@ -568,7 +568,7 @@ function emptyLine() {
 
 /* Outline for a field the save is waiting on. Border only — no background, so
    it reads the same whatever the surrounding surface is. */
-const MISSING_FIELD_STYLE = { borderColor: "var(--brand)" };
+const MISSING_FIELD_STYLE = { borderColor: "var(--danger)" };
 
 /* Bring older stored documents up to the current shape so rows uploaded before
    receipt amounts existed still render and can be completed. */
@@ -1121,7 +1121,7 @@ function LiquidationWorksheet({
           <div className="pcp-liq-metric"><div className="pcp-kpi-label">Total Receipts</div><div className="pcp-num">{peso(receiptSummary.approvedTotal)}</div></div>
           <div className="pcp-liq-metric">
             <div className="pcp-kpi-label">{st.type === "excess" ? "Excess / Refund" : st.type === "reimburse" ? "Reimbursement Due" : "Variance"}</div>
-            <div className="pcp-num" style={{ color: st.type === "reimburse" ? "var(--brand)" : st.type === "excess" ? "var(--amber)" : "var(--green)" }}>{peso(st.expected)}</div>
+            <div className="pcp-num" style={{ color: st.type === "reimburse" ? "var(--danger)" : st.type === "excess" ? "var(--amber)" : "var(--green)" }}>{peso(st.expected)}</div>
           </div>
           <div className="pcp-liq-metric"><div className="pcp-kpi-label">Status</div><div><Badge status={finalStatus} /></div></div>
         </div>
@@ -1129,7 +1129,7 @@ function LiquidationWorksheet({
             hover tooltip — and WHICH documents still need an amount, since a
             document without one adds ₱0 and the totals can look complete. */}
         {isDraft && !canSubmit && submitBlockers.length > 0 && (
-          <div style={{ marginTop: 10, fontSize: 11.5, color: "var(--brand)" }}>
+          <div style={{ marginTop: 10, fontSize: 11.5, color: "var(--danger)" }}>
             <AlertTriangle size={12} style={{ verticalAlign: "-2px" }} /> To submit: {submitBlockers.join("; ")}.
             {missingAmountDocs.length > 0 && (
               <div style={{ color: "var(--text-mut)", marginTop: 3 }}>
@@ -1152,9 +1152,9 @@ function LiquidationWorksheet({
       {/* Rejection history — every rejection kept as its own record and never
           overwritten. The most recent appears first. */}
       {rejections.length > 0 && (
-        <div className="pcp-card pcp-card-pad" style={{ marginBottom: 12, borderColor: isRejected ? "var(--brand)" : "var(--line)" }}>
+        <div className="pcp-card pcp-card-pad" style={{ marginBottom: 12, borderColor: isRejected ? "var(--danger)" : "var(--line)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <AlertTriangle size={15} color="#c8102e" />
+            <AlertTriangle size={15} color="#c0392b" />
             <div className="pcp-section-title" style={{ margin: 0 }}>Rejection History</div>
             <span style={{ fontSize: 11, color: "var(--text-mut)" }}>({rejections.length})</span>
           </div>
@@ -1286,7 +1286,7 @@ function LiquidationWorksheet({
                 <div className="pcp-kpi-label">
                   {st.remaining > 0 ? "Still outstanding" : st.remaining < 0 ? "Overpaid by" : "Remaining"}
                 </div>
-                <div className="pcp-num" style={{ fontWeight: 700, fontSize: 14, color: st.remaining === 0 ? "var(--green)" : "var(--brand)" }}>
+                <div className="pcp-num" style={{ fontWeight: 700, fontSize: 14, color: st.remaining === 0 ? "var(--green)" : "var(--danger)" }}>
                   {peso(Math.abs(st.remaining))}
                 </div>
               </div>
@@ -1493,11 +1493,11 @@ function LiquidationWorksheet({
       {!!incompleteLines.length && (
         <div
           style={{
-            border: "1px solid var(--brand)", borderRadius: 8, padding: "10px 12px",
+            border: "1px solid var(--danger)", borderRadius: 8, padding: "10px 12px",
             marginBottom: 10, fontSize: 12.5, lineHeight: 1.55,
           }}
         >
-          <div style={{ fontWeight: 700, color: "var(--brand)" }}>
+          <div style={{ fontWeight: 700, color: "var(--danger)" }}>
             <AlertTriangle size={13} style={{ verticalAlign: "-2px" }} />{" "}
             This liquidation cannot be saved yet
           </div>
@@ -1514,9 +1514,9 @@ function LiquidationWorksheet({
       )}
       <div className="pcp-liq-line-head">
         <div>Date</div>
-        <div>Expense <span style={{ color: "var(--brand)" }}>*</span></div>
+        <div>Expense <span style={{ color: "var(--danger)" }}>*</span></div>
         <div>Expense Category (COA)</div><div>Department</div><div>Tax Category</div>
-        <div>Amount <span style={{ color: "var(--brand)" }}>*</span></div>
+        <div>Amount <span style={{ color: "var(--danger)" }}>*</span></div>
         <div></div>
       </div>
       {lines.map((l) => {
@@ -1558,7 +1558,7 @@ function LiquidationWorksheet({
             title={missing.includes("Amount") ? "Required — this line will not save without it" : undefined}
           />
           <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => removeLine(l.id)} disabled={lines.length === 1}>
-            <Trash2 size={13} color="var(--brand)" />
+            <Trash2 size={13} color="var(--danger)" />
           </button>
         </div>
         );
@@ -1577,7 +1577,7 @@ function LiquidationWorksheet({
       <div style={{ marginTop: 18, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div className="pcp-section-title" style={{ margin: 0 }}>
-            <Receipt size={15} color="#c8102e" /> Supporting Documents
+            <Receipt size={15} color="#4e7d63" /> Supporting Documents
             <span style={{ fontSize: 11.5, color: "var(--text-mut)", fontWeight: 500, marginLeft: 6 }}>
               ({attachments.length}) — official receipts, sales invoices, etc. · Total Receipt Amount <strong className="pcp-num">{peso(receiptSummary.approvedTotal)}</strong>
             </span>
@@ -1658,7 +1658,7 @@ function LiquidationWorksheet({
                     onClick={() => removeAttachment(a.id)}
                     disabled={docLocked}
                     title={docLocked ? "This liquidation has been submitted" : "Remove"}
-                  ><Trash2 size={13} color="var(--brand)" /></button>
+                  ><Trash2 size={13} color="var(--danger)" /></button>
                 </div>
 
                 {/* Receipt Amount is captured against THIS document, so the
@@ -1686,7 +1686,7 @@ function LiquidationWorksheet({
                   <div style={{ minWidth: 150 }}>
                     <div className="pcp-kpi-label">
                       Receipt Amount (&#8369;) {needsAmount
-                        ? <span style={{ color: "var(--brand)" }}>*</span>
+                        ? <span style={{ color: "var(--danger)" }}>*</span>
                         : <span style={{ color: "var(--text-mut)", fontWeight: 500 }}>(optional)</span>}
                     </div>
                     <input
@@ -1695,7 +1695,7 @@ function LiquidationWorksheet({
                       value={a.receiptAmount == null ? "" : a.receiptAmount}
                       readOnly={docLocked}
                       onChange={(e) => setReceiptAmount(a.id, e.target.value)}
-                      style={amountMissing ? { borderColor: "var(--brand)" } : undefined}
+                      style={amountMissing ? { borderColor: "var(--danger)" } : undefined}
                     />
                   </div>
                   <div style={{ flex: 1, minWidth: 130, textAlign: "right" }}>
@@ -1706,7 +1706,7 @@ function LiquidationWorksheet({
                   </div>
                 </div>
                 {amountMissing && (
-                  <div style={{ fontSize: 10.5, color: "var(--brand)", marginTop: 5 }}>
+                  <div style={{ fontSize: 10.5, color: "var(--danger)", marginTop: 5 }}>
                     Receipt amount is required before this liquidation can be submitted.
                   </div>
                 )}
@@ -1742,7 +1742,7 @@ function LiquidationWorksheet({
                     <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-mut)", marginBottom: 3 }}>Approval History</div>
                     {history.map((h, i) => (
                       <div key={i} style={{ fontSize: 10.5, color: "var(--text-mut)" }}>
-                        <strong style={{ color: h.status === "Rejected" ? "var(--brand)" : "var(--green)" }}>{h.status}</strong> by {h.approver} · {h.ts.replace("T", " ")}{h.remarks ? ` · "${h.remarks}"` : ""}
+                        <strong style={{ color: h.status === "Rejected" ? "var(--danger)" : "var(--green)" }}>{h.status}</strong> by {h.approver} · {h.ts.replace("T", " ")}{h.remarks ? ` · "${h.remarks}"` : ""}
                       </div>
                     ))}
                   </div>
@@ -1863,7 +1863,7 @@ function ReimbursementLiquidationPanel({ reimb, canFinance, onAction }) {
         <div className="pcp-liq-sticky-grid" style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
           <div className="pcp-liq-metric"><div className="pcp-kpi-label">Approved Reimbursement</div><div className="pcp-num">{peso(approved)}</div></div>
           <div className="pcp-liq-metric"><div className="pcp-kpi-label">Validated Expense</div><div className="pcp-num">{peso(validated)}</div></div>
-          <div className="pcp-liq-metric"><div className="pcp-kpi-label">Variance</div><div className="pcp-num" style={{ color: variance === 0 ? "var(--green)" : "var(--brand)" }}>{peso(variance)}</div></div>
+          <div className="pcp-liq-metric"><div className="pcp-kpi-label">Variance</div><div className="pcp-num" style={{ color: variance === 0 ? "var(--green)" : "var(--danger)" }}>{peso(variance)}</div></div>
           <div className="pcp-liq-metric"><div className="pcp-kpi-label">Status</div><div><Badge status={st} /></div></div>
         </div>
       </div>
@@ -2079,7 +2079,7 @@ function LiquidationTab({
         {/* Search + status filter — the status options follow the selected source's workflow. */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
           <div style={{ position: "relative", flex: 1, minWidth: 220, maxWidth: 340 }}>
-            <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#9098b3" }} />
+            <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
             <input
               className="pcp-input" style={{ paddingLeft: 28 }}
               placeholder={source === "pettycash"
@@ -2166,10 +2166,10 @@ function LiquidationTab({
                       <td>
                         {d.stl.owing ? (
                           <div style={{ lineHeight: 1.3 }}>
-                            <div className="pcp-num" style={{ fontWeight: 700, color: d.stl.overdue ? "var(--brand)" : d.stl.st.type === "excess" ? "var(--amber)" : "var(--blue)" }}>
+                            <div className="pcp-num" style={{ fontWeight: 700, color: d.stl.overdue ? "var(--danger)" : d.stl.st.type === "excess" ? "var(--amber)" : "var(--blue)" }}>
                               {d.stl.st.type === "excess" ? "Return " : "Reimburse "}{peso(d.stl.st.remaining)}
                             </div>
-                            <div style={{ fontSize: 10.5, color: d.stl.overdue ? "var(--brand)" : "var(--text-mut)", fontWeight: d.stl.overdue ? 700 : 400 }}>
+                            <div style={{ fontSize: 10.5, color: d.stl.overdue ? "var(--danger)" : "var(--text-mut)", fontWeight: d.stl.overdue ? 700 : 400 }}>
                               {d.stl.overdue ? `Overdue ${-d.stl.daysLeft}d` : d.stl.daysLeft === 0 ? "Due today" : `Due ${fmtDate(d.stl.dueDate)}`}
                             </div>
                           </div>
@@ -2187,7 +2187,7 @@ function LiquidationTab({
                           {canDelete && onDeleteLiquidation && liquidationFor(d.id, liquidations) && (
                             <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" title="Delete this liquidation (System Superuser)"
                               onClick={(e) => { e.stopPropagation(); onDeleteLiquidation(d.id); }}>
-                              <Trash2 size={13} color="var(--brand)" />
+                              <Trash2 size={13} color="var(--danger)" />
                             </button>
                           )}
                         </div>
@@ -2238,7 +2238,7 @@ function LiquidationTab({
                           {canDelete && onDeleteReimbursement && (
                             <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" title="Delete this reimbursement (System Superuser)"
                               onClick={(e) => { e.stopPropagation(); onDeleteReimbursement(r.id); }}>
-                              <Trash2 size={13} color="var(--brand)" />
+                              <Trash2 size={13} color="var(--danger)" />
                             </button>
                           )}
                         </div>

@@ -88,7 +88,7 @@ function AuditTrailTab({ auditLog, canDelete, onDelete }) {
         <div className="pcp-card">
           <div style={{ padding: "14px 18px", display: "flex", gap: 10, alignItems: "center", borderBottom: "1px solid var(--line)" }}>
             <div style={{ position: "relative", flex: 1, maxWidth: 300 }}>
-              <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#9098b3" }} />
+              <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
               <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search user, reference or remarks" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <select className="pcp-select" style={{ width: 180 }} value={action} onChange={(e) => setAction(e.target.value)}>
@@ -122,7 +122,7 @@ function AuditTrailTab({ auditLog, canDelete, onDelete }) {
                     {canDelete && (
                       <td><input type="checkbox" checked={selected.includes(a.id)} onChange={() => toggleOne(a.id)} /></td>
                     )}
-                    <td style={{ whiteSpace: "nowrap" }}><Clock size={12} style={{ verticalAlign: "-2px", marginRight: 5, color: "#9098b3" }} />{fmtTs(a.ts)}</td>
+                    <td style={{ whiteSpace: "nowrap" }}><Clock size={12} style={{ verticalAlign: "-2px", marginRight: 5, color: "#8fa397" }} />{fmtTs(a.ts)}</td>
                     <td>{a.user}</td>
                     <td><span className={"pcp-badge pcp-badge-" + (a.action === "Rejected" || a.action === "Liquidation Rejected" || a.action === "Receipt Rejected" || a.action === "Deleted" || a.action === "Audit Entry Deleted" || a.action === "Fund Deleted" ? "red" : a.action === "Beginning Balance Changed" ? "amber" : a.action === "Approved" || a.action === "Released" || a.action === "Replenished" ? "green" : a.action === "Liquidated" ? "blue" : "gray")}>{a.action}</span></td>
                     <td>{a.entity}</td>
@@ -130,7 +130,7 @@ function AuditTrailTab({ auditLog, canDelete, onDelete }) {
                     {canDelete && (
                       <td>
                         <button className="pcp-iconbtn" title="Delete this audit entry" onClick={() => deleteOne(a)}>
-                          <Trash2 size={14} color="#c8102e" />
+                          <Trash2 size={14} color="#c0392b" />
                         </button>
                       </td>
                     )}

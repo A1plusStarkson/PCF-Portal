@@ -313,7 +313,7 @@ function ComplianceList({ compliance }) {
   return (
     <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
       {compliance.issues.map((i, idx) => (
-        <li key={idx} style={{ fontSize: 12, color: i.severity === "fail" ? "var(--brand)" : "#b9790a" }}>
+        <li key={idx} style={{ fontSize: 12, color: i.severity === "fail" ? "var(--danger)" : "#b9790a" }}>
           {i.severity === "fail" ? "\u274c " : "\u26a0\ufe0f "}{i.message}
         </li>
       ))}
@@ -573,7 +573,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                 </div>
               </div>
               <div className="pcp-field">
-                <label>Purpose <span style={{ color: "var(--brand)" }}>*</span></label>
+                <label>Purpose <span style={{ color: "var(--danger)" }}>*</span></label>
                 <PurposeSelect value={form.purpose} onChange={(v) => set("purpose", v)} />
                 <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 4 }}>
                   Select the approved expense classification. This does not, by itself, make an expense reimbursable — the usual receipts, approvals and supporting documents still apply.
@@ -638,7 +638,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                         <td><input className="pcp-input" style={{ minWidth: 120 }} value={l.businessPurpose} placeholder="Optional" onChange={(e) => setLine(l.id, { businessPurpose: e.target.value })} /></td>
                         <td><input className="pcp-input" style={{ minWidth: 90 }} value={l.receiptNo} onChange={(e) => setLine(l.id, { receiptNo: e.target.value })} /></td>
                         <td><input type="number" min="0" step="0.01" className="pcp-input" style={{ minWidth: 90 }} value={l.amount} onChange={(e) => setLine(l.id, { amount: e.target.value })} /></td>
-                        <td><button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => removeLine(l.id)} title="Remove line"><Trash2 size={13} color="var(--brand)" /></button></td>
+                        <td><button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => removeLine(l.id)} title="Remove line"><Trash2 size={13} color="var(--danger)" /></button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -673,7 +673,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                   </label>
                 ))}
               </div>
-              {uploadNote && <div style={{ fontSize: 12, color: "var(--brand)" }}>{uploadNote}</div>}
+              {uploadNote && <div style={{ fontSize: 12, color: "var(--danger)" }}>{uploadNote}</div>}
               {/* Every attachment is shown as a live preview, so the employee
                   sees exactly what the checker and approver will see. */}
               <AttachmentGallery
@@ -690,7 +690,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                     </select>
                     <span style={{ fontSize: 10.5, color: "var(--text-mut)", whiteSpace: "nowrap" }}>{(a.size / 1024).toFixed(0)} KB</span>
                     <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => removeAtt(a.id)} title="Remove document">
-                      <Trash2 size={13} color="var(--brand)" />
+                      <Trash2 size={13} color="var(--danger)" />
                     </button>
                   </div>
                 )}
@@ -759,7 +759,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
               </label>
               {compliance.level === "FAILED" && (
                 <div className="pcp-card" style={{ padding: 12, borderColor: "#f0c0c0" }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--brand)", marginBottom: 6 }}>Submission blocked — resolve the following:</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--danger)", marginBottom: 6 }}>Submission blocked — resolve the following:</div>
                   <ComplianceList compliance={{ issues: compliance.issues.filter((i) => i.severity === "fail") }} />
                 </div>
               )}
@@ -978,7 +978,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
               Segregation of duties: nobody approves their own reimbursement. */}
           {(canCheck || canFinal || canAcctReturn) && (
             isOwn ? (
-              <div style={{ fontSize: 12, color: "var(--brand)" }}>Segregation of duties: you cannot approve your own reimbursement.</div>
+              <div style={{ fontSize: 12, color: "var(--danger)" }}>Segregation of duties: you cannot approve your own reimbursement.</div>
             ) : (
               <>
                 {canCheck && <button className="pcp-btn pcp-btn-primary" onClick={custodianApprove}><ShieldCheck size={13} /> Custodian Approve</button>}
@@ -1039,7 +1039,7 @@ function ReimbursementPaymentModal({ reimb, onClose, onConfirm, processedBy }) {
             </div>
           </div>
           <div className="pcp-field-row">
-            <div className="pcp-field"><label>Reference / Check No. {form.method === "Check" && <span style={{ color: "var(--brand)" }}>*</span>}</label><input className="pcp-input" value={form.refNo} onChange={(e) => set("refNo", e.target.value)} /></div>
+            <div className="pcp-field"><label>Reference / Check No. {form.method === "Check" && <span style={{ color: "var(--danger)" }}>*</span>}</label><input className="pcp-input" value={form.refNo} onChange={(e) => set("refNo", e.target.value)} /></div>
             <div className="pcp-field"><label>Payment Amount (₱)</label><input type="number" min="0" step="0.01" className="pcp-input" value={form.amount} onChange={(e) => set("amount", e.target.value)} /></div>
           </div>
           <div className="pcp-field"><label>Payment Remarks</label><input className="pcp-input" value={form.remarks} onChange={(e) => set("remarks", e.target.value)} /></div>
@@ -1203,13 +1203,13 @@ function ReimbursementTab({
           <KpiCard label="Fully Approved" value={kpi.approved} icon={FileSpreadsheet} tint="#7c3aed" {...cardProps("approved")} />
           <KpiCard label="For Payment" value={kpi.forPayment} icon={Banknote} tint="#0891b2" {...cardProps("forPayment")} />
           <KpiCard label="Paid" value={kpi.paid} icon={CircleDollarSign} tint="#15803d" foot={peso(kpi.amtPaid)} {...cardProps("paid")} />
-          <KpiCard label="Rejected / Returned" value={kpi.rejected} icon={X} tint="#c8102e" {...cardProps("rejected")} />
+          <KpiCard label="Rejected / Returned" value={kpi.rejected} icon={X} tint="#c0392b" {...cardProps("rejected")} />
         </div>
 
         <div className="pcp-card" ref={tableRef} style={{ scrollMarginTop: 80 }}>
           <div style={{ padding: "14px 18px", display: "flex", gap: 10, alignItems: "center", borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
             <div style={{ position: "relative", flex: 1, maxWidth: 280 }}>
-              <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#9098b3" }} />
+              <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
               <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search employee or reimbursement no." value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             {cardFilter && (
@@ -1280,7 +1280,7 @@ function ReimbursementTab({
                             title={isDraftLike(r) ? "Edit" : "Edit for checking / verification — status and approvals are kept"}><Edit3 size={12} /></button>
                         )}
                         {canDelete && onDelete && (
-                          <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => onDelete(r.id)} title="Delete reimbursement (System Superuser)"><Trash2 size={13} color="var(--brand)" /></button>
+                          <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => onDelete(r.id)} title="Delete reimbursement (System Superuser)"><Trash2 size={13} color="var(--danger)" /></button>
                         )}
                       </div>
                     </td>

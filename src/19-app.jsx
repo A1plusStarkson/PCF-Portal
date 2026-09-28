@@ -2015,31 +2015,46 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     [visibleDisbursements, visibleLiquidations, today]
   );
   const homeQuickLinks = [
-    { key: "requests", label: "Petty Cash Request", desc: "Request a cash advance and track its approval", icon: ClipboardList, tint: "#c8102e" },
-    { key: "reimbursement", label: "Reimbursement", desc: "Claim back expenses you paid yourself", icon: ArrowLeftRight, tint: "#2054a3" },
-    { key: "liquidation", label: "Liquidation", desc: "Liquidate released cash with receipts", icon: FileSpreadsheet, tint: "#b9790a" },
-    { key: "disbursements", label: "Release Ledger", desc: "Vouchers released from the fund", icon: Receipt, tint: "#0891b2" },
-    { key: "replenishment", label: "Replenishment", desc: "Restore the fund for approved expenses", icon: RefreshCw, tint: "#15803d" },
-    { key: "approvals", label: "Approval", desc: "Everything awaiting your decision", icon: ClipboardCheck, tint: "#7c3aed" },
+    { key: "requests", label: "Petty Cash Request", desc: "Request a cash advance and track its approval", icon: ClipboardList, tint: "#4e7d63" },
+    { key: "reimbursement", label: "Reimbursement", desc: "Claim back expenses you paid yourself", icon: ArrowLeftRight, tint: "#3f9c8f" },
+    { key: "liquidation", label: "Liquidation", desc: "Liquidate released cash with receipts", icon: FileSpreadsheet, tint: "#a86b06" },
+    { key: "disbursements", label: "Release Ledger", desc: "Vouchers released from the fund", icon: Receipt, tint: "#2f64a6" },
+    { key: "replenishment", label: "Replenishment", desc: "Restore the fund for approved expenses", icon: RefreshCw, tint: "#6a4fb8" },
+    { key: "approvals", label: "Approval", desc: "Everything awaiting your decision", icon: ClipboardCheck, tint: "#237a45" },
   ].filter((q) => canOpen(q.key)).map((q) => ({ ...q, onClick: () => navigate(q.key) }));
+  /* Summary cards. Each appears only when the account can open the module it
+     summarises; the fund balance only for roles with the dashboard. */
+  const sumAmt = (xs, f) => xs.reduce((s, x) => s + (Number(f ? f(x) : x.amount) || 0), 0);
   const homeStats = [];
+  if (canOpen("dashboard")) {
+    const bal = sumAmt(visibleFunds, (f) => monitoringForFund(f, visibleDisbursements, visibleLiquidations, visibleReplenishments).available);
+    homeStats.push({ label: "💰 Petty Cash Balance", value: peso(bal), icon: Wallet, tint: bal < 0 ? "#c0392b" : "#4e7d63",
+      foot: `${visibleFunds.length} fund(s) available`, onClick: () => navigate("dashboard") });
+  }
   if (canOpen("requests")) {
-    const pend = visibleRequests.filter((r) => r.status === "Pending");
-    homeStats.push({ label: "Requests Awaiting Approval", value: pend.length, icon: ClipboardList, tint: "#b9790a",
-      foot: peso(pend.reduce((s, r) => s + (Number(r.amount) || 0), 0)), onClick: () => navigate("requests") });
-    const appr = visibleRequests.filter((r) => r.status === "Approved");
-    homeStats.push({ label: "Approved, Awaiting Release", value: appr.length, icon: Banknote, tint: "#2054a3",
-      foot: peso(appr.reduce((s, r) => s + (Number(r.amount) || 0), 0)), onClick: () => navigate(canOpen("disbursements") ? "disbursements" : "requests") });
+    const active = visibleRequests.filter((r) => r.status === "Pending" || r.status === "Approved");
+    const pend = active.filter((r) => r.status === "Pending").length;
+    homeStats.push({ label: "📋 Active Requests", value: active.length, icon: ClipboardList, tint: "#2f64a6",
+      foot: `${pend} pending · ${active.length - pend} awaiting release · ${peso(sumAmt(active))}`, onClick: () => navigate("requests") });
   }
   if (canOpen("liquidation")) {
-    const overdue = homeDeadlines.filter((d) => d.daysLeft <= 0).length;
-    homeStats.push({ label: "Liquidations Outstanding", value: homeDeadlines.length, icon: FileSpreadsheet, tint: overdue ? "#c8102e" : "#15803d",
-      foot: overdue ? `${overdue} due today or overdue` : "None overdue", onClick: () => navigate("liquidation") });
+    const overdue = homeDeadlines.filter((d) => d.daysLeft < 0);
+    homeStats.push({ label: "⏳ For Liquidation", value: homeDeadlines.length, icon: FileSpreadsheet, tint: "#c2560c",
+      foot: peso(sumAmt(homeDeadlines)), onClick: () => navigate("liquidation") });
+    homeStats.push({ label: "⚠️ Overdue Liquidations", value: overdue.length, icon: AlertTriangle, tint: overdue.length ? "#c0392b" : "#237a45",
+      foot: overdue.length ? `${peso(sumAmt(overdue))} · for Authority to Deduct` : "None overdue",
+      onClick: () => navigate(canOpen("aging") ? "aging" : "liquidation") });
   }
   if (canOpen("replenishment")) {
     const ready = replenishmentReadyItems(visibleDisbursements, visibleLiquidations, visibleReimbursements, visibleReplenishments);
-    homeStats.push({ label: "Ready for Replenishment", value: ready.length, icon: RefreshCw, tint: "#15803d",
-      foot: peso(ready.reduce((s, x) => s + (Number(x.amount) || 0), 0)), onClick: () => navigate("replenishment") });
+    homeStats.push({ label: "🔄 For Replenishment", value: ready.length, icon: RefreshCw, tint: "#6a4fb8",
+      foot: peso(sumAmt(ready)), onClick: () => navigate("replenishment") });
+  }
+  if (canOpen("reimbursement")) {
+    const closed = [REIMB_STATUS.DRAFT, REIMB_STATUS.COMPLETED, REIMB_STATUS.PAID, REIMB_STATUS.REJECTED];
+    const open = visibleReimbursements.filter((r) => !closed.includes(r.status));
+    homeStats.push({ label: "💵 Reimbursements", value: open.length, icon: Banknote, tint: "#3f9c8f",
+      foot: `${peso(sumAmt(open, (r) => reimbTotal(r)))} in progress`, onClick: () => navigate("reimbursement") });
   }
 
   /* An alarm opens its record in Liquidation Aging (or, without access to
