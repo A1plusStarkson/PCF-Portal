@@ -259,7 +259,7 @@ const REPLENISH_SORT_FIELDS = {
   remarks: (r) => r.remarks,
 };
 
-function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, reimbursements, onCreate, onEdit, onComplete, onDelete, canDelete, plantOptions, canEdit, plantTitle, generatedBy, canManage, onRevert }) {
+function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, reimbursements, onCreate, onEdit, onComplete, onDelete, canDelete, plantOptions, canEdit, plantTitle, generatedBy, canManage, onRevert, onRevertReady }) {
   const [showForm, setShowForm] = useState(false);
   /* Liquidations + amount handed to a new form from the Ready panel. */
   const [preselect, setPreselect] = useState(null);
@@ -429,6 +429,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                         <th style={{ width: 30 }}></th><th>Type</th><th>Voucher / Reimb No.</th><th>Txn Date</th>
                         <th>Employee</th><th>Branch</th><th>Custodian Approved</th><th>Final Approval</th>
                         <th style={{ textAlign: "right" }}>Approved Amount</th>
+                        {canManage && onRevertReady && <th></th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -448,6 +449,14 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                             <td>{x.checkedBy} · {fmtDate(String(x.checkedAt || "").slice(0, 10))}</td>
                             <td>{x.finalBy} · {fmtDate(String(x.finalAt || "").slice(0, 10))}</td>
                             <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700 }}>{peso(x.amount)}</td>
+                            {canManage && onRevertReady && (
+                              <td onClick={(e) => e.stopPropagation()}>
+                                <button className="pcp-btn pcp-btn-sm" onClick={() => onRevertReady(x.kind, x.id)}
+                                  title="Revert — void the final approval and send it back for approval / correction">
+                                  <History size={12} /> Revert
+                                </button>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}

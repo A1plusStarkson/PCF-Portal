@@ -1367,6 +1367,67 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       + (claims ? ` · ${claims} item(s) returned to Ready for Replenishment` : ""));
   }, [logAudit, replenishments, canManageReplen, userName, userEmail, role]); // eslint-disable-line
 
+  /* Revert an item in the Ready for Replenishment list: undoes its FINAL
+     approval so it can be corrected or re-decided. The custodian approval and
+     Accounting check are kept, so it goes back to For Final Approval. (A
+     liquidation approved before the two-level review has no such stamps and
+     goes back to custodian review.) The voided approval is kept in
+     review.history. Only an item no replenishment has claimed yet — revert
+     the replenishment first otherwise. */
+  const revertReadyItem = useCallback((kind, id) => {
+    if (!canManageReplen) return;
+    const claimed = kind === "liq"
+      ? replenishedLiquidationIds(replenishments).has(id)
+      : replenishedReimbursementIds(replenishments).has(id);
+    if (claimed) { window.alert("This item is already on a replenishment. Revert that replenishment first."); return; }
+    const ts = new Date().toISOString().slice(0, 19);
+    const actor = userName || userEmail || role;
+    const ask = (ref, where) => {
+      const reason = window.prompt(`Revert ${ref}?\n\nIts final approval is voided and it goes back to ${where}.\n\nEnter the reason:`);
+      if (reason == null) return null;
+      if (!reason.trim()) { window.alert("A reason is required to revert. Nothing was changed."); return null; }
+      return reason.trim();
+    };
+    const voided = (rv, note, reason) => (rv.history || []).concat([{
+      action: note, user: actor, ts, reason,
+      checkedBy: rv.checkedBy || "", checkedAt: rv.checkedAt || "",
+      acctCheckedBy: rv.acctCheckedBy || "", acctCheckedAt: rv.acctCheckedAt || "", batchNo: rv.batchNo || "",
+      finalBy: rv.finalBy || "", finalAt: rv.finalAt || "",
+    }]);
+    if (kind === "liq") {
+      const liq = liquidations.find((l) => l.id === id);
+      if (!liq || !liqReview(liq).final) return;
+      const d = disbursements.find((x) => x.id === liq.disbursementId);
+      const ref = d ? d.voucherNo : id;
+      const legacy = !liq.workflow;
+      const reason = ask(ref, legacy ? "custodian review" : "For Final Approval");
+      if (!reason) return;
+      setLiquidations((ls) => ls.map((l) => {
+        if (l.id !== id) return l;
+        const rv = l.review || {};
+        return legacy
+          ? { ...l, workflow: 2, review: { ...acctStamps(rv), history: voided(rv, "Final approval reverted from Ready for Replenishment", reason) } }
+          : { ...l, review: { ...rv, finalBy: "", finalAt: "", finalRemarks: "", history: voided(rv, "Final approval reverted from Ready for Replenishment", reason) } };
+      }));
+      logAudit("Liquidation Approval Voided", ref, `Reverted from Ready for Replenishment by ${actor} · Reason: ${reason}`);
+      return;
+    }
+    const r0 = reimbursements.find((x) => x.id === id);
+    if (!r0 || r0.status !== REIMB_STATUS.READY) return;
+    const reason = ask(r0.reimbNo, "For Final Approval");
+    if (!reason) return;
+    setReimbursements((rs) => rs.map((r) => {
+      if (r.id !== id || r.status !== REIMB_STATUS.READY) return r;
+      const rv = r.review || {};
+      return {
+        ...r, status: REIMB_STATUS.FOR_FINAL, approvedBy: "", approvedAt: "",
+        review: { ...rv, finalBy: "", finalAt: "", finalRemarks: "", history: voided(rv, "Final approval reverted from Ready for Replenishment", reason) },
+        history: [...(r.history || []), { ts: reimbTs(), user: actor, action: "Final approval reverted (Ready for Replenishment)", prevStatus: r.status, newStatus: REIMB_STATUS.FOR_FINAL, comments: reason }],
+      };
+    }));
+    logAudit("Edited", r0.reimbNo, `Reimbursement final approval reverted from Ready for Replenishment · Reason: ${reason}`);
+  }, [canManageReplen, replenishments, liquidations, disbursements, reimbursements, logAudit, userName, userEmail, role]); // eslint-disable-line
+
   const deleteReplenishment = useCallback((id) => {
     const r = replenishments.find((x) => x.id === id);
     if (!r || !canDeleteTxn) return;
@@ -2072,7 +2133,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             reimbursements={scopedReimbursements}
             onCreate={addReplenishment} onEdit={editReplenishment}
             onComplete={completeReplenishment} onDelete={deleteReplenishment}
-            onRevert={revertReplenishment} canManage={canManageReplen}
+            onRevert={revertReplenishment} onRevertReady={revertReadyItem} canManage={canManageReplen}
             canDelete={canDeleteTxn}
             generatedBy={userName || userEmail}
             plantOptions={scopedPlantOptions} canEdit={canEdit}
