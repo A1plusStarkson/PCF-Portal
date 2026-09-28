@@ -414,6 +414,55 @@ const CSS = `
   .pcp-login-ok { background: var(--green-bg); color: var(--green); font-size: 12px; padding: 9px 12px; border-radius: 8px; margin-bottom: 12px; }
   .pcp-login-foot { font-size: 11px; color: var(--text-mut); text-align: center; margin-top: 14px; }
 
+  /* Sign-in page: brand panel + form, stacked on narrow screens. */
+  .pcp-login-split { flex: 1; display: grid; grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); min-height: 100vh; }
+  .pcp-login-brand {
+    position: relative; overflow: hidden; color: #fff; padding: 40px 48px;
+    display: flex; flex-direction: column; justify-content: space-between; gap: 32px;
+    background: radial-gradient(circle at 85% 15%, rgba(200,16,46,0.55), transparent 55%),
+                radial-gradient(circle at 10% 95%, rgba(200,16,46,0.35), transparent 50%),
+                var(--ink);
+  }
+  .pcp-login-brand-top { display: flex; align-items: center; gap: 12px; }
+  .pcp-login-brand-name { font-size: 17px; font-weight: 800; letter-spacing: -0.2px; }
+  .pcp-login-brand-sub { font-size: 11.5px; color: #b8bdd0; margin-top: 2px; }
+  .pcp-login-brand-mid { max-width: 460px; }
+  .pcp-login-hero { font-size: clamp(26px, 3.2vw, 38px); line-height: 1.15; font-weight: 800; letter-spacing: -0.6px; margin: 0 0 14px; }
+  .pcp-login-lead { font-size: 14px; line-height: 1.6; color: #d4d7e3; margin: 0 0 22px; }
+  .pcp-login-features { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
+  .pcp-login-features li { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #eef0f6; }
+  .pcp-login-features svg { color: #ff8a9b; flex-shrink: 0; }
+  .pcp-login-logos { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
+  .pcp-login-logos img { max-height: 42px; max-width: 130px; object-fit: contain; filter: brightness(0) invert(1); opacity: 0.85; }
+  .pcp-login-pane { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 32px 24px; background: var(--paper); }
+  .pcp-login-split .pcp-login-card { max-width: 400px; border-radius: 16px; box-shadow: 0 24px 60px rgba(15,18,30,0.10); }
+  .pcp-login-card-head { padding: 28px 28px 0; }
+  .pcp-login-split .pcp-login-title { font-size: 22px; font-weight: 800; margin: 0; letter-spacing: -0.3px; color: var(--text); }
+  .pcp-login-split .pcp-login-sub { font-size: 12.5px; color: var(--text-mut); margin-top: 6px; }
+  .pcp-login-split .pcp-login-body { padding: 22px 28px 26px; }
+  .pcp-login-input { position: relative; display: flex; align-items: center; }
+  .pcp-login-input > svg { position: absolute; left: 11px; color: #9098b3; pointer-events: none; }
+  .pcp-login-input .pcp-input { padding-left: 34px; height: 40px; }
+  .pcp-login-input .pcp-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(200,16,46,0.12); outline: none; }
+  .pcp-login-eye { position: absolute; right: 6px; border: none; background: none; color: #9098b3; cursor: pointer; padding: 6px; border-radius: 6px; display: flex; }
+  .pcp-login-eye:hover { color: var(--brand); }
+  .pcp-login-input:has(.pcp-login-eye) .pcp-input { padding-right: 36px; }
+  .pcp-login-submit { width: 100%; justify-content: center; height: 42px; font-size: 13.5px; margin-top: 6px; }
+  .pcp-login-help { display: flex; gap: 8px; align-items: flex-start; margin-top: 16px; padding: 10px 12px; border-radius: 8px; background: #f6f7fb; font-size: 11.5px; line-height: 1.5; color: var(--text-mut); }
+  .pcp-login-help svg { flex-shrink: 0; margin-top: 2px; }
+  .pcp-login-copy { font-size: 11px; color: var(--text-mut); text-align: center; }
+  @media (max-width: 860px) {
+    .pcp-login-split { grid-template-columns: minmax(0, 1fr); }
+    .pcp-login-brand { padding: 24px 22px; gap: 16px; }
+    .pcp-login-hero { font-size: 22px; margin-bottom: 8px; }
+    .pcp-login-lead { margin-bottom: 0; font-size: 13px; }
+    .pcp-login-features, .pcp-login-logos { display: none; }
+  }
+  @media (max-width: 480px) {
+    .pcp-login-card-head { padding: 22px 20px 0; }
+    .pcp-login-split .pcp-login-body { padding: 18px 20px 22px; }
+  }
+
   /* ---- Report ---- */
   .pcp-report-head { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
   .pcp-report-head img { max-height: 46px; max-width: 130px; object-fit: contain; }
