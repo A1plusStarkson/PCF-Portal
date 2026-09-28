@@ -145,6 +145,14 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   ];
   const canEditReimbOverride = REIMB_EDIT_OVERRIDE_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
+  /* Replenishments: edit, mark completed and revert — these accounts only
+     (owner's instruction, Sep 2026). Everyone else sees the records read-only. */
+  const REPLEN_MANAGE_EMAILS = [
+    "a1plusadmin@a1plus.com", "superuser@a1plus.com", "accounting@a1plus.com", "finance@a1plus.com",
+    "puradr@a1plus.com", "lita@a1plus.com", "mauwi@a1plus.com",
+  ];
+  const canManageReplen = REPLEN_MANAGE_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
 
   /* ---- Closing a cash shortage ----
      When a requestor returns less than they owe, the balance is a receivable
@@ -1311,6 +1319,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
 
   const editReplenishment = useCallback(async (id, form) => {
     const r0 = replenishments.find((x) => x.id === id);
+    if (!canManageReplen || !r0 || r0.status === "Reverted") return;
     /* The number is never taken from the form; only a plant move changes it. */
     const { replenishmentNo: _ignored, ...fields } = form;
     setReplenishments((rs) => rs.map((r) => (r.id === id ? { ...r, ...fields } : r)));
@@ -1321,13 +1330,42 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       + (linkedR.length ? ` · reimbursements: ${linkedR.join(", ")}` : ""));
     await moveToPlantSeries(setReplenishments, "replenishmentNo", r0, form.branchCode, "RPL", "replenishments",
       replenishments.map((r) => r.replenishmentNo));
-  }, [logAudit, liquidations, disbursements, reimbursements, replenishments, userName, userEmail, role]); // eslint-disable-line
+  }, [logAudit, liquidations, disbursements, reimbursements, replenishments, canManageReplen, userName, userEmail, role]); // eslint-disable-line
 
   const completeReplenishment = useCallback((id) => {
+    if (!canManageReplen) return;
     setReplenishments((rs) => rs.map((r) => (r.id === id ? { ...r, status: "Completed" } : r)));
     const r = replenishments.find((x) => x.id === id);
     logAudit("Replenished", r ? r.replenishmentNo : id, `Marked completed${r ? ` · ${peso(Number(r.amount))}` : ""}`);
-  }, [logAudit, replenishments]);
+  }, [logAudit, replenishments, canManageReplen]);
+
+  /* Revert: undoes a replenishment without deleting it. The record stays (its
+     number stays retired) marked Reverted with who, when and why; the
+     liquidations and reimbursements it claimed are released back to Ready for
+     Replenishment (kept on the record as revertedLiquidationIds /
+     revertedReimbursementIds for the audit trail). A Completed one also stops
+     counting toward the fund's replenished total. */
+  const revertReplenishment = useCallback((id) => {
+    const r = replenishments.find((x) => x.id === id);
+    if (!canManageReplen || !r || r.status === "Reverted") return;
+    const claims = (r.liquidationIds || []).length + (r.reimbursementIds || []).length;
+    const reason = window.prompt(
+      `Revert ${r.replenishmentNo}?\n\n${plantNameOf(r.branchCode)} · ${peso(Number(r.amount))}${r.status ? ` · ${r.status}` : ""}`
+      + (claims ? `\n${claims} approved liquidation(s) / reimbursement(s) will return to Ready for Replenishment.` : "")
+      + "\n\nThe record is kept, marked Reverted. Enter the reason:"
+    );
+    if (reason == null) return;
+    if (!reason.trim()) { window.alert("A reason is required to revert a replenishment. Nothing was changed."); return; }
+    const ts = new Date().toISOString().slice(0, 19);
+    setReplenishments((rs) => rs.map((x) => (x.id !== id ? x : {
+      ...x, status: "Reverted", prevStatus: x.status || "",
+      liquidationIds: [], reimbursementIds: [],
+      revertedLiquidationIds: x.liquidationIds || [], revertedReimbursementIds: x.reimbursementIds || [],
+      revertedBy: userName || userEmail || role, revertedAt: ts, revertReason: reason.trim(),
+    })));
+    logAudit("Edited", r.replenishmentNo, `Replenishment reverted (was ${r.status || "—"}) · ${peso(Number(r.amount))} · Reason: ${reason.trim()}`
+      + (claims ? ` · ${claims} item(s) returned to Ready for Replenishment` : ""));
+  }, [logAudit, replenishments, canManageReplen, userName, userEmail, role]); // eslint-disable-line
 
   const deleteReplenishment = useCallback((id) => {
     const r = replenishments.find((x) => x.id === id);
@@ -2034,6 +2072,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             reimbursements={scopedReimbursements}
             onCreate={addReplenishment} onEdit={editReplenishment}
             onComplete={completeReplenishment} onDelete={deleteReplenishment}
+            onRevert={revertReplenishment} canManage={canManageReplen}
             canDelete={canDeleteTxn}
             generatedBy={userName || userEmail}
             plantOptions={scopedPlantOptions} canEdit={canEdit}

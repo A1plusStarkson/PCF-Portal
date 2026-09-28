@@ -1182,7 +1182,7 @@ function computeMetrics(funds, requests, disbursements, liquidations, replenishm
   const pendingRequests = requests.filter((r) => r.status === "Pending").length;
   const approvedRequests = requests.filter((r) => r.status === "Approved").length;
   const pendingLiquidationCount = disbursements.filter((d) => liqStatusFor(d, liquidations) !== "Fully Liquidated").length;
-  const pendingReplenishments = reps.filter((r) => r.status !== "Completed").length;
+  const pendingReplenishments = reps.filter((r) => r.status !== "Completed" && r.status !== "Reverted").length;
   const completedBilled = disbursements.filter((d) => d.billed).length;
 
   const nowMonth = todayISO().slice(0, 7);

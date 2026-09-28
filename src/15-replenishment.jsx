@@ -259,7 +259,7 @@ const REPLENISH_SORT_FIELDS = {
   remarks: (r) => r.remarks,
 };
 
-function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, reimbursements, onCreate, onEdit, onComplete, onDelete, canDelete, plantOptions, canEdit, plantTitle, generatedBy }) {
+function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, reimbursements, onCreate, onEdit, onComplete, onDelete, canDelete, plantOptions, canEdit, plantTitle, generatedBy, canManage, onRevert }) {
   const [showForm, setShowForm] = useState(false);
   /* Liquidations + amount handed to a new form from the Ready panel. */
   const [preselect, setPreselect] = useState(null);
@@ -325,7 +325,8 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
     setShowForm(true);
   };
   const totalCompleted = replenishments.filter((r) => r.status === "Completed").reduce((s, r) => s + (Number(r.amount) || 0), 0);
-  const totalPending = replenishments.filter((r) => r.status !== "Completed").reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const isOpenRepl = (r) => r.status !== "Completed" && r.status !== "Reverted";
+  const totalPending = replenishments.filter(isOpenRepl).reduce((s, r) => s + (Number(r.amount) || 0), 0);
 
   const filtered = sort.sortRows(
     replenishments.filter((r) => {
@@ -484,7 +485,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
         </div>
         <div className="pcp-kpi-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
           <KpiCard label="Total Replenished" value={peso(totalCompleted)} icon={RefreshCw} tint="#15803d" foot="Completed reimbursements" />
-          <KpiCard label="Pending Replenishments" value={replenishments.filter((r) => r.status !== "Completed").length} icon={Clock} tint="#b9790a" foot={peso(totalPending) + " in progress"} />
+          <KpiCard label="Pending Replenishments" value={replenishments.filter(isOpenRepl).length} icon={Clock} tint="#b9790a" foot={peso(totalPending) + " in progress"} />
           <KpiCard label="Replenishment Records" value={replenishments.length} icon={Landmark} tint="#2054a3" />
         </div>
         <div className="pcp-card">
@@ -494,7 +495,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
               <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search no. or preparer" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <select className="pcp-select" style={{ width: 170 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              {["All", ...REPLENISH_STATUSES].map((s) => <option key={s}>{s}</option>)}
+              {["All", ...REPLENISH_STATUSES, "Reverted"].map((s) => <option key={s}>{s}</option>)}
             </select>
             <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-mut)" }}>{filtered.length} of {replenishments.length} records</div>
           </div>
@@ -529,13 +530,23 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                       {!!(r.reimbursementIds || []).length && (
                         <div style={{ fontSize: 10.5, color: "var(--text-mut)" }}>{r.reimbursementIds.length} approved reimbursement(s)</div>
                       )}
+                      {r.status === "Reverted" && (
+                        <div style={{ fontSize: 10.5, color: "var(--brand)" }}>
+                          Reverted by {r.revertedBy || "—"} · {String(r.revertedAt || "").replace("T", " ")}{r.revertReason ? ` · "${r.revertReason}"` : ""}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <div style={{ display: "flex", gap: 6 }}>
-                        {canEdit && r.status !== "Completed" && (
+                        {canManage && isOpenRepl(r) && (
                           <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={() => onComplete(r.id)} title="Mark completed"><Check size={12} /></button>
                         )}
-                        <button className="pcp-btn pcp-btn-sm" onClick={() => setEditing(r)} title="Edit"><Edit3 size={12} /></button>
+                        {canManage && r.status !== "Reverted" && (
+                          <button className="pcp-btn pcp-btn-sm" onClick={() => setEditing(r)} title="Edit"><Edit3 size={12} /></button>
+                        )}
+                        {canManage && onRevert && r.status !== "Reverted" && (
+                          <button className="pcp-btn pcp-btn-sm" onClick={() => onRevert(r.id)} title="Revert — undo this replenishment; its items return to Ready for Replenishment"><History size={12} /> Revert</button>
+                        )}
                         {canDelete && onDelete && (
                           <button className="pcp-btn pcp-btn-sm pcp-btn-danger" onClick={() => onDelete(r.id)} title="Delete replenishment (System Superuser)"><Trash2 size={12} /></button>
                         )}

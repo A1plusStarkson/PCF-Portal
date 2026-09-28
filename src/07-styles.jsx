@@ -748,7 +748,7 @@ function Badge({ status }) {
     /* Two-level liquidation approval stages (LIQ_STAGE in 02-helpers.jsx) */
     "For Custodian Review": "amber", "Needs Correction": "red", "Awaiting Settlement": "amber",
     "For Final Approval": "blue", "Fully Approved / Ready for Replenishment": "green",
-    Replenished: "green", "Approved (before two-level review)": "gray",
+    Replenished: "green", "Approved (before two-level review)": "gray", Reverted: "gray",
     "FOR CUSTODIAN REVIEW": "amber", "FOR FINAL APPROVAL": "blue",
     /* Accounting review, between the custodian and the final approver */
     "For Accounting Check": "amber", "FOR ACCOUNTING CHECK": "amber", YES: "green",

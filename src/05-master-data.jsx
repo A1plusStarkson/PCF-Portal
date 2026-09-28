@@ -1000,6 +1000,7 @@ function buildNotifications(requests, disbursements, liquidations, replenishment
     out.push({ id: "n-liqrev-" + l.id, type: "liquidation", icon: "alert", title: "Receipts returned for correction", text: `${d.voucherNo} · ${d.employee} · ${rejected} receipt(s) rejected — upload corrected documents`, date: d.date });
   });
   (replenishments || []).forEach((r) => {
+    if (r.status === "Reverted") return;
     if (r.status === "Completed") out.push({ id: "n-rep-" + r.id, type: "replenished", icon: "refresh", title: "Replenishment completed", text: `${r.replenishmentNo} · ${peso(r.amount)}`, date: r.date });
     else out.push({ id: "n-repp-" + r.id, type: "replenish-pending", icon: "refresh", title: "Replenishment pending", text: `${r.replenishmentNo} · ${peso(r.amount)}`, date: r.date });
   });
