@@ -81,8 +81,21 @@ const CSS = `
   .pcp-sidebar-foot {
     margin-top: auto; padding-top: 14px; border-top: 1px solid rgba(255,255,255,0.08);
   }
-  .pcp-logos-strip { display: flex; align-items: center; gap: 12px; padding: 10px 6px; }
-  .pcp-logos-strip img { max-height: 40px; max-width: 104px; object-fit: contain; filter: brightness(0) invert(1); opacity: 0.9; }
+  /* Company logos in the sidebar: true colours on a soft light plate (the
+     logos are black/red, which a dark sidebar would swallow). */
+  .pcp-logos-strip { margin: 8px 2px 6px; padding: 10px 12px; background: #f6f7fb; border-radius: 10px; }
+
+  /* <BrandLogos>: the A1+ badge and the Starkson wordmark side by side, sized
+     by visual weight (the badge is near-square, the wordmark ~6:1), split by a
+     hairline. Transparent PNGs, never stretched: height set, width auto. */
+  .pcp-brand-logos { display: flex; align-items: center; justify-content: center; gap: 16px; }
+  .pcp-brand-logos img { display: block; width: auto; max-width: 100%; object-fit: contain; }
+  .pcp-brand-logos .bl-a1 { height: 44px; }
+  .pcp-brand-logos .bl-spi { height: 27px; }
+  .pcp-brand-logos .bl-sep { width: 1px; align-self: stretch; margin: 4px 0; background: #d6d9e3; flex-shrink: 0; }
+  .pcp-brand-logos.compact { gap: 10px; }
+  .pcp-brand-logos.compact .bl-a1 { height: 32px; }
+  .pcp-brand-logos.compact .bl-spi { height: 19px; }
 
   /* ---- Main ---- */
   .pcp-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
@@ -435,13 +448,6 @@ const CSS = `
   .pcp-login-features { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
   .pcp-login-features li { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #eef0f6; }
   .pcp-login-features svg { color: #ff8a9b; flex-shrink: 0; }
-  /* Transparent logos (LOGO_*_T) straight on the dark panel, in their own
-     colours. A thin white edge keeps their black lettering readable. */
-  .pcp-login-logos { display: flex; align-items: center; gap: 26px; flex-wrap: wrap; }
-  .pcp-login-logos img {
-    height: 46px; width: auto; max-width: 220px; object-fit: contain; display: block;
-    filter: drop-shadow(0 0 0.6px rgba(255,255,255,0.95)) drop-shadow(0 0 0.6px rgba(255,255,255,0.95)) drop-shadow(0 0 5px rgba(255,255,255,0.18));
-  }
   .pcp-login-pane { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 32px 24px; background: var(--paper); }
   .pcp-login-split .pcp-login-card { max-width: 400px; border-radius: 16px; box-shadow: 0 24px 60px rgba(15,18,30,0.10); }
   .pcp-login-card-head { padding: 28px 28px 0; }
@@ -537,8 +543,6 @@ const CSS = `
     .pcp-login-hero { font-size: 22px; margin-bottom: 8px; }
     .pcp-login-lead { margin-bottom: 0; font-size: 13px; }
     .pcp-login-features { display: none; }
-    .pcp-login-logos { gap: 18px; }
-    .pcp-login-logos img { height: 34px; max-width: 160px; }
   }
   @media (max-width: 480px) {
     .pcp-login-card-head { padding: 22px 20px 0; }
@@ -548,6 +552,7 @@ const CSS = `
   /* ---- Report ---- */
   .pcp-report-head { display: flex; align-items: center; gap: 14px; margin-bottom: 8px; }
   .pcp-report-head img { max-height: 46px; max-width: 130px; object-fit: contain; }
+  .pcp-report-head .pcp-brand-logos img { max-height: none; max-width: 100%; }
   .pcp-report-title { font-size: 17px; font-weight: 800; letter-spacing: -0.2px; }
   .pcp-report-sub { font-size: 11.5px; color: var(--text-mut); }
   table.pcp-table tfoot td { padding: 9px 10px; border-top: 2px solid var(--line); font-weight: 800; background: #fafbfc; }
@@ -730,6 +735,18 @@ const parseTab = (tab) => {
   return { plant: tab.slice(0, i), module: tab.slice(i + TAB_SEP.length) };
 };
 
+/* The two company logos, consistently sized and spaced (see .pcp-brand-logos).
+   For light backgrounds; on a dark one, wrap it in a light plate. */
+function BrandLogos({ compact }) {
+  return (
+    <div className={"pcp-brand-logos" + (compact ? " compact" : "")}>
+      <img className="bl-a1" src={LOGO_A1_T} alt="A1+ Multinational Packaging, Inc" />
+      <span className="bl-sep" aria-hidden="true" />
+      <img className="bl-spi" src={LOGO_SPI_T} alt="Starkson Packaging, Inc." />
+    </div>
+  );
+}
+
 function Sidebar({ tab, setTab, role, navGroups, userEmail, userName, onSignOut, onChangePassword }) {
   const groups = navGroups || [];
   return (
@@ -782,8 +799,7 @@ function Sidebar({ tab, setTab, role, navGroups, userEmail, userName, onSignOut,
           </button>
         )}
         <div className="pcp-logos-strip">
-          <img src={LOGO_A1_T} alt="A1+ Multinational Packaging, Inc" />
-          <img src={LOGO_SPI_T} alt="Starkson Packaging, Inc." />
+          <BrandLogos compact />
         </div>
         <div style={{ fontSize: 10.5, color: "#6b7290", padding: "2px 6px" }}>
           A1+ Multinational Packaging, Inc · Starkson Packaging, Inc.

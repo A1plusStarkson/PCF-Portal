@@ -539,8 +539,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
       <div className="pcp-content">
         <div className="pcp-card pcp-card-pad" style={{ marginBottom: 16 }}>
           <div className="pcp-report-head">
-            <img src={LOGO_A1} alt="A1+ Multinational Packaging, Inc" />
-            <img src={LOGO_SPI} alt="Starkson Packaging, Inc." />
+            <BrandLogos />
             <div style={{ marginLeft: "auto", textAlign: "right" }}>
               <div className="pcp-report-title">Liquidation &amp; Reimbursement Aging Report</div>
               <div className="pcp-report-sub">

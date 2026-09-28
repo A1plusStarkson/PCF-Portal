@@ -148,10 +148,6 @@ function LoginScreen({ mode, onLocalLogin }) {
             <p className="pcp-login-lead">Request, release, liquidate and replenish — with every approval and receipt on record.</p>
             <PesoVisual />
           </div>
-          <div className="pcp-login-logos">
-            <img src={LOGO_A1_T} alt="A1+ Multinational Packaging, Inc" />
-            <img src={LOGO_SPI_T} alt="Starkson Packaging, Inc." />
-          </div>
         </aside>
 
         {/* Sign-in form */}
@@ -223,6 +219,7 @@ function LoginScreen({ mode, onLocalLogin }) {
               </div>
             </form>
           </div>
+          <BrandLogos />
           <div className="pcp-login-copy">© {new Date().getFullYear()} A1+ Multinational Packaging, Inc · Starkson Packaging, Inc.</div>
         </main>
       </div>
