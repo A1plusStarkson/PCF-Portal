@@ -117,6 +117,26 @@ function nextSeriesNo(prefix, existing, width) {
   return candidate;
 }
 
+/* The number a New form will most likely be saved under, shown before
+   submitting. Asks the database (read-only — nothing is reserved); in local
+   mode numbers from `localNos`. "" while loading or when the database can't
+   say, so the form falls back to its "Auto-generated on submit" label. The
+   real number is still issued on save and may differ if someone saves first. */
+function useNextSeriesNo(prefix, localNos, enabled) {
+  const [no, setNo] = useState("");
+  useEffect(() => {
+    setNo("");
+    if (!enabled || !prefix) return undefined;
+    let live = true;
+    const api = window.storage && window.storage.series;
+    const ask = api && api.peek ? api.peek(prefix) : Promise.resolve(null);
+    ask.then((v) => { if (live) setNo(v === null ? nextSeriesNo(prefix, localNos) : (v || "")); })
+      .catch(() => { if (live) setNo(""); });
+    return () => { live = false; };
+  }, [prefix, enabled]); // eslint-disable-line
+  return no;
+}
+
 /* The Request No. prefix is no longer a single constant: each plant runs its
    own series. See requestNoPrefix in 05-master-data.jsx, which is where the
    plant families it depends on are defined. This file loads before that one,

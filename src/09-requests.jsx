@@ -1,6 +1,6 @@
 /* ============================= REQUESTS ============================= */
 
-function RequestFormModal({ onClose, onSave, request, plantOptions }) {
+function RequestFormModal({ onClose, onSave, request, plantOptions, allRequestNos }) {
   const isEdit = !!request;
   const defaultBranch = (plantOptions && plantOptions[0]) ? plantOptions[0].code : PCR_BRANCH_OPTIONS[0].code;
   const [form, setForm] = useState(
@@ -31,10 +31,11 @@ function RequestFormModal({ onClose, onSave, request, plantOptions }) {
   const isOthers = form.purpose === OTHERS_PURPOSE;
   const validPurpose = !!form.purpose && (!isOthers || form.purposeJustification.trim());
   /* Request No. is issued by the database and locked for every user. A NEW
-     request shows no number until it is saved — any number shown earlier
-     could be taken by someone else in the meantime. */
+     request previews the next number (useNextSeriesNo); it is only issued on
+     save, and addRequest says so if someone else took it in the meantime. */
   const valid = form.employee.trim() && !!form.branchCode && validPurpose && Number(form.amount) > 0 && form.approver.trim();
   const assignedLabel = `Auto-generated on submit (${requestNoPrefix(form.branchCode)}…)`;
+  const previewNo = useNextSeriesNo(requestNoPrefix(form.branchCode), allRequestNos, !isEdit);
 
   return (
     <div className="pcp-modal-backdrop" {...backdropCloseProps(onClose)}>
@@ -47,7 +48,10 @@ function RequestFormModal({ onClose, onSave, request, plantOptions }) {
           <div className="pcp-field-row">
             <div className="pcp-field">
               <label>Request No.</label>
-              <input className="pcp-input" value={isEdit ? form.requestNo : assignedLabel} disabled title="System-generated — cannot be changed" />
+              <input className="pcp-input" value={isEdit ? form.requestNo : (previewNo || assignedLabel)} disabled title="System-generated — cannot be changed" />
+              {!isEdit && previewNo && (
+                <div style={{ fontSize: 11.5, color: "var(--text-mut)" }}>System-generated · confirmed when you submit</div>
+              )}
             </div>
             <div className="pcp-field">
               <label>Date</label>
@@ -119,7 +123,7 @@ function RequestFormModal({ onClose, onSave, request, plantOptions }) {
         </div>
         <div className="pcp-modal-foot">
           <button className="pcp-btn" onClick={onClose}>Cancel</button>
-          <button className="pcp-btn pcp-btn-primary" disabled={!valid} onClick={() => onSave(form)}>{isEdit ? "Save Changes" : "Submit Request"}</button>
+          <button className="pcp-btn pcp-btn-primary" disabled={!valid} onClick={() => onSave({ ...form, previewNo })}>{isEdit ? "Save Changes" : "Submit Request"}</button>
         </div>
         <ModalResizeGrip />
       </div>
@@ -271,6 +275,7 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
           from the form. */}
       {showForm && (
         <RequestFormModal
+          allRequestNos={requests.map((r) => r.requestNo)}
           plantOptions={formPlantOptions}
           onClose={() => setShowForm(false)}
           onSave={(form) => { onCreate(form); setShowForm(false); }}
@@ -278,6 +283,7 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
       )}
       {editing && (
         <RequestFormModal
+          allRequestNos={requests.map((r) => r.requestNo)}
           request={editing}
           plantOptions={formPlantOptions}
           onClose={() => setEditing(null)}

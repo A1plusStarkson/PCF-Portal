@@ -523,6 +523,9 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     try {
       requestNo = await issueSeriesNo(requestNoPrefix(form.branchCode), "requests", id, allRequestNos);
     } catch (e) { seriesFailed(e, "Request"); return; }
+    if (form.previewNo && form.previewNo !== requestNo) {
+      window.alert(`${form.previewNo} was taken by another request saved at the same time.\n\nYour request was saved as ${requestNo}.`);
+    }
     setRequests((rs) => [...rs, {
       id, requestNo, date: form.date, employee: form.employee,
       department: form.department, branchCode: form.branchCode, purpose: form.purpose,
@@ -1497,6 +1500,9 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     try {
       reimbNo = await issueSeriesNo(reimbNoPrefix(form.branchCode), "reimbursements", id, reimbursements.map((r) => r.reimbNo));
     } catch (e) { seriesFailed(e, "Reimbursement"); return; }
+    if (form.previewNo && form.previewNo !== reimbNo) {
+      window.alert(`${form.previewNo} was taken by another reimbursement saved at the same time.\n\nYours was saved as ${reimbNo}.`);
+    }
     const ts = reimbTs();
     const base = buildReimbFromForm(form);
     const status = submit ? REIMB_STATUS.SUBMITTED : REIMB_STATUS.DRAFT;

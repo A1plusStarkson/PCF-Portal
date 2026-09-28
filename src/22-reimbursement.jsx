@@ -485,7 +485,9 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
   const total = reimbTotal(normalizedForm);
   const canSubmit = compliance.level !== "FAILED" && form.certify;
 
-  const payload = () => ({ ...normalizedForm });
+  /* The next number, previewed (useNextSeriesNo); issued only on save. */
+  const previewNo = useNextSeriesNo(reimbNoPrefix(form.branchCode), (allReimbursements || []).map((r) => r.reimbNo), !isEdit);
+  const payload = () => ({ ...normalizedForm, previewNo });
 
   const Stepper = () => {
     const steps = ["Expense Info", "Expense Lines", "Documents", "Review", "Submit"];
@@ -525,7 +527,10 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
               <div className="pcp-field-row">
                 <div className="pcp-field">
                   <label>Reimbursement No.</label>
-                  <input className="pcp-input" value={isEdit ? reimb.reimbNo : `Auto-generated on submit (${reimbNoPrefix(form.branchCode)}…)`} disabled />
+                  <input className="pcp-input" value={isEdit ? reimb.reimbNo : (previewNo || `Auto-generated on submit (${reimbNoPrefix(form.branchCode)}…)`)} disabled title="System-generated — cannot be changed" />
+                  {!isEdit && previewNo && (
+                    <div style={{ fontSize: 11.5, color: "var(--text-mut)" }}>System-generated · confirmed when you save</div>
+                  )}
                 </div>
                 <div className="pcp-field">
                   <label>Request Date</label>

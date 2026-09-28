@@ -219,7 +219,10 @@ per plant and per year. The year is the year the number is **issued**.
 
 ### Behaviour in the app
 
-- Forms show **"Assigned when saved"**; the number appears once the record is saved.
+- New Request and Reimbursement forms show the **next number** (read-only preview via
+  `pcp_peek_series_no`, from `supabase-series-preview.sql`); it is issued on save. If someone
+  else saves first, the app says which number was given. Without that function the form shows
+  **"Auto-generated on submit"**.
 - **Delete** (only `superuser@a1plus.com`, all five modules): shows the confirmation *"Are you sure
   you want to delete this transaction? This action cannot be undone."* and requires a reason.
   The number is retired and nothing else is renumbered. Number, plant, reason, user and time

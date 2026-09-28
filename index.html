@@ -695,6 +695,15 @@
               .then(function (r) { if (r.error) throw r.error; return r.data; });
           });
         },
+        // The number the next save in `prefix` will most likely get, for
+        // display on a New form. Read-only: nothing is issued or reserved.
+        peek: function (prefix) {
+          return sbReady.then(function (c) {
+            if (!c) return null;
+            return c.rpc("pcp_peek_series_no", { p_prefix: prefix })
+              .then(function (r) { if (r.error) throw r.error; return r.data || ""; });
+          });
+        },
         // Claims an exact number for recordId (a hand-typed Request No., or a
         // voucher taking its request's number). exact === false allows a
         // "-1", "-2"… suffix when the number is taken; exact === true resolves
@@ -815,7 +824,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20260926c";
+  window.PCP_SRC_VERSION = "20260928a";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",
