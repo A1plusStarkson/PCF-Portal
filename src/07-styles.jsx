@@ -332,6 +332,10 @@ const CSS = `
   .pcp-doc-frame { background: #f4f6f9; display: block; }
   .pcp-doc-frame img { display: block; width: 100%; max-height: 260px; object-fit: contain; }
   .pcp-doc-frame iframe { display: block; width: 100%; height: 260px; border: none; }
+  .pcp-doc-frame a { display: block; cursor: zoom-in; }
+  .pcp-doc-gallery-lg { grid-template-columns: repeat(auto-fit, minmax(min(420px, 100%), 1fr)); gap: 14px; }
+  .pcp-doc-gallery-lg .pcp-doc-frame img { max-height: 640px; }
+  .pcp-doc-gallery-lg .pcp-doc-frame iframe { height: 640px; }
   .pcp-doc-frame .pcp-doc-none { padding: 22px 14px; text-align: center; font-size: 11.5px; color: var(--text-mut); }
 
   /* ---- Notifications & role ---- */
@@ -1011,7 +1015,7 @@ function AttachmentTile({ att, renderFooter }) {
       </div>
       <div className="pcp-doc-frame">
         {isImage && src ? (
-          <img src={src} alt={name} />
+          <a href={src} target="_blank" rel="noopener noreferrer" title="Click to open full size"><img src={src} alt={name} /></a>
         ) : isPdf && src ? (
           <iframe title={name} src={src} />
         ) : (
@@ -1027,13 +1031,15 @@ function AttachmentTile({ att, renderFooter }) {
   );
 }
 
-function AttachmentGallery({ attachments, emptyLabel, renderFooter }) {
+/* `large`: bigger tiles and previews (Reimbursement module), so receipts can
+   be read without opening each one. Click an image to open it full size. */
+function AttachmentGallery({ attachments, emptyLabel, renderFooter, large }) {
   const list = attachments || [];
   if (!list.length) {
     return <div style={{ fontSize: 12, color: "var(--text-mut)" }}>{emptyLabel || "No documents attached."}</div>;
   }
   return (
-    <div className="pcp-doc-gallery">
+    <div className={"pcp-doc-gallery" + (large ? " pcp-doc-gallery-lg" : "")}>
       {list.map((a, i) => (
         <AttachmentTile key={a.id || (a.name || "document") + i} att={a} renderFooter={renderFooter} />
       ))}

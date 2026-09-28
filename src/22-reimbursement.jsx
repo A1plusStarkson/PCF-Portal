@@ -679,6 +679,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
               <AttachmentGallery
                 attachments={form.attachments}
                 emptyLabel="No documents attached. An Original OR / Sales Invoice is required."
+                large
                 renderFooter={(a) => (
                   <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 9px", borderTop: "1px solid var(--line)" }}>
                     <select
@@ -726,7 +727,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
               </div>
               <div className="pcp-card" style={{ padding: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Attachments ({form.attachments.length})</div>
-                <AttachmentGallery attachments={form.attachments} emptyLabel="None" />
+                <AttachmentGallery attachments={form.attachments} emptyLabel="None" large />
               </div>
               <div className="pcp-card" style={{ padding: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Applicable Approval Schedule</div>
@@ -860,13 +861,19 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
   })();
 
   return (
-    <div className="pcp-modal-backdrop" onClick={onClose}>
-      <div className="pcp-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 860, width: "94%" }}>
+    <div className="pcp-modal-backdrop" {...backdropCloseProps(onClose)}>
+      {/* Large and resizable (drag the bottom-right corner) so receipts can be
+          read at a useful size while checking and approving. */}
+      <div
+        className="pcp-modal pcp-modal-resizable"
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "min(1280px, 96vw)", height: "calc(100vh - 80px)", minHeight: 400 }}
+      >
         <div className="pcp-modal-head">
           <h3>{reimb.reimbNo} · <Badge status={atAccounting ? REIMB_STAGE.FOR_ACCOUNTING : st} /></h3>
           <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose}><X size={15} /></button>
         </div>
-        <div className="pcp-modal-body" style={{ maxHeight: "72vh", overflowY: "auto" }}>
+        <div className="pcp-modal-body">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <div style={{ fontSize: 13 }}>
               <b>{reimb.employee}</b> · {subaccountLabel(reimb.department)} · {plantLabel(reimb.branchCode)} ({companyOfBranch(reimb.branchCode)})
@@ -917,7 +924,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
             </div>
             {/* Rendered inline so the checker and the approver can read every
                 receipt on this one screen — no per-file "View" click. */}
-            <AttachmentGallery attachments={reimb.attachments} emptyLabel="None" />
+            <AttachmentGallery attachments={reimb.attachments} emptyLabel="None" large />
           </div>
 
           {reimb.payment && reimb.payment.date && (
@@ -1000,6 +1007,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
           )}
           <button className="pcp-btn" onClick={onClose} style={{ marginLeft: "auto" }}>Close</button>
         </div>
+        <ModalResizeGrip />
       </div>
     </div>
   );
