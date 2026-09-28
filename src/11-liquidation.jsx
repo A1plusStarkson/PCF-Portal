@@ -1889,7 +1889,7 @@ function ReimbursementLiquidationPanel({ reimb, canFinance, onAction }) {
         subtitle={`${(reimb.attachments || []).length} file(s) carried forward`}
         defaultOpen
       >
-        <AttachmentGallery attachments={reimb.attachments} emptyLabel="None" />
+        <AttachmentGallery attachments={reimb.attachments} emptyLabel="None" large />
       </Collapsible>
 
       <Collapsible title="Approval History & Audit Trail" subtitle={`${(reimb.history || []).length} event(s)`}>

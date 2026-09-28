@@ -994,7 +994,7 @@ function SearchSelect({
 --------------------------------------------------------------------------- */
 /* One tile. Its own component because useFileUrl is a hook and a hook cannot
    be called from inside a .map callback. */
-function AttachmentTile({ att, renderFooter }) {
+function AttachmentTile({ att, renderFooter, large }) {
   const src = useFileUrl(att);
   const name = att.name || "document";
   const type = String(att.type || "");
@@ -1017,7 +1017,7 @@ function AttachmentTile({ att, renderFooter }) {
         {isImage && src ? (
           <a href={src} target="_blank" rel="noopener noreferrer" title="Click to open full size"><img src={src} alt={name} /></a>
         ) : isPdf && src ? (
-          <iframe title={name} src={src} />
+          <iframe title={name} src={large && !src.includes("#") ? src + "#view=FitH" : src} />
         ) : (
           <div className="pcp-doc-none">
             {pending
@@ -1041,7 +1041,7 @@ function AttachmentGallery({ attachments, emptyLabel, renderFooter, large }) {
   return (
     <div className={"pcp-doc-gallery" + (large ? " pcp-doc-gallery-lg" : "")}>
       {list.map((a, i) => (
-        <AttachmentTile key={a.id || (a.name || "document") + i} att={a} renderFooter={renderFooter} />
+        <AttachmentTile key={a.id || (a.name || "document") + i} att={a} renderFooter={renderFooter} large={large} />
       ))}
     </div>
   );
