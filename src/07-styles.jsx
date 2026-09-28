@@ -435,8 +435,10 @@ const CSS = `
   .pcp-login-features { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
   .pcp-login-features li { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #eef0f6; }
   .pcp-login-features svg { color: #ff8a9b; flex-shrink: 0; }
-  .pcp-login-logos { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; }
-  .pcp-login-logos img { max-height: 42px; max-width: 130px; object-fit: contain; filter: brightness(0) invert(1); opacity: 0.85; }
+  /* The company logos have solid white backgrounds, so they sit on a white
+     card in their own colours (a white-out filter would blank them). */
+  .pcp-login-logos { display: inline-flex; align-items: center; gap: 22px; flex-wrap: wrap; align-self: flex-start; background: #fff; border-radius: 12px; padding: 10px 18px; box-shadow: 0 6px 16px rgba(0,0,0,0.25); }
+  .pcp-login-logos img { max-height: 40px; max-width: 130px; object-fit: contain; display: block; }
   .pcp-login-pane { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 32px 24px; background: var(--paper); }
   .pcp-login-split .pcp-login-card { max-width: 400px; border-radius: 16px; box-shadow: 0 24px 60px rgba(15,18,30,0.10); }
   .pcp-login-card-head { padding: 28px 28px 0; }
