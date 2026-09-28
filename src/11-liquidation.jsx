@@ -798,6 +798,13 @@ function LiquidationWorksheet({
      amounts are locked — so an approved amount can never be edited afterwards
      by the person who claimed it. */
   const canDecideReceipts = !!canApproveReceipts && isSubmitted && !finalLocked;
+  /* Supporting documents may be ADDED until final approval, even after
+     submission (a requestor who submitted without receipts must still be able
+     to attach them). Only files not yet saved can be edited or removed —
+     documents already on the record stay locked as before. Saving a new file
+     after the custodian approved voids that approval (saveLiquidation), so it
+     is reviewed like any other receipt. */
+  const canAddDocs = !finalLocked;
   /* Cash settlement is a custodian act: the person who owes the money must not
      be able to record that it came back. */
   const canSettle = !!canApproveReceipts && !finalLocked;
@@ -1583,8 +1590,8 @@ function LiquidationWorksheet({
             )}
             <label
               className="pcp-btn pcp-btn-sm"
-              style={{ cursor: amountsLocked ? "not-allowed" : "pointer", margin: 0, opacity: amountsLocked ? 0.5 : 1 }}
-              title={amountsLocked ? "This liquidation has been submitted — ask a receipt approver to reopen it." : "Attach a supporting document"}
+              style={{ cursor: canAddDocs ? "pointer" : "not-allowed", margin: 0, opacity: canAddDocs ? 1 : 0.5 }}
+              title={canAddDocs ? "Attach a supporting document" : "This liquidation has final approval — no more documents can be added."}
             >
               <Download size={12} style={{ transform: "rotate(180deg)" }} /> Upload
               <input
@@ -1592,7 +1599,7 @@ function LiquidationWorksheet({
                 multiple
                 accept="image/*,application/pdf"
                 style={{ display: "none" }}
-                disabled={amountsLocked}
+                disabled={!canAddDocs}
                 onChange={(e) => { onPickFiles(e.target.files); e.target.value = ""; }}
               />
             </label>
@@ -1620,6 +1627,8 @@ function LiquidationWorksheet({
               const history = (pa && pa.approvalHistory) || a.approvalHistory || [];
               const amtHistory = (pa && pa.amountHistory) || a.amountHistory || [];
               const isSaved = !!pa;
+              /* A file added since the last save stays editable until saved. */
+              const docLocked = amountsLocked && isSaved;
               /* General supporting documents carry no peso figure, so their
                  amount and reference number stay optional. */
               const needsAmount = docRequiresAmount(a);
@@ -1647,8 +1656,8 @@ function LiquidationWorksheet({
                   <button
                     className="pcp-btn pcp-btn-sm pcp-btn-ghost"
                     onClick={() => removeAttachment(a.id)}
-                    disabled={amountsLocked}
-                    title={amountsLocked ? "This liquidation has been submitted" : "Remove"}
+                    disabled={docLocked}
+                    title={docLocked ? "This liquidation has been submitted" : "Remove"}
                   ><Trash2 size={13} color="var(--brand)" /></button>
                 </div>
 
@@ -1659,7 +1668,7 @@ function LiquidationWorksheet({
                   <div style={{ minWidth: 200 }}>
                     <div className="pcp-kpi-label">Document Type</div>
                     <select
-                      className="pcp-select" value={a.docType || DEFAULT_DOC_TYPE} disabled={amountsLocked}
+                      className="pcp-select" value={a.docType || DEFAULT_DOC_TYPE} disabled={docLocked}
                       onChange={(e) => updateAttachment(a.id, { docType: e.target.value })}
                     >
                       {RECEIPT_DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -1670,7 +1679,7 @@ function LiquidationWorksheet({
                       Receipt / Invoice No. <span style={{ color: "var(--text-mut)", fontWeight: 500 }}>(optional)</span>
                     </div>
                     <input
-                      className="pcp-input" placeholder={needsAmount ? "e.g. OR-1234" : "—"} value={a.receiptNo || ""} readOnly={amountsLocked}
+                      className="pcp-input" placeholder={needsAmount ? "e.g. OR-1234" : "—"} value={a.receiptNo || ""} readOnly={docLocked}
                       onChange={(e) => updateAttachment(a.id, { receiptNo: e.target.value })}
                     />
                   </div>
@@ -1684,7 +1693,7 @@ function LiquidationWorksheet({
                       type="number" min="0" step="0.01" className="pcp-input"
                       placeholder={needsAmount ? "0.00" : "—"}
                       value={a.receiptAmount == null ? "" : a.receiptAmount}
-                      readOnly={amountsLocked}
+                      readOnly={docLocked}
                       onChange={(e) => setReceiptAmount(a.id, e.target.value)}
                       style={amountMissing ? { borderColor: "var(--brand)" } : undefined}
                     />
@@ -1711,7 +1720,7 @@ function LiquidationWorksheet({
                     Excluded from the total until the custodian approves this document.
                   </div>
                 )}
-                {amountsLocked && (
+                {docLocked && (
                   <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 5 }}>
                     {finalLocked
                       ? "Read-only — this liquidation has final approval."
