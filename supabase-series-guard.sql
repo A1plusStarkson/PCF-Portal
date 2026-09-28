@@ -17,7 +17,7 @@
 --   pcp_issue_series_no  Issues the next free number of a series (app: new
 --                        request, reimbursement, replenishment, plant move).
 --   pcp_claim_series_no  Claims a specific number (app: a voucher taking its
---                        request's number; Accounting's typed Request No.).
+--                        request's number).
 --   pcp_series_guard     Trigger on pcp_records: refuses ANY write — from the
 --                        app, the API or SQL — that would put a number
 --                        registered to one record onto another.

@@ -1,6 +1,6 @@
 /* ============================= REQUESTS ============================= */
 
-function RequestFormModal({ onClose, onSave, request, plantOptions, canEditRequestNo, isRequestNoTaken }) {
+function RequestFormModal({ onClose, onSave, request, plantOptions }) {
   const isEdit = !!request;
   const defaultBranch = (plantOptions && plantOptions[0]) ? plantOptions[0].code : PCR_BRANCH_OPTIONS[0].code;
   const [form, setForm] = useState(
@@ -15,7 +15,7 @@ function RequestFormModal({ onClose, onSave, request, plantOptions, canEditReque
       : {
           /* Left blank on purpose. The number is issued by the database when the
              request is saved (addRequest in 19-app.jsx), so two people saving at
-             once can never get the same one. Accounting may type an override. */
+             once can never get the same one. */
           requestNo: "",
           date: todayISO(), employee: "", department: SUBACCOUNTS[1].code,
           branchCode: defaultBranch, purpose: "", purposeJustification: "", amount: "", approver: "",
@@ -30,19 +30,11 @@ function RequestFormModal({ onClose, onSave, request, plantOptions, canEditReque
     .concat([{ value: OTHERS_PURPOSE, label: `${OTHERS_PURPOSE} (requires justification)` }]);
   const isOthers = form.purpose === OTHERS_PURPOSE;
   const validPurpose = !!form.purpose && (!isOthers || form.purposeJustification.trim());
-  /* Request No. is issued by the database and locked for every role except
-     Accounting. A NEW request shows no number until it is saved — any number
-     shown earlier could be taken by someone else in the meantime. Accounting
-     may type an override (blank = issue the next one); an existing request
-     must keep a number. Uniqueness is checked here against what is on screen
-     and again in the database registry on save, which also refuses a number
-     that was ever issued before, even to a deleted request. */
-  const typedRequestNo = String(form.requestNo || "").trim();
-  const requestNoDuplicate = !!canEditRequestNo && !!typedRequestNo && !!isRequestNoTaken
-    && isRequestNoTaken(typedRequestNo, request ? request.id : null);
-  const validRequestNo = !canEditRequestNo || (!requestNoDuplicate && (!isEdit || !!typedRequestNo));
-  const valid = validRequestNo && form.employee.trim() && !!form.branchCode && validPurpose && Number(form.amount) > 0 && form.approver.trim();
-  const assignedLabel = `Assigned when saved (${requestNoPrefix(form.branchCode)}…)`;
+  /* Request No. is issued by the database and locked for every user. A NEW
+     request shows no number until it is saved — any number shown earlier
+     could be taken by someone else in the meantime. */
+  const valid = form.employee.trim() && !!form.branchCode && validPurpose && Number(form.amount) > 0 && form.approver.trim();
+  const assignedLabel = `Auto-generated on submit (${requestNoPrefix(form.branchCode)}…)`;
 
   return (
     <div className="pcp-modal-backdrop" {...backdropCloseProps(onClose)}>
@@ -54,24 +46,8 @@ function RequestFormModal({ onClose, onSave, request, plantOptions, canEditReque
         <div className="pcp-modal-body">
           <div className="pcp-field-row">
             <div className="pcp-field">
-              <label>Request No.{canEditRequestNo && isEdit && <span style={{ color: "var(--brand)" }}> *</span>}</label>
-              {canEditRequestNo ? (
-                <input
-                  className="pcp-input"
-                  value={form.requestNo}
-                  onChange={(e) => set("requestNo", e.target.value)}
-                  placeholder={isEdit ? "" : assignedLabel}
-                  title="Accounting Department only — overrides the system-issued number"
-                />
-              ) : (
-                <input className="pcp-input" value={isEdit ? form.requestNo : assignedLabel} disabled />
-              )}
-              {canEditRequestNo && isEdit && !typedRequestNo && (
-                <div style={{ fontSize: 11.5, color: "var(--brand)" }}>Request No. is required.</div>
-              )}
-              {requestNoDuplicate && (
-                <div style={{ fontSize: 11.5, color: "var(--brand)" }}>{typedRequestNo} is already used by another request.</div>
-              )}
+              <label>Request No.</label>
+              <input className="pcp-input" value={isEdit ? form.requestNo : assignedLabel} disabled title="System-generated — cannot be changed" />
             </div>
             <div className="pcp-field">
               <label>Date</label>
@@ -143,7 +119,7 @@ function RequestFormModal({ onClose, onSave, request, plantOptions, canEditReque
         </div>
         <div className="pcp-modal-foot">
           <button className="pcp-btn" onClick={onClose}>Cancel</button>
-          <button className="pcp-btn pcp-btn-primary" disabled={!valid} onClick={() => onSave({ ...form, requestNo: typedRequestNo })}>{isEdit ? "Save Changes" : "Submit Request"}</button>
+          <button className="pcp-btn pcp-btn-primary" disabled={!valid} onClick={() => onSave(form)}>{isEdit ? "Save Changes" : "Submit Request"}</button>
         </div>
         <ModalResizeGrip />
       </div>
@@ -163,7 +139,7 @@ const REQUEST_SORT_FIELDS = {
   status: (r) => r.status,
 };
 
-function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, onDisburse, canEditDisbursed, plantOptions, canApprove, canRelease, plantTitle, canDelete, onDelete, canEditRequestNo, isRequestNoTaken }) {
+function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, onDisburse, canEditDisbursed, plantOptions, canApprove, canRelease, plantTitle, canDelete, onDelete }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All");
@@ -291,16 +267,11 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
           </div>
         </div>
       </div>
-      {/* onSave passes the form straight through: the modal has already resolved
-          requestNo for the plant it is submitting — an override when Accounting
-          typed one, the generated number for that plant otherwise. App
-          re-validates it and regenerates a blank or already-taken number, so
-          nothing here has to second-guess the form. */}
+      {/* The Request No. is issued by the app on save (addRequest), never taken
+          from the form. */}
       {showForm && (
         <RequestFormModal
           plantOptions={formPlantOptions}
-          canEditRequestNo={canEditRequestNo}
-          isRequestNoTaken={isRequestNoTaken}
           onClose={() => setShowForm(false)}
           onSave={(form) => { onCreate(form); setShowForm(false); }}
         />
@@ -309,8 +280,6 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
         <RequestFormModal
           request={editing}
           plantOptions={formPlantOptions}
-          canEditRequestNo={canEditRequestNo}
-          isRequestNoTaken={isRequestNoTaken}
           onClose={() => setEditing(null)}
           onSave={(form) => { onEdit(editing.id, form); setEditing(null); }}
         />

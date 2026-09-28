@@ -124,19 +124,10 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   const canDeleteTxn = DELETE_ACCOUNT_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
 
-  /* ---- Request No. override ----
-     The Petty Cash Request No. is system-generated and locked for every role
-     except these two: Accounting (to match a pre-printed form or correct a
-     mis-keyed series) and SuperAdmin (added at the owner's request so the
-     system administrator is not locked out of a correction Accounting can make).
-     Gated on BOTH the assigned role and the role being viewed, so previewing
-     another role gains no hidden rights and loses none it already had. In local
-     (no-auth) mode the operator is the Accounting super-admin, which is why the
-     assigned role falls back to "Accounting" here.
-
-     Uniqueness is still enforced separately — isRequestNoTaken rejects a blank
-     or duplicate number whoever is typing it, and every change is written to the
-     audit trail as "Request No. Changed". */
+  /* ---- Series numbers ----
+     Petty Cash Request and Reimbursement numbers are issued by the database
+     and can never be typed or changed by any user — Accounting and SuperAdmin
+     included (owner's instruction, Sep 2026). */
   /* ---- Accounting edit override ----
      By the owner's instruction, this account may also edit a Petty Cash
      Request after it is Disbursed. Final-approved liquidations stay locked for
@@ -154,10 +145,6 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   ];
   const canEditReimbOverride = REIMB_EDIT_OVERRIDE_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
-
-  const REQUEST_NO_EDITOR_ROLES = ["Accounting", "SuperAdmin"];
-  const canEditRequestNo = REQUEST_NO_EDITOR_ROLES.includes(userRole || "Accounting")
-    && REQUEST_NO_EDITOR_ROLES.includes(role);
 
   /* ---- Closing a cash shortage ----
      When a requestor returns less than they owe, the balance is a receivable
@@ -523,37 +510,18 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   }, [loaded]);
 
   /* ---- Requests ---- */
-  /* True when another request already carries this number (case/space
-     insensitive). Checked against the FULL request list, not the plant-scoped
-     slice, so the series stays unique portal-wide. */
-  const isRequestNoTaken = useCallback((no, exceptId) => {
-    const key = String(no || "").trim().toUpperCase();
-    if (!key) return false;
-    return requests.some((r) => r.id !== exceptId && String(r.requestNo || "").trim().toUpperCase() === key);
-  }, [requests]);
-
   /* Every Request No. in use across ALL plants — the local-mode fallback
-     numbers from this, and the Accounting override is checked against it
-     before the database is asked. */
+     numbers from this. */
   const allRequestNos = useMemo(() => requests.map((r) => r.requestNo), [requests]);
 
   const addRequest = useCallback(async (form) => {
     /* The number is issued by the database (issueSeriesNo) the moment the
        request is saved — never taken from the form, so two people submitting
-       at once cannot get the same one. Accounting may type an override; it is
-       claimed in the database registry, and one that was EVER issued before
-       (even to a deleted request) is refused and a fresh number issued. */
+       at once cannot get the same one, and nobody can type one in. */
     const id = uid("req");
-    const typedNo = canEditRequestNo ? String(form.requestNo || "").trim() : "";
-    let requestNo = "";
+    let requestNo;
     try {
-      if (typedNo && !isRequestNoTaken(typedNo, null)) {
-        requestNo = await claimSeriesNo(typedNo, "requests", id, true, allRequestNos);
-      }
-      if (!requestNo) {
-        requestNo = await issueSeriesNo(requestNoPrefix(form.branchCode), "requests", id, allRequestNos);
-        if (typedNo) window.alert(`${typedNo} has already been issued (possibly to a deleted request) and cannot be used again.\n\nThis request was saved as ${requestNo}.`);
-      }
+      requestNo = await issueSeriesNo(requestNoPrefix(form.branchCode), "requests", id, allRequestNos);
     } catch (e) { seriesFailed(e, "Request"); return; }
     setRequests((rs) => [...rs, {
       id, requestNo, date: form.date, employee: form.employee,
@@ -562,12 +530,11 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       amount: Number(form.amount), approver: form.approver, status: "Pending",
     }]);
     logAudit("Request Created", requestNo, `${form.employee} · ${peso(Number(form.amount))} · ${form.purpose}`);
-  }, [logAudit, allRequestNos, isRequestNoTaken, canEditRequestNo]); // eslint-disable-line
+  }, [logAudit, allRequestNos]); // eslint-disable-line
 
   const editRequest = useCallback(async (id, form) => {
     const r = requests.find((x) => x.id === id);
     if (!r) return;
-    const typedNo = String(form.requestNo || "").trim();
     const released = disbursements.filter((d) => d.requestId === id);
     /* A released request cannot change plant: its voucher, liquidation and
        the fund they were drawn from all belong to the plant it was released
@@ -588,34 +555,9 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     logAudit("Edited", r.requestNo, `Request updated · ${form.employee} · ${peso(Number(form.amount))}`
       + (r.status === "Disbursed" ? " · edited after release (Accounting override — Release Ledger voucher unchanged)" : ""));
 
-    /* Request No. override — Accounting only. The new number is claimed in
-       the database registry first; one ever issued before is refused. The
-       old number stays retired. Re-checked here, not just in the form. */
-    const wantsRename = !!canEditRequestNo && !!typedNo && typedNo !== r.requestNo;
-    if (wantsRename) {
-      let got = "";
-      try {
-        got = isRequestNoTaken(typedNo, id) ? "" : await claimSeriesNo(typedNo, "requests", id, true, allRequestNos);
-      } catch (e) { seriesFailed(e, "Request"); return; }
-      if (!got) {
-        window.alert(`${typedNo} has already been issued (possibly to a deleted request) and cannot be used again.\n\nThe Request No. stays ${r.requestNo}; your other changes were saved.`);
-        return;
-      }
-      renumberOne(setRequests, "requestNo", id, r.requestNo, got, "Changed by Accounting");
-      logAudit("Request No. Changed", got, `Request No. changed from ${r.requestNo} to ${got} by Accounting`);
-      /* The voucher carries its request's number, so it follows — under a
-         freshly claimed voucher number; the old one stays retired. */
-      for (const d of released.filter((x) => x.voucherNo === voucherNoForRequest(r.requestNo))) {
-        try {
-          const vNo = await claimSeriesNo(voucherNoForRequest(got), "disbursements", d.id, false, disbursements.map((x) => x.voucherNo));
-          renumberOne(setDisbursements, "voucherNo", d.id, d.voucherNo, vNo, `Request renumbered ${r.requestNo} → ${got}`);
-        } catch (e) { seriesFailed(e, "voucher"); }
-      }
-      return;
-    }
     /* Moved to another plant's branch: a new number in that plant's series. */
     await moveToPlantSeries(setRequests, "requestNo", r, form.branchCode, "PCR", "requests", allRequestNos);
-  }, [logAudit, requests, disbursements, allRequestNos, canEditRequestNo, isRequestNoTaken, userName, userEmail, role]); // eslint-disable-line
+  }, [logAudit, requests, disbursements, allRequestNos, userName, userEmail, role]); // eslint-disable-line
 
   /* Simple single-step approve / reject (the multi-level approval matrix was removed). */
   const approveRequest = useCallback((id) => {
@@ -2033,7 +1975,6 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             plantOptions={scopedPlantOptions} canApprove={canApprove} canRelease={canRelease}
             plantTitle={activePlantLabel}
             canDelete={canDeleteTxn} onDelete={deleteRequest}
-            canEditRequestNo={canEditRequestNo} isRequestNoTaken={isRequestNoTaken}
           />
         )}
         {activeModule === "disbursements" && (

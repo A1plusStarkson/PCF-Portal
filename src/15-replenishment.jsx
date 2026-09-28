@@ -152,7 +152,7 @@ function ReplenishmentFormModal({ onClose, onSave, funds, disbursements, liquida
           <div className="pcp-field-row">
             <div className="pcp-field">
               <label>Replenishment No.</label>
-              <input className="pcp-input" value={isEdit ? replenishment.replenishmentNo : `Assigned when saved (${replenishmentNoPrefix(form.branchCode)}…)`} disabled />
+              <input className="pcp-input" value={isEdit ? replenishment.replenishmentNo : `Auto-generated on submit (${replenishmentNoPrefix(form.branchCode)}…)`} disabled />
             </div>
             <div className="pcp-field">
               <label>Date</label>

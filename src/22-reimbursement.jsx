@@ -525,7 +525,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
               <div className="pcp-field-row">
                 <div className="pcp-field">
                   <label>Reimbursement No.</label>
-                  <input className="pcp-input" value={isEdit ? reimb.reimbNo : `Assigned when saved (${reimbNoPrefix(form.branchCode)}…)`} disabled />
+                  <input className="pcp-input" value={isEdit ? reimb.reimbNo : `Auto-generated on submit (${reimbNoPrefix(form.branchCode)}…)`} disabled />
                 </div>
                 <div className="pcp-field">
                   <label>Request Date</label>

@@ -229,8 +229,8 @@ per plant and per year. The year is the year the number is **issued**.
   number is retired, so the new voucher is `PCV-M-2026-0007-1`, still visibly tied to its request.
 - **Plant change** on an unreleased request, reimbursement or replenishment: it gets a new number
   in the new plant's series, and the old one is retired. A released request cannot change plant.
-- **Accounting's Request No. override**: a number that was ever issued before, even to a deleted
-  request, is refused.
+- **No manual numbers**: nobody, Accounting and SuperAdmin included, can type or change a Request
+  or Reimbursement No. (since Sep 2026).
 - A renumbered record shows its previous number as "was …".
 - A liquidation or reimbursement already claimed by a replenishment cannot be deleted.
 

@@ -303,25 +303,10 @@ Mark Completed**.
 You can do everything Finance can, **plus User Management and System Settings**.
 You see all plants.
 
-You are also the **only** role that can type over a **Request No.**
-
-The number is always filled in for you (`PCR-2026-0001`, `PCR-2026-0002`, …) and
-for every other role it is greyed out. The portal takes the highest number
-already in use and adds one, so deleting a request never causes the next one to
-repeat a number that already exists.
-
-In **Petty Cash Requests → New Request**, or behind the ✏️ **Edit** button, that
-box is yours to change — useful when the number must match a pre-printed form or
-a wrong one was keyed in. Two rules still apply:
-
-- it cannot be left blank, and
-- it cannot duplicate a number another request already uses — including one in a
-  plant you don't normally see, and regardless of upper/lower case.
-
-The portal tells you which rule you hit and keeps **Save** disabled until it is
-fixed. Every change is written to the **Audit Trail** as *"Request No. Changed"*,
-showing the old and the new number. A released (Disbursed) request has no Edit
-button, so its number stays fixed.
+Request and Reimbursement numbers are **system-generated for everyone**,
+Accounting included. The box shows *"Auto-generated on submit"* and the number
+(e.g. `PCR-M-2026-0047`) is issued by the database when you save. Nobody can
+type or change it, and a number is never reused, even after a delete.
 
 ### 👑 If you are the System Administrator (Grace Gan and the System Superuser)
 You have full control and are the **only** person who can:
