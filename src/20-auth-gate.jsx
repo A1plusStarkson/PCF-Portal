@@ -113,7 +113,7 @@ function LoginScreen({ mode, onLocalLogin }) {
         {/* Brand panel */}
         <aside className="pcp-login-brand">
           <div className="pcp-login-brand-top">
-            <div className="pcp-brand-mark"><Wallet size={20} /></div>
+            <div className="pcp-login-logo-tile"><img src={LOGO_PORTAL} alt="Petty Cash Portal logo" /></div>
             <div>
               <div className="pcp-login-brand-name">Petty Cash Portal</div>
               <div className="pcp-login-brand-sub">Imprest Fund Management System</div>
@@ -138,6 +138,7 @@ function LoginScreen({ mode, onLocalLogin }) {
         <main className="pcp-login-pane">
           <div className="pcp-login-card">
             <div className="pcp-login-card-head">
+              <img className="pcp-login-card-logo" src={LOGO_PORTAL} alt="" aria-hidden="true" />
               <h2 className="pcp-login-title">Welcome back</h2>
               <div className="pcp-login-sub">Sign in to the Petty Cash Portal to continue.</div>
             </div>

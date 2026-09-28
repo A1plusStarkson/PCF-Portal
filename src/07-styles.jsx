@@ -424,6 +424,9 @@ const CSS = `
                 var(--ink);
   }
   .pcp-login-brand-top { display: flex; align-items: center; gap: 12px; }
+  .pcp-login-logo-tile { width: 52px; height: 52px; flex-shrink: 0; background: #fff; border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 16px rgba(0,0,0,0.25); }
+  .pcp-login-logo-tile img { max-width: 38px; max-height: 44px; object-fit: contain; }
+  .pcp-login-card-logo { display: block; height: 48px; width: auto; margin-bottom: 14px; }
   .pcp-login-brand-name { font-size: 17px; font-weight: 800; letter-spacing: -0.2px; }
   .pcp-login-brand-sub { font-size: 11.5px; color: #b8bdd0; margin-top: 2px; }
   .pcp-login-brand-mid { max-width: 460px; }
