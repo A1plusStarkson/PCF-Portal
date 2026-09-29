@@ -165,6 +165,17 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   ];
   const canEditReimbBeforeCustodian = REIMB_REQUESTOR_EDIT_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
+  /* REVERT to Requestor — Liquidation and Reimbursement (owner's instruction,
+     Sep 2026). While a transaction is submitted and not yet final-approved,
+     these accounts can send it back with a reason; it becomes FOR SUBMISSION,
+     the requestor corrects / adds attachments and resubmits. Same record and
+     number; any approval stamps move into the review history. By email, and
+     re-checked in revertLiquidation / reimbursementAction. */
+  const REVERT_EMAILS = [
+    "accounting@a1plus.com", "finance@a1plus.com", "puradr@a1plus.com", "lita@a1plus.com", "mauwi@a1plus.com",
+  ];
+  const canRevert = REVERT_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
   /* Replenishments: edit, mark completed and revert — these accounts only
      (owner's instruction, Sep 2026). Everyone else sees the records read-only. */
   const REPLEN_MANAGE_EMAILS = [
@@ -1157,6 +1168,36 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       `Reason: ${reason}${comment ? ` · Comment: ${comment}` : ""} · ${prevStatus} → REJECTED`);
   }, [isLiquidationChecker, isFinalApprover, isLiquidationFinalLocked, logAudit, disbursements, liquidations, requests, userName, role]);
 
+  /* ---- Revert to Requestor (REVERT_EMAILS) ----
+     A submitted liquidation that is not yet final-approved goes back to the
+     requestor as FOR SUBMISSION with the custodian's reason. The requestor
+     edits / uploads and resubmits with the normal Submit, which restarts the
+     review. Same record and voucher; receipts and their decisions stay; any
+     approval stamps are archived by clearReview; the revert is kept in
+     liq.reverts and the audit trail. */
+  const revertLiquidation = useCallback((disbursementId, reason) => {
+    const liq0 = liquidations.find((l) => l.disbursementId === disbursementId);
+    const why = String(reason || "").trim();
+    if (!canRevert || !liq0 || (liq0.submissionStatus || "Draft") !== "Submitted" || isLiquidationFinalLocked(disbursementId)) {
+      window.alert("Only a custodian can revert a liquidation, and only while it is submitted and not yet final-approved.");
+      return;
+    }
+    if (!why) { window.alert("Enter the reason for the revert — the requestor sees it."); return; }
+    const ts = new Date().toISOString().slice(0, 19);
+    const actor = userName || role;
+    const d = disbursements.find((x) => x.id === disbursementId);
+    const prevStatus = liqFinalStatus(d, liq0);
+    const entry = { id: uid("rev"), revertedBy: actor, revertedAt: ts, reason: why, prevStatus };
+    setLiquidations((ls) => ls.map((l) => (
+      l.disbursementId === disbursementId && (l.submissionStatus || "Draft") === "Submitted"
+        ? { ...l, submissionStatus: LIQ_FOR_SUBMISSION, reverts: [...liqReverts(l), entry],
+            review: clearReview(l, actor, ts, `Review voided — reverted to requestor: ${why}`) }
+        : l
+    )));
+    logAudit("Liquidation Reverted to Requestor", d ? d.voucherNo : disbursementId,
+      `Reason: ${why} · ${prevStatus} → FOR SUBMISSION`);
+  }, [canRevert, isLiquidationFinalLocked, logAudit, disbursements, liquidations, userName, role]);
+
   /* ---- Receipt approval (per uploaded Official Receipt / Sales Invoice) ----
      Decided by the CHECKER (custodian level) once the requestor has submitted,
      while the amounts are locked. Each decision is stamped into the receipt's
@@ -1695,7 +1736,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       if (r.id !== id) return r;
       const submit = mode === "submit";
       const status = submit ? REIMB_STATUS.SUBMITTED : (r.status === REIMB_STATUS.RETURNED ? REIMB_STATUS.DRAFT : r.status);
-      const action = submit ? (r.status === REIMB_STATUS.RETURNED ? "Resubmitted" : "Submitted") : "Edited (Draft)";
+      const action = submit ? (r.status === REIMB_STATUS.RETURNED || r.status === REIMB_STATUS.FOR_SUBMISSION ? "Resubmitted" : "Submitted") : "Edited (Draft)";
       return {
         ...r, ...base, status,
         submittedBy: submit ? (userName || role) : r.submittedBy,
@@ -1749,6 +1790,16 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
         }
         next = REIMB_STATUS.READY; label = "Final Approved → Ready for Replenishment";
         break;
+      case "revert":
+        /* REVERT_EMAILS: back to the requestor as FOR SUBMISSION, from custodian
+           review or from For Final Approval (before the final approval). */
+        if (!canRevert || !(atCheck || atFinal)) {
+          window.alert("Only a custodian can revert a reimbursement, and only while it is submitted and not yet final-approved.");
+          return;
+        }
+        if (!comments) { window.alert("Enter the reason for the revert in Comments first — the requestor sees it."); return; }
+        next = REIMB_STATUS.FOR_SUBMISSION; label = "Reverted to Requestor → For Submission";
+        break;
       case "return":
       case "reject":
         /* The custodian while it is under review, or the final approver at
@@ -1782,7 +1833,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       } else if (action === "final-approve") {
         patch.review = { ...cur, finalBy: actor, finalAt: ts, finalRemarks: comments };
         patch.approvedBy = actor; patch.approvedAt = ts;
-      } else if (action === "return" || action === "reject") {
+      } else if (action === "return" || action === "reject" || action === "revert") {
         /* Stamps are never silently lost: a cleared custodian approval moves
            into review.history, like clearReview does for a liquidation. */
         patch.review = {
@@ -1795,7 +1846,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       return { ...r, ...patch };
     }));
     logAudit("Reimbursement " + label, r0.reimbNo, comments);
-  }, [logAudit, reimbursements, userName, role, inScope, isLiquidationChecker, isFinalApprover, isAccountingChecker]);
+  }, [logAudit, reimbursements, userName, role, inScope, isLiquidationChecker, isFinalApprover, isAccountingChecker, canRevert]);
 
   const recordReimbursementPayment = useCallback((id, payment) => {
     const ts = reimbTs();
@@ -2276,6 +2327,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             reimbursements={scopedReimbursements}
             onReimbursementAction={reimbursementAction}
             canEditReimb={canEditReimbOverride}
+            canRevert={canRevert}
+            onRevertLiquidation={revertLiquidation}
             onUpdateReimbursement={updateReimbursement}
             allReimbursements={reimbursements}
             canFinance={["Accounting", "Finance", "SuperAdmin"].includes(role) || !!isAdmin}
@@ -2314,6 +2367,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             canDelete={canDeleteTxn}
             canEditOverride={canEditReimbOverride}
             canEditBeforeCustodian={canEditReimbBeforeCustodian}
+            canRevert={canRevert}
             onSaveDraft={(form) => addReimbursement(form, false)}
             onSubmit={(form) => addReimbursement(form, true)}
             onUpdate={(id, form, mode) => updateReimbursement(id, form, mode)}
@@ -2356,6 +2410,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             accounting={accountingProps}
             onReimbursementAction={reimbursementAction}
             canEditReimb={canEditReimbOverride}
+            canRevert={canRevert}
+            onRevertLiquidation={revertLiquidation}
             onUpdateReimbursement={updateReimbursement}
             reimbPlantOptions={branchOptions.filter((p) => inScope(p.code))}
             onExportReimbursementAcumatica={exportReimbursementAcumatica}

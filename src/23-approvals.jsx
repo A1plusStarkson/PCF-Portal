@@ -98,6 +98,7 @@ function pcaApprovalQueue(disbursements, liquidations, replenishments) {
 function PcaApprovalPanel({
   row, isChecker, isFinalApprover, currentUser, accounting,
   onDecideReceipt, onRejectLiquidation, onReopenLiquidation, onCheckLiquidation, onFinalApprove,
+  canRevert, onRevertLiquidation,
 }) {
   const [remarks, setRemarks] = useState("");
   const [rejecting, setRejecting] = useState(false);
@@ -202,6 +203,15 @@ function PcaApprovalPanel({
             {isChecker && submitted && !finalLocked && (
               <button className="pcp-btn pcp-btn-sm" onClick={() => onReopenLiquidation(disb.id, "Reopened from the Approval Module for correction")}>
                 <RefreshCw size={12} /> Reopen for Correction
+              </button>
+            )}
+            {canRevert && onRevertLiquidation && submitted && !finalLocked && (
+              <button
+                className="pcp-btn pcp-btn-sm"
+                onClick={() => { const why = askRevertReason(disb.voucherNo); if (why) onRevertLiquidation(disb.id, why); }}
+                title="Send back to the requestor as FOR SUBMISSION — they correct / add attachments and resubmit"
+              >
+                <ArrowLeftRight size={12} /> Revert to Requestor
               </button>
             )}
             {canReject && (
@@ -363,6 +373,7 @@ function ApprovalModuleTab({
   isChecker, isFinalApprover, canFinance,
   currentUser, plantOptions, accounting, onOpenReplenishment,
   canEditReimb, onUpdateReimbursement, reimbPlantOptions,
+  canRevert, onRevertLiquidation,
 }) {
   /* Reimbursement open in the edit form (REIMB_EDIT_OVERRIDE_EMAILS only). */
   const [editingReimb, setEditingReimb] = useState(null);
@@ -562,6 +573,8 @@ function ApprovalModuleTab({
             onReopenLiquidation={onReopenLiquidation}
             onCheckLiquidation={onCheckLiquidation}
             onFinalApprove={onFinalApprove}
+            canRevert={canRevert}
+            onRevertLiquidation={onRevertLiquidation}
           />
         </div>
       </div>
@@ -728,6 +741,7 @@ function ApprovalModuleTab({
           isFinalApprover={isFinalApprover}
           canFinance={canFinance}
           accounting={accounting}
+          canRevert={canRevert}
           onExportAcumatica={onExportReimbursementAcumatica}
           onAction={(id, action, opts) => { onReimbursementAction(id, action, opts); setDetail(null); }}
           onEdit={canEditReimb && onUpdateReimbursement ? (r) => { setDetail(null); setEditingReimb(r); } : undefined}

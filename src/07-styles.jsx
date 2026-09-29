@@ -1158,6 +1158,9 @@ function Badge({ status }) {
     /* Reimbursement workflow states (Section 14) */
     DRAFT: "gray", SUBMITTED: "amber", "FOR REVIEW": "amber", "FOR APPROVAL": "amber",
     APPROVED: "green", "RETURNED FOR REVISION": "red", REJECTED: "red",
+    /* Reverted by the custodian — back with the requestor (liquidation and
+       reimbursement alike). */
+    "FOR SUBMISSION": "orange",
     "FOR LIQUIDATION": "orange", "LIQUIDATION COMPLETED": "blue", "FOR PAYMENT": "amber",
     "UNDER REVIEW": "amber",
     PAID: "green", COMPLETED: "green",

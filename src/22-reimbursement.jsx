@@ -51,6 +51,9 @@ const REIMB_STATUS = {
   READY: "FULLY APPROVED / READY FOR REPLENISHMENT",
   APPROVED: "APPROVED",
   RETURNED: "RETURNED FOR REVISION",
+  /* Reverted by the custodian (REVERT_EMAILS in 19-app.jsx): back with the
+     requestor to correct / add attachments and resubmit. Same record. */
+  FOR_SUBMISSION: "FOR SUBMISSION",
   REJECTED: "REJECTED",
   FOR_LIQUIDATION: "FOR LIQUIDATION",
   UNDER_REVIEW: "UNDER REVIEW",
@@ -63,6 +66,13 @@ const REIMB_STATUS = {
 /* Awaiting the custodian. FOR REVIEW / FOR APPROVAL are legacy records caught
    mid-way through the old flow; the custodian picks them up like a new one. */
 const REIMB_CUSTODIAN_REVIEW_STATUSES = [REIMB_STATUS.SUBMITTED, REIMB_STATUS.FOR_REVIEW, REIMB_STATUS.FOR_APPROVAL];
+
+/* In the requestor's hands: a draft, one returned for revision, or one the
+   custodian reverted (FOR SUBMISSION). Editable and (re)submittable. */
+function reimbIsDraftLike(r) {
+  return !!r && (r.status === REIMB_STATUS.DRAFT || r.status === REIMB_STATUS.RETURNED
+    || r.status === REIMB_STATUS.FOR_SUBMISSION);
+}
 
 /* Submitted and still waiting for the custodian — no custodian approval
    stamped yet. The window in which a PCF Requestor may still edit a submitted
@@ -802,7 +812,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
               title={!form.certify ? "Confirm the certification on the Submit step" : compliance.level === "FAILED" ? "Resolve policy failures before submitting" : ""}
               onClick={() => onSubmit(payload())}
             >
-              {isEdit && reimb.status === REIMB_STATUS.RETURNED ? "Resubmit Request" : "Submit Request"}
+              {isEdit && (reimb.status === REIMB_STATUS.RETURNED || reimb.status === REIMB_STATUS.FOR_SUBMISSION) ? "Resubmit Request" : "Submit Request"}
             </button>
           </div>
           )}
@@ -824,7 +834,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
    stage saves in place with status and approvals kept (mode "override", which
    updateReimbursement re-checks against the list and the plant scope). */
 function ReimbursementEditModal({ reimb, plantOptions, allReimbursements, currentUser, onUpdate, onClose }) {
-  const draftLike = reimb.status === REIMB_STATUS.DRAFT || reimb.status === REIMB_STATUS.RETURNED;
+  const draftLike = reimbIsDraftLike(reimb);
   const done = (mode) => (form) => { onUpdate(reimb.id, form, mode); onClose(); };
   return (
     <ReimbursementFormModal
@@ -840,7 +850,7 @@ function ReimbursementEditModal({ reimb, plantOptions, allReimbursements, curren
   );
 }
 
-function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, currentUser, isChecker, isFinalApprover, canFinance, allowPayment, accounting, onEdit }) {
+function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, currentUser, isChecker, isFinalApprover, canFinance, allowPayment, accounting, onEdit, canRevert }) {
   const [comments, setComments] = useState("");
   const total = reimbTotal(reimb);
   const me = (currentUser || "").trim().toLowerCase();
@@ -863,7 +873,9 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
   /* Accounting may return / reject what it is checking. */
   const canAcctReturn = isAcct && atAccounting && !review.acctChecked;
   const canRecordPayment = !!allowPayment && canFinance && st === REIMB_STATUS.READY && !(reimb.payment && reimb.payment.date);
-  const showComments = canCheck || canFinal || canAcctReturn
+  /* Revert to Requestor (REVERT_EMAILS): submitted and not yet final-approved. */
+  const canRevertNow = !!canRevert && (atCheck || st === REIMB_STATUS.FOR_FINAL);
+  const showComments = canCheck || canFinal || canAcctReturn || canRevertNow
     || (canFinance && REIMB_OPEN_STATUSES.includes(st) && !atCheck && st !== REIMB_STATUS.FOR_FINAL);
 
   const act = (action) => { onAction(reimb.id, action, { comments }); setComments(""); };
@@ -891,6 +903,11 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
       return `Custodian approved and checked by Accounting (batch ${review.batchNo}) — ready for your final approval.`;
     }
     if (st === REIMB_STATUS.READY) return "Fully approved — available in the Replenishment module.";
+    if (st === REIMB_STATUS.FOR_SUBMISSION) {
+      const rev = (reimb.history || []).slice().reverse().find((h) => h.newStatus === REIMB_STATUS.FOR_SUBMISSION);
+      return `Reverted to the requestor${rev ? ` by ${rev.user} (${rev.ts})` : ""}${rev && rev.comments ? `: "${rev.comments}"` : ""}`
+        + " — edit the details or add attachments, then resubmit.";
+    }
     return "";
   })();
 
@@ -1009,7 +1026,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
           {showComments && (
             <div className="pcp-field" style={{ marginTop: 12 }}>
               <label>Comments (recorded in the audit trail)</label>
-              <textarea className="pcp-input" rows={2} value={comments} onChange={(e) => setComments(e.target.value)} placeholder="Optional for approve · required to return/reject" />
+              <textarea className="pcp-input" rows={2} value={comments} onChange={(e) => setComments(e.target.value)} placeholder={canRevertNow ? "Optional for approve · required to revert / return / reject" : "Optional for approve · required to return/reject"} />
             </div>
           )}
         </div>
@@ -1028,6 +1045,15 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
                 <button className="pcp-btn pcp-btn-danger" onClick={() => act("reject")} disabled={!comments.trim()}>Reject</button>
               </>
             )
+          )}
+          {canRevertNow && (
+            <button
+              className="pcp-btn" onClick={() => act("revert")} disabled={!comments.trim()}
+              title={comments.trim() ? "Send back to the requestor as FOR SUBMISSION — they correct / add attachments and resubmit"
+                : "Enter the reason in Comments first — the requestor sees it"}
+            >
+              <ArrowLeftRight size={13} /> Revert to Requestor
+            </button>
           )}
           {canRecordPayment && (
             <button className="pcp-btn" onClick={() => act("pay")}><Banknote size={13} /> Record Payment to Employee</button>
@@ -1144,14 +1170,14 @@ const REIMB_SORT_FIELDS = {
 function ReimbursementTab({
   reimbursements, allReimbursements, onSaveDraft, onSubmit, onUpdate, onAction, onRecordPayment,
   onExportAcumatica, onExportReport, onDelete, plantOptions, plantTitle, currentUser,
-  isChecker, isFinalApprover, canFinance, canDelete, canEditOverride, canEditBeforeCustodian, accounting,
+  isChecker, isFinalApprover, canFinance, canDelete, canEditOverride, canEditBeforeCustodian, canRevert, accounting,
 }) {
   /* Draft / Returned are editable by anyone in scope; any other stage only
      through the checking / verification override (Save Changes keeps the status).
      PCF Requestors (canEditBeforeCustodian) may also edit — details and
      attachments — while a submitted reimbursement still awaits the custodian;
      once the custodian approves, their Edit disappears. */
-  const isDraftLike = (r) => r.status === REIMB_STATUS.DRAFT || r.status === REIMB_STATUS.RETURNED;
+  const isDraftLike = reimbIsDraftLike;
   const preApprovalEdit = (r) => !!canEditBeforeCustodian && !canEditOverride && reimbAwaitingCustodian(r);
   const canEditRow = (r) => isDraftLike(r) || !!canEditOverride || preApprovalEdit(r);
   const [showForm, setShowForm] = useState(false);
@@ -1178,7 +1204,7 @@ function ReimbursementTab({
     approved: { label: "Fully Approved", statuses: [S.READY, S.APPROVED, S.FOR_LIQUIDATION, S.UNDER_REVIEW, S.LIQUIDATION_DONE] },
     forPayment: { label: "For Payment", statuses: [S.FOR_PAYMENT] },
     paid: { label: "Paid", statuses: [S.PAID, S.COMPLETED] },
-    rejected: { label: "Rejected / Returned", statuses: [S.REJECTED, S.RETURNED] },
+    rejected: { label: "Rejected / Returned", statuses: [S.REJECTED, S.RETURNED, S.FOR_SUBMISSION] },
   };
   const pickCard = (key) => {
     const next = cardFilter === key ? null : key;
@@ -1374,6 +1400,7 @@ function ReimbursementTab({
           canFinance={canFinance}
           allowPayment
           accounting={accounting}
+          canRevert={canRevert}
           onExportAcumatica={onExportAcumatica}
           onAction={handleAction}
           onEdit={canEditRow(reimbursements.find((x) => x.id === detail.id) || detail)

@@ -954,6 +954,8 @@ function liqFinalStatus(disb, liq) {
   /* A standing rejection takes precedence until the requestor corrects and
      resubmits (which flips submissionStatus back to Submitted). */
   if ((liq.submissionStatus || "Draft") === "Rejected") return "REJECTED";
+  /* Reverted to the requestor: waiting on them until they resubmit. */
+  if (liq.submissionStatus === LIQ_FOR_SUBMISSION) return "FOR SUBMISSION";
   const approval = receiptApprovalSummary(liq);
   const st = settlementStateFor(disb, liq);
   const rv = liqReview(liq);
@@ -1111,7 +1113,7 @@ function liqApprovalStage(disb, liq, replenishedIds) {
   const rv = liqReview(liq);
   if (rv.legacy) return LIQ_STAGE.LEGACY;
   if (rv.final) return (replenishedIds && replenishedIds.has(liq.id)) ? LIQ_STAGE.REPLENISHED : LIQ_STAGE.READY;
-  if (sub === "Draft") return LIQ_STAGE.DRAFT;
+  if (sub === "Draft" || sub === LIQ_FOR_SUBMISSION) return LIQ_STAGE.DRAFT;
   if (receiptApprovalSummary(liq).anyRejected) return LIQ_STAGE.NEEDS_CORRECTION;
   if (!rv.checked) return LIQ_STAGE.FOR_CHECK;
   /* Straight after the custodian: Accounting may check it while the cash is
@@ -1161,8 +1163,18 @@ function liqIsComplete(finalStatus) {
    rejection so the requestor can correct it and resubmit. */
 function liqIsDraft(liq) {
   const s = (liq && liq.submissionStatus) || "Draft";
-  return !liq || s === "Draft" || s === "Rejected";
+  return !liq || s === "Draft" || s === "Rejected" || s === LIQ_FOR_SUBMISSION;
 }
+
+/* ---- Revert to Requestor ----
+   A custodian (REVERT_EMAILS in 19-app.jsx) sends a submitted liquidation back
+   with a reason — missing attachments, wrong details. It becomes FOR
+   SUBMISSION: editable by the requestor exactly like a draft, then resubmitted
+   through the normal Submit. Same record, same voucher number; each revert is
+   kept in liq.reverts. */
+const LIQ_FOR_SUBMISSION = "For Submission";
+const liqIsReverted = (liq) => ((liq && liq.submissionStatus) || "Draft") === LIQ_FOR_SUBMISSION;
+const liqReverts = (liq) => (liq && Array.isArray(liq.reverts) ? liq.reverts : []);
 
 /* ---- Duplicate supporting-document detection ----
    Checks the candidate against the documents on this liquidation and on every
