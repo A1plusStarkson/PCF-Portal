@@ -362,7 +362,10 @@ function ApprovalModuleTab({
   onReimbursementAction, onExportReimbursementAcumatica,
   isChecker, isFinalApprover, canFinance,
   currentUser, plantOptions, accounting, onOpenReplenishment,
+  canEditReimb, onUpdateReimbursement, reimbPlantOptions,
 }) {
+  /* Reimbursement open in the edit form (REIMB_EDIT_OVERRIDE_EMAILS only). */
+  const [editingReimb, setEditingReimb] = useState(null);
   const isAcct = !!(accounting && accounting.isChecker);
   const me = String(currentUser || "").trim().toLowerCase();
   const [plant, setPlant] = useState("ALL");
@@ -727,7 +730,18 @@ function ApprovalModuleTab({
           accounting={accounting}
           onExportAcumatica={onExportReimbursementAcumatica}
           onAction={(id, action, opts) => { onReimbursementAction(id, action, opts); setDetail(null); }}
+          onEdit={canEditReimb && onUpdateReimbursement ? (r) => { setDetail(null); setEditingReimb(r); } : undefined}
           onClose={() => setDetail(null)}
+        />
+      )}
+      {editingReimb && (
+        <ReimbursementEditModal
+          reimb={(reimbursements || []).find((x) => x.id === editingReimb.id) || editingReimb}
+          plantOptions={reimbPlantOptions}
+          allReimbursements={reimbursements || []}
+          currentUser={currentUser}
+          onUpdate={onUpdateReimbursement}
+          onClose={() => setEditingReimb(null)}
         />
       )}
     </div>

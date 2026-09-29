@@ -2052,11 +2052,17 @@ function LiquidationTab({
   canRejectLiquidation, onRejectLiquidation,
   onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser,
   reimbursements, onReimbursementAction, canFinance, accounting,
+  canEditReimb, onUpdateReimbursement, allReimbursements,
   openRequest, onOpenHandled,
 }) {
   const [acctFilter, setAcctFilter] = useState(accounting && accounting.isChecker ? "For Accounting Check" : "All");
   const [selectedId, setSelectedId] = useState(null);
   const [selectedReimbId, setSelectedReimbId] = useState(null);
+  /* Reimbursement open in the edit form (REIMB_EDIT_OVERRIDE_EMAILS only). */
+  const [editingReimb, setEditingReimb] = useState(null);
+  const editReimb = canEditReimb && onUpdateReimbursement
+    ? (r) => { setSelectedReimbId(null); setEditingReimb(r); }
+    : undefined;
   const [showAll, setShowAll] = useState(false);
   const [plant, setPlant] = useState("ALL");
   const [source, setSource] = useState("pettycash");
@@ -2116,10 +2122,13 @@ function LiquidationTab({
      has to be ticked as well. */
   const q = search.trim().toLowerCase();
   const hit = (...vals) => !q || vals.some((v) => String(v || "").toLowerCase().includes(q));
-  /* A settlement filter, like a status filter, overrides the worklist gate. */
+  /* A settlement filter, like a status filter, overrides the worklist gate.
+     So does a search: someone typing a voucher no. or a name is looking for
+     that record, and hiding it because it is already complete made finished
+     vouchers look deleted (the Release Ledger shows them, this list did not). */
   const settleFilterOn = settleFilter !== SETTLEMENT_FILTERS[0];
   const pettyFiltered = (pettyStatus === LIQ_STATUS_FILTER_ALL
-    ? (showAll || settleFilterOn || acctFilterOn ? enriched : enriched.filter((d) => !liqIsComplete(d.finalStatus)))
+    ? (showAll || q || settleFilterOn || acctFilterOn ? enriched : enriched.filter((d) => !liqIsComplete(d.finalStatus)))
     : enriched.filter((d) => d.liqStatus === PCA_STATUS_FILTERS[pettyStatus]))
     .filter((d) => hit(d.voucherNo, d.requestNo, d.employee, d.branchCode, plantLabel(d.branchCode),
       subaccountLabel(d.department), disbExpense(d), d.liqStatus, d.finalStatus, d.acct.batchNo))
@@ -2148,7 +2157,7 @@ function LiquidationTab({
     .filter((r) => REIMB_LIQUIDATION_STATUSES.includes(r.status) || isTwoLevel(r))
     .map((r) => ({ ...r, acct: reimbReview(r), awaitingAcct: reimbAwaitingAccounting(r) }));
   const reimbFiltered = (reimbStatus === LIQ_STATUS_FILTER_ALL
-    ? (showAll || acctFilterOn ? reimbLiq : reimbLiq.filter((r) => r.status === REIMB_STATUS.FOR_LIQUIDATION
+    ? (showAll || q || acctFilterOn ? reimbLiq : reimbLiq.filter((r) => r.status === REIMB_STATUS.FOR_LIQUIDATION
       || r.status === REIMB_STATUS.UNDER_REVIEW || r.status === REIMB_STATUS.FOR_FINAL))
     : reimbLiq.filter((r) => (reimbTwoLevelFilter(reimbStatus, r)
       ? reimbTwoLevelFilter(reimbStatus, r)() : r.status === reimbStatusFilter(reimbStatus))))
@@ -2430,7 +2439,18 @@ function LiquidationTab({
           canFinance={canFinance}
           accounting={accounting}
           onAction={(id, action, opts) => { onReimbursementAction(id, action, opts); setSelectedReimbId(null); }}
+          onEdit={editReimb}
           onClose={() => setSelectedReimbId(null)}
+        />
+      )}
+      {editingReimb && (
+        <ReimbursementEditModal
+          reimb={(reimbursements || []).find((x) => x.id === editingReimb.id) || editingReimb}
+          plantOptions={plantOptions}
+          allReimbursements={allReimbursements || reimbursements || []}
+          currentUser={currentUser}
+          onUpdate={onUpdateReimbursement}
+          onClose={() => setEditingReimb(null)}
         />
       )}
       {source === "reimbursement" && selectedReimb && !isTwoLevel(selectedReimb) && (
@@ -2438,7 +2458,14 @@ function LiquidationTab({
           <div className="pcp-modal pcp-modal-resizable pcp-liq-modal" onClick={(e) => e.stopPropagation()}>
             <div className="pcp-modal-head">
               <h3>Reimbursement Liquidation · {selectedReimb.reimbNo} · {selectedReimb.employee}</h3>
-              <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={() => setSelectedReimbId(null)} title="Close"><X size={15} /></button>
+              <div style={{ display: "flex", gap: 6 }}>
+                {editReimb && (
+                  <button className="pcp-btn pcp-btn-sm" onClick={() => editReimb(selectedReimb)} title="Edit for checking / verification — status and approvals are kept">
+                    <Edit3 size={12} /> Edit
+                  </button>
+                )}
+                <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={() => setSelectedReimbId(null)} title="Close"><X size={15} /></button>
+              </div>
             </div>
             <div className="pcp-modal-body">
               <AccountingReviewBox

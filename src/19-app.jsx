@@ -2234,6 +2234,9 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             currentUser={userName || role}
             reimbursements={scopedReimbursements}
             onReimbursementAction={reimbursementAction}
+            canEditReimb={canEditReimbOverride}
+            onUpdateReimbursement={updateReimbursement}
+            allReimbursements={reimbursements}
             canFinance={["Accounting", "Finance", "SuperAdmin"].includes(role) || !!isAdmin}
             plantOptions={scopedPlantOptions}
             plantTitle={activePlantLabel}
@@ -2310,6 +2313,9 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             onFinalApprove={finalApproveLiquidation}
             accounting={accountingProps}
             onReimbursementAction={reimbursementAction}
+            canEditReimb={canEditReimbOverride}
+            onUpdateReimbursement={updateReimbursement}
+            reimbPlantOptions={branchOptions.filter((p) => inScope(p.code))}
             onExportReimbursementAcumatica={exportReimbursementAcumatica}
             isChecker={isLiquidationChecker}
             isFinalApprover={isFinalApprover}

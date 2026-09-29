@@ -806,7 +806,30 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
 
 /* allowPayment: only the Reimbursement tab owns the payment modal, so the
    Approval Module leaves it off rather than show a button that does nothing. */
-function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, currentUser, isChecker, isFinalApprover, canFinance, allowPayment, accounting }) {
+/* ---- Edit from anywhere ----
+   The Liquidation and Approval screens open reimbursements too. For the
+   REIMB_EDIT_OVERRIDE_EMAILS accounts they carry the same Edit as the
+   Reimbursement list: Draft / Returned saves or resubmits as usual; any other
+   stage saves in place with status and approvals kept (mode "override", which
+   updateReimbursement re-checks against the list and the plant scope). */
+function ReimbursementEditModal({ reimb, plantOptions, allReimbursements, currentUser, onUpdate, onClose }) {
+  const draftLike = reimb.status === REIMB_STATUS.DRAFT || reimb.status === REIMB_STATUS.RETURNED;
+  const done = (mode) => (form) => { onUpdate(reimb.id, form, mode); onClose(); };
+  return (
+    <ReimbursementFormModal
+      reimb={reimb}
+      plantOptions={plantOptions && plantOptions.length ? plantOptions : null}
+      allReimbursements={allReimbursements}
+      currentUser={currentUser}
+      onClose={onClose}
+      onSaveDraft={done("draft")}
+      onSubmit={done("submit")}
+      onSaveOverride={draftLike ? null : done("override")}
+    />
+  );
+}
+
+function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, currentUser, isChecker, isFinalApprover, canFinance, allowPayment, accounting, onEdit }) {
   const [comments, setComments] = useState("");
   const total = reimbTotal(reimb);
   const me = (currentUser || "").trim().toLowerCase();
@@ -871,7 +894,14 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
       >
         <div className="pcp-modal-head">
           <h3>{reimb.reimbNo} · <Badge status={atAccounting ? REIMB_STAGE.FOR_ACCOUNTING : st} /></h3>
-          <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose}><X size={15} /></button>
+          <div style={{ display: "flex", gap: 6 }}>
+            {onEdit && (
+              <button className="pcp-btn pcp-btn-sm" onClick={() => onEdit(reimb)} title="Edit for checking / verification — status and approvals are kept">
+                <Edit3 size={12} /> Edit
+              </button>
+            )}
+            <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose}><X size={15} /></button>
+          </div>
         </div>
         <div className="pcp-modal-body">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
@@ -1317,6 +1347,9 @@ function ReimbursementTab({
           accounting={accounting}
           onExportAcumatica={onExportAcumatica}
           onAction={handleAction}
+          onEdit={(isDraftLike(detail) || canEditOverride)
+            ? (r) => { setDetail(null); setEditing(r); setShowForm(true); }
+            : undefined}
           onClose={() => setDetail(null)}
         />
       )}
