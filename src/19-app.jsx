@@ -173,6 +173,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
      re-checked in revertLiquidation / reimbursementAction. */
   const REVERT_EMAILS = [
     "accounting@a1plus.com", "finance@a1plus.com", "puradr@a1plus.com", "lita@a1plus.com", "mauwi@a1plus.com",
+    "a1plusadmin@a1plus.com", "superuser@a1plus.com",
   ];
   const canRevert = REVERT_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
