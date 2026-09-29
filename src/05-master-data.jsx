@@ -1421,3 +1421,380 @@ const EXPENSE_CATEGORY_CHOICES = EXPENSE_CATEGORIES
    renders through taxCategoryLabel(), it is simply no longer offered. */
 const TAX_CATEGORY_CHOICES = TAX_CATEGORIES
   .map((t) => ({ value: t.code, label: t.code, hint: t.desc }));
+
+
+/* ---------------------------------------------------------------------------
+   EXPENSE DEFINITION -> EXPENSE CATEGORY (master reference)
+   Transcribed from "Expense Category for Portal.pdf". This is the approved
+   list for Liquidation expense lines: the Expense Category picker offers only
+   these, and the suggestion engine below can only ever return one of these.
+   Category names are spelled exactly as they are in EXPENSE_CATEGORIES (and so
+   in the Acumatica account map) — never rename one here, add it there first.
+
+   `kw` are the words/phrases that point at the category, each with a weight:
+     3 = on its own it identifies the category ("gasoline", "taxi")
+     2 = a good hint that still shares meaning with another category
+     1 = weak context only; never enough to auto-select by itself
+   A keyword token of 5+ letters also matches longer words that start with it
+   ("repair" -> "repairs", "print" -> "printer"); shorter ones match the word
+   or its plural only. A trailing "=" forces that exact-word rule on a longer
+   keyword ("train=" must not match "training").
+   `not` switches the category off when any of those phrases is present.
+   `repair: true` marks a Repair & Maintenance category: its `kw` are the
+   OBJECTS being repaired, and they only count when a repair word is present.
+--------------------------------------------------------------------------- */
+const REPAIR_TERMS = [
+  "repair", "maintenance", "maint", "fix", "fixed", "fixing", "servicing", "overhaul",
+  "change oil", "tune up", "tuneup", "vulcaniz", "replacement", "replace", "spare part",
+  "parts", "tire", "tyre", "battery", "brake", "repaint", "welding", "rewind",
+  "troubleshoot", "upkeep", "reformat", "cleaning of", "car wash", "carwash",
+];
+
+/* Words that place an expense in factory overhead (FOH) rather than office /
+   operating expense (OE), whatever department the line is charged to. */
+const FOH_CUE_TERMS = [
+  "foh", "delivery", "deliveries", "truck", "trucking", "forklift", "factory", "production",
+  "machine", "machinery", "machineries", "warehouse", "shipment", "cargo", "container",
+  "freight", "import", "customs", "generator", "genset", "boiler", "compressor", "extruder",
+];
+const OE_CUE_TERMS = ["office", "company car", "admin", "staff house", "client"];
+
+/* Departments whose spend is factory overhead by default. */
+const FOH_DEPARTMENT_TERMS = [
+  "production", "manufactur", "warehouse", "logistics", "ppic", "engineering", "enginering",
+  "quality assurance", "farm",
+];
+
+const CLW_KW = [
+  ["electricity", 3], ["electric bill", 3], ["meralco", 3], ["power bill", 3], ["water bill", 3],
+  ["maynilad", 3], ["manila water", 3], ["internet", 3], ["wifi", 3], ["telephone", 3], ["landline", 3],
+  ["phone bill", 3], ["cellphone load", 3], ["mobile load", 3], ["prepaid load", 3], ["pldt", 3],
+  ["converge", 3], ["globe", 2], ["utility", 3], ["utilities", 3], ["communication", 2],
+  ["water", 1], ["light", 1], ["phone", 1], ["cellphone", 1], ["load", 1],
+];
+const CLW_NOT = ["mineral water", "drinking water", "bottled water", "purified water", "distilled water", "gallon", "water dispenser", "water analysis"];
+const INSURANCE_KW = [["insurance", 3], ["insurance premium", 3], ["premium", 1], ["policy", 1]];
+const MISC_KW = [["miscellaneous", 3], ["misc", 3], ["sundry", 2]];
+const FUEL_KW = [
+  ["gasoline", 3], ["gas", 3], ["diesel", 3], ["fuel", 3], ["petrol", 3], ["lubricant", 3],
+  ["unleaded", 3], ["engine oil", 3], ["oil", 2], ["grease", 2], ["petron", 2], ["shell", 2],
+  ["caltex", 2], ["seaoil", 2],
+];
+const OTHER_CHARGES_KW = [
+  ["other charges", 3], ["surcharge", 2], ["service charge", 2], ["bank charge", 2],
+  ["convenience fee", 2], ["penalty", 1], ["charge", 1],
+];
+const RENTAL_KW = [["rental", 3], ["rent", 3], ["lease", 3], ["leasing", 3], ["hire=", 1]];
+const TESTING_KW = [
+  ["testing", 3], ["test", 2], ["laboratory", 3], ["lab=", 2], ["calibration", 3], ["calibrate", 3],
+  ["inspection", 3], ["analysis", 2], ["drug test", 3], ["water analysis", 3], ["certification", 2],
+  ["microbial", 3],
+];
+const TOLL_KW = [
+  ["toll", 3], ["tollgate", 3], ["expressway", 3], ["nlex", 3], ["slex", 3], ["skyway", 3],
+  ["tplex", 3], ["cavitex", 3], ["calax", 3], ["autosweep", 3], ["easytrip", 3], ["rfid", 2],
+  ["bridge fee", 2],
+];
+const BUILDING_OBJ = [
+  ["building", 3], ["bldg", 3], ["roof", 3], ["roofing", 3], ["ceiling", 3], ["wall", 2],
+  ["floor", 2], ["flooring", 3], ["door", 2], ["window", 2], ["toilet", 2], ["comfort room", 3],
+  ["plumbing", 3], ["paint", 2], ["gate", 2], ["wiring", 2], ["electrical", 1], ["gutter", 3],
+  ["facility", 2], ["facilities", 2],
+];
+
+const EXPENSE_DEFINITIONS = [
+  { category: "FOH Communication, Light & Water", scope: "FOH", kw: CLW_KW, not: CLW_NOT,
+    definition: "Operating costs for communication services, electricity, water, and similar utility services used for FOH operations." },
+  { category: "FOH Delivery Expense", scope: "FOH",
+    kw: [["delivery", 1], ["deliveries", 1], ["delivery helper", 3], ["pahinante", 3], ["delivery fee", 2], ["delivery charge", 2]],
+    definition: "Expenses directly related to delivering or distributing goods, products, or materials for FOH operations, excluding transportation-specific charges." },
+  { category: "FOH Delivery Expense-Transpo", scope: "FOH",
+    kw: [["delivery trip", 5], ["delivery transpo", 5], ["delivery transportation", 5], ["vehicle hire", 3], ["truck hire", 3], ["hauling", 3], ["lalamove", 2], ["trucking", 2]],
+    definition: "Transportation costs incurred for delivery activities, such as vehicle hire, delivery trips, or other delivery-related transport services." },
+  { category: "FOH Demurrage", scope: "FOH",
+    kw: [["demurrage", 3], ["detention", 3]],
+    definition: "Charges incurred when cargo, containers, vehicles, or equipment are held beyond the allowed free time, resulting in waiting or detention fees." },
+  { category: "FOH Distribution Charge", scope: "FOH",
+    kw: [["distribution charge", 3], ["distribution", 2]],
+    definition: "Fees charged for the distribution, handling, or movement of goods from a source to the intended destination." },
+  { category: "FOH Duties & Taxes", scope: "FOH",
+    kw: [["duties", 3], ["duty", 2], ["customs", 3], ["import tax", 3], ["import duties", 3], ["tariff", 3], ["vat on import", 3]],
+    definition: "Government duties, customs charges, import taxes, and similar statutory charges related to FOH purchases or shipments." },
+  { category: "FOH Freight In Charges", scope: "FOH",
+    kw: [["freight", 3], ["forwarder", 3], ["forwarding", 2], ["shipping", 2], ["sea freight", 3], ["air freight", 3]],
+    definition: "Freight or shipping costs incurred to bring purchased goods, materials, or supplies into the company or designated receiving location." },
+  { category: "FOH Handling Fees", scope: "FOH",
+    kw: [["handling", 3], ["unloading", 3], ["loading", 2], ["stevedoring", 3], ["arrastre", 2], ["sorting", 2]],
+    definition: "Charges for loading, unloading, sorting, storage handling, or other physical handling of goods and materials." },
+  { category: "FOH Insurance", scope: "FOH", kw: INSURANCE_KW,
+    definition: "Insurance premiums or charges covering FOH assets, goods, shipments, or operational risks." },
+  { category: "FOH Licensing Fee", scope: "FOH",
+    kw: [["permit", 2], ["license", 2], ["licence", 2], ["licensing", 3], ["environmental permit", 3], ["ecc", 3], ["operating permit", 3], ["sanitary permit", 3], ["renewal", 1]],
+    definition: "Fees paid to obtain or renew permits, licenses, registrations, or operating rights required for FOH activities." },
+  { category: "FOH Miscellaneous", scope: "FOH", kw: MISC_KW,
+    definition: "FOH operating expenses that are legitimate and necessary but do not reasonably fall under another available FOH expense category." },
+  { category: "FOH Oil & Gasoline", scope: "FOH", kw: FUEL_KW,
+    definition: "Fuel, gasoline, diesel, oil, lubricants, and similar petroleum products used for FOH vehicles or equipment." },
+  { category: "FOH Other Charges", scope: "FOH", kw: OTHER_CHARGES_KW,
+    definition: "FOH-related charges that are necessary for operations but do not specifically fit any other listed FOH expense category." },
+  { category: "FOH Production Tools", scope: "FOH",
+    kw: [["tool", 3], ["tools", 3], ["production tool", 3], ["hand tool", 3], ["implement", 2], ["screwdriver", 3], ["wrench", 3],
+         ["pliers", 3], ["hammer", 3], ["cutter", 3], ["drill", 2], ["measuring tape", 3], ["tape measure", 3], ["blade", 2],
+         ["knife", 2], ["jig", 3], ["mold", 2], ["mould", 2], ["die cut", 2], ["socket", 2], ["allen key", 3]],
+    definition: "Purchase or use of small tools, implements, and production-related equipment used in FOH operations." },
+  { category: "FOH Rental", scope: "FOH", kw: RENTAL_KW,
+    definition: "Rental or lease costs for facilities, equipment, vehicles, or other assets used for FOH operations." },
+  { category: "FOH Rep & Main. - Bldg. Equipment", scope: "FOH", repair: true,
+    kw: [["pump", 3], ["generator", 3], ["genset", 3], ["aircon", 2], ["air conditioner", 2], ["elevator", 3], ["transformer", 3],
+         ["water tank", 3], ["fire alarm", 3], ["cctv", 2], ["electrical panel", 3], ["exhaust fan", 2], ["lighting", 2], ["building equipment", 3]],
+    definition: "Repair and maintenance costs for equipment installed in or used with FOH buildings or facilities, such as pumps, generators, or similar building equipment." },
+  { category: "FOH Rep & Main. - Building", scope: "FOH", repair: true,
+    kw: BUILDING_OBJ.concat([["warehouse", 2], ["factory", 2], ["plant", 1]]),
+    definition: "Repair, maintenance, servicing, and minor upkeep costs for FOH buildings and facilities." },
+  { category: "FOH Rep & Main. - Delivery Truck", scope: "FOH", repair: true, not: ["fire truck", "firetruck"],
+    kw: [["truck", 3], ["delivery truck", 3], ["delivery van", 3], ["van", 2], ["delivery vehicle", 3]],
+    definition: "Repair and maintenance costs for trucks used primarily for FOH delivery operations." },
+  { category: "FOH Rep & Main. - Fire Truck", scope: "FOH", repair: true,
+    kw: [["fire truck", 5], ["firetruck", 5], ["fire engine", 5], ["fire hose", 2], ["firefighting", 3]],
+    definition: "Repair and maintenance costs for fire trucks and related firefighting vehicles." },
+  { category: "FOH Rep & Main. - Inventory Discrepancy", scope: "FOH",
+    kw: [["inventory discrepancy", 3], ["inventory shortage", 3], ["inventory variance", 3], ["discrepancy", 2], ["shortage", 2], ["variance", 2], ["stock count", 2]],
+    definition: "Costs arising from approved inventory shortages, variances, or discrepancies identified during inventory reconciliation, when properly supported and authorized." },
+  { category: "FOH Rep & Main. - Machineries", scope: "FOH", repair: true,
+    kw: [["machine", 3], ["machinery", 3], ["machineries", 3], ["forklift", 3], ["extruder", 3], ["compressor", 3], ["boiler", 3],
+         ["conveyor", 3], ["electric motor", 3], ["bearing", 2], ["belt", 2], ["gearbox", 3]],
+    definition: "Repair, preventive maintenance, servicing, and minor parts or labor costs for FOH machinery." },
+  { category: "FOH Rep & Main. - Motorcycle Services", scope: "FOH", repair: true,
+    kw: [["motorcycle", 3], ["motorbike", 3], ["motor cycle", 3], ["scooter", 3], ["mc=", 2]],
+    definition: "Repair, maintenance, servicing, and related operating upkeep for motorcycles used for FOH business activities." },
+  { category: "FOH Rep & Main. - Prod Equipment", scope: "FOH", repair: true,
+    kw: [["production equipment", 3], ["prod equipment", 3], ["sealer", 3], ["heat sealer", 3], ["weighing scale", 2], ["mixer", 2],
+         ["dryer", 2], ["cutting equipment", 3], ["equipment", 1]],
+    definition: "Repair and maintenance costs for production equipment used in FOH operations." },
+  { category: "FOH Testing Fee", scope: "FOH", kw: TESTING_KW,
+    definition: "Fees paid for testing, inspection, calibration, analysis, or certification required for FOH operations, products, or equipment." },
+  { category: "FOH Toll Fee", scope: "FOH", kw: TOLL_KW,
+    definition: "Toll road, expressway, bridge, or similar road-use charges incurred for authorized FOH business travel or delivery activities." },
+
+  { category: "OE - Feeds", scope: "OE",
+    kw: [["feeds", 3], ["feed", 3], ["animal feed", 3], ["fish feed", 3], ["chicken feed", 3], ["hog feed", 3], ["poultry", 2], ["livestock", 2]],
+    definition: "Costs for animal feeds or other approved feed supplies required for company operations or business activities." },
+  { category: "OE Advertising and Promotion", scope: "OE",
+    kw: [["advertising", 3], ["advertisement", 3], ["ad=", 2], ["promotion", 3], ["promotional", 3], ["promo", 2], ["marketing", 3],
+         ["publicity", 3], ["brochure", 3], ["flyer", 2], ["tarpaulin", 2], ["banner", 2], ["signage", 2], ["giveaway", 2],
+         ["boosting", 3], ["facebook ads", 3], ["sponsorship", 2], ["trade show", 2]],
+    definition: "Expenses for advertising, marketing, promotional campaigns, publicity materials, and related activities intended to promote the company, products, or services." },
+  { category: "OE Communication, Light & Water", scope: "OE", kw: CLW_KW, not: CLW_NOT,
+    definition: "Operating costs for telephone, internet, communication services, electricity, water, and similar office utilities." },
+  { category: "OE Courier Services", scope: "OE",
+    kw: [["courier", 3], ["lbc", 3], ["jrs", 3], ["jnt", 3], ["j t express", 3], ["2go", 3], ["air21", 3], ["ninja van", 3],
+         ["grab express", 3], ["grabexpress", 3], ["lalamove", 2], ["postage", 3], ["parcel", 3], ["mail", 1], ["package", 1]],
+    definition: "Fees paid to courier or delivery service providers for sending documents, packages, samples, or other business materials." },
+  { category: "OE Documentary Stamp Tax", scope: "OE",
+    kw: [["documentary stamp", 5], ["dst", 3], ["doc stamp", 5]],
+    definition: "Documentary stamp taxes imposed by the government on documents, agreements, instruments, or transactions subject to DST." },
+  { category: "OE Documentation, Registration", scope: "OE",
+    kw: [["registration", 3], ["documentation", 3], ["notary", 3], ["notarial", 3], ["notarization", 3], ["certificate", 2],
+         ["certified true copy", 3], ["nbi clearance", 3], ["police clearance", 3], ["psa", 3], ["sec registration", 3],
+         ["dti", 3], ["lto", 3], ["authentication", 2], ["red ribbon", 3]],
+    definition: "Fees for document processing, government or business registrations, certificates, permits, and related administrative documentation." },
+  { category: "OE Dues, Subscription and List", scope: "OE",
+    kw: [["dues", 3], ["subscription", 3], ["membership", 3], ["annual fee", 2], ["newspaper", 3], ["magazine", 3],
+         ["publication", 2], ["directory", 2], ["mailing list", 3]],
+    definition: "Membership dues, professional or business subscriptions, publications, directories, mailing lists, and similar recurring information-service fees." },
+  { category: "OE Facilitation Fee", scope: "OE",
+    kw: [["facilitation", 3], ["processing fee", 2], ["expedite", 2], ["liaison", 2]],
+    definition: "Authorized fees paid to facilitate or process legitimate business transactions, applications, registrations, or services." },
+  { category: "OE Insurance", scope: "OE", kw: INSURANCE_KW,
+    definition: "Insurance premiums or charges covering company assets, employees, activities, vehicles, or other business-related risks." },
+  { category: "OE Meal Allowance", scope: "OE",
+    kw: [["meal", 3], ["meals", 3], ["lunch", 3], ["dinner", 3], ["breakfast", 3], ["merienda", 3], ["overtime meal", 3],
+         ["food", 2], ["snack", 2], ["snacks", 2], ["jollibee", 2], ["mcdo", 2], ["mcdonald", 2], ["coffee", 1], ["rice", 1]],
+    definition: "Authorized meal expenses or meal allowances incurred for employees during approved business activities, meetings, travel, or assignments." },
+  { category: "OE Miscellaneous", scope: "OE", kw: MISC_KW,
+    definition: "Legitimate and necessary operating expenses that do not reasonably fit any other available OE expense category." },
+  { category: "OE Office Supplies", scope: "OE",
+    kw: [["office supplies", 3], ["office supply", 3], ["paper", 3], ["bond paper", 3], ["pen", 3], ["ballpen", 3], ["ball pen", 3],
+         ["sign pen", 3], ["pencil", 3], ["folder", 3], ["envelope", 3], ["stapler", 3], ["staple", 3], ["eraser", 3],
+         ["stationery", 3], ["logbook", 3], ["record book", 3], ["paper clip", 3], ["sticky note", 3], ["post it", 3],
+         ["marker", 2], ["clip", 2], ["glue", 2], ["notebook", 2], ["calculator", 2], ["tape", 1], ["office", 1]],
+    definition: "Routine consumable supplies used for office and administrative work, such as paper, pens, folders, and similar items." },
+  { category: "OE Oil & Gasoline", scope: "OE", kw: FUEL_KW,
+    definition: "Fuel, gasoline, diesel, oil, lubricants, and similar petroleum products used for authorized company vehicles or equipment." },
+  { category: "OE OJT Allowance", scope: "OE",
+    kw: [["ojt", 3], ["on the job", 3], ["trainee", 3], ["intern=", 3], ["internship", 3]],
+    definition: "Approved allowance or stipend provided to on-the-job trainees in accordance with company policy." },
+  { category: "OE Other Charges", scope: "OE", kw: OTHER_CHARGES_KW,
+    definition: "Necessary operating charges that are business-related but do not specifically fit any other available OE expense category." },
+  { category: "OE Printing, Supplies & Office", scope: "OE",
+    kw: [["print", 3], ["photocopy", 3], ["xerox", 3], ["reproduction", 3], ["ink", 3], ["toner", 3], ["cartridge", 3],
+         ["laminat", 3], ["risograph", 3], ["binding", 2]],
+    definition: "Printing, photocopying, reproduction, and other office-related consumables or supplies not classified under a more specific office-supplies category." },
+  { category: "OE Product Licensing/Patent Fee", scope: "OE",
+    kw: [["patent", 3], ["trademark", 3], ["intellectual property", 3], ["ipophl", 3], ["copyright", 3], ["product license", 3],
+         ["product licensing", 3], ["product registration", 2]],
+    definition: "Fees for product licenses, patents, intellectual property rights, registrations, renewals, or related legal rights." },
+  { category: "OE Professional Fees", scope: "OE",
+    kw: [["professional fee", 3], ["consultant", 3], ["consultancy", 3], ["consulting", 3], ["lawyer", 3], ["attorney", 3],
+         ["legal", 2], ["accountant", 2], ["auditor", 2], ["audit", 2], ["architect", 2], ["talent fee", 2], ["speaker fee", 2]],
+    definition: "Fees paid to qualified external professionals or consultants for specialized services, advice, or expertise." },
+  { category: "OE Rental", scope: "OE", kw: RENTAL_KW,
+    definition: "Rental or lease costs for offices, facilities, equipment, vehicles, or other assets used for business operations." },
+  { category: "OE Rep. & Main - Building", scope: "OE", repair: true,
+    kw: BUILDING_OBJ.concat([["office", 1]]),
+    definition: "Repair, maintenance, servicing, and minor upkeep costs for company office or business buildings and facilities." },
+  { category: "OE Rep. & Main - Company Car", scope: "OE", repair: true,
+    kw: [["car", 3], ["company car", 3], ["service vehicle", 3], ["vehicle", 2], ["sedan", 3], ["suv", 3], ["pickup", 2], ["pick up", 2], ["auto", 1]],
+    definition: "Repair, maintenance, servicing, and minor upkeep costs for company-owned or company-assigned cars." },
+  { category: "OE Rep. & Main - Land Improvement", scope: "OE", repair: true,
+    kw: [["land", 2], ["grounds", 3], ["landscaping", 3], ["landscape", 3], ["drainage", 3], ["grass", 2], ["grass cutting", 3],
+         ["garden", 2], ["fence", 2], ["fencing", 2], ["pathway", 2], ["canal", 2], ["driveway", 2], ["parking lot", 2]],
+    definition: "Costs for repair, maintenance, and minor improvements to company land, grounds, landscaping, drainage, or related site facilities." },
+  { category: "OE Rep. & Main - Office Equipment", scope: "OE", repair: true,
+    kw: [["printer", 3], ["computer", 3], ["pc=", 3], ["laptop", 3], ["desktop", 3], ["cpu", 3], ["monitor", 2], ["keyboard", 2],
+         ["mouse", 2], ["photocopier", 3], ["copier", 3], ["scanner", 3], ["projector", 3], ["shredder", 3], ["office equipment", 3],
+         ["aircon", 2], ["air conditioner", 2], ["ups", 2], ["fax", 2], ["telephone", 2]],
+    definition: "Repair, maintenance, servicing, and minor upkeep costs for office equipment such as printers, computers, and similar equipment." },
+  { category: "OE Rep. & Main - Residential & Leisure", scope: "OE", repair: true,
+    kw: [["staff house", 3], ["staffhouse", 3], ["dormitory", 3], ["dorm", 3], ["barracks", 3], ["residential", 3], ["recreation", 3],
+         ["leisure", 3], ["gym", 2], ["swimming pool", 3], ["pool", 2], ["clubhouse", 3], ["basketball court", 3]],
+    definition: "Repair and maintenance costs for company-provided residential, recreational, or leisure facilities and related equipment." },
+  { category: "OE Representation and Entertai", scope: "OE",
+    kw: [["representation", 3], ["entertainment", 3], ["client meal", 3], ["client dinner", 3], ["client lunch", 3],
+         ["client meeting", 3], ["client", 2], ["customer", 1], ["business partner", 2], ["visitor", 1], ["guest", 1]],
+    definition: "Authorized business representation and entertainment expenses for clients, customers, business partners, or other external stakeholders." },
+  { category: "OE Samples", scope: "OE",
+    kw: [["sample", 3], ["hand sample", 3], ["prototype", 2], ["swatch", 2], ["mockup", 2], ["mock up", 2]],
+    definition: "Costs for product or service samples used for customer presentations, evaluation, testing, demonstrations, or business development." },
+  { category: "OE Seminars and Training Fee", scope: "OE",
+    kw: [["seminar", 3], ["training", 3], ["workshop", 3], ["conference", 3], ["webinar", 3], ["course", 3], ["registration fee", 1]],
+    definition: "Registration fees and related costs for approved seminars, conferences, workshops, courses, or employee training." },
+  { category: "OE Taxes and Licenses", scope: "OE",
+    kw: [["business permit", 3], ["mayor s permit", 3], ["mayors permit", 3], ["barangay clearance", 3], ["barangay permit", 3],
+         ["community tax", 3], ["cedula", 3], ["tax", 2], ["taxes", 2], ["license", 2], ["licence", 2], ["permit", 2],
+         ["government fee", 2], ["bir", 2]],
+    definition: "Business taxes, government fees, permits, licenses, registrations, and similar statutory charges not classified under a more specific tax category." },
+  { category: "OE Testing Fee", scope: "OE", kw: TESTING_KW,
+    definition: "Fees for testing, inspection, laboratory analysis, calibration, certification, or other required evaluation of products, services, or equipment." },
+  { category: "OE Toll Fee", scope: "OE", kw: TOLL_KW,
+    definition: "Toll road, expressway, bridge, or similar road-use charges incurred during authorized company business travel." },
+  { category: "OE Transportation and travel", scope: "OE", not: ["grab express", "grabexpress"],
+    kw: [["transportation", 3], ["transpo", 3], ["travel", 3], ["taxi", 3], ["fare", 3], ["pamasahe", 3], ["grab", 3],
+         ["grab car", 3], ["angkas", 3], ["uber", 3], ["jeep", 3], ["jeepney", 3], ["tricycle", 3], ["bus", 3], ["mrt", 3],
+         ["lrt", 3], ["train=", 2], ["ferry", 3], ["boat", 2], ["parking", 3], ["airfare", 3], ["plane ticket", 3], ["flight", 3],
+         ["hotel", 2], ["accommodation", 2], ["commute", 2], ["trip", 1]],
+    definition: "Authorized business transportation and travel expenses, including fares, local transportation, parking, and other necessary travel-related costs." },
+];
+
+const APPROVED_EXPENSE_CATEGORY_SET = new Set(EXPENSE_DEFINITIONS.map((d) => d.category));
+const isApprovedExpenseCategory = (c) => APPROVED_EXPENSE_CATEGORY_SET.has(c);
+
+/* Picker options for a Liquidation expense line: the approved list only, in
+   FOH / OE groups, each with its account code. */
+const approvedCategoryChoice = (c) => ({ value: c, label: c, hint: accountForCategory(c) });
+const APPROVED_EXPENSE_CATEGORY_GROUPS = ["FOH", "OE"].map((scope) => ({
+  label: scope === "FOH" ? "FOH — Factory Overhead" : "OE — Operating Expense",
+  options: EXPENSE_DEFINITIONS.filter((d) => d.scope === scope).map((d) => approvedCategoryChoice(d.category)),
+}));
+
+/* ---- Suggestion engine ---- */
+const normalizeExpenseText = (s) => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
+/* One keyword token against one word of the description. */
+function expenseTokenMatches(kwTok, word, exactOnly) {
+  if (word === kwTok || word === kwTok + "s" || word === kwTok + "es") return true;
+  return !exactOnly && kwTok.length >= 5 && word.startsWith(kwTok);
+}
+
+/* Compile each keyword once: "hire=" -> { toks: ["hire"], exact: true }. */
+function compileExpenseTerm(term) {
+  const exact = term.endsWith("=");
+  const clean = exact ? term.slice(0, -1) : term;
+  return { term: clean, toks: normalizeExpenseText(clean).split(" "), exact };
+}
+/* The words of the description that matched (for "Detected: …"), or null. */
+function expensePhraseIn(words, t) {
+  for (let i = 0; i + t.toks.length <= words.length; i++) {
+    if (t.toks.every((k, j) => expenseTokenMatches(k, words[i + j], t.exact))) return words.slice(i, i + t.toks.length).join(" ");
+  }
+  return null;
+}
+const expenseHits = (words, terms) => terms.map((t) => expensePhraseIn(words, t)).filter(Boolean);
+const EXPENSE_MATCHERS = EXPENSE_DEFINITIONS.map((d) => ({
+  ...d,
+  kwC: d.kw.map(([term, w]) => ({ ...compileExpenseTerm(term), w })),
+  notC: (d.not || []).map(compileExpenseTerm),
+  /* FOH/OE twins ("FOH Rental" / "OE Rental", "FOH Rep & Main. - Building" /
+     "OE Rep. & Main - Building") share this key. */
+  pairKey: normalizeExpenseText(d.category.replace(/^(FOH|OE)\b/, "")),
+}));
+const EXPENSE_PAIR_KEYS = (() => {
+  const seen = {};
+  EXPENSE_MATCHERS.forEach((m) => { (seen[m.pairKey] = seen[m.pairKey] || new Set()).add(m.scope); });
+  return new Set(Object.keys(seen).filter((k) => seen[k].size > 1));
+})();
+const REPAIR_MATCHERS = REPAIR_TERMS.map(compileExpenseTerm);
+const FOH_CUE_MATCHERS = FOH_CUE_TERMS.map(compileExpenseTerm);
+const OE_CUE_MATCHERS = OE_CUE_TERMS.map(compileExpenseTerm);
+
+/* FOH or OE for a line: cue words in the description win, then the line's
+   department, else OE. `source` says which one decided it. */
+function expenseScopeFor(words, department) {
+  const foh = expenseHits(words, FOH_CUE_MATCHERS);
+  const oe = expenseHits(words, OE_CUE_MATCHERS);
+  if (foh.length !== oe.length) {
+    const fohWins = foh.length > oe.length;
+    return { scope: fohWins ? "FOH" : "OE", source: "description", cues: fohWins ? foh : oe };
+  }
+  const dept = SUBACCOUNTS.find((s) => s.code === department);
+  const desc = normalizeExpenseText(dept && dept.desc);
+  if (desc && FOH_DEPARTMENT_TERMS.some((t) => desc.includes(t))) return { scope: "FOH", source: "department", cues: [] };
+  return { scope: "OE", source: "department", cues: [] };
+}
+
+/* Rank the approved categories for an expense description.
+   Returns { suggestions: [{ category, score, terms }], auto, scope, scopeSource, detected }.
+   `auto` is set only for a clear winner: a top score of at least 2 that leads
+   every other category (its own FOH/OE twin excepted) by 1.2 or more. A weak
+   or tied description ("repair") leaves `auto` null and just lists options. */
+function suggestExpenseCategories(text, { department } = {}) {
+  const words = normalizeExpenseText(text).split(" ").filter(Boolean);
+  if (!words.length) return { suggestions: [], auto: null, scope: null, scopeSource: null, detected: [] };
+  const { scope, source, cues } = expenseScopeFor(words, department);
+  const repairHits = expenseHits(words, REPAIR_MATCHERS);
+
+  const scored = [];
+  EXPENSE_MATCHERS.forEach((m) => {
+    if (m.notC.some((t) => expensePhraseIn(words, t))) return;
+    const hits = m.kwC.filter((t) => expensePhraseIn(words, t));
+    let score = hits.reduce((s, t) => s + t.w, 0);
+    let terms = expenseHits(words, hits);
+    if (m.repair) {
+      if (!repairHits.length) return;
+      score = score ? 2 + score : 1;
+      terms = repairHits.concat(terms);
+    }
+    if (!score) return;
+    /* Out-of-scope categories stay listed but rank lower — a twin much lower. */
+    if (m.scope !== scope) score *= EXPENSE_PAIR_KEYS.has(m.pairKey) ? 0.6 : 0.8;
+    scored.push({ category: m.category, score: Math.round(score * 100) / 100, terms, pairKey: m.pairKey });
+  });
+  scored.sort((a, b) => b.score - a.score || a.category.localeCompare(b.category));
+
+  const top = scored[0];
+  let auto = null;
+  if (top && top.score >= 2) {
+    const rival = scored.find((s) => s !== top && s.pairKey !== top.pairKey);
+    if (!rival || top.score - rival.score >= 1.2) auto = top.category;
+  }
+  /* The description's own words behind the leading suggestions, dropping any
+     that sit inside a longer one ("electricity" inside "electricity bill"). */
+  const hitWords = top
+    ? Array.from(new Set(scored.filter((s) => s.score >= top.score - 1).flatMap((s) => s.terms).concat(cues)))
+    : [];
+  const detected = hitWords.filter((w) => !hitWords.some((x) => x !== w && (" " + x + " ").includes(" " + w + " ")));
+  return {
+    suggestions: scored.slice(0, 8).map(({ category, score, terms }) => ({ category, score, terms })),
+    auto, scope, scopeSource: source, detected,
+  };
+}

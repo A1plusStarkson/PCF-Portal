@@ -562,8 +562,93 @@ function RejectLiquidationModal({ voucherNo, employee, onClose, onConfirm }) {
   );
 }
 
+/* A new line starts with NO category: it is filled in from the Expense text
+   (suggestExpenseCategories) or picked by hand, never pre-set to an arbitrary
+   first entry that could slip through to the COA export unnoticed. */
 function emptyLine() {
-  return { id: uid("ln"), date: todayISO(), expense: "", category: EXPENSE_CATEGORIES[0], department: SUBACCOUNTS[1].code, amount: "", taxCategory: "" };
+  return { id: uid("ln"), date: todayISO(), expense: "", category: "", department: SUBACCOUNTS[1].code, amount: "", taxCategory: "" };
+}
+
+/* Expense Category picker options for one line: what the description
+   suggests first, then the full approved list (FOH / OE). */
+function lineCategoryOptions(match) {
+  if (!match.suggestions.length) return APPROVED_EXPENSE_CATEGORY_GROUPS;
+  return [
+    { label: "Suggested for this expense", options: match.suggestions.map((s) => approvedCategoryChoice(s.category)) },
+    ...APPROVED_EXPENSE_CATEGORY_GROUPS,
+  ];
+}
+
+/* ---- Expense description with category suggestions ----
+   The Expense text box doubles as an autocomplete: while the preparer types,
+   the approved categories the words point at are listed underneath, and
+   picking one sets the line's Expense Category. `match` is the line's
+   suggestExpenseCategories() result; a clear winner has already been filled
+   in by the worksheet, this list is where it is confirmed or overridden. */
+function ExpenseDescriptionInput({ value, onChange, match, category, filled, onPickCategory, style, title }) {
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  const list = match.suggestions;
+  const show = open && String(value || "").trim().length >= 2;
+  const pick = (c) => { onPickCategory(c); setOpen(false); };
+  return (
+    <div className="pcp-ss-wrap">
+      <input
+        className="pcp-input" placeholder="e.g. Meals, Fuel, Toll Fee" autoComplete="off"
+        value={value} style={style} title={title}
+        aria-autocomplete="list" aria-expanded={show}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); setHi(0); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") { setOpen(false); return; }
+          if (!show || !list.length) return;
+          if (e.key === "ArrowDown") { e.preventDefault(); setHi((h) => Math.min(h + 1, list.length - 1)); }
+          else if (e.key === "ArrowUp") { e.preventDefault(); setHi((h) => Math.max(h - 1, 0)); }
+          else if (e.key === "Enter") { e.preventDefault(); pick(list[Math.min(hi, list.length - 1)].category); }
+        }}
+      />
+      {show && (
+        /* mousedown is swallowed so clicking an option does not blur the input
+           (and close the list) before the click lands. */
+        <div className="pcp-ss-pop" style={{ minWidth: 330 }} role="listbox" onMouseDown={(e) => e.preventDefault()}>
+          {!!match.detected.length && (
+            <div className="pcp-ss-group" style={{ textTransform: "none", letterSpacing: 0 }}>
+              Detected: {match.detected.join(" · ")}
+            </div>
+          )}
+          {list.length ? (
+            <div style={{ maxHeight: 250, overflowY: "auto" }}>
+              {list.map((s, i) => (
+                <div
+                  key={s.category} role="option" aria-selected={s.category === category}
+                  className={"pcp-ss-opt" + (s.category === category ? " active" : i === hi ? " hover" : "")}
+                  onMouseEnter={() => setHi(i)}
+                  onClick={() => pick(s.category)}
+                >
+                  {s.category}
+                  {s.category === match.auto && <span className="pcp-exp-best">Best match</span>}
+                  <div className="pcp-ss-opt-hint">{accountForCategory(s.category)}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="pcp-empty" style={{ padding: 10, fontSize: 12 }}>
+              No reliable match. Select Expense Category from the list.
+            </div>
+          )}
+          {!!list.length && (
+            <div style={{ fontSize: 10.5, color: "var(--text-mut)", padding: "6px 8px 2px" }}>
+              {filled
+                ? "Best match filled in automatically. Pick another to change it."
+                : match.auto ? "Pick a category to set it on this line." : "More than one category fits. Pick the right one."}
+              {" "}FOH / OE based on the {match.scopeSource === "description" ? "description" : "line's department"}.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* Outline for a field the save is waiting on. Border only — no background, so
@@ -639,6 +724,7 @@ function LiquidationWorksheet({
   useEffect(() => {
     setLines(liquidation ? liquidation.lines.map((l) => ({ ...l })) : [emptyLine()]);
     setAttachments(liquidation && liquidation.attachments ? liquidation.attachments.map(normalizeAttachment) : []);
+    autoPicked.current = {};
     setSaved(true);
     setUploadNote("");
     setDupNote("");
@@ -650,6 +736,28 @@ function LiquidationWorksheet({
   const updateLine = (id, patch) => {
     setLines((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)));
     setSaved(false);
+  };
+
+  /* ---- Automatic Expense Category ----
+     autoPicked holds, per line, the category the SYSTEM filled in. The system
+     may keep re-deciding a line's category only while it is blank or still
+     holds that auto pick. The moment someone picks a category by hand, or on
+     any line loaded from a saved liquidation, the category is theirs and
+     typing only offers suggestions — a stored category is never rewritten. */
+  const autoPicked = useRef({});
+  const reclassify = (l, patch) => {
+    const next = { ...l, ...patch };
+    const cur = l.category || "";
+    if (cur && autoPicked.current[l.id] !== cur) return patch;
+    const { auto } = suggestExpenseCategories(next.expense, { department: next.department });
+    if (auto) autoPicked.current[l.id] = auto; else delete autoPicked.current[l.id];
+    return { ...patch, category: auto || "" };
+  };
+  const setLineExpense = (l, expense) => updateLine(l.id, reclassify(l, { expense }));
+  const setLineDepartment = (l, department) => updateLine(l.id, reclassify(l, { department }));
+  const setLineCategory = (l, category) => {
+    delete autoPicked.current[l.id];
+    updateLine(l.id, { category });
   };
   const addLine = () => { setLines((ls) => [...ls, emptyLine()]); setSaved(false); };
   const removeLine = (id) => { setLines((ls) => ls.filter((l) => l.id !== id)); setSaved(false); };
@@ -746,6 +854,9 @@ function LiquidationWorksheet({
   const lineMissing = (l) => {
     const missing = [];
     if (!String(l.expense || "").trim()) missing.push("Expense");
+    /* New lines start without a category, so a started line must get one
+       before it can be stored (and exported against an account code). */
+    if (!String(l.category || "").trim()) missing.push("Expense Category");
     if (!(Number(l.amount) > 0)) missing.push("Amount");
     return missing;
   };
@@ -907,8 +1018,8 @@ function LiquidationWorksheet({
         "This liquidation cannot be saved yet — "
         + `${incompleteLines.length} expense line(s) are incomplete.\n\n`
         + incompleteLines.map((x) => `  Line ${x.row}: missing ${x.missing.join(" and ")}`).join("\n")
-        + "\n\nEvery expense line needs an Expense description and an Amount greater"
-        + " than zero. Fill those in, or delete the line, then save again."
+        + "\n\nEvery expense line needs an Expense description, an Expense Category and an"
+        + " Amount greater than zero. Fill those in, or delete the line, then save again."
         + "\n\nNothing has been saved, so your other lines are still here."
       );
       return;
@@ -1507,7 +1618,7 @@ function LiquidationWorksheet({
             ))}
           </div>
           <div style={{ marginTop: 4, color: "var(--text-mut)" }}>
-            Every expense line needs an Expense description and an Amount greater than zero.
+            Every expense line needs an Expense description, an Expense Category and an Amount greater than zero.
             Fill those in, or delete the line.
           </div>
         </div>
@@ -1521,24 +1632,33 @@ function LiquidationWorksheet({
       </div>
       {lines.map((l) => {
         const missing = incompleteById[l.id] || [];
+        const match = suggestExpenseCategories(l.expense, { department: l.department });
+        const isAuto = !!l.category && autoPicked.current[l.id] === l.category;
         return (
         <div className="pcp-liq-line" key={l.id}>
           <input type="date" className="pcp-input" value={l.date} onChange={(e) => updateLine(l.id, { date: e.target.value })} />
-          <input
-            className="pcp-input" placeholder="e.g. Meals, Fuel, Toll Fee"
-            value={l.expense} onChange={(e) => updateLine(l.id, { expense: e.target.value })}
+          <ExpenseDescriptionInput
+            value={l.expense} onChange={(v) => setLineExpense(l, v)}
+            match={match} category={l.category} filled={isAuto} onPickCategory={(c) => setLineCategory(l, c)}
             style={missing.includes("Expense") ? MISSING_FIELD_STYLE : undefined}
             title={missing.includes("Expense") ? "Required — this line will not save without it" : undefined}
           />
+          <div style={{ position: "relative" }}>
+            {/* Approved categories only (Expense Definition master). A legacy
+                category already on a saved line still displays unchanged. */}
+            <SearchSelect
+              value={l.category} onChange={(v) => setLineCategory(l, v)}
+              options={lineCategoryOptions(match)}
+              placeholder="Select Expense Category"
+              searchPlaceholder="Search expense category / COA…"
+              popStyle={{ minWidth: 340 }}
+              invalid={missing.includes("Expense Category")}
+              title={isAuto ? `${l.category} (suggested from the Expense description, click to change)` : undefined}
+            />
+            {isAuto && <span className="pcp-exp-auto" title="Suggested from the Expense description">Auto</span>}
+          </div>
           <SearchSelect
-            value={l.category} onChange={(v) => updateLine(l.id, { category: v })}
-            options={EXPENSE_CATEGORY_CHOICES}
-            placeholder="— Select Expense Category —"
-            searchPlaceholder="Search expense category / COA…"
-            popStyle={{ minWidth: 340 }}
-          />
-          <SearchSelect
-            value={l.department} onChange={(v) => updateLine(l.id, { department: v })}
+            value={l.department} onChange={(v) => setLineDepartment(l, v)}
             options={DEPARTMENT_CHOICES}
             placeholder="— Select Department —"
             searchPlaceholder="Search department or sub-account…"

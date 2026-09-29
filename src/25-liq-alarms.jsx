@@ -60,7 +60,12 @@ function liqAlarmLoad(email) {
 function liqAlarmSave(email, state) {
   try { localStorage.setItem(liqAlarmStoreKey(email), JSON.stringify(state)); } catch (e) { /* ignore */ }
 }
-const liqAlarmNowStamp = () => new Date().toISOString().slice(0, 19);
+/* Local time (the viewer's clock, e.g. Philippine time) — toISOString() is UTC
+   and read 8 hours early. */
+const liqAlarmNowStamp = () => {
+  const d = new Date();
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 19);
+};
 
 /* Turns the live reminders into alarms, and keeps read state + history in
    step: a new alarm is logged (unread); one that is no longer active is

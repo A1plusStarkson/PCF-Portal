@@ -352,6 +352,20 @@ const CSS = `
   .pcp-purpose-opt.active, .pcp-ss-opt.active { background: var(--brand); color: #fff; }
   .pcp-ss-opt-hint { font-size: 10.5px; color: var(--text-mut); }
   .pcp-ss-opt.active .pcp-ss-opt-hint { color: rgba(255,255,255,0.8); }
+  /* Keyboard-highlighted row of the Expense autocomplete. */
+  .pcp-ss-opt.hover { background: var(--red-bg); }
+  /* Liquidation expense lines: "Best match" in the suggestion list and the
+     "Auto" tag on a category the system filled in from the description. */
+  .pcp-exp-best {
+    margin-left: 6px; font-size: 9.5px; font-weight: 700; letter-spacing: 0.3px; text-transform: uppercase;
+    padding: 1px 6px; border-radius: 999px; background: var(--brand); color: #fff; vertical-align: 1px;
+  }
+  .pcp-ss-opt.active .pcp-exp-best { background: #fff; color: var(--brand); }
+  .pcp-exp-auto {
+    position: absolute; top: -7px; right: 8px; pointer-events: none;
+    font-size: 9px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase;
+    padding: 0 6px; line-height: 14px; border-radius: 999px; background: var(--brand); color: #fff;
+  }
 
   /* Inline document previews (checker / approver read the receipt in place) */
   .pcp-doc-gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
