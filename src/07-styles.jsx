@@ -739,6 +739,16 @@ const CSS = `
   .pcp-filter-chip { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; background: var(--brand-soft); color: var(--brand-dark); border: 1px solid #cfe5d7; border-radius: 99px; padding: 4px 6px 4px 12px; font-weight: 600; }
   .pcp-filter-chip button { display: inline-flex; align-items: center; justify-content: center; background: var(--brand); color: #fff; border: none; border-radius: 99px; width: 18px; height: 18px; cursor: pointer; padding: 0; }
 
+  /* ---- All portal text in bold (owner's instruction, Sep 2026) ----
+     !important so it also wins over the inline fontWeight on individual
+     elements. Headings stay one step heavier so titles still stand out. The
+     on-screen report preview (.pcp-doc) keeps its document typography, so it
+     still matches the printed report. */
+  .pcp-root, .pcp-root *:not(.pcp-doc):not(.pcp-doc *),
+  .pcp-root input::placeholder, .pcp-root textarea::placeholder { font-weight: 700 !important; }
+  .pcp-root :is(h1, h2, h3, h4):not(.pcp-doc *) { font-weight: 800 !important; }
+  .pcp-root .pcp-doc { font-weight: 400; }
+
   /* ---- Print (management report) ---- */
   @media print {
     .pcp-sidebar, .pcp-topbar, .pcp-tabs, .pcp-no-print { display: none !important; }
