@@ -136,7 +136,7 @@ function liquidationReminders(disbursements, liquidations, today, funds) {
     .map((d) => {
       const liq = liquidationFor(d.id, liquidations);
       const sub = (liq && liq.submissionStatus) || "Draft";
-      if (sub !== "Draft" && sub !== "Rejected") return null;
+      if (sub !== "Draft" && sub !== "Rejected" && sub !== LIQ_FOR_SUBMISSION) return null;
       const rv = liqReview(liq);
       if (rv.final || rv.legacy) return null;
       const receivedDate = d.date || t;
@@ -145,9 +145,10 @@ function liquidationReminders(disbursements, liquidations, today, funds) {
       return {
         id: d.id, seriesNo: d.voucherNo || "—", branchCode: d.branchCode,
         employee: d.employee, amount: Number(d.amount) || 0,
-        receivedDate, dueDate, daysLeft, returned: sub === "Rejected",
+        receivedDate, dueDate, daysLeft, returned: sub === "Rejected" || sub === LIQ_FOR_SUBMISSION,
         level: reminderLevel(daysLeft),
-        liqStatus: !liq ? "Not started" : sub === "Rejected" ? "Returned for correction" : "Draft — not yet submitted",
+        liqStatus: !liq ? "Not started" : sub === "Rejected" ? "Returned for correction"
+          : sub === LIQ_FOR_SUBMISSION ? "Reverted by custodian — for submission" : "Draft — not yet submitted",
         custodian: (fundByBranch.get(d.branchCode) || {}).custodian || "",
       };
     })

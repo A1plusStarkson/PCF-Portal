@@ -224,7 +224,11 @@ const CSS = `
   .pcp-modal-head {
     padding: 18px 22px; border-bottom: 1px solid var(--line); display: flex;
     align-items: center; justify-content: space-between;
+    /* Drag handle for moving the pop-up (installModalDrag in 02-helpers). */
+    cursor: move; touch-action: none;
   }
+  .pcp-modal-head :is(button, a, input, select, textarea) { cursor: pointer; }
+  .pcp-modal-head :is(input, textarea) { cursor: text; }
   .pcp-modal-head h3 { margin: 0; font-size: 15px; font-weight: 700; }
   .pcp-modal-body { padding: 20px 22px; max-height: 65vh; overflow-y: auto; }
   .pcp-modal-foot { padding: 14px 22px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
@@ -243,6 +247,9 @@ const CSS = `
   }
   .pcp-flow-step { flex: 1; padding: 16px 20px; position: relative; color: #fff; }
   .pcp-flow-step + .pcp-flow-step { border-left: 1px solid rgba(255,255,255,0.12); }
+  /* A table row that opens its record when clicked. */
+  tr.pcp-row-click { cursor: pointer; }
+  tr.pcp-row-click:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
   .pcp-flow-click { cursor: pointer; transition: background 0.12s; }
   .pcp-flow-click:hover { background: rgba(255,255,255,0.08); }
   .pcp-flow-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.6px; color: #8fa397; font-weight: 700; }
@@ -746,6 +753,23 @@ const CSS = `
   .pcp-filter-chip { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; background: var(--brand-soft); color: var(--brand-dark); border: 1px solid #cfe5d7; border-radius: 99px; padding: 4px 6px 4px 12px; font-weight: 600; }
   .pcp-filter-chip button { display: inline-flex; align-items: center; justify-content: center; background: var(--brand); color: #fff; border: none; border-radius: 99px; width: 18px; height: 18px; cursor: pointer; padding: 0; }
 
+  /* ---- All portal text in bold (owner's instruction, Sep 2026) ----
+     !important so it also wins over the inline fontWeight on individual
+     elements. Headings stay one step heavier so titles still stand out. The
+     on-screen report preview (.pcp-doc) keeps its document typography, so it
+     still matches the printed report. */
+  .pcp-root, .pcp-root *:not(.pcp-doc):not(.pcp-doc *),
+  .pcp-root input::placeholder, .pcp-root textarea::placeholder { font-weight: 700 !important; }
+  .pcp-root :is(h1, h2, h3, h4):not(.pcp-doc):not(.pcp-doc *) { font-weight: 800 !important; }
+  .pcp-root .pcp-doc { font-weight: 400; }
+  /* Approval Module (Grace Gan's decision screen): larger, higher-contrast
+     text. The whole page body is scaled 10% (most sizes here are fixed px, so
+     a base font-size alone would not reach them), and the grey secondary text
+     is darkened. Pop-ups sit outside .pcp-content, so they are not scaled and
+     still fit the window. Dark mode's lighter grey is set further down. */
+  .pcp-approval-page { --text-mut: #3a4a41; }
+  .pcp-approval-page > .pcp-content { zoom: 1.1; }
+
   /* ---- Print (management report) ---- */
   @media print {
     .pcp-sidebar, .pcp-topbar, .pcp-tabs, .pcp-no-print { display: none !important; }
@@ -803,6 +827,7 @@ const CSS = `
       --dm-alarm-read: #17221c;
       --dm-alarm-due1: #3b2617; --dm-alarm-due0: #3f2415; --dm-alarm-overdue: #3a1f1d;
     }
+    [data-theme="dark"] .pcp-approval-page { --text-mut: #c6d6cc; }
     [data-theme="dark"] .pcp-nav-item.active { background: var(--mint-bg); color: #e3f4ea; }
 
     /* Surfaces that were a fixed pale tint. (The plain-white ones — buttons,
@@ -1133,6 +1158,9 @@ function Badge({ status }) {
     /* Reimbursement workflow states (Section 14) */
     DRAFT: "gray", SUBMITTED: "amber", "FOR REVIEW": "amber", "FOR APPROVAL": "amber",
     APPROVED: "green", "RETURNED FOR REVISION": "red", REJECTED: "red",
+    /* Reverted by the custodian — back with the requestor (liquidation and
+       reimbursement alike). */
+    "FOR SUBMISSION": "orange",
     "FOR LIQUIDATION": "orange", "LIQUIDATION COMPLETED": "blue", "FOR PAYMENT": "amber",
     "UNDER REVIEW": "amber",
     PAID: "green", COMPLETED: "green",

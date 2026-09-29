@@ -156,6 +156,32 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   ];
   const canEditReimbOverride = REIMB_EDIT_OVERRIDE_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
+  /* PCF Requestors: may edit a SUBMITTED reimbursement — details and
+     attachments — only until the custodian approves it (owner's instruction,
+     Sep 2026). Status is kept; re-checked in updateReimbursement at save time,
+     so an edit started before the custodian approved is refused after. */
+  const REIMB_REQUESTOR_EDIT_EMAILS = [
+    "pcfrequestordisney@a1plus.com", "pcfrequestormanila@a1plus.com", "pcfrequestorrgandco@a1plus.com",
+  ];
+  const canEditReimbBeforeCustodian = REIMB_REQUESTOR_EDIT_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
+  /* REVERT to Requestor — Liquidation and Reimbursement (owner's instruction,
+     Sep 2026). While a transaction is submitted and not yet final-approved,
+     these accounts can send it back with a reason; it becomes FOR SUBMISSION,
+     the requestor corrects / adds attachments and resubmits. Same record and
+     number; any approval stamps move into the review history. By email, and
+     re-checked in revertLiquidation / reimbursementAction. */
+  const REVERT_EMAILS = [
+    "accounting@a1plus.com", "finance@a1plus.com", "puradr@a1plus.com", "lita@a1plus.com", "mauwi@a1plus.com",
+    "a1plusadmin@a1plus.com", "superuser@a1plus.com",
+  ];
+  const canRevert = REVERT_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
+  /* Approval Module: row Select + Export Excel (owner's instruction, Sep 2026).
+     Read-only — exporting never changes a record. */
+  const APPROVAL_EXPORT_EMAILS = ["a1plusadmin@a1plus.com", "superuser@a1plus.com"];
+  const canApprovalExport = APPROVAL_EXPORT_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
   /* Replenishments: edit, mark completed and revert — these accounts only
      (owner's instruction, Sep 2026). Everyone else sees the records read-only. */
   const REPLEN_MANAGE_EMAILS = [
@@ -1148,6 +1174,36 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       `Reason: ${reason}${comment ? ` · Comment: ${comment}` : ""} · ${prevStatus} → REJECTED`);
   }, [isLiquidationChecker, isFinalApprover, isLiquidationFinalLocked, logAudit, disbursements, liquidations, requests, userName, role]);
 
+  /* ---- Revert to Requestor (REVERT_EMAILS) ----
+     A submitted liquidation that is not yet final-approved goes back to the
+     requestor as FOR SUBMISSION with the custodian's reason. The requestor
+     edits / uploads and resubmits with the normal Submit, which restarts the
+     review. Same record and voucher; receipts and their decisions stay; any
+     approval stamps are archived by clearReview; the revert is kept in
+     liq.reverts and the audit trail. */
+  const revertLiquidation = useCallback((disbursementId, reason) => {
+    const liq0 = liquidations.find((l) => l.disbursementId === disbursementId);
+    const why = String(reason || "").trim();
+    if (!canRevert || !liq0 || (liq0.submissionStatus || "Draft") !== "Submitted" || isLiquidationFinalLocked(disbursementId)) {
+      window.alert("Only a custodian can revert a liquidation, and only while it is submitted and not yet final-approved.");
+      return;
+    }
+    if (!why) { window.alert("Enter the reason for the revert — the requestor sees it."); return; }
+    const ts = new Date().toISOString().slice(0, 19);
+    const actor = userName || role;
+    const d = disbursements.find((x) => x.id === disbursementId);
+    const prevStatus = liqFinalStatus(d, liq0);
+    const entry = { id: uid("rev"), revertedBy: actor, revertedAt: ts, reason: why, prevStatus };
+    setLiquidations((ls) => ls.map((l) => (
+      l.disbursementId === disbursementId && (l.submissionStatus || "Draft") === "Submitted"
+        ? { ...l, submissionStatus: LIQ_FOR_SUBMISSION, reverts: [...liqReverts(l), entry],
+            review: clearReview(l, actor, ts, `Review voided — reverted to requestor: ${why}`) }
+        : l
+    )));
+    logAudit("Liquidation Reverted to Requestor", d ? d.voucherNo : disbursementId,
+      `Reason: ${why} · ${prevStatus} → FOR SUBMISSION`);
+  }, [canRevert, isLiquidationFinalLocked, logAudit, disbursements, liquidations, userName, role]);
+
   /* ---- Receipt approval (per uploaded Official Receipt / Sales Invoice) ----
      Decided by the CHECKER (custodian level) once the requestor has submitted,
      while the amounts are locked. Each decision is stamped into the receipt's
@@ -1632,8 +1688,9 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     "reimbursements", reimbursements.map((r) => r.reimbNo));
 
   const updateReimbursement = useCallback((id, form, mode) => {
-    /* Same backend purpose check as addReimbursement, applied on resubmission. */
-    if (mode === "submit" && !isActiveReimbPurpose((form.purpose || "").trim())) {
+    /* Same backend purpose check as addReimbursement, applied on resubmission
+       and on a requestor's edit of an already-submitted reimbursement. */
+    if ((mode === "submit" || mode === "pre-approval") && !isActiveReimbPurpose((form.purpose || "").trim())) {
       window.alert((form.purpose || "").trim()
         ? "Invalid Purpose. Please select an approved expense category from the Purpose dropdown."
         : "Purpose is required. Please select an approved expense category.");
@@ -1657,11 +1714,35 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       moveReimbPlant(r0, base.branchCode);
       return;
     }
+    /* PCF Requestor edit before custodian approval (REIMB_REQUESTOR_EDIT_EMAILS):
+       details and attachments change, the status stays where it is. Refused
+       outright once the custodian has approved — checked again against the
+       latest record inside the state update, so an edit that was opened before
+       the approval can never overwrite an approved reimbursement. */
+    if (mode === "pre-approval") {
+      const r0 = reimbursements.find((x) => x.id === id);
+      if (!canEditReimbBeforeCustodian || !r0 || !inScope(r0.branchCode)) return;
+      const locked = "This reimbursement has already been approved by the custodian, so it can no longer be edited."
+        + " Nothing was changed.";
+      if (!reimbAwaitingCustodian(r0)) { window.alert(locked); return; }
+      setReimbursements((rs) => rs.map((r) => {
+        if (r.id !== id || !reimbAwaitingCustodian(r)) return r;
+        return {
+          ...r, ...base, status: r.status, review: r.review,
+          submittedBy: r.submittedBy, submittedAt: r.submittedAt,
+          history: [...(r.history || []), { ts, user: userName || role, action: "Edited by requestor (before custodian approval)", prevStatus: r.status, newStatus: r.status, comments: "" }],
+        };
+      }));
+      logAudit("Reimbursement Edited (before custodian approval)", r0.reimbNo,
+        `${form.employee} · ${peso(reimbTotal(base))} · ${(base.attachments || []).length} document(s) · status kept: ${r0.status}`);
+      moveReimbPlant(r0, base.branchCode);
+      return;
+    }
     setReimbursements((rs) => rs.map((r) => {
       if (r.id !== id) return r;
       const submit = mode === "submit";
       const status = submit ? REIMB_STATUS.SUBMITTED : (r.status === REIMB_STATUS.RETURNED ? REIMB_STATUS.DRAFT : r.status);
-      const action = submit ? (r.status === REIMB_STATUS.RETURNED ? "Resubmitted" : "Submitted") : "Edited (Draft)";
+      const action = submit ? (r.status === REIMB_STATUS.RETURNED || r.status === REIMB_STATUS.FOR_SUBMISSION ? "Resubmitted" : "Submitted") : "Edited (Draft)";
       return {
         ...r, ...base, status,
         submittedBy: submit ? (userName || role) : r.submittedBy,
@@ -1672,7 +1753,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     const r = reimbursements.find((x) => x.id === id);
     logAudit(mode === "submit" ? "Reimbursement Submitted" : "Reimbursement Edited", r ? r.reimbNo : id, `${form.employee} · ${peso(reimbTotal(base))}`);
     if (r) moveReimbPlant(r, base.branchCode);
-  }, [buildReimbFromForm, logAudit, reimbursements, userName, role, canEditReimbOverride, inScope]); // eslint-disable-line
+  }, [buildReimbFromForm, logAudit, reimbursements, userName, role, canEditReimbOverride, canEditReimbBeforeCustodian, inScope]); // eslint-disable-line
 
   /* Workflow transition. The two approval levels mirror the liquidation's
      (see 11-liquidation.jsx): a custodian-level checker (isLiquidationChecker)
@@ -1715,6 +1796,16 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
         }
         next = REIMB_STATUS.READY; label = "Final Approved → Ready for Replenishment";
         break;
+      case "revert":
+        /* REVERT_EMAILS: back to the requestor as FOR SUBMISSION, from custodian
+           review or from For Final Approval (before the final approval). */
+        if (!canRevert || !(atCheck || atFinal)) {
+          window.alert("Only a custodian can revert a reimbursement, and only while it is submitted and not yet final-approved.");
+          return;
+        }
+        if (!comments) { window.alert("Enter the reason for the revert in Comments first — the requestor sees it."); return; }
+        next = REIMB_STATUS.FOR_SUBMISSION; label = "Reverted to Requestor → For Submission";
+        break;
       case "return":
       case "reject":
         /* The custodian while it is under review, or the final approver at
@@ -1748,7 +1839,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       } else if (action === "final-approve") {
         patch.review = { ...cur, finalBy: actor, finalAt: ts, finalRemarks: comments };
         patch.approvedBy = actor; patch.approvedAt = ts;
-      } else if (action === "return" || action === "reject") {
+      } else if (action === "return" || action === "reject" || action === "revert") {
         /* Stamps are never silently lost: a cleared custodian approval moves
            into review.history, like clearReview does for a liquidation. */
         patch.review = {
@@ -1761,7 +1852,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       return { ...r, ...patch };
     }));
     logAudit("Reimbursement " + label, r0.reimbNo, comments);
-  }, [logAudit, reimbursements, userName, role, inScope, isLiquidationChecker, isFinalApprover, isAccountingChecker]);
+  }, [logAudit, reimbursements, userName, role, inScope, isLiquidationChecker, isFinalApprover, isAccountingChecker, canRevert]);
 
   const recordReimbursementPayment = useCallback((id, payment) => {
     const ts = reimbTs();
@@ -2242,6 +2333,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             reimbursements={scopedReimbursements}
             onReimbursementAction={reimbursementAction}
             canEditReimb={canEditReimbOverride}
+            canRevert={canRevert}
+            onRevertLiquidation={revertLiquidation}
             onUpdateReimbursement={updateReimbursement}
             allReimbursements={reimbursements}
             canFinance={["Accounting", "Finance", "SuperAdmin"].includes(role) || !!isAdmin}
@@ -2279,6 +2372,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             canFinance={["Accounting", "Finance", "SuperAdmin"].includes(role) || !!isAdmin}
             canDelete={canDeleteTxn}
             canEditOverride={canEditReimbOverride}
+            canEditBeforeCustodian={canEditReimbBeforeCustodian}
+            canRevert={canRevert}
             onSaveDraft={(form) => addReimbursement(form, false)}
             onSubmit={(form) => addReimbursement(form, true)}
             onUpdate={(id, form, mode) => updateReimbursement(id, form, mode)}
@@ -2310,6 +2405,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
         )}
         {activeModule === "approvals" && canUseApprovalModule && (
           <ApprovalModuleTab
+            canSelectExport={canApprovalExport}
             disbursements={visibleDisbursements} liquidations={visibleLiquidations}
             reimbursements={visibleReimbursements}
             replenishments={visibleReplenishments}
@@ -2321,6 +2417,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             accounting={accountingProps}
             onReimbursementAction={reimbursementAction}
             canEditReimb={canEditReimbOverride}
+            canRevert={canRevert}
+            onRevertLiquidation={revertLiquidation}
             onUpdateReimbursement={updateReimbursement}
             reimbPlantOptions={branchOptions.filter((p) => inScope(p.code))}
             onExportReimbursementAcumatica={exportReimbursementAcumatica}

@@ -562,6 +562,20 @@ function RejectLiquidationModal({ voucherNo, employee, onClose, onConfirm }) {
   );
 }
 
+/* Reason for a Revert to Requestor — required, because the requestor has to
+   know what to fix. Returns the trimmed reason, or null if cancelled/blank.
+   Shared by the worksheet and the Approval Module. */
+function askRevertReason(voucherNo) {
+  const answer = window.prompt(
+    `Revert ${voucherNo || "this liquidation"} to the requestor?\n\n`
+    + "It becomes FOR SUBMISSION: the requestor can edit the details and upload more attachments, then resubmit. "
+    + "Same voucher — nothing is renumbered.\n\nReason (required — the requestor sees this):", "");
+  if (answer == null) return null;
+  const why = answer.trim();
+  if (!why) { window.alert("A reason is required to revert."); return null; }
+  return why;
+}
+
 /* A new line starts with NO category: it is filled in from the Expense text
    (suggestExpenseCategories) or picked by hand, never pre-set to an arbitrary
    first entry that could slip through to the COA export unnoticed. */
@@ -704,6 +718,7 @@ function LiquidationWorksheet({
   onReviewOverLiquidation, canDelete, onDeleteLiquidation,
   canRejectLiquidation, onRejectLiquidation,
   onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser, onDirtyChange, accounting,
+  canRevert, onRevertLiquidation,
 }) {
   const [lines, setLines] = useState(liquidation ? liquidation.lines.map((l) => ({ ...l })) : [emptyLine()]);
   const [attachments, setAttachments] = useState(
@@ -1181,7 +1196,7 @@ function LiquidationWorksheet({
                 disabled={!canSubmit}
                 title={canSubmit ? "Submit the liquidation for custodian review" : `To submit: ${submitBlockers.join("; ")}`}
               >
-                <Check size={12} /> {isRejected ? "Resubmit Liquidation" : "Submit Liquidation"}
+                <Check size={12} /> {isRejected || liqIsReverted(liquidation) ? "Resubmit Liquidation" : "Submit Liquidation"}
               </button>
             ) : (
               <>
@@ -1203,6 +1218,15 @@ function LiquidationWorksheet({
                 {canApproveReceipts && !finalLocked && (
                   <button className="pcp-btn pcp-btn-sm" onClick={handleReopen} title="Reopen for editing (recorded in the audit trail)">
                     <Edit3 size={12} /> Reopen
+                  </button>
+                )}
+                {canRevert && onRevertLiquidation && isSubmitted && !finalLocked && (
+                  <button
+                    className="pcp-btn pcp-btn-sm"
+                    onClick={() => { const why = askRevertReason(disbursement.voucherNo); if (why) onRevertLiquidation(disbursement.id, why); }}
+                    title="Send back to the requestor as FOR SUBMISSION — they correct / add attachments and resubmit"
+                  >
+                    <ArrowLeftRight size={12} /> Revert to Requestor
                   </button>
                 )}
                 {canRejectLiquidation && liquidation && !finalLocked && (canApproveReceipts || canFinalNow) && (
@@ -1260,6 +1284,34 @@ function LiquidationWorksheet({
         />
       )}
 
+      {/* Revert history — each Revert to Requestor, newest first. While it is
+          FOR SUBMISSION the latest reason is what the requestor must fix. */}
+      {liqReverts(liquidation).length > 0 && (
+        <div className="pcp-card pcp-card-pad" style={{ marginBottom: 12, borderColor: liqIsReverted(liquidation) ? "var(--amber)" : "var(--line)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+            <ArrowLeftRight size={15} color="var(--amber)" />
+            <div className="pcp-section-title" style={{ margin: 0 }}>Reverted to Requestor</div>
+            <span style={{ fontSize: 11, color: "var(--text-mut)" }}>({liqReverts(liquidation).length})</span>
+          </div>
+          {liqIsReverted(liquidation) && (
+            <div style={{ fontSize: 12, color: "var(--brand-dark)", marginBottom: 10 }}>
+              FOR SUBMISSION — the custodian sent this back. Edit the details or upload the missing attachments, then click Resubmit Liquidation.
+            </div>
+          )}
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {liqReverts(liquidation).slice().reverse().map((r, i, all) => (
+              <div key={r.id || i} style={{ border: "1px solid var(--line)", borderRadius: 8, padding: "9px 11px" }}>
+                <div style={{ fontSize: 12.5, fontWeight: 700 }}>Revert #{all.length - i}</div>
+                <div style={{ fontSize: 12, marginTop: 4 }}><strong>Reason:</strong> {r.reason}</div>
+                <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 4 }}>
+                  Reverted by {r.revertedBy} · {(r.revertedAt || "").replace("T", " ")}
+                  {r.prevStatus ? ` · ${r.prevStatus} → FOR SUBMISSION` : ""}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       {/* Rejection history — every rejection kept as its own record and never
           overwritten. The most recent appears first. */}
       {rejections.length > 0 && (
@@ -2053,6 +2105,7 @@ function LiquidationTab({
   onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser,
   reimbursements, onReimbursementAction, canFinance, accounting,
   canEditReimb, onUpdateReimbursement, allReimbursements,
+  canRevert, onRevertLiquidation,
   openRequest, onOpenHandled,
 }) {
   const [acctFilter, setAcctFilter] = useState(accounting && accounting.isChecker ? "For Accounting Check" : "All");
@@ -2421,6 +2474,8 @@ function LiquidationTab({
                 onCheckLiquidation={onCheckLiquidation}
                 canFinalApprove={canFinalApprove}
                 onFinalApprove={onFinalApprove}
+                canRevert={canRevert}
+                onRevertLiquidation={onRevertLiquidation}
                 currentUser={currentUser}
                 accounting={accounting}
                 onDirtyChange={(d) => { worksheetDirty.current = d; }}
@@ -2438,6 +2493,7 @@ function LiquidationTab({
           isFinalApprover={canFinalApprove}
           canFinance={canFinance}
           accounting={accounting}
+          canRevert={canRevert}
           onAction={(id, action, opts) => { onReimbursementAction(id, action, opts); setSelectedReimbId(null); }}
           onEdit={editReimb}
           onClose={() => setSelectedReimbId(null)}

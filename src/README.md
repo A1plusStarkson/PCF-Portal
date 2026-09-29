@@ -15,9 +15,13 @@ once, and runs the result as one ES module.
 
 1. `index.html` lists every fragment in **`window.PCP_SRC_FILES`** (in order).
 2. The inline loader `fetch()`es each file, joins them with the order preserved,
-   and calls `Babel.transform(...)` on the combined code.
+   and fingerprints the combined text. If this browser already saved a build of
+   that exact text (Cache Storage, `pcp-compiled`), it runs that; otherwise it
+   downloads Babel, calls `Babel.transform(...)`, and saves the result. Any edit
+   to any file changes the fingerprint, so a stale build never runs.
 3. The transpiled code is run via a Blob + dynamic `import()`, so the importmap
-   (react, react-dom, recharts, xlsx, lucide-react) still resolves.
+   (react, react-dom, recharts, xlsx, lucide-react) still resolves. `xlsx` is
+   imported in the background (see `01-imports.jsx`), not at startup.
 
 **Order matters.** Later files depend on things defined in earlier files. Do not
 reorder `PCP_SRC_FILES`. If you add a new file, insert it in the right place.

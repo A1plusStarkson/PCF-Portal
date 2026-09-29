@@ -68,6 +68,44 @@ function ModalResizeGrip() {
   );
 }
 
+/* ---- Movable pop-ups ----
+   Every pop-up (.pcp-modal) can be dragged by its title bar (.pcp-modal-head),
+   for every user. One document-level listener instead of a hook in each of
+   the ~20 modals: it moves the box with a CSS translate, which React never
+   touches (the modals only set width/height inline), so the position holds
+   while the pop-up stays open and a newly opened pop-up starts centred again.
+   Buttons and fields in the title bar keep working. The box is kept on screen:
+   its title bar can never be dragged above the top edge or fully off a side. */
+(function installModalDrag() {
+  if (typeof document === "undefined" || window.__pcpModalDrag) return;
+  window.__pcpModalDrag = true;
+  document.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || !e.target.closest) return;
+    const head = e.target.closest(".pcp-modal-head");
+    if (!head || e.target.closest("button, a, input, select, textarea, label, [role='button'], .pcp-ss-wrap")) return;
+    const modal = head.closest(".pcp-modal");
+    if (!modal) return;
+    const m = /translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec(modal.style.transform || "");
+    const ox = m ? Number(m[1]) : 0, oy = m ? Number(m[2]) : 0;
+    const r = modal.getBoundingClientRect();
+    const baseL = r.left - ox, baseT = r.top - oy;
+    const sx = e.clientX, sy = e.clientY;
+    const move = (ev) => {
+      const x = Math.min(window.innerWidth - 80 - baseL, Math.max(80 - r.width - baseL, ox + ev.clientX - sx));
+      const y = Math.min(window.innerHeight - 40 - baseT, Math.max(-baseT, oy + ev.clientY - sy));
+      modal.style.transform = `translate(${x}px, ${y}px)`;
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      document.body.style.userSelect = "";
+    };
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  });
+})();
+
 const uid = (prefix) => prefix + "-" + Math.random().toString(36).slice(2, 9).toUpperCase();
 
 /* ---- Matching a person by name ----
@@ -916,6 +954,8 @@ function liqFinalStatus(disb, liq) {
   /* A standing rejection takes precedence until the requestor corrects and
      resubmits (which flips submissionStatus back to Submitted). */
   if ((liq.submissionStatus || "Draft") === "Rejected") return "REJECTED";
+  /* Reverted to the requestor: waiting on them until they resubmit. */
+  if (liq.submissionStatus === LIQ_FOR_SUBMISSION) return "FOR SUBMISSION";
   const approval = receiptApprovalSummary(liq);
   const st = settlementStateFor(disb, liq);
   const rv = liqReview(liq);
@@ -1073,7 +1113,7 @@ function liqApprovalStage(disb, liq, replenishedIds) {
   const rv = liqReview(liq);
   if (rv.legacy) return LIQ_STAGE.LEGACY;
   if (rv.final) return (replenishedIds && replenishedIds.has(liq.id)) ? LIQ_STAGE.REPLENISHED : LIQ_STAGE.READY;
-  if (sub === "Draft") return LIQ_STAGE.DRAFT;
+  if (sub === "Draft" || sub === LIQ_FOR_SUBMISSION) return LIQ_STAGE.DRAFT;
   if (receiptApprovalSummary(liq).anyRejected) return LIQ_STAGE.NEEDS_CORRECTION;
   if (!rv.checked) return LIQ_STAGE.FOR_CHECK;
   /* Straight after the custodian: Accounting may check it while the cash is
@@ -1123,8 +1163,18 @@ function liqIsComplete(finalStatus) {
    rejection so the requestor can correct it and resubmit. */
 function liqIsDraft(liq) {
   const s = (liq && liq.submissionStatus) || "Draft";
-  return !liq || s === "Draft" || s === "Rejected";
+  return !liq || s === "Draft" || s === "Rejected" || s === LIQ_FOR_SUBMISSION;
 }
+
+/* ---- Revert to Requestor ----
+   A custodian (REVERT_EMAILS in 19-app.jsx) sends a submitted liquidation back
+   with a reason — missing attachments, wrong details. It becomes FOR
+   SUBMISSION: editable by the requestor exactly like a draft, then resubmitted
+   through the normal Submit. Same record, same voucher number; each revert is
+   kept in liq.reverts. */
+const LIQ_FOR_SUBMISSION = "For Submission";
+const liqIsReverted = (liq) => ((liq && liq.submissionStatus) || "Draft") === LIQ_FOR_SUBMISSION;
+const liqReverts = (liq) => (liq && Array.isArray(liq.reverts) ? liq.reverts : []);
 
 /* ---- Duplicate supporting-document detection ----
    Checks the candidate against the documents on this liquidation and on every
