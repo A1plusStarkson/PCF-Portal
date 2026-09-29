@@ -68,6 +68,44 @@ function ModalResizeGrip() {
   );
 }
 
+/* ---- Movable pop-ups ----
+   Every pop-up (.pcp-modal) can be dragged by its title bar (.pcp-modal-head),
+   for every user. One document-level listener instead of a hook in each of
+   the ~20 modals: it moves the box with a CSS translate, which React never
+   touches (the modals only set width/height inline), so the position holds
+   while the pop-up stays open and a newly opened pop-up starts centred again.
+   Buttons and fields in the title bar keep working. The box is kept on screen:
+   its title bar can never be dragged above the top edge or fully off a side. */
+(function installModalDrag() {
+  if (typeof document === "undefined" || window.__pcpModalDrag) return;
+  window.__pcpModalDrag = true;
+  document.addEventListener("pointerdown", (e) => {
+    if (e.button !== 0 || !e.target.closest) return;
+    const head = e.target.closest(".pcp-modal-head");
+    if (!head || e.target.closest("button, a, input, select, textarea, label, [role='button'], .pcp-ss-wrap")) return;
+    const modal = head.closest(".pcp-modal");
+    if (!modal) return;
+    const m = /translate\((-?[\d.]+)px,\s*(-?[\d.]+)px\)/.exec(modal.style.transform || "");
+    const ox = m ? Number(m[1]) : 0, oy = m ? Number(m[2]) : 0;
+    const r = modal.getBoundingClientRect();
+    const baseL = r.left - ox, baseT = r.top - oy;
+    const sx = e.clientX, sy = e.clientY;
+    const move = (ev) => {
+      const x = Math.min(window.innerWidth - 80 - baseL, Math.max(80 - r.width - baseL, ox + ev.clientX - sx));
+      const y = Math.min(window.innerHeight - 40 - baseT, Math.max(-baseT, oy + ev.clientY - sy));
+      modal.style.transform = `translate(${x}px, ${y}px)`;
+    };
+    const up = () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      document.body.style.userSelect = "";
+    };
+    document.body.style.userSelect = "none";
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+  });
+})();
+
 const uid = (prefix) => prefix + "-" + Math.random().toString(36).slice(2, 9).toUpperCase();
 
 /* ---- Matching a person by name ----

@@ -224,7 +224,11 @@ const CSS = `
   .pcp-modal-head {
     padding: 18px 22px; border-bottom: 1px solid var(--line); display: flex;
     align-items: center; justify-content: space-between;
+    /* Drag handle for moving the pop-up (installModalDrag in 02-helpers). */
+    cursor: move; touch-action: none;
   }
+  .pcp-modal-head :is(button, a, input, select, textarea) { cursor: pointer; }
+  .pcp-modal-head :is(input, textarea) { cursor: text; }
   .pcp-modal-head h3 { margin: 0; font-size: 15px; font-weight: 700; }
   .pcp-modal-body { padding: 20px 22px; max-height: 65vh; overflow-y: auto; }
   .pcp-modal-foot { padding: 14px 22px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
@@ -753,8 +757,15 @@ const CSS = `
      still matches the printed report. */
   .pcp-root, .pcp-root *:not(.pcp-doc):not(.pcp-doc *),
   .pcp-root input::placeholder, .pcp-root textarea::placeholder { font-weight: 700 !important; }
-  .pcp-root :is(h1, h2, h3, h4):not(.pcp-doc *) { font-weight: 800 !important; }
+  .pcp-root :is(h1, h2, h3, h4):not(.pcp-doc):not(.pcp-doc *) { font-weight: 800 !important; }
   .pcp-root .pcp-doc { font-weight: 400; }
+  /* Approval Module (Grace Gan's decision screen): larger, higher-contrast
+     text. The whole page body is scaled 10% (most sizes here are fixed px, so
+     a base font-size alone would not reach them), and the grey secondary text
+     is darkened. Pop-ups sit outside .pcp-content, so they are not scaled and
+     still fit the window. Dark mode's lighter grey is set further down. */
+  .pcp-approval-page { --text-mut: #3a4a41; }
+  .pcp-approval-page > .pcp-content { zoom: 1.1; }
 
   /* ---- Print (management report) ---- */
   @media print {
@@ -813,6 +824,7 @@ const CSS = `
       --dm-alarm-read: #17221c;
       --dm-alarm-due1: #3b2617; --dm-alarm-due0: #3f2415; --dm-alarm-overdue: #3a1f1d;
     }
+    [data-theme="dark"] .pcp-approval-page { --text-mut: #c6d6cc; }
     [data-theme="dark"] .pcp-nav-item.active { background: var(--mint-bg); color: #e3f4ea; }
 
     /* Surfaces that were a fixed pale tint. (The plain-white ones — buttons,

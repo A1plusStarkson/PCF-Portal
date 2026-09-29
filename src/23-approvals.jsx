@@ -544,7 +544,7 @@ function ApprovalModuleTab({
   const openLiq = openLiqId ? pcaAll.find((r) => r.disb.id === openLiqId) : null;
   if (openLiq) {
     return (
-      <div className="pcp-liq-full">
+      <div className="pcp-liq-full pcp-approval-page">
         <TopBar title="Approval Module" sub={`Liquidation ${openLiq.disb.voucherNo} · ${openLiq.disb.employee}`} />
         <div className="pcp-content">
           <button className="pcp-btn pcp-btn-sm" style={{ marginBottom: 12 }} onClick={() => setOpenLiqId(null)}>
@@ -571,7 +571,7 @@ function ApprovalModuleTab({
   const statusOptions = [APPROVAL_ALL_PENDING].concat(pendingStages);
 
   return (
-    <div className="pcp-liq-full">
+    <div className="pcp-liq-full pcp-approval-page">
       <TopBar
         title="Approval Module"
         sub="Everything awaiting your decision, across all plants. Click a transaction to open it."
