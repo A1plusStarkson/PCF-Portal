@@ -20,6 +20,10 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   const [disburseTarget, setDisburseTarget] = useState(null);
   const [showEditBalances, setShowEditBalances] = useState(false);
   const [showChangePw, setShowChangePw] = useState(false);
+  const [showMfaDevices, setShowMfaDevices] = useState(false);
+  /* Only the two-step sign-in accounts have authenticator devices to manage. */
+  const hasMfa = !!(window.PCP_AUTH && window.PCP_AUTH.enabled && window.PCP_AUTH.mfa) && (window.PCP_MFA_EMAILS || [])
+    .map((s) => String(s).toLowerCase()).includes(String(userEmail || "").toLowerCase());
   /* True when the concurrency-safe per-record store (pcp_records) is missing in
      the cloud database. Surfaces a banner so an admin runs the setup SQL. */
   const [recordsUnavailable, setRecordsUnavailable] = useState(false);
@@ -2204,7 +2208,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     <AppUI.Provider value={uiValue}>
     <div className="pcp-root">
       <style>{CSS}</style>
-      <Sidebar tab={tab} setTab={setTab} role={role} navGroups={navGroups} userEmail={userEmail} userName={userName} onSignOut={handleSignOut} onChangePassword={() => setShowChangePw(true)} />
+      <Sidebar tab={tab} setTab={setTab} role={role} navGroups={navGroups} userEmail={userEmail} userName={userName} onSignOut={handleSignOut} onChangePassword={() => setShowChangePw(true)} onManageMfa={hasMfa ? () => setShowMfaDevices(true) : undefined} />
       <div className="pcp-main">
         {/* Shown to EVERYONE, not just admins: this one says the screen below
             is incomplete, and a custodian looking at a short list needs that
@@ -2489,6 +2493,9 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       )}
       {showChangePw && (
         <ChangePasswordModal onClose={() => setShowChangePw(false)} onDone={(msg) => logAudit("Password Changed", userEmail || "—", msg || "Password updated")} />
+      )}
+      {showMfaDevices && (
+        <MfaDevicesModal onClose={() => setShowMfaDevices(false)} onDone={(msg) => logAudit("Authenticator Changed", userEmail || "—", msg)} />
       )}
     </div>
     </AppUI.Provider>

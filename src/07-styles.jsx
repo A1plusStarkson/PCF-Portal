@@ -979,7 +979,7 @@ function ThemeToggle() {
   );
 }
 
-function Sidebar({ tab, setTab, role, navGroups, userEmail, userName, onSignOut, onChangePassword }) {
+function Sidebar({ tab, setTab, role, navGroups, userEmail, userName, onSignOut, onChangePassword, onManageMfa }) {
   const groups = navGroups || [];
   return (
     <aside className="pcp-sidebar">
@@ -1028,6 +1028,11 @@ function Sidebar({ tab, setTab, role, navGroups, userEmail, userName, onSignOut,
         {onChangePassword && (
           <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" style={{ color: "#d9e8df", width: "100%", justifyContent: "flex-start", marginTop: 2 }} onClick={onChangePassword} title="Change your password">
             <KeyRound size={13} /> Change Password
+          </button>
+        )}
+        {onManageMfa && (
+          <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" style={{ color: "#d9e8df", width: "100%", justifyContent: "flex-start", marginTop: 2 }} onClick={onManageMfa} title="Add or remove authenticator devices">
+            <ShieldCheck size={13} /> Authenticator Devices
           </button>
         )}
         <ThemeToggle />

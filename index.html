@@ -435,15 +435,32 @@
         },
         // Starts a new authenticator. Clears any half-finished one first, or
         // Supabase refuses a second factor with the same name.
-        enroll: function () {
+        // friendlyName must be unique per account; a second device passes its
+        // own name. Adding a device needs a session that already passed a code.
+        enroll: function (friendlyName) {
           return sbReady.then(function (c) {
             if (!c) return { error: { message: "Cloud database not configured." } };
             return c.auth.mfa.listFactors().then(function (r) {
               var stale = ((r.data && r.data.all) || []).filter(function (f) { return f.status === "unverified"; });
               return Promise.all(stale.map(function (f) { return c.auth.mfa.unenroll({ factorId: f.id }); }));
             }).then(function () {
-              return c.auth.mfa.enroll({ factorType: "totp", friendlyName: "PCF Portal" });
+              return c.auth.mfa.enroll({ factorType: "totp", friendlyName: friendlyName || "PCF Portal" });
             });
+          });
+        },
+        // The account's set-up authenticator devices: [{ id, friendly_name, created_at }].
+        list: function () {
+          return sbReady.then(function (c) {
+            if (!c) return [];
+            return c.auth.mfa.listFactors().then(function (r) {
+              return ((r.data && r.data.totp) || []).filter(function (f) { return f.status === "verified"; });
+            });
+          });
+        },
+        remove: function (factorId) {
+          return sbReady.then(function (c) {
+            if (!c) return { error: { message: "Cloud database not configured." } };
+            return c.auth.mfa.unenroll({ factorId: factorId });
           });
         },
         // Checks a 6-digit code. On success the session is upgraded to aal2
@@ -981,7 +998,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20260929n";
+  window.PCP_SRC_VERSION = "20260929o";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",
