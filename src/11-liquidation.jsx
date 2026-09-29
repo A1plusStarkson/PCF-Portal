@@ -1850,7 +1850,7 @@ function LiquidationWorksheet({
 
                 {/* Inline preview — the receipt is visible directly on the page,
                     no "View" click needed (mirrors the reimbursement module). */}
-                <div style={{ marginTop: 8, border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden", background: "#f4f6f9" }}>
+                <div style={{ marginTop: 8, border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden", background: "var(--dm-subtle, #f4f6f9)" }}>
                   <AttachmentPreview att={a} isImage={isImage} isPdf={isPdf} />
                 </div>
 

@@ -210,9 +210,9 @@ function DataIntegrityPanel({ requests, disbursements, liquidations, replenishme
 
       <div style={{
         padding: "10px 12px", borderRadius: 8, marginBottom: 14, fontSize: 12.5,
-        background: report.healthy ? "#effaf1" : "#fef3f2",
-        border: "1px solid " + (report.healthy ? "#b7e4c7" : "#f5c2c0"),
-        color: report.healthy ? "#127a3e" : "#b42318",
+        background: report.healthy ? "var(--dm-ok-bg, #effaf1)" : "var(--dm-bad-bg, #fef3f2)",
+        border: "1px solid " + (report.healthy ? "var(--dm-ok-line, #b7e4c7)" : "var(--dm-bad-line, #f5c2c0)"),
+        color: report.healthy ? "var(--dm-ok-text, #127a3e)" : "var(--dm-bad-text, #b42318)",
       }}>
         {report.healthy ? "No integrity problems detected — all relationships intact, no orphans or duplicates." : "Integrity issues detected — review the flags below."}
         {!report.healthy && (

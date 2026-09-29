@@ -1229,3 +1229,19 @@ function downloadWorkbook(wb, filename) {
   URL.revokeObjectURL(url);
 }
 
+
+/* Number of records this tab could NOT save because the session expired
+   (the storage adapter in index.html parks them and fires pcp-save-blocked).
+   0 when saving normally. They save by themselves once the user signs in. */
+function useBlockedSaves() {
+  const read = () => (window.PCP_SAVE_BLOCKED && window.storage && window.storage.unsavedCount)
+    ? window.storage.unsavedCount() : 0;
+  const [count, setCount] = useState(read);
+  useEffect(() => {
+    const on = () => setCount(read());
+    window.addEventListener("pcp-save-blocked", on);
+    on();
+    return () => window.removeEventListener("pcp-save-blocked", on);
+  }, []);
+  return count;
+}

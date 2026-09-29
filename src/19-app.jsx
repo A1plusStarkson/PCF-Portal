@@ -23,6 +23,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   /* True when the concurrency-safe per-record store (pcp_records) is missing in
      the cloud database. Surfaces a banner so an admin runs the setup SQL. */
   const [recordsUnavailable, setRecordsUnavailable] = useState(false);
+  const blockedSaves = useBlockedSaves();
   /* True when the load from pcp_records did not complete. Distinct from
      recordsUnavailable, which only means the table is missing. A read can fail
      for reasons the old code could not tell apart from success — a timeout on
@@ -2129,6 +2130,12 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
           <div style={{ background: "#7a4a00", color: "#fff", padding: "8px 16px", fontSize: 12.5, lineHeight: 1.5 }}>
             <b>Receipt images did not finish loading.</b> Every transaction below is complete and correct —
             only the scanned attachments are missing. Reload the page to try fetching them again.
+          </div>
+        )}
+        {blockedSaves > 0 && (
+          <div style={{ background: "#8a1020", color: "#fff", padding: "8px 16px", fontSize: 12.5, lineHeight: 1.5 }}>
+            <b>Your session has expired — {blockedSaves} change{blockedSaves === 1 ? " has" : "s have"} NOT been saved.</b> Sign
+            out and sign in again to save {blockedSaves === 1 ? "it" : "them"}. Do not close this tab until you have.
           </div>
         )}
         {recordsUnavailable && isAdmin && (
