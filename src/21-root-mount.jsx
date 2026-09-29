@@ -20,6 +20,25 @@ function Root() {
 
   const cloudSignOut = useCallback(() => { window.PCP_AUTH.signOut(); }, []);
 
+  /* Two-step sign-in for the accounts in window.PCP_MFA_EMAILS. Keyed on the
+     user id, not the user object: the hourly token refresh hands back a new
+     object, and re-checking on that would unmount the open portal. mfaCheck
+     bumps once a code is accepted. */
+  const userId = user ? user.id : null;
+  const needsMfa = !!user && (window.PCP_MFA_EMAILS || [])
+    .map((s) => String(s).toLowerCase())
+    .includes(String(user.email || "").toLowerCase());
+  const [mfa, setMfa] = useState(null); // { step, factorId, uid }
+  const [mfaCheck, setMfaCheck] = useState(0);
+  useEffect(() => {
+    if (!needsMfa) return;
+    let active = true;
+    window.PCP_AUTH.mfa.status()
+      .then((s) => { if (active) setMfa({ ...s, uid: userId }); })
+      .catch(() => { if (active) setMfa({ step: "error", uid: userId }); });
+    return () => { active = false; };
+  }, [userId, needsMfa, mfaCheck]);
+
   const doLocalLogin = useCallback((username, password) => {
     const s = localSignIn(username, password);
     if (!s) return { error: { message: "Invalid username or password." } };
@@ -44,6 +63,21 @@ function Root() {
       );
     }
     if (!user) return <LoginScreen mode="cloud" />;
+    if (needsMfa && (!mfa || mfa.uid !== userId || mfa.step !== "ok")) {
+      if (mfa && mfa.uid === userId && (mfa.step === "enroll" || mfa.step === "challenge")) {
+        return <MfaScreen key={mfa.step} step={mfa.step} factorId={mfa.factorId} email={user.email} onDone={() => setMfaCheck((n) => n + 1)} onSignOut={cloudSignOut} />;
+      }
+      return (
+        <div className="pcp-root" style={{ alignItems: "center", justifyContent: "center" }}>
+          <style>{CSS}</style>
+          <div style={{ color: "var(--text-mut)", fontSize: 13 }}>
+            {mfa && mfa.uid === userId && mfa.step === "error"
+              ? <>Could not check two-step sign-in. <a href="#" onClick={(e) => { e.preventDefault(); setMfaCheck((n) => n + 1); }}>Try again</a></>
+              : "Checking sign-in…"}
+          </div>
+        </div>
+      );
+    }
     const access = resolveUserAccess(user.email);
     return <App userEmail={user.email} userName={access.name} onSignOut={cloudSignOut} userRole={access.role} isAdmin={access.isAdmin} userPlants={access.plants} userExcludePlants={access.excludePlants} />;
   }

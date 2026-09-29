@@ -73,6 +73,26 @@ function PesoVisual() {
   );
 }
 
+/* Left-hand brand panel shared by the sign-in and two-step screens. */
+function LoginBrandPanel() {
+  return (
+    <aside className="pcp-login-brand">
+      <div className="pcp-login-brand-top">
+        <div className="pcp-login-logo-tile"><img src={LOGO_PORTAL} alt="Petty Cash Portal logo" /></div>
+        <div>
+          <div className="pcp-login-brand-name">Petty Cash Portal</div>
+          <div className="pcp-login-brand-sub">Imprest Fund Management System</div>
+        </div>
+      </div>
+      <div className="pcp-login-brand-mid">
+        <h1 className="pcp-login-hero">Manage petty cash with confidence.</h1>
+        <p className="pcp-login-lead">Request, release, liquidate and replenish — with every approval and receipt on record.</p>
+        <PesoVisual />
+      </div>
+    </aside>
+  );
+}
+
 function LoginScreen({ mode, onLocalLogin }) {
   const cloud = mode === "cloud";
   const [identifier, setIdentifier] = useState("");
@@ -136,21 +156,7 @@ function LoginScreen({ mode, onLocalLogin }) {
     <div className="pcp-root">
       <style>{CSS}</style>
       <div className="pcp-login-split">
-        {/* Brand panel */}
-        <aside className="pcp-login-brand">
-          <div className="pcp-login-brand-top">
-            <div className="pcp-login-logo-tile"><img src={LOGO_PORTAL} alt="Petty Cash Portal logo" /></div>
-            <div>
-              <div className="pcp-login-brand-name">Petty Cash Portal</div>
-              <div className="pcp-login-brand-sub">Imprest Fund Management System</div>
-            </div>
-          </div>
-          <div className="pcp-login-brand-mid">
-            <h1 className="pcp-login-hero">Manage petty cash with confidence.</h1>
-            <p className="pcp-login-lead">Request, release, liquidate and replenish — with every approval and receipt on record.</p>
-            <PesoVisual />
-          </div>
-        </aside>
+        <LoginBrandPanel />
 
         {/* Sign-in form */}
         <main className="pcp-login-pane">
@@ -232,6 +238,118 @@ function LoginScreen({ mode, onLocalLogin }) {
           </div>
           <BrandLogos />
           <div className="pcp-login-copy">© {new Date().getFullYear()} A1+ Multinational Packaging, Inc · Starkson Packaging, Inc.</div>
+        </main>
+      </div>
+    </div>
+  );
+}
+
+/* Two-step sign-in for the accounts in window.PCP_MFA_EMAILS, shown after the
+   password is accepted. step="enroll" sets up an authenticator app from a QR
+   code (first sign-in only); step="challenge" asks for its current 6-digit
+   code. onDone re-checks the session once the code is accepted. */
+function MfaScreen({ step, factorId, email, onDone, onSignOut }) {
+  const enrolling = step === "enroll";
+  const [setup, setSetup] = useState(null); // { id, qr, secret } while enrolling
+  const [code, setCode] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    if (!enrolling) return;
+    let active = true;
+    window.PCP_AUTH.mfa.enroll().then((res) => {
+      if (!active) return;
+      if (res.error || !res.data) { setError((res.error && res.error.message) || "Could not start the authenticator setup."); return; }
+      setSetup({ id: res.data.id, qr: res.data.totp.qr_code, secret: res.data.totp.secret });
+    }).catch(() => { if (active) setError("Could not start the authenticator setup. Check your connection."); });
+    return () => { active = false; };
+  }, [enrolling]);
+
+  const submit = async (e) => {
+    e.preventDefault();
+    if (busy) return;
+    const c = code.replace(/\s+/g, "");
+    if (!/^\d{6}$/.test(c)) { setError("Enter the 6-digit code shown in your authenticator app."); return; }
+    const id = enrolling ? (setup && setup.id) : factorId;
+    if (!id) return;
+    setBusy(true); setError("");
+    try {
+      const res = await window.PCP_AUTH.mfa.verify(id, c);
+      if (res && res.error) { setError(/invalid|expired/i.test(res.error.message || "") ? "That code is incorrect or has expired. Enter the newest code from the app." : res.error.message); setCode(""); }
+      else onDone();
+    } catch (err) {
+      setError("Could not check the code. Check your connection and try again.");
+    } finally { setBusy(false); }
+  };
+
+  return (
+    <div className="pcp-root">
+      <style>{CSS}</style>
+      <div className="pcp-login-split">
+        <LoginBrandPanel />
+        <main className="pcp-login-pane">
+          <div className="pcp-login-card">
+            <div className="pcp-login-card-head">
+              <img className="pcp-login-card-logo" src={LOGO_PORTAL} alt="" aria-hidden="true" />
+              <h2 className="pcp-login-title">{enrolling ? "Set up two-step sign-in" : "Enter your 6-digit code"}</h2>
+              <div className="pcp-login-sub">
+                {enrolling
+                  ? "Your account has administrator access, so it needs an authenticator app as well as your password."
+                  : "Open your authenticator app and enter the code for PCF Portal."}
+              </div>
+            </div>
+            <form className="pcp-login-body" onSubmit={submit} noValidate aria-busy={busy}>
+              {error && (
+                <div className="pcp-login-err pcp-login-alert" role="alert">
+                  <AlertTriangle size={16} />
+                  <div>{error}</div>
+                </div>
+              )}
+              {enrolling && (
+                <div style={{ fontSize: 12.5, lineHeight: 1.6, color: "var(--text-mut)", marginBottom: 14 }}>
+                  <div>1. Install <b>Google Authenticator</b> or <b>Microsoft Authenticator</b> on your phone.</div>
+                  <div>2. In the app, add an account and scan this QR code.</div>
+                  <div style={{ display: "flex", justifyContent: "center", margin: "12px 0" }}>
+                    {setup
+                      ? <img src={setup.qr} alt="Authenticator QR code" width={180} height={180} style={{ background: "#fff", padding: 8, borderRadius: 10 }} />
+                      : <span className="pcp-spinner" aria-label="Loading QR code" />}
+                  </div>
+                  {setup && <div>Can't scan? Enter this key instead: <code style={{ wordBreak: "break-all" }}>{setup.secret}</code></div>}
+                  <div style={{ marginTop: 6 }}>3. Enter the 6-digit code the app shows.</div>
+                </div>
+              )}
+              <div className="pcp-field">
+                <label htmlFor="pcp-mfa-code">6-digit code</label>
+                <div className="pcp-login-input">
+                  <ShieldCheck size={17} />
+                  <input
+                    id="pcp-mfa-code"
+                    className="pcp-input"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    autoFocus
+                    maxLength={7}
+                    placeholder="123456"
+                    value={code}
+                    disabled={busy || (enrolling && !setup)}
+                    onChange={(e) => setCode(e.target.value.replace(/[^\d ]/g, ""))}
+                  />
+                </div>
+              </div>
+              <button type="submit" className="pcp-btn pcp-btn-primary pcp-login-submit" disabled={busy || (enrolling && !setup)}>
+                {busy ? <><span className="pcp-spinner" aria-hidden="true" /> Checking…</> : "Verify"}
+              </button>
+              <div className="pcp-login-help">
+                <KeyRound size={13} />
+                <span>
+                  Signed in as {email}. Lost your phone? Ask your administrator to remove the authenticator in Supabase, then set it up again.{" "}
+                  <a href="#" onClick={(e) => { e.preventDefault(); onSignOut(); }}>Sign out</a>
+                </span>
+              </div>
+            </form>
+          </div>
+          <BrandLogos />
         </main>
       </div>
     </div>
