@@ -64,6 +64,14 @@ const REIMB_STATUS = {
    mid-way through the old flow; the custodian picks them up like a new one. */
 const REIMB_CUSTODIAN_REVIEW_STATUSES = [REIMB_STATUS.SUBMITTED, REIMB_STATUS.FOR_REVIEW, REIMB_STATUS.FOR_APPROVAL];
 
+/* Submitted and still waiting for the custodian — no custodian approval
+   stamped yet. The window in which a PCF Requestor may still edit a submitted
+   reimbursement (REIMB_REQUESTOR_EDIT_EMAILS in 19-app.jsx). Declared as a
+   function so it is hoisted: reimbReview() is defined further down. */
+function reimbAwaitingCustodian(r) {
+  return !!r && REIMB_CUSTODIAN_REVIEW_STATUSES.includes(r.status) && !reimbReview(r).checked;
+}
+
 const REIMB_OPEN_STATUSES = [
   REIMB_STATUS.SUBMITTED, REIMB_STATUS.FOR_REVIEW, REIMB_STATUS.FOR_APPROVAL, REIMB_STATUS.FOR_FINAL,
   REIMB_STATUS.APPROVED, REIMB_STATUS.FOR_LIQUIDATION, REIMB_STATUS.UNDER_REVIEW,
@@ -779,7 +787,10 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
               content in place — status and approvals are kept. */}
           {onSaveOverride ? (
             <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span style={{ fontSize: 11, color: "var(--text-mut)" }}>Checking / verification edit · status stays <strong>{reimb.status}</strong></span>
+              <span style={{ fontSize: 11, color: "var(--text-mut)" }}>
+                {reimbAwaitingCustodian(reimb) ? "Editable until the custodian approves" : "Checking / verification edit"}
+                {" "}· status stays <strong>{reimb.status}</strong>
+              </span>
               <button className="pcp-btn pcp-btn-primary" onClick={() => onSaveOverride(payload())}><Check size={13} /> Save Changes</button>
             </div>
           ) : (
@@ -1133,11 +1144,16 @@ const REIMB_SORT_FIELDS = {
 function ReimbursementTab({
   reimbursements, allReimbursements, onSaveDraft, onSubmit, onUpdate, onAction, onRecordPayment,
   onExportAcumatica, onExportReport, onDelete, plantOptions, plantTitle, currentUser,
-  isChecker, isFinalApprover, canFinance, canDelete, canEditOverride, accounting,
+  isChecker, isFinalApprover, canFinance, canDelete, canEditOverride, canEditBeforeCustodian, accounting,
 }) {
   /* Draft / Returned are editable by anyone in scope; any other stage only
-     through the checking / verification override (Save Changes keeps the status). */
+     through the checking / verification override (Save Changes keeps the status).
+     PCF Requestors (canEditBeforeCustodian) may also edit — details and
+     attachments — while a submitted reimbursement still awaits the custodian;
+     once the custodian approves, their Edit disappears. */
   const isDraftLike = (r) => r.status === REIMB_STATUS.DRAFT || r.status === REIMB_STATUS.RETURNED;
+  const preApprovalEdit = (r) => !!canEditBeforeCustodian && !canEditOverride && reimbAwaitingCustodian(r);
+  const canEditRow = (r) => isDraftLike(r) || !!canEditOverride || preApprovalEdit(r);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [detail, setDetail] = useState(null);
@@ -1313,9 +1329,11 @@ function ReimbursementTab({
                     <td>
                       <div style={{ display: "flex", gap: 6 }}>
                         <button className="pcp-btn pcp-btn-sm" onClick={() => setDetail(r)} title="View / action"><Eye size={12} /></button>
-                        {(isDraftLike(r) || canEditOverride) && (
+                        {canEditRow(r) && (
                           <button className="pcp-btn pcp-btn-sm" onClick={() => { setEditing(r); setShowForm(true); }}
-                            title={isDraftLike(r) ? "Edit" : "Edit for checking / verification — status and approvals are kept"}><Edit3 size={12} /></button>
+                            title={isDraftLike(r) ? "Edit"
+                              : preApprovalEdit(r) ? "Edit details or add attachments — allowed until the custodian approves"
+                                : "Edit for checking / verification — status and approvals are kept"}><Edit3 size={12} /></button>
                         )}
                         {canDelete && onDelete && (
                           <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => onDelete(r.id)} title="Delete reimbursement (System Superuser)"><Trash2 size={13} color="var(--danger)" /></button>
@@ -1339,8 +1357,11 @@ function ReimbursementTab({
           onClose={() => { setShowForm(false); setEditing(null); }}
           onSaveDraft={(form) => { editing ? onUpdate(editing.id, form, "draft") : onSaveDraft(form); setShowForm(false); setEditing(null); }}
           onSubmit={(form) => { editing ? onUpdate(editing.id, form, "submit") : onSubmit(form); setShowForm(false); setEditing(null); }}
-          onSaveOverride={editing && !isDraftLike(editing) && canEditOverride
-            ? (form) => { onUpdate(editing.id, form, "override"); setShowForm(false); setEditing(null); }
+          onSaveOverride={editing && !isDraftLike(editing) && (canEditOverride || preApprovalEdit(editing))
+            ? (form) => {
+              onUpdate(editing.id, form, canEditOverride ? "override" : "pre-approval");
+              setShowForm(false); setEditing(null);
+            }
             : null}
         />
       )}
@@ -1355,7 +1376,7 @@ function ReimbursementTab({
           accounting={accounting}
           onExportAcumatica={onExportAcumatica}
           onAction={handleAction}
-          onEdit={(isDraftLike(detail) || canEditOverride)
+          onEdit={canEditRow(reimbursements.find((x) => x.id === detail.id) || detail)
             ? (r) => { setDetail(null); setEditing(r); setShowForm(true); }
             : undefined}
           onClose={() => setDetail(null)}

@@ -156,6 +156,15 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   ];
   const canEditReimbOverride = REIMB_EDIT_OVERRIDE_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
+  /* PCF Requestors: may edit a SUBMITTED reimbursement — details and
+     attachments — only until the custodian approves it (owner's instruction,
+     Sep 2026). Status is kept; re-checked in updateReimbursement at save time,
+     so an edit started before the custodian approved is refused after. */
+  const REIMB_REQUESTOR_EDIT_EMAILS = [
+    "pcfrequestordisney@a1plus.com", "pcfrequestormanila@a1plus.com", "pcfrequestorrgandco@a1plus.com",
+  ];
+  const canEditReimbBeforeCustodian = REIMB_REQUESTOR_EDIT_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
   /* Replenishments: edit, mark completed and revert — these accounts only
      (owner's instruction, Sep 2026). Everyone else sees the records read-only. */
   const REPLEN_MANAGE_EMAILS = [
@@ -1632,8 +1641,9 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     "reimbursements", reimbursements.map((r) => r.reimbNo));
 
   const updateReimbursement = useCallback((id, form, mode) => {
-    /* Same backend purpose check as addReimbursement, applied on resubmission. */
-    if (mode === "submit" && !isActiveReimbPurpose((form.purpose || "").trim())) {
+    /* Same backend purpose check as addReimbursement, applied on resubmission
+       and on a requestor's edit of an already-submitted reimbursement. */
+    if ((mode === "submit" || mode === "pre-approval") && !isActiveReimbPurpose((form.purpose || "").trim())) {
       window.alert((form.purpose || "").trim()
         ? "Invalid Purpose. Please select an approved expense category from the Purpose dropdown."
         : "Purpose is required. Please select an approved expense category.");
@@ -1657,6 +1667,30 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       moveReimbPlant(r0, base.branchCode);
       return;
     }
+    /* PCF Requestor edit before custodian approval (REIMB_REQUESTOR_EDIT_EMAILS):
+       details and attachments change, the status stays where it is. Refused
+       outright once the custodian has approved — checked again against the
+       latest record inside the state update, so an edit that was opened before
+       the approval can never overwrite an approved reimbursement. */
+    if (mode === "pre-approval") {
+      const r0 = reimbursements.find((x) => x.id === id);
+      if (!canEditReimbBeforeCustodian || !r0 || !inScope(r0.branchCode)) return;
+      const locked = "This reimbursement has already been approved by the custodian, so it can no longer be edited."
+        + " Nothing was changed.";
+      if (!reimbAwaitingCustodian(r0)) { window.alert(locked); return; }
+      setReimbursements((rs) => rs.map((r) => {
+        if (r.id !== id || !reimbAwaitingCustodian(r)) return r;
+        return {
+          ...r, ...base, status: r.status, review: r.review,
+          submittedBy: r.submittedBy, submittedAt: r.submittedAt,
+          history: [...(r.history || []), { ts, user: userName || role, action: "Edited by requestor (before custodian approval)", prevStatus: r.status, newStatus: r.status, comments: "" }],
+        };
+      }));
+      logAudit("Reimbursement Edited (before custodian approval)", r0.reimbNo,
+        `${form.employee} · ${peso(reimbTotal(base))} · ${(base.attachments || []).length} document(s) · status kept: ${r0.status}`);
+      moveReimbPlant(r0, base.branchCode);
+      return;
+    }
     setReimbursements((rs) => rs.map((r) => {
       if (r.id !== id) return r;
       const submit = mode === "submit";
@@ -1672,7 +1706,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     const r = reimbursements.find((x) => x.id === id);
     logAudit(mode === "submit" ? "Reimbursement Submitted" : "Reimbursement Edited", r ? r.reimbNo : id, `${form.employee} · ${peso(reimbTotal(base))}`);
     if (r) moveReimbPlant(r, base.branchCode);
-  }, [buildReimbFromForm, logAudit, reimbursements, userName, role, canEditReimbOverride, inScope]); // eslint-disable-line
+  }, [buildReimbFromForm, logAudit, reimbursements, userName, role, canEditReimbOverride, canEditReimbBeforeCustodian, inScope]); // eslint-disable-line
 
   /* Workflow transition. The two approval levels mirror the liquidation's
      (see 11-liquidation.jsx): a custodian-level checker (isLiquidationChecker)
@@ -2279,6 +2313,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             canFinance={["Accounting", "Finance", "SuperAdmin"].includes(role) || !!isAdmin}
             canDelete={canDeleteTxn}
             canEditOverride={canEditReimbOverride}
+            canEditBeforeCustodian={canEditReimbBeforeCustodian}
             onSaveDraft={(form) => addReimbursement(form, false)}
             onSubmit={(form) => addReimbursement(form, true)}
             onUpdate={(id, form, mode) => updateReimbursement(id, form, mode)}
