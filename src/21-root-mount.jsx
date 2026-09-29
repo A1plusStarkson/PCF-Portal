@@ -45,7 +45,7 @@ function Root() {
     }
     if (!user) return <LoginScreen mode="cloud" />;
     const access = resolveUserAccess(user.email);
-    return <App userEmail={user.email} userName={access.name} onSignOut={cloudSignOut} userRole={access.role} isAdmin={access.isAdmin} userPlants={access.plants} />;
+    return <App userEmail={user.email} userName={access.name} onSignOut={cloudSignOut} userRole={access.role} isAdmin={access.isAdmin} userPlants={access.plants} userExcludePlants={access.excludePlants} />;
   }
 
   /* ---- Local mode (built-in accounts) ---- */
@@ -59,6 +59,7 @@ function Root() {
         userRole={localSession.role}
         isAdmin={localSession.role === "Accounting"}
         userPlants={localSession.plants}
+        userExcludePlants={localSession.excludePlants}
       />
     );
   }

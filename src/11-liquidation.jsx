@@ -403,11 +403,11 @@ function RecordSettlementModal({ disbursement, st, currentUser, onClose, onConfi
           </div>
           <div className="pcp-field-row">
             <div className="pcp-field">
-              <label>Amount {isReturn ? "returned" : "paid"} <span style={{ color: "var(--brand)" }}>*</span></label>
+              <label>Amount {isReturn ? "returned" : "paid"} <span style={{ color: "var(--danger)" }}>*</span></label>
               <input type="number" min="0" step="0.01" className="pcp-input" value={amount} onChange={(e) => setAmount(e.target.value)} />
             </div>
             <div className="pcp-field">
-              <label>Date <span style={{ color: "var(--brand)" }}>*</span></label>
+              <label>Date <span style={{ color: "var(--danger)" }}>*</span></label>
               <input type="date" className="pcp-input" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
           </div>
@@ -424,13 +424,13 @@ function RecordSettlementModal({ disbursement, st, currentUser, onClose, onConfi
             </div>
           </div>
           <div className="pcp-field">
-            <label>Received by <span style={{ color: "var(--brand)" }}>*</span></label>
+            <label>Received by <span style={{ color: "var(--danger)" }}>*</span></label>
             <input className="pcp-input" value={receivedBy} onChange={(e) => setReceivedBy(e.target.value)} />
           </div>
           {needsReason && (
             <div className="pcp-field">
               <label>
-                Reason — this leaves {peso(Math.abs(left))} {left > 0 ? "still outstanding" : "overpaid"} <span style={{ color: "var(--brand)" }}>*</span>
+                Reason — this leaves {peso(Math.abs(left))} {left > 0 ? "still outstanding" : "overpaid"} <span style={{ color: "var(--danger)" }}>*</span>
               </label>
               <select className="pcp-select" value={reasonSel} onChange={(e) => setReasonSel(e.target.value)}>
                 <option value="">Select a reason</option>
@@ -452,7 +452,7 @@ function RecordSettlementModal({ disbursement, st, currentUser, onClose, onConfi
             ) : (
               <input type="file" accept="image/*,application/pdf" onChange={(e) => pickAck(e.target.files && e.target.files[0])} style={{ fontSize: 12 }} />
             )}
-            {uploadNote && <div style={{ fontSize: 11, color: "var(--brand)", marginTop: 4 }}>{uploadNote}</div>}
+            {uploadNote && <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 4 }}>{uploadNote}</div>}
           </div>
         </div>
         <div className="pcp-modal-foot">
@@ -488,7 +488,7 @@ function CloseReceivableModal({ disbursement, amount, onClose, onConfirm }) {
             will read LIQUIDATED (SHORT). This is written to the audit trail against your name.
           </div>
           <div className="pcp-field">
-            <label>Treatment <span style={{ color: "var(--brand)" }}>*</span></label>
+            <label>Treatment <span style={{ color: "var(--danger)" }}>*</span></label>
             <select className="pcp-select" value={treatment} onChange={(e) => setTreatment(e.target.value)}>
               {RECEIVABLE_TREATMENTS.map((t) => <option key={t}>{t}</option>)}
             </select>
@@ -497,7 +497,7 @@ function CloseReceivableModal({ disbursement, amount, onClose, onConfirm }) {
             )}
           </div>
           <div className="pcp-field" style={{ marginBottom: 0 }}>
-            <label>Reason / authority <span style={{ color: "var(--brand)" }}>*</span></label>
+            <label>Reason / authority <span style={{ color: "var(--danger)" }}>*</span></label>
             <textarea className="pcp-input" rows={3} value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Approved by Finance Director for payroll deduction on the next cut-off" />
           </div>
         </div>
@@ -532,7 +532,7 @@ function RejectLiquidationModal({ voucherNo, employee, onClose, onConfirm }) {
             {voucherNo}{employee ? ` · ${employee}` : ""}
           </div>
           <div className="pcp-field">
-            <label>Rejection Reason <span style={{ color: "var(--brand)" }}>*</span></label>
+            <label>Rejection Reason <span style={{ color: "var(--danger)" }}>*</span></label>
             <select className="pcp-select" value={reason} onChange={(e) => setReason(e.target.value)}>
               <option value="">Select reason for rejection</option>
               {LIQUIDATION_REJECTION_REASONS.map((g) => (
@@ -562,13 +562,98 @@ function RejectLiquidationModal({ voucherNo, employee, onClose, onConfirm }) {
   );
 }
 
+/* A new line starts with NO category: it is filled in from the Expense text
+   (suggestExpenseCategories) or picked by hand, never pre-set to an arbitrary
+   first entry that could slip through to the COA export unnoticed. */
 function emptyLine() {
-  return { id: uid("ln"), date: todayISO(), expense: "", category: EXPENSE_CATEGORIES[0], department: SUBACCOUNTS[1].code, amount: "", taxCategory: "" };
+  return { id: uid("ln"), date: todayISO(), expense: "", category: "", department: SUBACCOUNTS[1].code, amount: "", taxCategory: "" };
+}
+
+/* Expense Category picker options for one line: what the description
+   suggests first, then the full approved list (FOH / OE). */
+function lineCategoryOptions(match) {
+  if (!match.suggestions.length) return APPROVED_EXPENSE_CATEGORY_GROUPS;
+  return [
+    { label: "Suggested for this expense", options: match.suggestions.map((s) => approvedCategoryChoice(s.category)) },
+    ...APPROVED_EXPENSE_CATEGORY_GROUPS,
+  ];
+}
+
+/* ---- Expense description with category suggestions ----
+   The Expense text box doubles as an autocomplete: while the preparer types,
+   the approved categories the words point at are listed underneath, and
+   picking one sets the line's Expense Category. `match` is the line's
+   suggestExpenseCategories() result; a clear winner has already been filled
+   in by the worksheet, this list is where it is confirmed or overridden. */
+function ExpenseDescriptionInput({ value, onChange, match, category, filled, onPickCategory, style, title }) {
+  const [open, setOpen] = useState(false);
+  const [hi, setHi] = useState(0);
+  const list = match.suggestions;
+  const show = open && String(value || "").trim().length >= 2;
+  const pick = (c) => { onPickCategory(c); setOpen(false); };
+  return (
+    <div className="pcp-ss-wrap">
+      <input
+        className="pcp-input" placeholder="e.g. Meals, Fuel, Toll Fee" autoComplete="off"
+        value={value} style={style} title={title}
+        aria-autocomplete="list" aria-expanded={show}
+        onChange={(e) => { onChange(e.target.value); setOpen(true); setHi(0); }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") { setOpen(false); return; }
+          if (!show || !list.length) return;
+          if (e.key === "ArrowDown") { e.preventDefault(); setHi((h) => Math.min(h + 1, list.length - 1)); }
+          else if (e.key === "ArrowUp") { e.preventDefault(); setHi((h) => Math.max(h - 1, 0)); }
+          else if (e.key === "Enter") { e.preventDefault(); pick(list[Math.min(hi, list.length - 1)].category); }
+        }}
+      />
+      {show && (
+        /* mousedown is swallowed so clicking an option does not blur the input
+           (and close the list) before the click lands. */
+        <div className="pcp-ss-pop" style={{ minWidth: 330 }} role="listbox" onMouseDown={(e) => e.preventDefault()}>
+          {!!match.detected.length && (
+            <div className="pcp-ss-group" style={{ textTransform: "none", letterSpacing: 0 }}>
+              Detected: {match.detected.join(" · ")}
+            </div>
+          )}
+          {list.length ? (
+            <div style={{ maxHeight: 250, overflowY: "auto" }}>
+              {list.map((s, i) => (
+                <div
+                  key={s.category} role="option" aria-selected={s.category === category}
+                  className={"pcp-ss-opt" + (s.category === category ? " active" : i === hi ? " hover" : "")}
+                  onMouseEnter={() => setHi(i)}
+                  onClick={() => pick(s.category)}
+                >
+                  {s.category}
+                  {s.category === match.auto && <span className="pcp-exp-best">Best match</span>}
+                  <div className="pcp-ss-opt-hint">{accountForCategory(s.category)}</div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="pcp-empty" style={{ padding: 10, fontSize: 12 }}>
+              No reliable match. Select Expense Category from the list.
+            </div>
+          )}
+          {!!list.length && (
+            <div style={{ fontSize: 10.5, color: "var(--text-mut)", padding: "6px 8px 2px" }}>
+              {filled
+                ? "Best match filled in automatically. Pick another to change it."
+                : match.auto ? "Pick a category to set it on this line." : "More than one category fits. Pick the right one."}
+              {" "}FOH / OE based on the {match.scopeSource === "description" ? "description" : "line's department"}.
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /* Outline for a field the save is waiting on. Border only — no background, so
    it reads the same whatever the surrounding surface is. */
-const MISSING_FIELD_STYLE = { borderColor: "var(--brand)" };
+const MISSING_FIELD_STYLE = { borderColor: "var(--danger)" };
 
 /* Bring older stored documents up to the current shape so rows uploaded before
    receipt amounts existed still render and can be completed. */
@@ -639,6 +724,7 @@ function LiquidationWorksheet({
   useEffect(() => {
     setLines(liquidation ? liquidation.lines.map((l) => ({ ...l })) : [emptyLine()]);
     setAttachments(liquidation && liquidation.attachments ? liquidation.attachments.map(normalizeAttachment) : []);
+    autoPicked.current = {};
     setSaved(true);
     setUploadNote("");
     setDupNote("");
@@ -650,6 +736,28 @@ function LiquidationWorksheet({
   const updateLine = (id, patch) => {
     setLines((ls) => ls.map((l) => (l.id === id ? { ...l, ...patch } : l)));
     setSaved(false);
+  };
+
+  /* ---- Automatic Expense Category ----
+     autoPicked holds, per line, the category the SYSTEM filled in. The system
+     may keep re-deciding a line's category only while it is blank or still
+     holds that auto pick. The moment someone picks a category by hand, or on
+     any line loaded from a saved liquidation, the category is theirs and
+     typing only offers suggestions — a stored category is never rewritten. */
+  const autoPicked = useRef({});
+  const reclassify = (l, patch) => {
+    const next = { ...l, ...patch };
+    const cur = l.category || "";
+    if (cur && autoPicked.current[l.id] !== cur) return patch;
+    const { auto } = suggestExpenseCategories(next.expense, { department: next.department });
+    if (auto) autoPicked.current[l.id] = auto; else delete autoPicked.current[l.id];
+    return { ...patch, category: auto || "" };
+  };
+  const setLineExpense = (l, expense) => updateLine(l.id, reclassify(l, { expense }));
+  const setLineDepartment = (l, department) => updateLine(l.id, reclassify(l, { department }));
+  const setLineCategory = (l, category) => {
+    delete autoPicked.current[l.id];
+    updateLine(l.id, { category });
   };
   const addLine = () => { setLines((ls) => [...ls, emptyLine()]); setSaved(false); };
   const removeLine = (id) => { setLines((ls) => ls.filter((l) => l.id !== id)); setSaved(false); };
@@ -746,6 +854,9 @@ function LiquidationWorksheet({
   const lineMissing = (l) => {
     const missing = [];
     if (!String(l.expense || "").trim()) missing.push("Expense");
+    /* New lines start without a category, so a started line must get one
+       before it can be stored (and exported against an account code). */
+    if (!String(l.category || "").trim()) missing.push("Expense Category");
     if (!(Number(l.amount) > 0)) missing.push("Amount");
     return missing;
   };
@@ -798,6 +909,13 @@ function LiquidationWorksheet({
      amounts are locked — so an approved amount can never be edited afterwards
      by the person who claimed it. */
   const canDecideReceipts = !!canApproveReceipts && isSubmitted && !finalLocked;
+  /* Supporting documents may be ADDED until final approval, even after
+     submission (a requestor who submitted without receipts must still be able
+     to attach them). Only files not yet saved can be edited or removed —
+     documents already on the record stay locked as before. Saving a new file
+     after the custodian approved voids that approval (saveLiquidation), so it
+     is reviewed like any other receipt. */
+  const canAddDocs = !finalLocked;
   /* Cash settlement is a custodian act: the person who owes the money must not
      be able to record that it came back. */
   const canSettle = !!canApproveReceipts && !finalLocked;
@@ -900,8 +1018,8 @@ function LiquidationWorksheet({
         "This liquidation cannot be saved yet — "
         + `${incompleteLines.length} expense line(s) are incomplete.\n\n`
         + incompleteLines.map((x) => `  Line ${x.row}: missing ${x.missing.join(" and ")}`).join("\n")
-        + "\n\nEvery expense line needs an Expense description and an Amount greater"
-        + " than zero. Fill those in, or delete the line, then save again."
+        + "\n\nEvery expense line needs an Expense description, an Expense Category and an"
+        + " Amount greater than zero. Fill those in, or delete the line, then save again."
         + "\n\nNothing has been saved, so your other lines are still here."
       );
       return;
@@ -1114,7 +1232,7 @@ function LiquidationWorksheet({
           <div className="pcp-liq-metric"><div className="pcp-kpi-label">Total Receipts</div><div className="pcp-num">{peso(receiptSummary.approvedTotal)}</div></div>
           <div className="pcp-liq-metric">
             <div className="pcp-kpi-label">{st.type === "excess" ? "Excess / Refund" : st.type === "reimburse" ? "Reimbursement Due" : "Variance"}</div>
-            <div className="pcp-num" style={{ color: st.type === "reimburse" ? "var(--brand)" : st.type === "excess" ? "var(--amber)" : "var(--green)" }}>{peso(st.expected)}</div>
+            <div className="pcp-num" style={{ color: st.type === "reimburse" ? "var(--danger)" : st.type === "excess" ? "var(--amber)" : "var(--green)" }}>{peso(st.expected)}</div>
           </div>
           <div className="pcp-liq-metric"><div className="pcp-kpi-label">Status</div><div><Badge status={finalStatus} /></div></div>
         </div>
@@ -1122,7 +1240,7 @@ function LiquidationWorksheet({
             hover tooltip — and WHICH documents still need an amount, since a
             document without one adds ₱0 and the totals can look complete. */}
         {isDraft && !canSubmit && submitBlockers.length > 0 && (
-          <div style={{ marginTop: 10, fontSize: 11.5, color: "var(--brand)" }}>
+          <div style={{ marginTop: 10, fontSize: 11.5, color: "var(--danger)" }}>
             <AlertTriangle size={12} style={{ verticalAlign: "-2px" }} /> To submit: {submitBlockers.join("; ")}.
             {missingAmountDocs.length > 0 && (
               <div style={{ color: "var(--text-mut)", marginTop: 3 }}>
@@ -1145,9 +1263,9 @@ function LiquidationWorksheet({
       {/* Rejection history — every rejection kept as its own record and never
           overwritten. The most recent appears first. */}
       {rejections.length > 0 && (
-        <div className="pcp-card pcp-card-pad" style={{ marginBottom: 12, borderColor: isRejected ? "var(--brand)" : "var(--line)" }}>
+        <div className="pcp-card pcp-card-pad" style={{ marginBottom: 12, borderColor: isRejected ? "var(--danger)" : "var(--line)" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <AlertTriangle size={15} color="#c8102e" />
+            <AlertTriangle size={15} color="#c0392b" />
             <div className="pcp-section-title" style={{ margin: 0 }}>Rejection History</div>
             <span style={{ fontSize: 11, color: "var(--text-mut)" }}>({rejections.length})</span>
           </div>
@@ -1279,7 +1397,7 @@ function LiquidationWorksheet({
                 <div className="pcp-kpi-label">
                   {st.remaining > 0 ? "Still outstanding" : st.remaining < 0 ? "Overpaid by" : "Remaining"}
                 </div>
-                <div className="pcp-num" style={{ fontWeight: 700, fontSize: 14, color: st.remaining === 0 ? "var(--green)" : "var(--brand)" }}>
+                <div className="pcp-num" style={{ fontWeight: 700, fontSize: 14, color: st.remaining === 0 ? "var(--green)" : "var(--danger)" }}>
                   {peso(Math.abs(st.remaining))}
                 </div>
               </div>
@@ -1486,11 +1604,11 @@ function LiquidationWorksheet({
       {!!incompleteLines.length && (
         <div
           style={{
-            border: "1px solid var(--brand)", borderRadius: 8, padding: "10px 12px",
+            border: "1px solid var(--danger)", borderRadius: 8, padding: "10px 12px",
             marginBottom: 10, fontSize: 12.5, lineHeight: 1.55,
           }}
         >
-          <div style={{ fontWeight: 700, color: "var(--brand)" }}>
+          <div style={{ fontWeight: 700, color: "var(--danger)" }}>
             <AlertTriangle size={13} style={{ verticalAlign: "-2px" }} />{" "}
             This liquidation cannot be saved yet
           </div>
@@ -1500,38 +1618,47 @@ function LiquidationWorksheet({
             ))}
           </div>
           <div style={{ marginTop: 4, color: "var(--text-mut)" }}>
-            Every expense line needs an Expense description and an Amount greater than zero.
+            Every expense line needs an Expense description, an Expense Category and an Amount greater than zero.
             Fill those in, or delete the line.
           </div>
         </div>
       )}
       <div className="pcp-liq-line-head">
         <div>Date</div>
-        <div>Expense <span style={{ color: "var(--brand)" }}>*</span></div>
+        <div>Expense <span style={{ color: "var(--danger)" }}>*</span></div>
         <div>Expense Category (COA)</div><div>Department</div><div>Tax Category</div>
-        <div>Amount <span style={{ color: "var(--brand)" }}>*</span></div>
+        <div>Amount <span style={{ color: "var(--danger)" }}>*</span></div>
         <div></div>
       </div>
       {lines.map((l) => {
         const missing = incompleteById[l.id] || [];
+        const match = suggestExpenseCategories(l.expense, { department: l.department });
+        const isAuto = !!l.category && autoPicked.current[l.id] === l.category;
         return (
         <div className="pcp-liq-line" key={l.id}>
           <input type="date" className="pcp-input" value={l.date} onChange={(e) => updateLine(l.id, { date: e.target.value })} />
-          <input
-            className="pcp-input" placeholder="e.g. Meals, Fuel, Toll Fee"
-            value={l.expense} onChange={(e) => updateLine(l.id, { expense: e.target.value })}
+          <ExpenseDescriptionInput
+            value={l.expense} onChange={(v) => setLineExpense(l, v)}
+            match={match} category={l.category} filled={isAuto} onPickCategory={(c) => setLineCategory(l, c)}
             style={missing.includes("Expense") ? MISSING_FIELD_STYLE : undefined}
             title={missing.includes("Expense") ? "Required — this line will not save without it" : undefined}
           />
+          <div style={{ position: "relative" }}>
+            {/* Approved categories only (Expense Definition master). A legacy
+                category already on a saved line still displays unchanged. */}
+            <SearchSelect
+              value={l.category} onChange={(v) => setLineCategory(l, v)}
+              options={lineCategoryOptions(match)}
+              placeholder="Select Expense Category"
+              searchPlaceholder="Search expense category / COA…"
+              popStyle={{ minWidth: 340 }}
+              invalid={missing.includes("Expense Category")}
+              title={isAuto ? `${l.category} (suggested from the Expense description, click to change)` : undefined}
+            />
+            {isAuto && <span className="pcp-exp-auto" title="Suggested from the Expense description">Auto</span>}
+          </div>
           <SearchSelect
-            value={l.category} onChange={(v) => updateLine(l.id, { category: v })}
-            options={EXPENSE_CATEGORY_CHOICES}
-            placeholder="— Select Expense Category —"
-            searchPlaceholder="Search expense category / COA…"
-            popStyle={{ minWidth: 340 }}
-          />
-          <SearchSelect
-            value={l.department} onChange={(v) => updateLine(l.id, { department: v })}
+            value={l.department} onChange={(v) => setLineDepartment(l, v)}
             options={DEPARTMENT_CHOICES}
             placeholder="— Select Department —"
             searchPlaceholder="Search department or sub-account…"
@@ -1551,7 +1678,7 @@ function LiquidationWorksheet({
             title={missing.includes("Amount") ? "Required — this line will not save without it" : undefined}
           />
           <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => removeLine(l.id)} disabled={lines.length === 1}>
-            <Trash2 size={13} color="var(--brand)" />
+            <Trash2 size={13} color="var(--danger)" />
           </button>
         </div>
         );
@@ -1570,7 +1697,7 @@ function LiquidationWorksheet({
       <div style={{ marginTop: 18, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div className="pcp-section-title" style={{ margin: 0 }}>
-            <Receipt size={15} color="#c8102e" /> Supporting Documents
+            <Receipt size={15} color="#4e7d63" /> Supporting Documents
             <span style={{ fontSize: 11.5, color: "var(--text-mut)", fontWeight: 500, marginLeft: 6 }}>
               ({attachments.length}) — official receipts, sales invoices, etc. · Total Receipt Amount <strong className="pcp-num">{peso(receiptSummary.approvedTotal)}</strong>
             </span>
@@ -1583,8 +1710,8 @@ function LiquidationWorksheet({
             )}
             <label
               className="pcp-btn pcp-btn-sm"
-              style={{ cursor: amountsLocked ? "not-allowed" : "pointer", margin: 0, opacity: amountsLocked ? 0.5 : 1 }}
-              title={amountsLocked ? "This liquidation has been submitted — ask a receipt approver to reopen it." : "Attach a supporting document"}
+              style={{ cursor: canAddDocs ? "pointer" : "not-allowed", margin: 0, opacity: canAddDocs ? 1 : 0.5 }}
+              title={canAddDocs ? "Attach a supporting document" : "This liquidation has final approval — no more documents can be added."}
             >
               <Download size={12} style={{ transform: "rotate(180deg)" }} /> Upload
               <input
@@ -1592,7 +1719,7 @@ function LiquidationWorksheet({
                 multiple
                 accept="image/*,application/pdf"
                 style={{ display: "none" }}
-                disabled={amountsLocked}
+                disabled={!canAddDocs}
                 onChange={(e) => { onPickFiles(e.target.files); e.target.value = ""; }}
               />
             </label>
@@ -1620,6 +1747,8 @@ function LiquidationWorksheet({
               const history = (pa && pa.approvalHistory) || a.approvalHistory || [];
               const amtHistory = (pa && pa.amountHistory) || a.amountHistory || [];
               const isSaved = !!pa;
+              /* A file added since the last save stays editable until saved. */
+              const docLocked = amountsLocked && isSaved;
               /* General supporting documents carry no peso figure, so their
                  amount and reference number stay optional. */
               const needsAmount = docRequiresAmount(a);
@@ -1647,9 +1776,9 @@ function LiquidationWorksheet({
                   <button
                     className="pcp-btn pcp-btn-sm pcp-btn-ghost"
                     onClick={() => removeAttachment(a.id)}
-                    disabled={amountsLocked}
-                    title={amountsLocked ? "This liquidation has been submitted" : "Remove"}
-                  ><Trash2 size={13} color="var(--brand)" /></button>
+                    disabled={docLocked}
+                    title={docLocked ? "This liquidation has been submitted" : "Remove"}
+                  ><Trash2 size={13} color="var(--danger)" /></button>
                 </div>
 
                 {/* Receipt Amount is captured against THIS document, so the
@@ -1659,7 +1788,7 @@ function LiquidationWorksheet({
                   <div style={{ minWidth: 200 }}>
                     <div className="pcp-kpi-label">Document Type</div>
                     <select
-                      className="pcp-select" value={a.docType || DEFAULT_DOC_TYPE} disabled={amountsLocked}
+                      className="pcp-select" value={a.docType || DEFAULT_DOC_TYPE} disabled={docLocked}
                       onChange={(e) => updateAttachment(a.id, { docType: e.target.value })}
                     >
                       {RECEIPT_DOC_TYPES.map((t) => <option key={t} value={t}>{t}</option>)}
@@ -1670,23 +1799,23 @@ function LiquidationWorksheet({
                       Receipt / Invoice No. <span style={{ color: "var(--text-mut)", fontWeight: 500 }}>(optional)</span>
                     </div>
                     <input
-                      className="pcp-input" placeholder={needsAmount ? "e.g. OR-1234" : "—"} value={a.receiptNo || ""} readOnly={amountsLocked}
+                      className="pcp-input" placeholder={needsAmount ? "e.g. OR-1234" : "—"} value={a.receiptNo || ""} readOnly={docLocked}
                       onChange={(e) => updateAttachment(a.id, { receiptNo: e.target.value })}
                     />
                   </div>
                   <div style={{ minWidth: 150 }}>
                     <div className="pcp-kpi-label">
                       Receipt Amount (&#8369;) {needsAmount
-                        ? <span style={{ color: "var(--brand)" }}>*</span>
+                        ? <span style={{ color: "var(--danger)" }}>*</span>
                         : <span style={{ color: "var(--text-mut)", fontWeight: 500 }}>(optional)</span>}
                     </div>
                     <input
                       type="number" min="0" step="0.01" className="pcp-input"
                       placeholder={needsAmount ? "0.00" : "—"}
                       value={a.receiptAmount == null ? "" : a.receiptAmount}
-                      readOnly={amountsLocked}
+                      readOnly={docLocked}
                       onChange={(e) => setReceiptAmount(a.id, e.target.value)}
-                      style={amountMissing ? { borderColor: "var(--brand)" } : undefined}
+                      style={amountMissing ? { borderColor: "var(--danger)" } : undefined}
                     />
                   </div>
                   <div style={{ flex: 1, minWidth: 130, textAlign: "right" }}>
@@ -1697,7 +1826,7 @@ function LiquidationWorksheet({
                   </div>
                 </div>
                 {amountMissing && (
-                  <div style={{ fontSize: 10.5, color: "var(--brand)", marginTop: 5 }}>
+                  <div style={{ fontSize: 10.5, color: "var(--danger)", marginTop: 5 }}>
                     Receipt amount is required before this liquidation can be submitted.
                   </div>
                 )}
@@ -1711,7 +1840,7 @@ function LiquidationWorksheet({
                     Excluded from the total until the custodian approves this document.
                   </div>
                 )}
-                {amountsLocked && (
+                {docLocked && (
                   <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 5 }}>
                     {finalLocked
                       ? "Read-only — this liquidation has final approval."
@@ -1733,7 +1862,7 @@ function LiquidationWorksheet({
                     <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-mut)", marginBottom: 3 }}>Approval History</div>
                     {history.map((h, i) => (
                       <div key={i} style={{ fontSize: 10.5, color: "var(--text-mut)" }}>
-                        <strong style={{ color: h.status === "Rejected" ? "var(--brand)" : "var(--green)" }}>{h.status}</strong> by {h.approver} · {h.ts.replace("T", " ")}{h.remarks ? ` · "${h.remarks}"` : ""}
+                        <strong style={{ color: h.status === "Rejected" ? "var(--danger)" : "var(--green)" }}>{h.status}</strong> by {h.approver} · {h.ts.replace("T", " ")}{h.remarks ? ` · "${h.remarks}"` : ""}
                       </div>
                     ))}
                   </div>
@@ -1854,7 +1983,7 @@ function ReimbursementLiquidationPanel({ reimb, canFinance, onAction }) {
         <div className="pcp-liq-sticky-grid" style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
           <div className="pcp-liq-metric"><div className="pcp-kpi-label">Approved Reimbursement</div><div className="pcp-num">{peso(approved)}</div></div>
           <div className="pcp-liq-metric"><div className="pcp-kpi-label">Validated Expense</div><div className="pcp-num">{peso(validated)}</div></div>
-          <div className="pcp-liq-metric"><div className="pcp-kpi-label">Variance</div><div className="pcp-num" style={{ color: variance === 0 ? "var(--green)" : "var(--brand)" }}>{peso(variance)}</div></div>
+          <div className="pcp-liq-metric"><div className="pcp-kpi-label">Variance</div><div className="pcp-num" style={{ color: variance === 0 ? "var(--green)" : "var(--danger)" }}>{peso(variance)}</div></div>
           <div className="pcp-liq-metric"><div className="pcp-kpi-label">Status</div><div><Badge status={st} /></div></div>
         </div>
       </div>
@@ -1889,7 +2018,7 @@ function ReimbursementLiquidationPanel({ reimb, canFinance, onAction }) {
         subtitle={`${(reimb.attachments || []).length} file(s) carried forward`}
         defaultOpen
       >
-        <AttachmentGallery attachments={reimb.attachments} emptyLabel="None" />
+        <AttachmentGallery attachments={reimb.attachments} emptyLabel="None" large />
       </Collapsible>
 
       <Collapsible title="Approval History & Audit Trail" subtitle={`${(reimb.history || []).length} event(s)`}>
@@ -1923,11 +2052,17 @@ function LiquidationTab({
   canRejectLiquidation, onRejectLiquidation,
   onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser,
   reimbursements, onReimbursementAction, canFinance, accounting,
+  canEditReimb, onUpdateReimbursement, allReimbursements,
   openRequest, onOpenHandled,
 }) {
   const [acctFilter, setAcctFilter] = useState(accounting && accounting.isChecker ? "For Accounting Check" : "All");
   const [selectedId, setSelectedId] = useState(null);
   const [selectedReimbId, setSelectedReimbId] = useState(null);
+  /* Reimbursement open in the edit form (REIMB_EDIT_OVERRIDE_EMAILS only). */
+  const [editingReimb, setEditingReimb] = useState(null);
+  const editReimb = canEditReimb && onUpdateReimbursement
+    ? (r) => { setSelectedReimbId(null); setEditingReimb(r); }
+    : undefined;
   const [showAll, setShowAll] = useState(false);
   const [plant, setPlant] = useState("ALL");
   const [source, setSource] = useState("pettycash");
@@ -1987,10 +2122,13 @@ function LiquidationTab({
      has to be ticked as well. */
   const q = search.trim().toLowerCase();
   const hit = (...vals) => !q || vals.some((v) => String(v || "").toLowerCase().includes(q));
-  /* A settlement filter, like a status filter, overrides the worklist gate. */
+  /* A settlement filter, like a status filter, overrides the worklist gate.
+     So does a search: someone typing a voucher no. or a name is looking for
+     that record, and hiding it because it is already complete made finished
+     vouchers look deleted (the Release Ledger shows them, this list did not). */
   const settleFilterOn = settleFilter !== SETTLEMENT_FILTERS[0];
   const pettyFiltered = (pettyStatus === LIQ_STATUS_FILTER_ALL
-    ? (showAll || settleFilterOn || acctFilterOn ? enriched : enriched.filter((d) => !liqIsComplete(d.finalStatus)))
+    ? (showAll || q || settleFilterOn || acctFilterOn ? enriched : enriched.filter((d) => !liqIsComplete(d.finalStatus)))
     : enriched.filter((d) => d.liqStatus === PCA_STATUS_FILTERS[pettyStatus]))
     .filter((d) => hit(d.voucherNo, d.requestNo, d.employee, d.branchCode, plantLabel(d.branchCode),
       subaccountLabel(d.department), disbExpense(d), d.liqStatus, d.finalStatus, d.acct.batchNo))
@@ -2019,7 +2157,7 @@ function LiquidationTab({
     .filter((r) => REIMB_LIQUIDATION_STATUSES.includes(r.status) || isTwoLevel(r))
     .map((r) => ({ ...r, acct: reimbReview(r), awaitingAcct: reimbAwaitingAccounting(r) }));
   const reimbFiltered = (reimbStatus === LIQ_STATUS_FILTER_ALL
-    ? (showAll || acctFilterOn ? reimbLiq : reimbLiq.filter((r) => r.status === REIMB_STATUS.FOR_LIQUIDATION
+    ? (showAll || q || acctFilterOn ? reimbLiq : reimbLiq.filter((r) => r.status === REIMB_STATUS.FOR_LIQUIDATION
       || r.status === REIMB_STATUS.UNDER_REVIEW || r.status === REIMB_STATUS.FOR_FINAL))
     : reimbLiq.filter((r) => (reimbTwoLevelFilter(reimbStatus, r)
       ? reimbTwoLevelFilter(reimbStatus, r)() : r.status === reimbStatusFilter(reimbStatus))))
@@ -2070,7 +2208,7 @@ function LiquidationTab({
         {/* Search + status filter — the status options follow the selected source's workflow. */}
         <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
           <div style={{ position: "relative", flex: 1, minWidth: 220, maxWidth: 340 }}>
-            <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#9098b3" }} />
+            <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
             <input
               className="pcp-input" style={{ paddingLeft: 28 }}
               placeholder={source === "pettycash"
@@ -2157,10 +2295,10 @@ function LiquidationTab({
                       <td>
                         {d.stl.owing ? (
                           <div style={{ lineHeight: 1.3 }}>
-                            <div className="pcp-num" style={{ fontWeight: 700, color: d.stl.overdue ? "var(--brand)" : d.stl.st.type === "excess" ? "var(--amber)" : "var(--blue)" }}>
+                            <div className="pcp-num" style={{ fontWeight: 700, color: d.stl.overdue ? "var(--danger)" : d.stl.st.type === "excess" ? "var(--amber)" : "var(--blue)" }}>
                               {d.stl.st.type === "excess" ? "Return " : "Reimburse "}{peso(d.stl.st.remaining)}
                             </div>
-                            <div style={{ fontSize: 10.5, color: d.stl.overdue ? "var(--brand)" : "var(--text-mut)", fontWeight: d.stl.overdue ? 700 : 400 }}>
+                            <div style={{ fontSize: 10.5, color: d.stl.overdue ? "var(--danger)" : "var(--text-mut)", fontWeight: d.stl.overdue ? 700 : 400 }}>
                               {d.stl.overdue ? `Overdue ${-d.stl.daysLeft}d` : d.stl.daysLeft === 0 ? "Due today" : `Due ${fmtDate(d.stl.dueDate)}`}
                             </div>
                           </div>
@@ -2178,7 +2316,7 @@ function LiquidationTab({
                           {canDelete && onDeleteLiquidation && liquidationFor(d.id, liquidations) && (
                             <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" title="Delete this liquidation (System Superuser)"
                               onClick={(e) => { e.stopPropagation(); onDeleteLiquidation(d.id); }}>
-                              <Trash2 size={13} color="var(--brand)" />
+                              <Trash2 size={13} color="var(--danger)" />
                             </button>
                           )}
                         </div>
@@ -2229,7 +2367,7 @@ function LiquidationTab({
                           {canDelete && onDeleteReimbursement && (
                             <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" title="Delete this reimbursement (System Superuser)"
                               onClick={(e) => { e.stopPropagation(); onDeleteReimbursement(r.id); }}>
-                              <Trash2 size={13} color="var(--brand)" />
+                              <Trash2 size={13} color="var(--danger)" />
                             </button>
                           )}
                         </div>
@@ -2301,7 +2439,18 @@ function LiquidationTab({
           canFinance={canFinance}
           accounting={accounting}
           onAction={(id, action, opts) => { onReimbursementAction(id, action, opts); setSelectedReimbId(null); }}
+          onEdit={editReimb}
           onClose={() => setSelectedReimbId(null)}
+        />
+      )}
+      {editingReimb && (
+        <ReimbursementEditModal
+          reimb={(reimbursements || []).find((x) => x.id === editingReimb.id) || editingReimb}
+          plantOptions={plantOptions}
+          allReimbursements={allReimbursements || reimbursements || []}
+          currentUser={currentUser}
+          onUpdate={onUpdateReimbursement}
+          onClose={() => setEditingReimb(null)}
         />
       )}
       {source === "reimbursement" && selectedReimb && !isTwoLevel(selectedReimb) && (
@@ -2309,7 +2458,14 @@ function LiquidationTab({
           <div className="pcp-modal pcp-modal-resizable pcp-liq-modal" onClick={(e) => e.stopPropagation()}>
             <div className="pcp-modal-head">
               <h3>Reimbursement Liquidation · {selectedReimb.reimbNo} · {selectedReimb.employee}</h3>
-              <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={() => setSelectedReimbId(null)} title="Close"><X size={15} /></button>
+              <div style={{ display: "flex", gap: 6 }}>
+                {editReimb && (
+                  <button className="pcp-btn pcp-btn-sm" onClick={() => editReimb(selectedReimb)} title="Edit for checking / verification — status and approvals are kept">
+                    <Edit3 size={12} /> Edit
+                  </button>
+                )}
+                <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={() => setSelectedReimbId(null)} title="Close"><X size={15} /></button>
+              </div>
             </div>
             <div className="pcp-modal-body">
               <AccountingReviewBox

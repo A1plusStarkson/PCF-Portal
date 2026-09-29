@@ -1,6 +1,6 @@
 /* ============================= REQUESTS ============================= */
 
-function RequestFormModal({ onClose, onSave, request, plantOptions }) {
+function RequestFormModal({ onClose, onSave, request, plantOptions, allRequestNos }) {
   const isEdit = !!request;
   const defaultBranch = (plantOptions && plantOptions[0]) ? plantOptions[0].code : PCR_BRANCH_OPTIONS[0].code;
   const [form, setForm] = useState(
@@ -31,10 +31,11 @@ function RequestFormModal({ onClose, onSave, request, plantOptions }) {
   const isOthers = form.purpose === OTHERS_PURPOSE;
   const validPurpose = !!form.purpose && (!isOthers || form.purposeJustification.trim());
   /* Request No. is issued by the database and locked for every user. A NEW
-     request shows no number until it is saved — any number shown earlier
-     could be taken by someone else in the meantime. */
+     request previews the next number (useNextSeriesNo); it is only issued on
+     save, and addRequest says so if someone else took it in the meantime. */
   const valid = form.employee.trim() && !!form.branchCode && validPurpose && Number(form.amount) > 0 && form.approver.trim();
   const assignedLabel = `Auto-generated on submit (${requestNoPrefix(form.branchCode)}…)`;
+  const previewNo = useNextSeriesNo(requestNoPrefix(form.branchCode), allRequestNos, !isEdit);
 
   return (
     <div className="pcp-modal-backdrop" {...backdropCloseProps(onClose)}>
@@ -47,7 +48,10 @@ function RequestFormModal({ onClose, onSave, request, plantOptions }) {
           <div className="pcp-field-row">
             <div className="pcp-field">
               <label>Request No.</label>
-              <input className="pcp-input" value={isEdit ? form.requestNo : assignedLabel} disabled title="System-generated — cannot be changed" />
+              <input className="pcp-input" value={isEdit ? form.requestNo : (previewNo || assignedLabel)} disabled title="System-generated — cannot be changed" />
+              {!isEdit && previewNo && (
+                <div style={{ fontSize: 11.5, color: "var(--text-mut)" }}>System-generated · confirmed when you submit</div>
+              )}
             </div>
             <div className="pcp-field">
               <label>Date</label>
@@ -66,7 +70,7 @@ function RequestFormModal({ onClose, onSave, request, plantOptions }) {
           </div>
           <div className="pcp-field-row">
             <div className="pcp-field">
-              <label>Plant / Branch <span style={{ color: "var(--brand)" }}>*</span></label>
+              <label>Plant / Branch <span style={{ color: "var(--danger)" }}>*</span></label>
               <SearchSelect
                 value={form.branchCode}
                 onChange={(v) => set("branchCode", v)}
@@ -102,7 +106,7 @@ function RequestFormModal({ onClose, onSave, request, plantOptions }) {
           </div>
           {isOthers && (
             <div className="pcp-field">
-              <label>Justification for "Others" <span style={{ color: "var(--brand)" }}>*</span></label>
+              <label>Justification for "Others" <span style={{ color: "var(--danger)" }}>*</span></label>
               <textarea
                 className="pcp-input"
                 rows={2}
@@ -119,7 +123,7 @@ function RequestFormModal({ onClose, onSave, request, plantOptions }) {
         </div>
         <div className="pcp-modal-foot">
           <button className="pcp-btn" onClick={onClose}>Cancel</button>
-          <button className="pcp-btn pcp-btn-primary" disabled={!valid} onClick={() => onSave(form)}>{isEdit ? "Save Changes" : "Submit Request"}</button>
+          <button className="pcp-btn pcp-btn-primary" disabled={!valid} onClick={() => onSave({ ...form, previewNo })}>{isEdit ? "Save Changes" : "Submit Request"}</button>
         </div>
         <ModalResizeGrip />
       </div>
@@ -188,7 +192,7 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
         <div className="pcp-card">
           <div style={{ padding: "14px 18px", display: "flex", gap: 10, alignItems: "center", borderBottom: "1px solid var(--line)" }}>
             <div style={{ position: "relative", flex: 1, maxWidth: 280 }}>
-              <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#9098b3" }} />
+              <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
               <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search employee, request no. or old no." value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <select className="pcp-select" style={{ width: 170 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
@@ -252,7 +256,7 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
                         )}
                         {canDelete && onDelete && (
                           <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => onDelete(r.id)} title="Delete request (super admin)">
-                            <Trash2 size={13} color="var(--brand)" />
+                            <Trash2 size={13} color="var(--danger)" />
                           </button>
                         )}
                         {canRelease && r.status === "Approved" && (
@@ -271,6 +275,7 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
           from the form. */}
       {showForm && (
         <RequestFormModal
+          allRequestNos={requests.map((r) => r.requestNo)}
           plantOptions={formPlantOptions}
           onClose={() => setShowForm(false)}
           onSave={(form) => { onCreate(form); setShowForm(false); }}
@@ -278,6 +283,7 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
       )}
       {editing && (
         <RequestFormModal
+          allRequestNos={requests.map((r) => r.requestNo)}
           request={editing}
           plantOptions={formPlantOptions}
           onClose={() => setEditing(null)}

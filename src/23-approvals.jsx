@@ -216,7 +216,7 @@ function PcaApprovalPanel({
           <div className="pcp-liq-metric"><div className="pcp-kpi-label">Approved Receipts</div><div className="pcp-num">{peso(amounts.approvedTotal)}</div></div>
           <div className="pcp-liq-metric">
             <div className="pcp-kpi-label">{rec.type === "excess" ? "Refund Due" : rec.type === "reimburse" ? "Reimbursement Due" : "Variance"}</div>
-            <div className="pcp-num" style={{ color: rec.type === "exact" ? "var(--green)" : "var(--brand)" }}>{peso(rec.expected)}</div>
+            <div className="pcp-num" style={{ color: rec.type === "exact" ? "var(--green)" : "var(--danger)" }}>{peso(rec.expected)}</div>
           </div>
           <div className="pcp-liq-metric">
             <div className="pcp-kpi-label">Cash Settlement</div>
@@ -240,7 +240,7 @@ function PcaApprovalPanel({
 
       {!!rejections.length && (
         <div className="pcp-card pcp-card-pad" style={{ marginBottom: 12, borderColor: "#f0c0c0" }}>
-          <div className="pcp-section-title" style={{ margin: "0 0 8px", color: "var(--brand)" }}>
+          <div className="pcp-section-title" style={{ margin: "0 0 8px", color: "var(--danger)" }}>
             <AlertTriangle size={15} /> Rejection History ({rejections.length})
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
@@ -294,7 +294,7 @@ function PcaApprovalPanel({
 
       <div className="pcp-card pcp-card-pad">
         <div className="pcp-section-title" style={{ margin: "0 0 10px" }}>
-          <Receipt size={15} color="#c8102e" /> Supporting Documents ({approval.total})
+          <Receipt size={15} color="#4e7d63" /> Supporting Documents ({approval.total})
         </div>
         {(canDecide || canCheck || canFinal || canReject) && (
           <div className="pcp-field">
@@ -308,6 +308,7 @@ function PcaApprovalPanel({
         {/* Each receipt is legible in place, with its decision on the same tile. */}
         <AttachmentGallery
           attachments={liq.attachments}
+          large="xl"
           emptyLabel="No supporting documents were uploaded for this liquidation."
           renderFooter={(a) => {
             const status = a.approvalStatus || "Pending";
@@ -360,8 +361,11 @@ function ApprovalModuleTab({
   onDecideReceipt, onRejectLiquidation, onReopenLiquidation, onCheckLiquidation, onFinalApprove,
   onReimbursementAction, onExportReimbursementAcumatica,
   isChecker, isFinalApprover, canFinance,
-  currentUser, plantOptions, accounting,
+  currentUser, plantOptions, accounting, onOpenReplenishment,
+  canEditReimb, onUpdateReimbursement, reimbPlantOptions,
 }) {
+  /* Reimbursement open in the edit form (REIMB_EDIT_OVERRIDE_EMAILS only). */
+  const [editingReimb, setEditingReimb] = useState(null);
   const isAcct = !!(accounting && accounting.isChecker);
   const me = String(currentUser || "").trim().toLowerCase();
   const [plant, setPlant] = useState("ALL");
@@ -373,6 +377,10 @@ function ApprovalModuleTab({
   /* Batch Number filter — how Grace Gan reviews: one Accounting batch at a time. */
   const ALL_BATCHES = "All batches";
   const [batch, setBatch] = useState(ALL_BATCHES);
+  /* The KPI card last clicked: narrows the queue to exactly what that card
+     counts (one kind, one or more stages). Click it again to clear. */
+  const [cardFilter, setCardFilter] = useState(null);
+  const queueRef = useRef(null);
   /* The open transaction: a liquidation opens in place of the list, a
      reimbursement in its usual detail window. */
   const [openLiqId, setOpenLiqId] = useState(null);
@@ -456,6 +464,7 @@ function ApprovalModuleTab({
   const baseRows = pendingAll.filter((r) => (plant === "ALL" || r.plantCode === plant)
     && (!s || [r.seriesNo, r.requestor, plantLabel(r.plantCode), r.batchNo].some((f) => String(f || "").toLowerCase().includes(s)))
     && (stageFilter === APPROVAL_ALL_PENDING || approvalStageKey(r.stage) === approvalStageKey(stageFilter))
+    && (!cardFilter || cardFilter.stages.some((st) => approvalStageKey(r.stage) === approvalStageKey(st)))
     && (batch === ALL_BATCHES || r.batchNo === batch)
     && (!dateFrom || r.date >= dateFrom)
     && (!dateTo || r.date <= dateTo));
@@ -474,11 +483,23 @@ function ApprovalModuleTab({
     }
   );
   const filtersOn = plant !== "ALL" || kind !== "all" || !!s || stageFilter !== APPROVAL_ALL_PENDING
-    || batch !== ALL_BATCHES || !!dateFrom || !!dateTo;
+    || batch !== ALL_BATCHES || !!dateFrom || !!dateTo || !!cardFilter;
   const clearFilters = () => {
     setPlant("ALL"); setKind("all"); setSearch(""); setStageFilter(APPROVAL_ALL_PENDING);
-    setBatch(ALL_BATCHES); setDateFrom(""); setDateTo("");
+    setBatch(ALL_BATCHES); setDateFrom(""); setDateTo(""); setCardFilter(null);
   };
+  /* KPI card click: show that card's transactions in the queue below. */
+  const pickCard = (id, k, stages) => {
+    if (cardFilter && cardFilter.id === id) { setCardFilter(null); setKind("all"); return; }
+    setCardFilter({ id, stages });
+    setKind(k);
+    setStageFilter(APPROVAL_ALL_PENDING);
+    setTimeout(() => { if (queueRef.current) queueRef.current.scrollIntoView({ behavior: "smooth", block: "start" }); }, 0);
+  };
+  const cardProps = (id, k, stages) => ({
+    onClick: () => pickCard(id, k, stages),
+    active: !!cardFilter && cardFilter.id === id,
+  });
 
   /* ---- KPIs ---- */
   const countPending = (k, stage) => pendingAll.filter((r) => r.kind === k && approvalStageKey(r.stage) === approvalStageKey(stage)).length;
@@ -559,25 +580,26 @@ function ApprovalModuleTab({
         <div className="pcp-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12, marginBottom: 16 }}>
           {isFinalApprover && (
             <>
-              <KpiCard label="Liquidations Awaiting Your Final Approval" value={countPending("Liquidation", LIQ_STAGE.FOR_FINAL)} icon={ShieldCheck} tint="#b9790a" />
-              <KpiCard label="Reimbursements Awaiting Your Final Approval" value={countPending("Reimbursement", LIQ_STAGE.FOR_FINAL)} icon={ArrowLeftRight} tint="#b9790a" />
+              <KpiCard label="Liquidations Awaiting Your Final Approval" {...cardProps("liq-final", "Liquidation", [LIQ_STAGE.FOR_FINAL])} value={countPending("Liquidation", LIQ_STAGE.FOR_FINAL)} icon={ShieldCheck} tint="#b9790a" />
+              <KpiCard label="Reimbursements Awaiting Your Final Approval" {...cardProps("reimb-final", "Reimbursement", [LIQ_STAGE.FOR_FINAL])} value={countPending("Reimbursement", LIQ_STAGE.FOR_FINAL)} icon={ArrowLeftRight} tint="#b9790a" />
             </>
           )}
           {isAcct && (
             <>
-              <KpiCard label="Liquidations Awaiting Accounting Check" value={countPending("Liquidation", LIQ_STAGE.FOR_ACCOUNTING)} icon={ShieldCheck} tint="#b9790a" />
-              <KpiCard label="Reimbursements Awaiting Accounting Check" value={countPending("Reimbursement", LIQ_STAGE.FOR_ACCOUNTING)} icon={ArrowLeftRight} tint="#b9790a" />
+              <KpiCard label="Liquidations Awaiting Accounting Check" {...cardProps("liq-acct", "Liquidation", [LIQ_STAGE.FOR_ACCOUNTING])} value={countPending("Liquidation", LIQ_STAGE.FOR_ACCOUNTING)} icon={ShieldCheck} tint="#b9790a" />
+              <KpiCard label="Reimbursements Awaiting Accounting Check" {...cardProps("reimb-acct", "Reimbursement", [LIQ_STAGE.FOR_ACCOUNTING])} value={countPending("Reimbursement", LIQ_STAGE.FOR_ACCOUNTING)} icon={ArrowLeftRight} tint="#b9790a" />
             </>
           )}
           {isChecker && (
             <>
-              <KpiCard label="Liquidations Awaiting Custodian Review" value={countPending("Liquidation", LIQ_STAGE.FOR_CHECK) + countPending("Liquidation", LIQ_STAGE.NEEDS_CORRECTION)} icon={FileSpreadsheet} tint="#b9790a" />
-              <KpiCard label="Reimbursements Awaiting Custodian Review" value={countPending("Reimbursement", LIQ_STAGE.FOR_CHECK)} icon={ArrowLeftRight} tint="#2054a3" />
+              <KpiCard label="Liquidations Awaiting Custodian Review" {...cardProps("liq-check", "Liquidation", [LIQ_STAGE.FOR_CHECK, LIQ_STAGE.NEEDS_CORRECTION])} value={countPending("Liquidation", LIQ_STAGE.FOR_CHECK) + countPending("Liquidation", LIQ_STAGE.NEEDS_CORRECTION)} icon={FileSpreadsheet} tint="#b9790a" />
+              <KpiCard label="Reimbursements Awaiting Custodian Review" {...cardProps("reimb-check", "Reimbursement", [LIQ_STAGE.FOR_CHECK])} value={countPending("Reimbursement", LIQ_STAGE.FOR_CHECK)} icon={ArrowLeftRight} tint="#2054a3" />
             </>
           )}
-          <KpiCard label="Liquidations Ready for Replenishment" value={pcaReady} icon={RefreshCw} tint="#15803d" />
+          <KpiCard label="Liquidations Ready for Replenishment" value={pcaReady} onClick={onOpenReplenishment} icon={RefreshCw} tint="#15803d" />
         </div>
 
+        <div ref={queueRef} />
         <PlantScopeTabs plants={plantOptions} value={plant} onChange={setPlant} />
 
         <div className="pcp-tabs" style={{ marginBottom: 14 }}>
@@ -594,7 +616,7 @@ function ApprovalModuleTab({
 
         <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
           <div style={{ position: "relative", flex: 1, minWidth: 200, maxWidth: 300 }}>
-            <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#9098b3" }} />
+            <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
             <input
               className="pcp-input" style={{ paddingLeft: 28 }}
               placeholder="Search series no., requestor, plant or batch"
@@ -602,7 +624,7 @@ function ApprovalModuleTab({
             />
           </div>
           <FilterIcon size={14} color="var(--text-mut)" />
-          <select className="pcp-select" style={{ width: 200 }} value={stageFilter} onChange={(e) => setStageFilter(e.target.value)}>
+          <select className="pcp-select" style={{ width: 200 }} value={stageFilter} onChange={(e) => { setStageFilter(e.target.value); setCardFilter(null); }}>
             {statusOptions.map((o) => <option key={o}>{o}</option>)}
           </select>
           <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mut)" }}>Batch</span>
@@ -708,7 +730,18 @@ function ApprovalModuleTab({
           accounting={accounting}
           onExportAcumatica={onExportReimbursementAcumatica}
           onAction={(id, action, opts) => { onReimbursementAction(id, action, opts); setDetail(null); }}
+          onEdit={canEditReimb && onUpdateReimbursement ? (r) => { setDetail(null); setEditingReimb(r); } : undefined}
           onClose={() => setDetail(null)}
+        />
+      )}
+      {editingReimb && (
+        <ReimbursementEditModal
+          reimb={(reimbursements || []).find((x) => x.id === editingReimb.id) || editingReimb}
+          plantOptions={reimbPlantOptions}
+          allReimbursements={reimbursements || []}
+          currentUser={currentUser}
+          onUpdate={onUpdateReimbursement}
+          onClose={() => setEditingReimb(null)}
         />
       )}
     </div>

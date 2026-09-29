@@ -129,8 +129,9 @@ function buildAgingRecords(disbursements, liquidations, funds, requests, today) 
    AGING_DUE_DAYS (5) calendar days later. Submitting removes the reminder; a
    liquidation returned for correction brings it back, overdue or not, until
    it is submitted again. */
-function liquidationReminders(disbursements, liquidations, today) {
+function liquidationReminders(disbursements, liquidations, today, funds) {
   const t = today || todayISO();
+  const fundByBranch = new Map((funds || []).map((f) => [f.branchCode, f]));
   return (disbursements || [])
     .map((d) => {
       const liq = liquidationFor(d.id, liquidations);
@@ -146,6 +147,8 @@ function liquidationReminders(disbursements, liquidations, today) {
         employee: d.employee, amount: Number(d.amount) || 0,
         receivedDate, dueDate, daysLeft, returned: sub === "Rejected",
         level: reminderLevel(daysLeft),
+        liqStatus: !liq ? "Not started" : sub === "Rejected" ? "Returned for correction" : "Draft — not yet submitted",
+        custodian: (fundByBranch.get(d.branchCode) || {}).custodian || "",
       };
     })
     .filter(Boolean)
@@ -160,7 +163,7 @@ function reminderLevel(daysLeft) {
   return "green";
 }
 
-const REMINDER_TINT = { green: "#15803d", yellow: "#b9790a", orange: "#ea580c", red: "#c8102e" };
+const REMINDER_TINT = { green: "#15803d", yellow: "#b9790a", orange: "#ea580c", red: "#c0392b" };
 
 function reminderMessage(r) {
   const no = r.seriesNo;
@@ -203,7 +206,7 @@ function LiquidationReminderBell() {
         title={count ? `${count} liquidation reminder${count === 1 ? "" : "s"}` : "No liquidation reminders"}
       >
         <Bell size={22} />
-        <span className="pcp-reminder-count" style={{ background: count ? worst : "#9098b3" }}>{count}</span>
+        <span className="pcp-reminder-count" style={{ background: count ? worst : "#8fa397" }}>{count}</span>
       </button>
       {open && (
         <div className="pcp-notif-panel pcp-reminder-panel">
@@ -327,7 +330,7 @@ const AGING_DETAIL_SORT_FIELDS = {
   agingBucket: (r) => Number(r.overdueDays) || 0,
 };
 
-function LiquidationAgingTab({ funds, requests, disbursements, liquidations, replenishments }) {
+function LiquidationAgingTab({ funds, requests, disbursements, liquidations, replenishments, focus }) {
   const today = todayISO();
   const [filters, setFilters] = useState({
     txnType: "ALL", company: "ALL", plant: "ALL", branch: "ALL", custodian: "ALL",
@@ -335,6 +338,21 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
     from: "", to: "",
   });
   const setF = (k, v) => setFilters((f) => ({ ...f, [k]: v }));
+  /* Opened from a liquidation alarm: clear the filters so the record is in the
+     list, then scroll to it and highlight it for a few seconds. */
+  const [focusId, setFocusId] = useState(null);
+  useEffect(() => {
+    if (!focus || !focus.id) return undefined;
+    setFilters({ txnType: "ALL", company: "ALL", plant: "ALL", branch: "ALL", custodian: "ALL",
+      requestor: "ALL", department: "ALL", status: "ALL", bucket: "ALL", from: "", to: "" });
+    setFocusId(focus.id);
+    const t1 = setTimeout(() => {
+      const el = document.getElementById("aging-row-" + focus.id);
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 120);
+    const t2 = setTimeout(() => setFocusId(null), 6000);
+    return () => { clearTimeout(t1); clearTimeout(t2); };
+  }, [focus && focus.at]); // eslint-disable-line
   const resetFilters = () => setFilters({
     txnType: "ALL", company: "ALL", plant: "ALL", branch: "ALL", custodian: "ALL",
     requestor: "ALL", department: "ALL", status: "ALL", bucket: "ALL", from: "", to: "",
@@ -539,8 +557,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
       <div className="pcp-content">
         <div className="pcp-card pcp-card-pad" style={{ marginBottom: 16 }}>
           <div className="pcp-report-head">
-            <img src={LOGO_A1} alt="A1+ Multinational Packaging, Inc" />
-            <img src={LOGO_SPI} alt="Starkson Packaging, Inc." />
+            <BrandLogos />
             <div style={{ marginLeft: "auto", textAlign: "right" }}>
               <div className="pcp-report-title">Liquidation &amp; Reimbursement Aging Report</div>
               <div className="pcp-report-sub">
@@ -552,7 +569,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
 
         {/* ---- Filters ---- */}
         <div className="pcp-card pcp-card-pad pcp-no-print" style={{ marginBottom: 16 }}>
-          <div className="pcp-section-title"><FilterIcon size={15} color="#c8102e" /> Filters</div>
+          <div className="pcp-section-title"><FilterIcon size={15} color="#4e7d63" /> Filters</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
             <div className="pcp-field" style={{ margin: 0 }}>
               <label>Transaction Type</label>
@@ -643,9 +660,9 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
           <KpiCard label="Total Released Funds" value={peso(cards.released)} icon={ArrowUpRight} tint="#2054a3" foot="Cash released across all plants" />
           <KpiCard label="Total Pending Liquidations" value={cards.pending} icon={FileSpreadsheet} tint="#b9790a" foot="Vouchers not yet fully liquidated" />
           <KpiCard label="Total Due Today" value={cards.dueToday} icon={Clock} tint="#0891b2" foot="Liquidations due today" />
-          <KpiCard label="Total Overdue Liquidations" value={cards.overdue} icon={AlertTriangle} tint="#c8102e" foot={`Past ${AGING_DUE_DAYS}-day due date`} />
+          <KpiCard label="Total Overdue Liquidations" value={cards.overdue} icon={AlertTriangle} tint="#c0392b" foot={`Past ${AGING_DUE_DAYS}-day due date`} />
           <KpiCard label="Total Completed Liquidations" value={cards.completed} icon={Check} tint="#15803d" foot="Fully liquidated vouchers" />
-          <KpiCard label="Total Outstanding Amount" value={peso(cards.outstanding)} icon={CircleDollarSign} tint={cards.outstanding > 0 ? "#c8102e" : "#15803d"} foot="Unliquidated balance" />
+          <KpiCard label="Total Outstanding Amount" value={peso(cards.outstanding)} icon={CircleDollarSign} tint={cards.outstanding > 0 ? "#c0392b" : "#15803d"} foot="Unliquidated balance" />
         </div>
 
         {/* ---- Outstanding cash settlements ---- */}
@@ -674,7 +691,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
                     <td>{settlementOwes(info.st.type)}</td>
                     <td className="pcp-num" style={{ textAlign: "right" }}>{peso(info.st.expected)}</td>
                     <td className="pcp-num" style={{ textAlign: "right" }}>{peso(info.st.actual)}</td>
-                    <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700, color: info.overdue ? "var(--brand)" : "var(--text)" }}>{peso(info.st.remaining)}</td>
+                    <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700, color: info.overdue ? "var(--danger)" : "var(--text)" }}>{peso(info.st.remaining)}</td>
                     <td>{fmtDate(info.dueDate)}</td>
                     <td><SettlementDueChip dueDate={info.dueDate} daysLeft={info.daysLeft} /></td>
                   </tr>
@@ -716,11 +733,11 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
                     <td className="pcp-num">{peso(p.beginning)}</td>
                     <td className="pcp-num">{peso(p.released)}</td>
                     <td className="pcp-num">{peso(p.liquidated)}</td>
-                    <td className="pcp-num" style={{ fontWeight: 700, color: p.outstanding > 0 ? "var(--brand)" : "inherit" }}>{peso(p.outstanding)}</td>
+                    <td className="pcp-num" style={{ fontWeight: 700, color: p.outstanding > 0 ? "var(--danger)" : "inherit" }}>{peso(p.outstanding)}</td>
                     <td className="pcp-num">{p.pending}</td>
                     <td className="pcp-num">{p.dueToday ? <span className="pcp-badge pcp-badge-amber">{p.dueToday}</span> : 0}</td>
                     <td className="pcp-num">{p.overdue ? <span className="pcp-badge pcp-badge-red">{p.overdue}</span> : 0}</td>
-                    <td className="pcp-num" style={{ fontWeight: 700, color: p.compliance >= 80 ? "var(--green)" : (p.compliance >= 50 ? "var(--amber)" : "var(--brand)") }}>
+                    <td className="pcp-num" style={{ fontWeight: 700, color: p.compliance >= 80 ? "var(--green)" : (p.compliance >= 50 ? "var(--amber)" : "var(--danger)") }}>
                       {p.compliance.toFixed(1)}%
                     </td>
                   </tr>
@@ -733,7 +750,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
         {/* ---- Analytics ---- */}
         <div className="pcp-grid-2" style={{ marginBottom: 16 }}>
           <div className="pcp-card pcp-card-pad">
-            <div className="pcp-section-title"><AlertTriangle size={15} color="#c8102e" /> Overdue Liquidations by Plant</div>
+            <div className="pcp-section-title"><AlertTriangle size={15} color="#c0392b" /> Overdue Liquidations by Plant</div>
             <MiniBarChart data={overdueByPlant} />
           </div>
           <div className="pcp-card pcp-card-pad">
@@ -742,8 +759,8 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
               <ResponsiveContainer width="100%" height={220}>
                 <BarChart data={complianceByPlant} layout="vertical" margin={{ left: 8, right: 18, top: 4, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#eef0f3" vertical />
-                  <XAxis type="number" domain={[0, 100]} fontSize={10.5} stroke="#9098b3" />
-                  <YAxis type="category" dataKey="name" width={120} fontSize={10.5} stroke="#9098b3" />
+                  <XAxis type="number" domain={[0, 100]} fontSize={10.5} stroke="#8fa397" />
+                  <YAxis type="category" dataKey="name" width={120} fontSize={10.5} stroke="#8fa397" />
                   <Tooltip formatter={(v) => v + "%"} contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e3e5ea" }} />
                   <Bar dataKey="value" fill="#15803d" radius={[4, 4, 4, 4]} maxBarSize={22} />
                 </BarChart>
@@ -754,19 +771,19 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
 
         <div className="pcp-grid-2" style={{ marginBottom: 16 }}>
           <div className="pcp-card pcp-card-pad">
-            <div className="pcp-section-title"><CircleDollarSign size={15} color="#c8102e" /> Outstanding Amount by Plant</div>
+            <div className="pcp-section-title"><CircleDollarSign size={15} color="#4e7d63" /> Outstanding Amount by Plant</div>
             <MiniBarChart data={outstandingByPlant} />
           </div>
           <div className="pcp-card pcp-card-pad">
-            <div className="pcp-section-title"><TrendingUp size={15} color="#c8102e" /> Monthly Liquidation Trend</div>
+            <div className="pcp-section-title"><TrendingUp size={15} color="#4e7d63" /> Monthly Liquidation Trend</div>
             {monthlyTrend.length ? (
               <ResponsiveContainer width="100%" height={220}>
                 <LineChart data={monthlyTrend} margin={{ left: 8, right: 18, top: 4, bottom: 4 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#eef0f3" />
-                  <XAxis dataKey="month" fontSize={10.5} stroke="#9098b3" />
-                  <YAxis tickFormatter={shortPeso} fontSize={10.5} stroke="#9098b3" />
+                  <XAxis dataKey="month" fontSize={10.5} stroke="#8fa397" />
+                  <YAxis tickFormatter={shortPeso} fontSize={10.5} stroke="#8fa397" />
                   <Tooltip formatter={(v) => peso(v)} contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e3e5ea" }} />
-                  <Line type="monotone" dataKey="value" stroke="#c8102e" strokeWidth={2.5} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="value" stroke="#4e7d63" strokeWidth={2.5} dot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>
             ) : <div className="pcp-empty">No liquidated expenses recorded yet</div>}
@@ -775,11 +792,11 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
 
         <div className="pcp-grid-2" style={{ marginBottom: 16 }}>
           <div className="pcp-card pcp-card-pad">
-            <div className="pcp-section-title"><Building2 size={15} color="#c8102e" /> Top 10 Plants — Highest Outstanding</div>
+            <div className="pcp-section-title"><Building2 size={15} color="#4e7d63" /> Top 10 Plants — Highest Outstanding</div>
             <MiniBarChart data={topPlantsOutstanding} />
           </div>
           <div className="pcp-card pcp-card-pad">
-            <div className="pcp-section-title"><Users size={15} color="#c8102e" /> Top 10 Employees — Overdue Liquidations</div>
+            <div className="pcp-section-title"><Users size={15} color="#4e7d63" /> Top 10 Employees — Overdue Liquidations</div>
             <MiniBarChart data={topEmployeesOverdue} />
           </div>
         </div>
@@ -810,7 +827,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
               </thead>
               <tbody>
                 {detailRows.length ? detailRows.map((r) => (
-                  <tr key={r.id}>
+                  <tr key={r.id} id={"aging-row-" + r.id} className={focusId === r.id ? "pcp-row-focus" : undefined}>
                     <td><span className={"pcp-badge " + (r.transactionType === "Reimbursement" ? "pcp-badge-blue" : "pcp-badge-gray")}>{r.transactionType}</span></td>
                     <td>{r.requestNo}</td>
                     <td>{r.requestor}</td>
@@ -820,7 +837,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
                     <td>{deptDesc(r.department) || "\u2014"}</td>
                     <td>{fmtDate(r.releaseDate)}</td>
                     <td>{fmtDate(r.dueDate)}</td>
-                    <td className="pcp-num" style={{ fontWeight: 700, color: r.overdueDays > 0 ? "var(--brand)" : "inherit" }}>{r.ageDays}d</td>
+                    <td className="pcp-num" style={{ fontWeight: 700, color: r.overdueDays > 0 ? "var(--danger)" : "inherit" }}>{r.ageDays}d</td>
                     <td className="pcp-num">{peso(r.amount)}</td>
                     <td><span className={"pcp-badge pcp-badge-" + statusBadge(r.status)}>{r.status}</span></td>
                     <td><span className={"pcp-badge pcp-badge-" + bucketBadge(r)}>{r.agingBucket}</span></td>

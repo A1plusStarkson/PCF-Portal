@@ -32,7 +32,7 @@ reorder `PCP_SRC_FILES`. If you add a new file, insert it in the right place.
 | `02-helpers.jsx` | Formatting/date helpers, seed data, derived-metric functions (`computeMetrics`, `monitoringForFund`, `liqStatusFor`, …) and the receipt-amount / cash-settlement engine (`receiptAmountSummary`, `reconcileReceipts`, `settlementStateFor`, `liqFinalStatus`, `findDuplicateReceipts`). |
 | `03-report-engine.jsx` | The Report Center engine: `money()`, `REPORT_TYPES`, `buildReport()`, Excel/CSV/print builders, `printReportDocument()`. |
 | `04-acumatica-export.jsx` | Acumatica "Purchase Orders Template" export columns/logic. |
-| `05-master-data.jsx` | `BRANCHES`, `COMPANIES`, `PLANTS`, `SUBACCOUNTS`, `TAX_CATEGORIES`, `EXPENSE_CATEGORIES`, account map, user `ROLES` / access resolution. |
+| `05-master-data.jsx` | `BRANCHES`, `COMPANIES`, `PLANTS`, `SUBACCOUNTS`, `TAX_CATEGORIES`, `EXPENSE_CATEGORIES`, account map, user `ROLES` / access resolution. Also `EXPENSE_DEFINITIONS` (the approved Expense Definition → Expense Category list from "Expense Category for Portal.pdf") and `suggestExpenseCategories()`, the keyword engine that suggests / auto-fills a Liquidation line's category from its Expense text. |
 | `06-logos.jsx` | The embedded base64 logos only (`LOGO_SPI`, `LOGO_A1`, `LOGO_HAMFI`). Isolated so the other files stay readable. Regenerate from the PNGs beside `index.html` whenever the branding changes. |
 | `07-styles.jsx` | The global `CSS` string, the navigation constants, and the shared UI widgets (`TopBar`, `Badge`, `Collapsible`, `SearchSelect`, `AttachmentGallery`). |
 | `08-dashboard.jsx` | Dashboard screen + KPI cards. |

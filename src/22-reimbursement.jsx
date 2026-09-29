@@ -313,7 +313,7 @@ function ComplianceList({ compliance }) {
   return (
     <ul style={{ margin: 0, paddingLeft: 18, display: "flex", flexDirection: "column", gap: 6 }}>
       {compliance.issues.map((i, idx) => (
-        <li key={idx} style={{ fontSize: 12, color: i.severity === "fail" ? "var(--brand)" : "#b9790a" }}>
+        <li key={idx} style={{ fontSize: 12, color: i.severity === "fail" ? "var(--danger)" : "#b9790a" }}>
           {i.severity === "fail" ? "\u274c " : "\u26a0\ufe0f "}{i.message}
         </li>
       ))}
@@ -485,7 +485,9 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
   const total = reimbTotal(normalizedForm);
   const canSubmit = compliance.level !== "FAILED" && form.certify;
 
-  const payload = () => ({ ...normalizedForm });
+  /* The next number, previewed (useNextSeriesNo); issued only on save. */
+  const previewNo = useNextSeriesNo(reimbNoPrefix(form.branchCode), (allReimbursements || []).map((r) => r.reimbNo), !isEdit);
+  const payload = () => ({ ...normalizedForm, previewNo });
 
   const Stepper = () => {
     const steps = ["Expense Info", "Expense Lines", "Documents", "Review", "Submit"];
@@ -525,7 +527,10 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
               <div className="pcp-field-row">
                 <div className="pcp-field">
                   <label>Reimbursement No.</label>
-                  <input className="pcp-input" value={isEdit ? reimb.reimbNo : `Auto-generated on submit (${reimbNoPrefix(form.branchCode)}…)`} disabled />
+                  <input className="pcp-input" value={isEdit ? reimb.reimbNo : (previewNo || `Auto-generated on submit (${reimbNoPrefix(form.branchCode)}…)`)} disabled title="System-generated — cannot be changed" />
+                  {!isEdit && previewNo && (
+                    <div style={{ fontSize: 11.5, color: "var(--text-mut)" }}>System-generated · confirmed when you save</div>
+                  )}
                 </div>
                 <div className="pcp-field">
                   <label>Request Date</label>
@@ -568,7 +573,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                 </div>
               </div>
               <div className="pcp-field">
-                <label>Purpose <span style={{ color: "var(--brand)" }}>*</span></label>
+                <label>Purpose <span style={{ color: "var(--danger)" }}>*</span></label>
                 <PurposeSelect value={form.purpose} onChange={(v) => set("purpose", v)} />
                 <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 4 }}>
                   Select the approved expense classification. This does not, by itself, make an expense reimbursable — the usual receipts, approvals and supporting documents still apply.
@@ -633,7 +638,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                         <td><input className="pcp-input" style={{ minWidth: 120 }} value={l.businessPurpose} placeholder="Optional" onChange={(e) => setLine(l.id, { businessPurpose: e.target.value })} /></td>
                         <td><input className="pcp-input" style={{ minWidth: 90 }} value={l.receiptNo} onChange={(e) => setLine(l.id, { receiptNo: e.target.value })} /></td>
                         <td><input type="number" min="0" step="0.01" className="pcp-input" style={{ minWidth: 90 }} value={l.amount} onChange={(e) => setLine(l.id, { amount: e.target.value })} /></td>
-                        <td><button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => removeLine(l.id)} title="Remove line"><Trash2 size={13} color="var(--brand)" /></button></td>
+                        <td><button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => removeLine(l.id)} title="Remove line"><Trash2 size={13} color="var(--danger)" /></button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -668,12 +673,13 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                   </label>
                 ))}
               </div>
-              {uploadNote && <div style={{ fontSize: 12, color: "var(--brand)" }}>{uploadNote}</div>}
+              {uploadNote && <div style={{ fontSize: 12, color: "var(--danger)" }}>{uploadNote}</div>}
               {/* Every attachment is shown as a live preview, so the employee
                   sees exactly what the checker and approver will see. */}
               <AttachmentGallery
                 attachments={form.attachments}
                 emptyLabel="No documents attached. An Original OR / Sales Invoice is required."
+                large
                 renderFooter={(a) => (
                   <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 9px", borderTop: "1px solid var(--line)" }}>
                     <select
@@ -684,7 +690,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                     </select>
                     <span style={{ fontSize: 10.5, color: "var(--text-mut)", whiteSpace: "nowrap" }}>{(a.size / 1024).toFixed(0)} KB</span>
                     <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => removeAtt(a.id)} title="Remove document">
-                      <Trash2 size={13} color="var(--brand)" />
+                      <Trash2 size={13} color="var(--danger)" />
                     </button>
                   </div>
                 )}
@@ -721,7 +727,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
               </div>
               <div className="pcp-card" style={{ padding: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Attachments ({form.attachments.length})</div>
-                <AttachmentGallery attachments={form.attachments} emptyLabel="None" />
+                <AttachmentGallery attachments={form.attachments} emptyLabel="None" large />
               </div>
               <div className="pcp-card" style={{ padding: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Applicable Approval Schedule</div>
@@ -753,7 +759,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
               </label>
               {compliance.level === "FAILED" && (
                 <div className="pcp-card" style={{ padding: 12, borderColor: "#f0c0c0" }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--brand)", marginBottom: 6 }}>Submission blocked — resolve the following:</div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "var(--danger)", marginBottom: 6 }}>Submission blocked — resolve the following:</div>
                   <ComplianceList compliance={{ issues: compliance.issues.filter((i) => i.severity === "fail") }} />
                 </div>
               )}
@@ -800,7 +806,30 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
 
 /* allowPayment: only the Reimbursement tab owns the payment modal, so the
    Approval Module leaves it off rather than show a button that does nothing. */
-function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, currentUser, isChecker, isFinalApprover, canFinance, allowPayment, accounting }) {
+/* ---- Edit from anywhere ----
+   The Liquidation and Approval screens open reimbursements too. For the
+   REIMB_EDIT_OVERRIDE_EMAILS accounts they carry the same Edit as the
+   Reimbursement list: Draft / Returned saves or resubmits as usual; any other
+   stage saves in place with status and approvals kept (mode "override", which
+   updateReimbursement re-checks against the list and the plant scope). */
+function ReimbursementEditModal({ reimb, plantOptions, allReimbursements, currentUser, onUpdate, onClose }) {
+  const draftLike = reimb.status === REIMB_STATUS.DRAFT || reimb.status === REIMB_STATUS.RETURNED;
+  const done = (mode) => (form) => { onUpdate(reimb.id, form, mode); onClose(); };
+  return (
+    <ReimbursementFormModal
+      reimb={reimb}
+      plantOptions={plantOptions && plantOptions.length ? plantOptions : null}
+      allReimbursements={allReimbursements}
+      currentUser={currentUser}
+      onClose={onClose}
+      onSaveDraft={done("draft")}
+      onSubmit={done("submit")}
+      onSaveOverride={draftLike ? null : done("override")}
+    />
+  );
+}
+
+function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, currentUser, isChecker, isFinalApprover, canFinance, allowPayment, accounting, onEdit }) {
   const [comments, setComments] = useState("");
   const total = reimbTotal(reimb);
   const me = (currentUser || "").trim().toLowerCase();
@@ -855,13 +884,26 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
   })();
 
   return (
-    <div className="pcp-modal-backdrop" onClick={onClose}>
-      <div className="pcp-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: 860, width: "94%" }}>
+    <div className="pcp-modal-backdrop" {...backdropCloseProps(onClose)}>
+      {/* Large and resizable (drag the bottom-right corner) so receipts can be
+          read at a useful size while checking and approving. */}
+      <div
+        className="pcp-modal pcp-modal-resizable"
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "min(1280px, 96vw)", height: "calc(100vh - 80px)", minHeight: 400 }}
+      >
         <div className="pcp-modal-head">
           <h3>{reimb.reimbNo} · <Badge status={atAccounting ? REIMB_STAGE.FOR_ACCOUNTING : st} /></h3>
-          <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose}><X size={15} /></button>
+          <div style={{ display: "flex", gap: 6 }}>
+            {onEdit && (
+              <button className="pcp-btn pcp-btn-sm" onClick={() => onEdit(reimb)} title="Edit for checking / verification — status and approvals are kept">
+                <Edit3 size={12} /> Edit
+              </button>
+            )}
+            <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose}><X size={15} /></button>
+          </div>
         </div>
-        <div className="pcp-modal-body" style={{ maxHeight: "72vh", overflowY: "auto" }}>
+        <div className="pcp-modal-body">
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
             <div style={{ fontSize: 13 }}>
               <b>{reimb.employee}</b> · {subaccountLabel(reimb.department)} · {plantLabel(reimb.branchCode)} ({companyOfBranch(reimb.branchCode)})
@@ -912,7 +954,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
             </div>
             {/* Rendered inline so the checker and the approver can read every
                 receipt on this one screen — no per-file "View" click. */}
-            <AttachmentGallery attachments={reimb.attachments} emptyLabel="None" />
+            <AttachmentGallery attachments={reimb.attachments} emptyLabel="None" large />
           </div>
 
           {reimb.payment && reimb.payment.date && (
@@ -966,7 +1008,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
               Segregation of duties: nobody approves their own reimbursement. */}
           {(canCheck || canFinal || canAcctReturn) && (
             isOwn ? (
-              <div style={{ fontSize: 12, color: "var(--brand)" }}>Segregation of duties: you cannot approve your own reimbursement.</div>
+              <div style={{ fontSize: 12, color: "var(--danger)" }}>Segregation of duties: you cannot approve your own reimbursement.</div>
             ) : (
               <>
                 {canCheck && <button className="pcp-btn pcp-btn-primary" onClick={custodianApprove}><ShieldCheck size={13} /> Custodian Approve</button>}
@@ -995,6 +1037,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
           )}
           <button className="pcp-btn" onClick={onClose} style={{ marginLeft: "auto" }}>Close</button>
         </div>
+        <ModalResizeGrip />
       </div>
     </div>
   );
@@ -1026,7 +1069,7 @@ function ReimbursementPaymentModal({ reimb, onClose, onConfirm, processedBy }) {
             </div>
           </div>
           <div className="pcp-field-row">
-            <div className="pcp-field"><label>Reference / Check No. {form.method === "Check" && <span style={{ color: "var(--brand)" }}>*</span>}</label><input className="pcp-input" value={form.refNo} onChange={(e) => set("refNo", e.target.value)} /></div>
+            <div className="pcp-field"><label>Reference / Check No. {form.method === "Check" && <span style={{ color: "var(--danger)" }}>*</span>}</label><input className="pcp-input" value={form.refNo} onChange={(e) => set("refNo", e.target.value)} /></div>
             <div className="pcp-field"><label>Payment Amount (₱)</label><input type="number" min="0" step="0.01" className="pcp-input" value={form.amount} onChange={(e) => set("amount", e.target.value)} /></div>
           </div>
           <div className="pcp-field"><label>Payment Remarks</label><input className="pcp-input" value={form.remarks} onChange={(e) => set("remarks", e.target.value)} /></div>
@@ -1190,13 +1233,13 @@ function ReimbursementTab({
           <KpiCard label="Fully Approved" value={kpi.approved} icon={FileSpreadsheet} tint="#7c3aed" {...cardProps("approved")} />
           <KpiCard label="For Payment" value={kpi.forPayment} icon={Banknote} tint="#0891b2" {...cardProps("forPayment")} />
           <KpiCard label="Paid" value={kpi.paid} icon={CircleDollarSign} tint="#15803d" foot={peso(kpi.amtPaid)} {...cardProps("paid")} />
-          <KpiCard label="Rejected / Returned" value={kpi.rejected} icon={X} tint="#c8102e" {...cardProps("rejected")} />
+          <KpiCard label="Rejected / Returned" value={kpi.rejected} icon={X} tint="#c0392b" {...cardProps("rejected")} />
         </div>
 
         <div className="pcp-card" ref={tableRef} style={{ scrollMarginTop: 80 }}>
           <div style={{ padding: "14px 18px", display: "flex", gap: 10, alignItems: "center", borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
             <div style={{ position: "relative", flex: 1, maxWidth: 280 }}>
-              <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#9098b3" }} />
+              <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
               <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search employee or reimbursement no." value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             {cardFilter && (
@@ -1267,7 +1310,7 @@ function ReimbursementTab({
                             title={isDraftLike(r) ? "Edit" : "Edit for checking / verification — status and approvals are kept"}><Edit3 size={12} /></button>
                         )}
                         {canDelete && onDelete && (
-                          <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => onDelete(r.id)} title="Delete reimbursement (System Superuser)"><Trash2 size={13} color="var(--brand)" /></button>
+                          <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => onDelete(r.id)} title="Delete reimbursement (System Superuser)"><Trash2 size={13} color="var(--danger)" /></button>
                         )}
                       </div>
                     </td>
@@ -1304,6 +1347,9 @@ function ReimbursementTab({
           accounting={accounting}
           onExportAcumatica={onExportAcumatica}
           onAction={handleAction}
+          onEdit={(isDraftLike(detail) || canEditOverride)
+            ? (r) => { setDetail(null); setEditing(r); setShowForm(true); }
+            : undefined}
           onClose={() => setDetail(null)}
         />
       )}

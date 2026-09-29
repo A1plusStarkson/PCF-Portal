@@ -1,6 +1,6 @@
 /* ============================= DASHBOARD ============================= */
 
-const CHART_COLORS = ["#c8102e", "#2054a3", "#b9790a", "#15803d", "#7c3aed", "#0891b2", "#be185d", "#4b5563"];
+const CHART_COLORS = ["#4e7d63", "#5b8db8", "#c2a15a", "#7fb89a", "#8e7cc3", "#3f9c8f", "#d08a5a", "#8a978f"];
 
 function KpiCard({ label, value, icon: Icon, tint, foot, onClick, active }) {
   return (
@@ -54,17 +54,17 @@ function MiniBarChart({ data, height = 220, layout = "vertical", onSelect }) {
         <CartesianGrid strokeDasharray="3 3" stroke="#eef0f3" horizontal={layout !== "vertical"} vertical={layout === "vertical"} />
         {layout === "vertical" ? (
           <>
-            <XAxis type="number" tickFormatter={shortPeso} fontSize={10.5} stroke="#9098b3" />
-            <YAxis type="category" dataKey="name" width={120} fontSize={10.5} stroke="#9098b3" />
+            <XAxis type="number" tickFormatter={shortPeso} fontSize={10.5} stroke="#8fa397" />
+            <YAxis type="category" dataKey="name" width={120} fontSize={10.5} stroke="#8fa397" />
           </>
         ) : (
           <>
-            <XAxis dataKey="name" fontSize={10.5} stroke="#9098b3" />
-            <YAxis tickFormatter={shortPeso} fontSize={10.5} stroke="#9098b3" />
+            <XAxis dataKey="name" fontSize={10.5} stroke="#8fa397" />
+            <YAxis tickFormatter={shortPeso} fontSize={10.5} stroke="#8fa397" />
           </>
         )}
         <Tooltip formatter={(v) => peso(v)} contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e3e5ea" }} />
-        <Bar dataKey="value" fill="#c8102e" radius={[4, 4, 4, 4]} maxBarSize={22}
+        <Bar dataKey="value" fill="#4e7d63" radius={[4, 4, 4, 4]} maxBarSize={22}
           cursor={onSelect ? "pointer" : undefined}
           onClick={onSelect ? (d) => onSelect(pickName(d)) : undefined} />
       </BarChart>
@@ -191,7 +191,7 @@ function DrillReceipt({ att }) {
   const isImg = (att.type || "").startsWith("image/") && src;
   return (
     <a className="pcp-receipt" href={src || "#"} target="_blank" rel="noopener noreferrer" title={att.name}>
-      {isImg ? <img src={src} alt={att.name} /> : <div className="fileicon"><Receipt size={22} color="#9098b3" /></div>}
+      {isImg ? <img src={src} alt={att.name} /> : <div className="fileicon"><Receipt size={22} color="#8fa397" /></div>}
       <span>{att.name}</span>
     </a>
   );
@@ -294,7 +294,7 @@ function DrillDownModal({ chartName, label, columns, records, canEdit, onEditRec
       const n = (r._receipts || []).length;
       return n
         ? <span className="pcp-receipt-link" onClick={() => setExpanded(expanded === r.id ? null : r.id)}>{n} file{n > 1 ? "s" : ""}</span>
-        : <span style={{ color: "#9098b3" }}>—</span>;
+        : <span style={{ color: "#8fa397" }}>—</span>;
     }
     if (col.badge) return <Badge status={r[col.key]} />;
     if (col.money) return <span className="pcp-num">{money(r[col.key])}</span>;
@@ -518,7 +518,7 @@ function DeptDrilldownPanel({ funds, requests, disbursements, liquidations }) {
   return (
     <div className="pcp-card pcp-card-pad" style={{ marginBottom: 16 }}>
       <div className="pcp-section-title" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span><LayoutDashboard size={15} color="#c8102e" /> Department Analysis &amp; Transaction Drill-Down</span>
+        <span><LayoutDashboard size={15} color="#4e7d63" /> Department Analysis &amp; Transaction Drill-Down</span>
         {anyFilter && <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={clearAll}><X size={13} /> Clear Filters</button>}
       </div>
 
@@ -598,7 +598,7 @@ function DeptDrilldownPanel({ funds, requests, disbursements, liquidations }) {
             <div className="pcp-mini-stat"><div className="lbl">Amount Released</div><div className="val">{peso(summary.released)}</div></div>
             <div className="pcp-mini-stat"><div className="lbl">Amount Liquidated</div><div className="val">{peso(summary.liquidated)}</div></div>
             <div className="pcp-mini-stat"><div className="lbl">Amount Requested</div><div className="val">{peso(summary.requested)}</div></div>
-            <div className="pcp-mini-stat"><div className="lbl">Outstanding</div><div className="val" style={{ color: summary.outstanding > 0 ? "var(--brand)" : "inherit" }}>{peso(summary.outstanding)}</div></div>
+            <div className="pcp-mini-stat"><div className="lbl">Outstanding</div><div className="val" style={{ color: summary.outstanding > 0 ? "var(--danger)" : "inherit" }}>{peso(summary.outstanding)}</div></div>
           </div>
         </div>
       </div>
@@ -641,7 +641,7 @@ function DeptDrilldownPanel({ funds, requests, disbursements, liquidations }) {
                 <td className="pcp-num">{peso(r.amountRequested)}</td>
                 <td className="pcp-num">{peso(r.amount)}</td>
                 <td className="pcp-num">{peso(r.amountLiquidated)}</td>
-                <td className="pcp-num" style={{ fontWeight: 700, color: r.remaining > 0 ? "var(--brand)" : "inherit" }}>{peso(r.remaining)}</td>
+                <td className="pcp-num" style={{ fontWeight: 700, color: r.remaining > 0 ? "var(--danger)" : "inherit" }}>{peso(r.remaining)}</td>
                 <td style={{ textAlign: "center" }}><span className={"pcp-badge pcp-badge-" + liqBadge(r.status)}>{r.status}</span></td>
                 <td style={{ textAlign: "center" }}><span className={"pcp-badge pcp-badge-" + agingBadge(r.agingStatus)}>{r.agingStatus}</span></td>
               </tr>
@@ -801,22 +801,22 @@ function Dashboard({ funds, requests, disbursements, liquidations, replenishment
 
       <div className="pcp-kpi-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
         <KpiCard label="Current Petty Cash Balance" value={peso(m.availableBalance)} icon={CircleDollarSign}
-          tint={m.availableBalance < 0 ? "#c8102e" : "#15803d"}
+          tint={m.availableBalance < 0 ? "#c0392b" : "#15803d"}
           foot={m.availableBalance < 0 ? "Over committed — replenish soon" : "Cash on hand across custodians"}
           onClick={onNavigate ? () => onNavigate("masterdata") : undefined} />
         <KpiCard label="Pending Requests" value={m.pendingRequests} icon={ClipboardList} tint="#b9790a" foot="Awaiting approval" onClick={onNavigate ? () => onNavigate("requests") : undefined} />
         <KpiCard label="Approved Requests" value={m.approvedRequests} icon={Check} tint="#2054a3" foot="Ready for release" onClick={onNavigate ? () => onNavigate("requests") : undefined} />
-        <KpiCard label="Receipts Waiting for Custodian Approval" value={receiptStats.pending} icon={Receipt} tint="#c8102e" foot="Pending receipt approvals" onClick={onNavigate ? () => onNavigate("liquidation") : undefined} />
-        <KpiCard label="Liquidations For Revision" value={receiptStats.forRevision} icon={AlertTriangle} tint="#c8102e" foot="Rejected receipt(s) — needs correction" onClick={onNavigate ? () => onNavigate("liquidation") : undefined} />
+        <KpiCard label="Receipts Waiting for Custodian Approval" value={receiptStats.pending} icon={Receipt} tint="#c0392b" foot="Pending receipt approvals" onClick={onNavigate ? () => onNavigate("liquidation") : undefined} />
+        <KpiCard label="Liquidations For Revision" value={receiptStats.forRevision} icon={AlertTriangle} tint="#c0392b" foot="Rejected receipt(s) — needs correction" onClick={onNavigate ? () => onNavigate("liquidation") : undefined} />
         <KpiCard label="Pending Liquidations" value={m.pendingLiquidationCount} icon={FileSpreadsheet} tint="#2054a3" foot="Vouchers not fully liquidated" onClick={onNavigate ? () => onNavigate("liquidation") : undefined} />
-        <KpiCard label="Overdue Liquidations" value={overdueLiquidations} icon={AlertTriangle} tint="#c8102e" foot="Past 5-day liquidation deadline" onClick={onNavigate ? () => onNavigate("aging") : undefined} />
+        <KpiCard label="Overdue Liquidations" value={overdueLiquidations} icon={AlertTriangle} tint="#c0392b" foot="Past 5-day liquidation deadline" onClick={onNavigate ? () => onNavigate("aging") : undefined} />
         <KpiCard label="Overdue Cash Settlements" value={overdueSettlements.count} icon={CircleDollarSign}
-          tint={overdueSettlements.count ? "#c8102e" : "#15803d"}
+          tint={overdueSettlements.count ? "#c0392b" : "#15803d"}
           foot={overdueSettlements.count ? `${peso(overdueSettlements.amount)} still to be returned / reimbursed` : "No overdue cash returns or reimbursements"}
           onClick={onNavigate ? () => onNavigate("aging") : undefined} />
         <KpiCard label="Completed Liquidations" value={completedLiquidations} icon={Check} tint="#15803d" foot="Fully liquidated vouchers" onClick={onNavigate ? () => onNavigate("liquidation") : undefined} />
         <KpiCard label="Pending Replenishments" value={m.pendingReplenishments} icon={RefreshCw} tint="#b9790a" foot="Awaiting completion" onClick={onNavigate ? () => onNavigate("replenishment") : undefined} />
-        <KpiCard label="Monthly Expenses" value={peso(m.monthlyExpenses)} icon={TrendingUp} tint="#c8102e" foot="Liquidated this month" onClick={onNavigate ? () => onNavigate("history") : undefined} />
+        <KpiCard label="Monthly Expenses" value={peso(m.monthlyExpenses)} icon={TrendingUp} tint="#4e7d63" foot="Liquidated this month" onClick={onNavigate ? () => onNavigate("history") : undefined} />
         <KpiCard label="Active Petty Cash Funds" value={funds.length + " Funds"} icon={PiggyBank} tint="#7c3aed" foot="Across all plants" onClick={onNavigate ? () => onNavigate("masterdata") : undefined} />
         <KpiCard label="Total Disbursed" value={peso(m.totalDisbursed)} icon={ArrowUpRight} tint="#b9790a" foot="Released to date" onClick={onNavigate ? () => onNavigate("disbursements") : undefined} />
         <KpiCard label="Employees w/ Active Advances" value={m.activeEmployeeCount} icon={Users} tint="#15803d" onClick={onNavigate ? () => onNavigate("history") : undefined} />
@@ -824,23 +824,23 @@ function Dashboard({ funds, requests, disbursements, liquidations, replenishment
 
       <div className="pcp-grid-2" style={{ marginBottom: 16 }}>
         <div className="pcp-card pcp-card-pad pcp-chart-click" title="Click to view detailed transactions.">
-          <div className="pcp-section-title"><TrendingUp size={15} color="#c8102e" /> Monthly Expense Trend</div>
+          <div className="pcp-section-title"><TrendingUp size={15} color="#4e7d63" /> Monthly Expense Trend</div>
           {monthlyTrend.length ? (
             <ResponsiveContainer width="100%" height={220}>
               <LineChart data={monthlyTrend} margin={{ left: 8, right: 18, top: 4, bottom: 4 }} style={{ cursor: "pointer" }}
                 onClick={(e) => e && e.activeLabel && openDrill("Monthly Expense Trend", e.activeLabel)}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#eef0f3" />
-                <XAxis dataKey="month" fontSize={10.5} stroke="#9098b3" />
-                <YAxis tickFormatter={shortPeso} fontSize={10.5} stroke="#9098b3" />
+                <XAxis dataKey="month" fontSize={10.5} stroke="#8fa397" />
+                <YAxis tickFormatter={shortPeso} fontSize={10.5} stroke="#8fa397" />
                 <Tooltip formatter={(v) => peso(v)} contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e3e5ea" }} />
-                <Line type="monotone" dataKey="value" stroke="#c8102e" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+                <Line type="monotone" dataKey="value" stroke="#4e7d63" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
               </LineChart>
             </ResponsiveContainer>
           ) : <div className="pcp-empty">No liquidated expenses recorded yet</div>}
           <div className="pcp-chart-hint">Click a month to view its transactions.</div>
         </div>
         <div className="pcp-card pcp-card-pad pcp-chart-click" title="Click to view detailed transactions.">
-          <div className="pcp-section-title"><FileSpreadsheet size={15} color="#c8102e" /> Liquidation Status</div>
+          <div className="pcp-section-title"><FileSpreadsheet size={15} color="#4e7d63" /> Liquidation Status</div>
           {liqStatusCounts.length ? (
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>
@@ -925,7 +925,7 @@ function Dashboard({ funds, requests, disbursements, liquidations, replenishment
                       <td>{disb ? disb.voucherNo : "—"}</td>
                       <td>{fmtDate(l.createdDate)}</td>
                       <td className="pcp-num">{peso(total)}</td>
-                      <td className="pcp-num" style={{ color: remaining < 0 ? "#c8102e" : "inherit" }}>{peso(remaining)}</td>
+                      <td className="pcp-num" style={{ color: remaining < 0 ? "#c0392b" : "inherit" }}>{peso(remaining)}</td>
                     </tr>
                   );
                 }) : <tr><td colSpan={4} className="pcp-empty">No liquidations recorded</td></tr>}
@@ -1015,7 +1015,7 @@ function BranchDashboard({ label, branchCode, branchCodes, funds, requests, disb
         <KpiCard label="Total Disbursed" value={peso(m.totalDisbursed)} icon={ArrowUpRight} tint="#b9790a" onClick={onNavigate ? () => onNavigate("disbursements") : undefined} />
         <KpiCard label="Total Liquidated" value={peso(m.totalLiquidated)} icon={ArrowDownRight} tint="#15803d" onClick={onNavigate ? () => onNavigate("liquidation") : undefined} />
         <KpiCard label="Available Balance" value={peso(m.availableBalance)} icon={CircleDollarSign}
-          tint={m.availableBalance < 0 ? "#c8102e" : "#15803d"}
+          tint={m.availableBalance < 0 ? "#c0392b" : "#15803d"}
           foot={m.availableBalance < 0 ? "Over committed — replenish soon" : "Cash on hand"}
           onClick={onNavigate ? () => onNavigate("masterdata") : undefined} />
         <KpiCard label="Completed & Billed" value={m.completedBilled} icon={Check} tint="#15803d" foot="Exported to Acumatica" onClick={onNavigate ? () => onNavigate("disbursements") : undefined} />

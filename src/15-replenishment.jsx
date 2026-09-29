@@ -225,7 +225,7 @@ function ReplenishmentFormModal({ onClose, onSave, funds, disbursements, liquida
               <div style={{ fontSize: 11.5, marginTop: 4 }}>
                 {picked.size} item(s) selected · <b>{peso(pickedTotal)}</b>
                 {round2(form.amount) !== pickedTotal && (
-                  <span style={{ color: "var(--brand)" }}> — the amount differs from the selected items</span>
+                  <span style={{ color: "var(--danger)" }}> — the amount differs from the selected items</span>
                 )}
               </div>
             )}
@@ -259,7 +259,7 @@ const REPLENISH_SORT_FIELDS = {
   remarks: (r) => r.remarks,
 };
 
-function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, reimbursements, onCreate, onEdit, onComplete, onDelete, canDelete, plantOptions, canEdit, plantTitle, generatedBy }) {
+function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, reimbursements, onCreate, onEdit, onComplete, onDelete, canDelete, plantOptions, canEdit, plantTitle, generatedBy, canManage, onRevert, onRevertReady }) {
   const [showForm, setShowForm] = useState(false);
   /* Liquidations + amount handed to a new form from the Ready panel. */
   const [preselect, setPreselect] = useState(null);
@@ -325,7 +325,8 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
     setShowForm(true);
   };
   const totalCompleted = replenishments.filter((r) => r.status === "Completed").reduce((s, r) => s + (Number(r.amount) || 0), 0);
-  const totalPending = replenishments.filter((r) => r.status !== "Completed").reduce((s, r) => s + (Number(r.amount) || 0), 0);
+  const isOpenRepl = (r) => r.status !== "Completed" && r.status !== "Reverted";
+  const totalPending = replenishments.filter(isOpenRepl).reduce((s, r) => s + (Number(r.amount) || 0), 0);
 
   const filtered = sort.sortRows(
     replenishments.filter((r) => {
@@ -379,7 +380,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
               {/* Search + bulk selection. */}
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "10px 0" }}>
                 <div style={{ position: "relative", flex: 1, minWidth: 200, maxWidth: 320 }}>
-                  <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#9098b3" }} />
+                  <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
                   <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search voucher / reimb no., employee, approver…"
                     value={readySearch} onChange={(e) => setReadySearch(e.target.value)} />
                 </div>
@@ -428,6 +429,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                         <th style={{ width: 30 }}></th><th>Type</th><th>Voucher / Reimb No.</th><th>Txn Date</th>
                         <th>Employee</th><th>Branch</th><th>Custodian Approved</th><th>Final Approval</th>
                         <th style={{ textAlign: "right" }}>Approved Amount</th>
+                        {canManage && onRevertReady && <th></th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -447,6 +449,14 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                             <td>{x.checkedBy} · {fmtDate(String(x.checkedAt || "").slice(0, 10))}</td>
                             <td>{x.finalBy} · {fmtDate(String(x.finalAt || "").slice(0, 10))}</td>
                             <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700 }}>{peso(x.amount)}</td>
+                            {canManage && onRevertReady && (
+                              <td onClick={(e) => e.stopPropagation()}>
+                                <button className="pcp-btn pcp-btn-sm" onClick={() => onRevertReady(x.kind, x.id)}
+                                  title="Revert — void the final approval and send it back for approval / correction">
+                                  <History size={12} /> Revert
+                                </button>
+                              </td>
+                            )}
                           </tr>
                         );
                       })}
@@ -484,17 +494,17 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
         </div>
         <div className="pcp-kpi-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
           <KpiCard label="Total Replenished" value={peso(totalCompleted)} icon={RefreshCw} tint="#15803d" foot="Completed reimbursements" />
-          <KpiCard label="Pending Replenishments" value={replenishments.filter((r) => r.status !== "Completed").length} icon={Clock} tint="#b9790a" foot={peso(totalPending) + " in progress"} />
+          <KpiCard label="Pending Replenishments" value={replenishments.filter(isOpenRepl).length} icon={Clock} tint="#b9790a" foot={peso(totalPending) + " in progress"} />
           <KpiCard label="Replenishment Records" value={replenishments.length} icon={Landmark} tint="#2054a3" />
         </div>
         <div className="pcp-card">
           <div style={{ padding: "14px 18px", display: "flex", gap: 10, alignItems: "center", borderBottom: "1px solid var(--line)" }}>
             <div style={{ position: "relative", flex: 1, maxWidth: 280 }}>
-              <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#9098b3" }} />
+              <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
               <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search no. or preparer" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <select className="pcp-select" style={{ width: 170 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              {["All", ...REPLENISH_STATUSES].map((s) => <option key={s}>{s}</option>)}
+              {["All", ...REPLENISH_STATUSES, "Reverted"].map((s) => <option key={s}>{s}</option>)}
             </select>
             <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-mut)" }}>{filtered.length} of {replenishments.length} records</div>
           </div>
@@ -529,13 +539,23 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                       {!!(r.reimbursementIds || []).length && (
                         <div style={{ fontSize: 10.5, color: "var(--text-mut)" }}>{r.reimbursementIds.length} approved reimbursement(s)</div>
                       )}
+                      {r.status === "Reverted" && (
+                        <div style={{ fontSize: 10.5, color: "var(--danger)" }}>
+                          Reverted by {r.revertedBy || "—"} · {String(r.revertedAt || "").replace("T", " ")}{r.revertReason ? ` · "${r.revertReason}"` : ""}
+                        </div>
+                      )}
                     </td>
                     <td>
                       <div style={{ display: "flex", gap: 6 }}>
-                        {canEdit && r.status !== "Completed" && (
+                        {canManage && isOpenRepl(r) && (
                           <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={() => onComplete(r.id)} title="Mark completed"><Check size={12} /></button>
                         )}
-                        <button className="pcp-btn pcp-btn-sm" onClick={() => setEditing(r)} title="Edit"><Edit3 size={12} /></button>
+                        {canManage && r.status !== "Reverted" && (
+                          <button className="pcp-btn pcp-btn-sm" onClick={() => setEditing(r)} title="Edit"><Edit3 size={12} /></button>
+                        )}
+                        {canManage && onRevert && r.status !== "Reverted" && (
+                          <button className="pcp-btn pcp-btn-sm" onClick={() => onRevert(r.id)} title="Revert — undo this replenishment; its items return to Ready for Replenishment"><History size={12} /> Revert</button>
+                        )}
                         {canDelete && onDelete && (
                           <button className="pcp-btn pcp-btn-sm pcp-btn-danger" onClick={() => onDelete(r.id)} title="Delete replenishment (System Superuser)"><Trash2 size={12} /></button>
                         )}

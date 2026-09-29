@@ -1,8 +1,9 @@
 /* ============================= APP ============================= */
 
-export default function App({ userEmail, userName, onSignOut, userRole, isAdmin, userPlants }) {
+export default function App({ userEmail, userName, onSignOut, userRole, isAdmin, userPlants, userExcludePlants }) {
   const [loaded, setLoaded] = useState(false);
-  const [tab, setTab] = useState("dashboard");
+  /* Everyone starts on the Home landing page (24-home.jsx). */
+  const [tab, setTab] = useState("home");
   const [funds, setFunds] = useState([]);
   const [requests, setRequests] = useState([]);
   const [disbursements, setDisbursements] = useState([]);
@@ -41,20 +42,29 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
      LIVE, any branch appearing in the funds data — so a plant newly created in
      Funds & Master Data is automatically included across the dashboard, aging
      report, notifications and management reports with no code change. */
+  /* Plants taken away from this account (excludePlants in index.html), as
+     plant codes. Applied last, to the WHOLE family of each, so no branch of
+     an excluded plant survives — whatever the grant says. This single scope
+     is what every module, list, form, dropdown, notification and handler
+     reads (inScope / branchOptions / plantOptions), so an excluded plant's
+     records can be neither seen nor acted on anywhere in the app. */
+  const excludedPlantKey = (userExcludePlants || []).join("|");
   const allowedPlants = useMemo(() => {
+    const excluded = new Set((userExcludePlants || []).map(plantOfBranch));
+    const keep = (codes) => codes.filter((c) => !excluded.has(plantOfBranch(c)));
     if (userPlants === "ALL" || !userPlants) {
       /* EVERY branch, not just the four fund-holding plant codes. Those four
          alone left management blind to anything filed against a sub-branch
          (HASBRO, D5, …) — records its own requestors had created. */
       const codes = new Set(ALL_BRANCH_CODES);
       funds.forEach((f) => { if (f.branchCode) codes.add(f.branchCode); });
-      return Array.from(codes);
+      return keep(Array.from(codes));
     }
     /* Explicitly granted plants (custodians, requestors) — widened to the whole
        plant family, so a grant can never cover part of a plant and leave the
        rest of it visible only to somebody else. */
-    return Array.from(new Set(expandPlantFamilies(userPlants)));
-  }, [userPlants, funds]);
+    return keep(Array.from(new Set(expandPlantFamilies(userPlants))));
+  }, [userPlants, excludedPlantKey, funds]); // eslint-disable-line
   /* ---- Branch-level options ----
      Every branch the user may file a record against, in canonical order: the
      plants first, then any additional master-data plant so new plants surface
@@ -144,6 +154,14 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     "puradr@a1plus.com", "lita@a1plus.com", "mauwi@a1plus.com",
   ];
   const canEditReimbOverride = REIMB_EDIT_OVERRIDE_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
+  /* Replenishments: edit, mark completed and revert — these accounts only
+     (owner's instruction, Sep 2026). Everyone else sees the records read-only. */
+  const REPLEN_MANAGE_EMAILS = [
+    "a1plusadmin@a1plus.com", "superuser@a1plus.com", "accounting@a1plus.com", "finance@a1plus.com",
+    "puradr@a1plus.com", "lita@a1plus.com", "mauwi@a1plus.com",
+  ];
+  const canManageReplen = REPLEN_MANAGE_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
 
   /* ---- Closing a cash shortage ----
@@ -523,6 +541,9 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     try {
       requestNo = await issueSeriesNo(requestNoPrefix(form.branchCode), "requests", id, allRequestNos);
     } catch (e) { seriesFailed(e, "Request"); return; }
+    if (form.previewNo && form.previewNo !== requestNo) {
+      window.alert(`${form.previewNo} was taken by another request saved at the same time.\n\nYour request was saved as ${requestNo}.`);
+    }
     setRequests((rs) => [...rs, {
       id, requestNo, date: form.date, employee: form.employee,
       department: form.department, branchCode: form.branchCode, purpose: form.purpose,
@@ -1308,6 +1329,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
 
   const editReplenishment = useCallback(async (id, form) => {
     const r0 = replenishments.find((x) => x.id === id);
+    if (!canManageReplen || !r0 || r0.status === "Reverted") return;
     /* The number is never taken from the form; only a plant move changes it. */
     const { replenishmentNo: _ignored, ...fields } = form;
     setReplenishments((rs) => rs.map((r) => (r.id === id ? { ...r, ...fields } : r)));
@@ -1318,13 +1340,103 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       + (linkedR.length ? ` · reimbursements: ${linkedR.join(", ")}` : ""));
     await moveToPlantSeries(setReplenishments, "replenishmentNo", r0, form.branchCode, "RPL", "replenishments",
       replenishments.map((r) => r.replenishmentNo));
-  }, [logAudit, liquidations, disbursements, reimbursements, replenishments, userName, userEmail, role]); // eslint-disable-line
+  }, [logAudit, liquidations, disbursements, reimbursements, replenishments, canManageReplen, userName, userEmail, role]); // eslint-disable-line
 
   const completeReplenishment = useCallback((id) => {
+    if (!canManageReplen) return;
     setReplenishments((rs) => rs.map((r) => (r.id === id ? { ...r, status: "Completed" } : r)));
     const r = replenishments.find((x) => x.id === id);
     logAudit("Replenished", r ? r.replenishmentNo : id, `Marked completed${r ? ` · ${peso(Number(r.amount))}` : ""}`);
-  }, [logAudit, replenishments]);
+  }, [logAudit, replenishments, canManageReplen]);
+
+  /* Revert: undoes a replenishment without deleting it. The record stays (its
+     number stays retired) marked Reverted with who, when and why; the
+     liquidations and reimbursements it claimed are released back to Ready for
+     Replenishment (kept on the record as revertedLiquidationIds /
+     revertedReimbursementIds for the audit trail). A Completed one also stops
+     counting toward the fund's replenished total. */
+  const revertReplenishment = useCallback((id) => {
+    const r = replenishments.find((x) => x.id === id);
+    if (!canManageReplen || !r || r.status === "Reverted") return;
+    const claims = (r.liquidationIds || []).length + (r.reimbursementIds || []).length;
+    const reason = window.prompt(
+      `Revert ${r.replenishmentNo}?\n\n${plantNameOf(r.branchCode)} · ${peso(Number(r.amount))}${r.status ? ` · ${r.status}` : ""}`
+      + (claims ? `\n${claims} approved liquidation(s) / reimbursement(s) will return to Ready for Replenishment.` : "")
+      + "\n\nThe record is kept, marked Reverted. Enter the reason:"
+    );
+    if (reason == null) return;
+    if (!reason.trim()) { window.alert("A reason is required to revert a replenishment. Nothing was changed."); return; }
+    const ts = new Date().toISOString().slice(0, 19);
+    setReplenishments((rs) => rs.map((x) => (x.id !== id ? x : {
+      ...x, status: "Reverted", prevStatus: x.status || "",
+      liquidationIds: [], reimbursementIds: [],
+      revertedLiquidationIds: x.liquidationIds || [], revertedReimbursementIds: x.reimbursementIds || [],
+      revertedBy: userName || userEmail || role, revertedAt: ts, revertReason: reason.trim(),
+    })));
+    logAudit("Edited", r.replenishmentNo, `Replenishment reverted (was ${r.status || "—"}) · ${peso(Number(r.amount))} · Reason: ${reason.trim()}`
+      + (claims ? ` · ${claims} item(s) returned to Ready for Replenishment` : ""));
+  }, [logAudit, replenishments, canManageReplen, userName, userEmail, role]); // eslint-disable-line
+
+  /* Revert an item in the Ready for Replenishment list: undoes its FINAL
+     approval so it can be corrected or re-decided. The custodian approval and
+     Accounting check are kept, so it goes back to For Final Approval. (A
+     liquidation approved before the two-level review has no such stamps and
+     goes back to custodian review.) The voided approval is kept in
+     review.history. Only an item no replenishment has claimed yet — revert
+     the replenishment first otherwise. */
+  const revertReadyItem = useCallback((kind, id) => {
+    if (!canManageReplen) return;
+    const claimed = kind === "liq"
+      ? replenishedLiquidationIds(replenishments).has(id)
+      : replenishedReimbursementIds(replenishments).has(id);
+    if (claimed) { window.alert("This item is already on a replenishment. Revert that replenishment first."); return; }
+    const ts = new Date().toISOString().slice(0, 19);
+    const actor = userName || userEmail || role;
+    const ask = (ref, where) => {
+      const reason = window.prompt(`Revert ${ref}?\n\nIts final approval is voided and it goes back to ${where}.\n\nEnter the reason:`);
+      if (reason == null) return null;
+      if (!reason.trim()) { window.alert("A reason is required to revert. Nothing was changed."); return null; }
+      return reason.trim();
+    };
+    const voided = (rv, note, reason) => (rv.history || []).concat([{
+      action: note, user: actor, ts, reason,
+      checkedBy: rv.checkedBy || "", checkedAt: rv.checkedAt || "",
+      acctCheckedBy: rv.acctCheckedBy || "", acctCheckedAt: rv.acctCheckedAt || "", batchNo: rv.batchNo || "",
+      finalBy: rv.finalBy || "", finalAt: rv.finalAt || "",
+    }]);
+    if (kind === "liq") {
+      const liq = liquidations.find((l) => l.id === id);
+      if (!liq || !liqReview(liq).final) return;
+      const d = disbursements.find((x) => x.id === liq.disbursementId);
+      const ref = d ? d.voucherNo : id;
+      const legacy = !liq.workflow;
+      const reason = ask(ref, legacy ? "custodian review" : "For Final Approval");
+      if (!reason) return;
+      setLiquidations((ls) => ls.map((l) => {
+        if (l.id !== id) return l;
+        const rv = l.review || {};
+        return legacy
+          ? { ...l, workflow: 2, review: { ...acctStamps(rv), history: voided(rv, "Final approval reverted from Ready for Replenishment", reason) } }
+          : { ...l, review: { ...rv, finalBy: "", finalAt: "", finalRemarks: "", history: voided(rv, "Final approval reverted from Ready for Replenishment", reason) } };
+      }));
+      logAudit("Liquidation Approval Voided", ref, `Reverted from Ready for Replenishment by ${actor} · Reason: ${reason}`);
+      return;
+    }
+    const r0 = reimbursements.find((x) => x.id === id);
+    if (!r0 || r0.status !== REIMB_STATUS.READY) return;
+    const reason = ask(r0.reimbNo, "For Final Approval");
+    if (!reason) return;
+    setReimbursements((rs) => rs.map((r) => {
+      if (r.id !== id || r.status !== REIMB_STATUS.READY) return r;
+      const rv = r.review || {};
+      return {
+        ...r, status: REIMB_STATUS.FOR_FINAL, approvedBy: "", approvedAt: "",
+        review: { ...rv, finalBy: "", finalAt: "", finalRemarks: "", history: voided(rv, "Final approval reverted from Ready for Replenishment", reason) },
+        history: [...(r.history || []), { ts: reimbTs(), user: actor, action: "Final approval reverted (Ready for Replenishment)", prevStatus: r.status, newStatus: REIMB_STATUS.FOR_FINAL, comments: reason }],
+      };
+    }));
+    logAudit("Edited", r0.reimbNo, `Reimbursement final approval reverted from Ready for Replenishment · Reason: ${reason}`);
+  }, [canManageReplen, replenishments, liquidations, disbursements, reimbursements, logAudit, userName, userEmail, role]); // eslint-disable-line
 
   const deleteReplenishment = useCallback((id) => {
     const r = replenishments.find((x) => x.id === id);
@@ -1497,6 +1609,9 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     try {
       reimbNo = await issueSeriesNo(reimbNoPrefix(form.branchCode), "reimbursements", id, reimbursements.map((r) => r.reimbNo));
     } catch (e) { seriesFailed(e, "Reimbursement"); return; }
+    if (form.previewNo && form.previewNo !== reimbNo) {
+      window.alert(`${form.previewNo} was taken by another reimbursement saved at the same time.\n\nYours was saved as ${reimbNo}.`);
+    }
     const ts = reimbTs();
     const base = buildReimbFromForm(form);
     const status = submit ? REIMB_STATUS.SUBMITTED : REIMB_STATUS.DRAFT;
@@ -1730,6 +1845,26 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     const ids = new Set(visibleDisbursements.map((d) => d.id));
     return liquidations.filter((l) => ids.has(l.disbursementId));
   }, [liquidations, visibleDisbursements]);
+  /* Accounts with excluded plants (excludePlants) also must not see those
+     plants in the shared, otherwise plant-wide screens: Funds & Master Data,
+     PCF Documents and the Audit Trail. Applied ONLY to such accounts, so
+     everyone else's view of those screens is unchanged. Display filters only —
+     the full lists are still what every save writes to. */
+  const plantRestricted = (userExcludePlants || []).length > 0;
+  const docsForUser = useMemo(
+    () => (plantRestricted ? documents.filter((d) => !d.plant || inScope(d.plant)) : documents),
+    [plantRestricted, documents, inScope]
+  );
+  const auditForUser = useMemo(() => {
+    if (!plantRestricted) return auditLog;
+    /* Hide entries about a record of an excluded plant (matched by number). */
+    const hidden = new Set();
+    const note = (list, key) => list.forEach((r) => { if (r && !inScope(r.branchCode) && r[key]) hidden.add(String(r[key]).trim().toUpperCase()); });
+    note(requests, "requestNo"); note(disbursements, "voucherNo"); note(reimbursements, "reimbNo"); note(replenishments, "replenishmentNo");
+    funds.forEach((f) => { if (!inScope(f.branchCode)) { if (f.label) hidden.add(String(f.label).trim().toUpperCase()); hidden.add(String(f.branchCode).trim().toUpperCase()); } });
+    documents.forEach((d) => { if (d.plant && !inScope(d.plant) && d.refNo) hidden.add(String(d.refNo).trim().toUpperCase()); });
+    return auditLog.filter((a) => !hidden.has(String(a.entity || "").trim().toUpperCase()));
+  }, [plantRestricted, auditLog, requests, disbursements, reimbursements, replenishments, funds, documents, inScope]);
   /* Dashboard plant tabs limited to the user's plants. */
 
   /* ---- Separate tab per plant ---- */
@@ -1794,7 +1929,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   /* Build the grouped sidebar: an optional consolidated overview, one group per
      plant with that plant's modules, then the shared administration tabs. */
   const navGroups = useMemo(() => {
-    const groups = [];
+    /* Home (landing page) — every role. Read-only summary + links, see 24-home.jsx. */
+    const groups = [{ key: "home", label: "", items: [{ tabKey: "home", label: "Home", icon: House }] }];
     const plantMods = PLANT_MODULES.filter((m) => roleModuleKeys.includes(m.key));
     if (orderedPlants.length > 1 && roleModuleKeys.includes("dashboard")) {
       groups.push({ key: "overview", label: "Overview", items: [
@@ -1868,15 +2004,27 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
      is already plant-scoped). Recomputed on every change and at each new day.
      Their general bell then drops its own liquidation-pending notices, so the
      same voucher is never announced twice. */
-  const today = todayISO();
-  const showReminders = role === "Requestor";
-  const reminders = useMemo(
-    () => (showReminders ? liquidationReminders(visibleDisbursements, visibleLiquidations, today) : null),
-    [showReminders, visibleDisbursements, visibleLiquidations, today]
+  /* The date, re-checked every minute so reminders and alarms move on to the
+     next day (due tomorrow -> due today -> overdue) with no page refresh. */
+  const [today, setToday] = useState(() => todayISO());
+  useEffect(() => {
+    const t = setInterval(() => setToday((d) => { const n = todayISO(); return n === d ? d : n; }), 60000);
+    return () => clearInterval(t);
+  }, []);
+  /* Live liquidation alarms (25-liq-alarms.jsx) for LIQ_ALARM_EMAILS, over the
+     plants each account can already see — a custodian gets their own plants'
+     employees. Hidden while previewing another role. */
+  const alarmsOn = LIQ_ALARM_EMAILS.includes((userEmail || "").trim().toLowerCase()) && role === (userRole || "Accounting");
+  const showReminders = role === "Requestor" && !alarmsOn;
+  const liveReminders = useMemo(
+    () => ((showReminders || alarmsOn) ? liquidationReminders(visibleDisbursements, visibleLiquidations, today, visibleFunds) : null),
+    [showReminders, alarmsOn, visibleDisbursements, visibleLiquidations, today, visibleFunds]
   );
+  const reminders = showReminders ? liveReminders : null;
+  const liqAlarms = useLiqAlarms(alarmsOn ? liveReminders : null, userEmail, alarmsOn);
   const bellNotifications = useMemo(
-    () => (showReminders ? notifications.filter((n) => !/^n-(over|due|rem|liq)-/.test(n.id)) : notifications),
-    [showReminders, notifications]
+    () => ((showReminders || alarmsOn) ? notifications.filter((n) => !/^n-(over|due|rem|liq)-/.test(n.id)) : notifications),
+    [showReminders, alarmsOn, notifications]
   );
   /* A clicked reminder opens that voucher's liquidation worksheet, on the tab
      of the plant it belongs to. */
@@ -1888,9 +2036,67 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     navigate(target);
   }, [orderedPlants, navigate]);
 
+  /* ---- Home (landing page) data — derived only, nothing is written ---- */
+  const tabFor = (key) => (PLANT_MODULE_KEYS.includes(key) && orderedPlants[0] ? plantTabKey(orderedPlants[0].code, key) : key);
+  const canOpen = (key) => allowedTabs.has(tabFor(key));
+  const homeDeadlines = useMemo(
+    () => liquidationReminders(visibleDisbursements, visibleLiquidations, today),
+    [visibleDisbursements, visibleLiquidations, today]
+  );
+  const homeQuickLinks = [
+    { key: "requests", label: "Petty Cash Request", desc: "Request a cash advance and track its approval", icon: ClipboardList, tint: "#4e7d63" },
+    { key: "reimbursement", label: "Reimbursement", desc: "Claim back expenses you paid yourself", icon: ArrowLeftRight, tint: "#3f9c8f" },
+    { key: "liquidation", label: "Liquidation", desc: "Liquidate released cash with receipts", icon: FileSpreadsheet, tint: "#a86b06" },
+    { key: "disbursements", label: "Release Ledger", desc: "Vouchers released from the fund", icon: Receipt, tint: "#2f64a6" },
+    { key: "replenishment", label: "Replenishment", desc: "Restore the fund for approved expenses", icon: RefreshCw, tint: "#6a4fb8" },
+    { key: "approvals", label: "Approval", desc: "Everything awaiting your decision", icon: ClipboardCheck, tint: "#237a45" },
+  ].filter((q) => canOpen(q.key)).map((q) => ({ ...q, onClick: () => navigate(q.key) }));
+  /* Summary cards. Each appears only when the account can open the module it
+     summarises; the fund balance only for roles with the dashboard. */
+  const sumAmt = (xs, f) => xs.reduce((s, x) => s + (Number(f ? f(x) : x.amount) || 0), 0);
+  const homeStats = [];
+  if (canOpen("dashboard")) {
+    const bal = sumAmt(visibleFunds, (f) => monitoringForFund(f, visibleDisbursements, visibleLiquidations, visibleReplenishments).available);
+    homeStats.push({ label: "💰 Petty Cash Balance", value: peso(bal), icon: Wallet, tint: bal < 0 ? "#c0392b" : "#4e7d63",
+      foot: `${visibleFunds.length} fund(s) available`, onClick: () => navigate("dashboard") });
+  }
+  if (canOpen("requests")) {
+    const active = visibleRequests.filter((r) => r.status === "Pending" || r.status === "Approved");
+    const pend = active.filter((r) => r.status === "Pending").length;
+    homeStats.push({ label: "📋 Active Requests", value: active.length, icon: ClipboardList, tint: "#2f64a6",
+      foot: `${pend} pending · ${active.length - pend} awaiting release · ${peso(sumAmt(active))}`, onClick: () => navigate("requests") });
+  }
+  if (canOpen("liquidation")) {
+    const overdue = homeDeadlines.filter((d) => d.daysLeft < 0);
+    homeStats.push({ label: "⏳ For Liquidation", value: homeDeadlines.length, icon: FileSpreadsheet, tint: "#c2560c",
+      foot: peso(sumAmt(homeDeadlines)), onClick: () => navigate("liquidation") });
+    homeStats.push({ label: "⚠️ Overdue Liquidations", value: overdue.length, icon: AlertTriangle, tint: overdue.length ? "#c0392b" : "#237a45",
+      foot: overdue.length ? `${peso(sumAmt(overdue))} · for Authority to Deduct` : "None overdue",
+      onClick: () => navigate(canOpen("aging") ? "aging" : "liquidation") });
+  }
+  if (canOpen("replenishment")) {
+    const ready = replenishmentReadyItems(visibleDisbursements, visibleLiquidations, visibleReimbursements, visibleReplenishments);
+    homeStats.push({ label: "🔄 For Replenishment", value: ready.length, icon: RefreshCw, tint: "#6a4fb8",
+      foot: peso(sumAmt(ready)), onClick: () => navigate("replenishment") });
+  }
+  if (canOpen("reimbursement")) {
+    const closed = [REIMB_STATUS.DRAFT, REIMB_STATUS.COMPLETED, REIMB_STATUS.PAID, REIMB_STATUS.REJECTED];
+    const open = visibleReimbursements.filter((r) => !closed.includes(r.status));
+    homeStats.push({ label: "💵 Reimbursements", value: open.length, icon: Banknote, tint: "#3f9c8f",
+      foot: `${peso(sumAmt(open, (r) => reimbTotal(r)))} in progress`, onClick: () => navigate("reimbursement") });
+  }
+
+  /* An alarm opens its record in Liquidation Aging (or, without access to
+     it, the liquidation itself). */
+  const [agingFocus, setAgingFocus] = useState(null);
+  const onAlarmOpen = useCallback((r) => {
+    if (allowedTabs.has("aging")) { setAgingFocus({ id: r.id, at: Date.now() }); navigate("aging"); }
+    else onReminderClick(r);
+  }, [allowedTabs, navigate, onReminderClick]);
+
   const uiValue = useMemo(
-    () => ({ notifications: bellNotifications, reminders, onReminderClick, role, setRole: guardedSetRole, canSwitchRole: !!isAdmin, onNotifClick }),
-    [bellNotifications, reminders, onReminderClick, role, guardedSetRole, isAdmin, onNotifClick]
+    () => ({ notifications: bellNotifications, reminders, onReminderClick, role, setRole: guardedSetRole, canSwitchRole: !!isAdmin, onNotifClick, liqAlarms, onAlarmOpen }),
+    [bellNotifications, reminders, onReminderClick, role, guardedSetRole, isAdmin, onNotifClick, liqAlarms, onAlarmOpen]
   );
 
   if (!loaded) {
@@ -1932,6 +2138,21 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             setup SQL (see README → Data Storage &amp; Login) in Supabase to fully restore multi-user safety.
             No existing data will be affected.
           </div>
+        )}
+        {activeModule === "home" && (
+          <>
+            <TopBar title="Home" sub="Your petty cash overview and shortcuts" />
+            <div className="pcp-content">
+              <HomePage
+                userName={userName} userEmail={userEmail}
+                roleLabel={ROLES[role] ? ROLES[role].label : role}
+                plants={orderedPlants}
+                quickLinks={homeQuickLinks} stats={homeStats}
+                notifications={bellNotifications} onNotifClick={onNotifClick}
+                deadlines={homeDeadlines} onDeadlineClick={onReminderClick}
+              />
+            </div>
+          </>
         )}
         {activeModule === "dashboard" && (
           activePlant && activeBranch ? (
@@ -2013,6 +2234,9 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             currentUser={userName || role}
             reimbursements={scopedReimbursements}
             onReimbursementAction={reimbursementAction}
+            canEditReimb={canEditReimbOverride}
+            onUpdateReimbursement={updateReimbursement}
+            allReimbursements={reimbursements}
             canFinance={["Accounting", "Finance", "SuperAdmin"].includes(role) || !!isAdmin}
             plantOptions={scopedPlantOptions}
             plantTitle={activePlantLabel}
@@ -2028,6 +2252,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             reimbursements={scopedReimbursements}
             onCreate={addReplenishment} onEdit={editReplenishment}
             onComplete={completeReplenishment} onDelete={deleteReplenishment}
+            onRevert={revertReplenishment} onRevertReady={revertReadyItem} canManage={canManageReplen}
             canDelete={canDeleteTxn}
             generatedBy={userName || userEmail}
             plantOptions={scopedPlantOptions} canEdit={canEdit}
@@ -2072,7 +2297,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             key={tab}
             funds={scopedFunds} requests={scopedRequests} disbursements={scopedDisbursements} liquidations={scopedLiquidations} replenishments={scopedReplenishments}
             reimbursements={scopedReimbursements}
-            auditLog={auditLog} generatedBy={userName || userEmail}
+            auditLog={auditForUser} generatedBy={userName || userEmail}
             plantTitle={activePlantLabel}
           />
         )}
@@ -2088,33 +2313,43 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             onFinalApprove={finalApproveLiquidation}
             accounting={accountingProps}
             onReimbursementAction={reimbursementAction}
+            canEditReimb={canEditReimbOverride}
+            onUpdateReimbursement={updateReimbursement}
+            reimbPlantOptions={branchOptions.filter((p) => inScope(p.code))}
             onExportReimbursementAcumatica={exportReimbursementAcumatica}
             isChecker={isLiquidationChecker}
             isFinalApprover={isFinalApprover}
             canFinance={["Accounting", "Finance", "SuperAdmin"].includes(role) || !!isAdmin}
             currentUser={userName || role}
             plantOptions={plantOptions}
+            onOpenReplenishment={[...allowedTabs].some((t) => parseTab(t).module === "replenishment")
+              ? () => navigate("replenishment") : undefined}
           />
         )}
         {activeModule === "aging" && (
           <LiquidationAgingTab
             funds={visibleFunds} requests={visibleRequests} disbursements={visibleDisbursements}
             liquidations={visibleLiquidations} replenishments={visibleReplenishments}
+            focus={agingFocus}
           />
         )}
         {activeModule === "audit" && (
-          <AuditTrailTab auditLog={auditLog} canDelete={isSuperAdmin} onDelete={deleteAuditEntries} />
+          <AuditTrailTab auditLog={auditForUser} canDelete={isSuperAdmin} onDelete={deleteAuditEntries} />
         )}
         {activeModule === "documents" && (
           <PcfDocumentsTab
-            documents={documents} funds={funds} plantOptions={plantOptions}
+            documents={docsForUser} allDocCount={documents.length}
+            funds={plantRestricted ? visibleFunds : funds} plantOptions={plantOptions}
             userName={userName} role={role} isAdmin={isAdmin}
             onAdd={addDocuments} onReplace={replaceDocument} onUpdate={updateDocument}
             onDelete={deleteDocument} onActivity={docActivity}
           />
         )}        {activeModule === "masterdata" && (
           <MasterDataTab
-            funds={funds} disbursements={disbursements} liquidations={liquidations} replenishments={replenishments}
+            funds={plantRestricted ? visibleFunds : funds}
+            disbursements={plantRestricted ? visibleDisbursements : disbursements}
+            liquidations={plantRestricted ? visibleLiquidations : liquidations}
+            replenishments={plantRestricted ? visibleReplenishments : replenishments}
             onAddFund={addFund} onEditFund={editFund} onDeleteFund={deleteFund}
           />
         )}

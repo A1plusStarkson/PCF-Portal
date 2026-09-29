@@ -605,7 +605,7 @@ function reportPrintHTML(doc) {
   .rh-logo img { height: 54px; max-width: 150px; object-fit: contain; }
   .rh-center { flex: 1; text-align: center; }
   .rh-company { font-size: 16px; font-weight: 800; letter-spacing: 0.4px; }
-  .rh-portal { font-size: 11px; font-weight: 700; color: #c8102e; letter-spacing: 1px; margin-top: 1px; }
+  .rh-portal { font-size: 11px; font-weight: 700; color: #4e7d63; letter-spacing: 1px; margin-top: 1px; }
   .rh-title { font-size: 13px; font-weight: 800; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
   .rh-ref { min-width: 130px; text-align: right; font-size: 8px; color: #555; line-height: 1.5; }
   .rh-ref .ref-no { font-weight: 700; color: #111; font-size: 9px; }
@@ -626,7 +626,7 @@ function reportPrintHTML(doc) {
   .sign .who { color: #333; margin-bottom: 30px; }
   .sign .line { border-top: 1px solid #111; padding-top: 3px; font-weight: 700; }
   .sign .role { font-size: 8.5px; color: #555; }
-  .wm { position: fixed; top: 40%; left: 8%; font-size: 130px; color: rgba(200,16,46,0.08); font-weight: 800; transform: rotate(-30deg); z-index: 0; pointer-events: none; }
+  .wm { position: fixed; top: 40%; left: 8%; font-size: 130px; color: rgba(78,125,99,0.08); font-weight: 800; transform: rotate(-30deg); z-index: 0; pointer-events: none; }
 </style></head>
 <body>
   ${wm}

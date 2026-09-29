@@ -59,7 +59,15 @@ function ChangePasswordModal({ onClose, onDone }) {
    documents who has access to what. */
 function UserManagementTab({ currentEmail, onChangePassword }) {
   const users = window.PCP_USERS || {};
-  const plantsLabel = (p) => (p === "ALL" || !p) ? "All plants" : resolvePlants(p).map(plantLabel).join(", ");
+  const basePlantsLabel = (p) => (p === "ALL" || !p) ? "All plants" : resolvePlants(p).map(plantLabel).join(", ");
+  /* excludePlants (index.html) is shown too, so the roster states the
+     restriction rather than implying "All plants". */
+  const plantsLabel = (p, ex) => {
+    const base = basePlantsLabel(p);
+    const names = (ex || []).map(plantLabel);
+    if (!names.length) return base;
+    return (p === "ALL" || !p ? "All plants except " : base + " — no access to ") + names.join(", ");
+  };
   /* No sort key on open, so the roster keeps its configured order. */
   const sort = useTableSort(null);
   const rows = sort.sortRows(
@@ -68,7 +76,7 @@ function UserManagementTab({ currentEmail, onChangePassword }) {
       name: (u) => u.name,
       email: (u) => u.email,
       role: (u) => (ROLES[u.role] ? ROLES[u.role].label : (u.role || "Custodian")),
-      plants: (u) => plantsLabel(u.plants),
+      plants: (u) => plantsLabel(u.plants, u.excludePlants),
       admin: (u) => (u.role === "Accounting" ? 0 : 1),
     }
   );
@@ -96,7 +104,7 @@ function UserManagementTab({ currentEmail, onChangePassword }) {
                     <td style={{ fontWeight: 600 }}>{u.name}{String(u.email).toLowerCase() === String(currentEmail || "").toLowerCase() ? " (you)" : ""}</td>
                     <td>{u.email}</td>
                     <td>{ROLES[u.role] ? ROLES[u.role].label : (u.role || "Custodian")}</td>
-                    <td>{plantsLabel(u.plants)}</td>
+                    <td>{plantsLabel(u.plants, u.excludePlants)}</td>
                     <td>{(u.role === "Accounting") ? <Badge status="Approved" /> : <span style={{ color: "var(--text-mut)" }}>—</span>}</td>
                   </tr>
                 )) : <tr><td colSpan={5} className="pcp-empty">No users configured. Add them in index.html (window.PCP_USERS) and in your Supabase project.</td></tr>}
@@ -124,7 +132,7 @@ function SystemSettingsTab({ userName, userEmail, role, plants, requests, disbur
       <div className="pcp-content">
         <div className="pcp-grid-2">
           <div className="pcp-card pcp-card-pad">
-            <div className="pcp-section-title"><Settings size={15} color="#c8102e" /> Your Account</div>
+            <div className="pcp-section-title"><Settings size={15} color="#4e7d63" /> Your Account</div>
             <table className="pcp-table"><tbody>
               <tr><td style={{ fontWeight: 600 }}>Name</td><td>{userName || "—"}</td></tr>
               <tr><td style={{ fontWeight: 600 }}>Login</td><td>{userEmail || "Local mode"}</td></tr>
@@ -133,7 +141,7 @@ function SystemSettingsTab({ userName, userEmail, role, plants, requests, disbur
             </tbody></table>
           </div>
           <div className="pcp-card pcp-card-pad">
-            <div className="pcp-section-title"><ShieldCheck size={15} color="#c8102e" /> Security & Storage</div>
+            <div className="pcp-section-title"><ShieldCheck size={15} color="#4e7d63" /> Security & Storage</div>
             <table className="pcp-table"><tbody>
               <tr><td style={{ fontWeight: 600 }}>Authentication</td><td>{cloud ? "Supabase (secure, hashed passwords)" : "Local mode"}</td></tr>
               <tr><td style={{ fontWeight: 600 }}>Access control</td><td>Role-Based Access Control (RBAC) with plant scoping</td></tr>
@@ -184,7 +192,7 @@ function DataIntegrityPanel({ requests, disbursements, liquidations, replenishme
 
   return (
     <div className="pcp-card pcp-card-pad" style={{ marginTop: 16 }}>
-      <div className="pcp-section-title"><Database size={15} color="#c8102e" /> Data Integrity & Reconciliation</div>
+      <div className="pcp-section-title"><Database size={15} color="#4e7d63" /> Data Integrity & Reconciliation</div>
 
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "6px 0 14px" }}>
         <button className="pcp-btn" onClick={exportReconciliation}><Download size={14} /> Export reconciliation</button>
@@ -237,7 +245,7 @@ function DataIntegrityPanel({ requests, disbursements, liquidations, replenishme
         </table>
       </div>
 
-      <div className="pcp-section-title" style={{ fontSize: 13 }}><ArchiveRestore size={14} color="#c8102e" /> Backup &amp; recovery</div>
+      <div className="pcp-section-title" style={{ fontSize: 13 }}><ArchiveRestore size={14} color="#4e7d63" /> Backup &amp; recovery</div>
       <div className="pcp-hint" style={{ lineHeight: 1.7 }}>
         Every record lives in one place — the Supabase database — and backups are taken by Supabase itself:
         a <strong>daily backup retained for 7 days</strong> on the current plan. To restore, use
