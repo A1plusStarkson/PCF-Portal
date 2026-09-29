@@ -836,7 +836,10 @@
           return sbReady.then(function (c) {
             if (!c || !path || !file) return false;
             return c.storage.from(BUCKET)
-              .upload(path, file, { upsert: true, contentType: file.type || "application/octet-stream" })
+              // upsert: false — every path carries a unique attachment id, and
+              // the bucket is write-once (supabase-lockdown.sql), so a receipt
+              // can never be overwritten after it is stored.
+              .upload(path, file, { upsert: false, contentType: file.type || "application/octet-stream" })
               .then(function (res) {
                 if (res.error) { console.warn("Receipt upload failed:", res.error.message); return false; }
                 return true;
