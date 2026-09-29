@@ -168,7 +168,10 @@
   window.PCP_ADMIN_EMAILS = ["accounting@a1plus.com", "a1plusadmin@a1plus.com", "superuser@a1plus.com"];   // full super access
   /* Accounts that must pass a 6-digit authenticator-app code after their
      password. Keep in step with the list in supabase-mfa-gate.sql. */
-  window.PCP_MFA_EMAILS = window.PCP_ADMIN_EMAILS;
+  /* Grace Gan (a1plusadmin) is exempt for now. To turn her MFA back on, swap
+     the two lines below and re-add her email in supabase-mfa-gate.sql. */
+  window.PCP_MFA_EMAILS = ["accounting@a1plus.com", "superuser@a1plus.com"];
+  // window.PCP_MFA_EMAILS = window.PCP_ADMIN_EMAILS;
   window.PCP_DEFAULT_ROLE = "Custodian";                 // fallback for unlisted signed-in users
   window.PCP_USERS = {
     "a1plusadmin@a1plus.com": { name: "Grace Gan",             role: "SuperAdmin", plants: "ALL" },

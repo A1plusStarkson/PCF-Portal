@@ -28,7 +28,7 @@ begin;
 
 -- True unless the signed-in account is one that requires MFA and this
 -- session has not passed it. Keep the list in step with PCP_MFA_EMAILS
--- (= PCP_ADMIN_EMAILS) in index.html.
+-- in index.html. Grace Gan (a1plusadmin) is exempt for now; see below.
 create or replace function public.pcp_mfa_ok()
 returns boolean
 language sql
@@ -36,7 +36,7 @@ stable
 as $$
   select not (lower(coalesce(auth.jwt()->>'email', '')) = any (array[
            'accounting@a1plus.com',
-           'a1plusadmin@a1plus.com',
+           -- 'a1plusadmin@a1plus.com',  -- Grace Gan: uncomment to require MFA again
            'superuser@a1plus.com'
          ]))
       or coalesce(auth.jwt()->>'aal', '') = 'aal2';
