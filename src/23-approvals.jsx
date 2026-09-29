@@ -373,7 +373,7 @@ function ApprovalModuleTab({
   isChecker, isFinalApprover, canFinance,
   currentUser, plantOptions, accounting, onOpenReplenishment,
   canEditReimb, onUpdateReimbursement, reimbPlantOptions,
-  canRevert, onRevertLiquidation,
+  canRevert, onRevertLiquidation, canSelectExport,
 }) {
   /* Reimbursement open in the edit form (REIMB_EDIT_OVERRIDE_EMAILS only). */
   const [editingReimb, setEditingReimb] = useState(null);
@@ -471,9 +471,16 @@ function ApprovalModuleTab({
   }, [allRows]);
 
   const pendingAll = allRows.filter((r) => r.pending);
+  /* The plant tabs are PLANTS (Manila, Warner, Disney, RG and Co.) while each
+     row carries its own BRANCH code. Compare by the plant the branch rolls up
+     to, so Manila includes Hasbro, Perulandia, Mattel, Eurasia and Sitio
+     (PLANT_FAMILIES) — an exact code match only ever found Manila's own
+     A1+ rows. Display only; no record is changed. */
+  const inPlant = (r) => plant === "ALL" || plantOfBranch(r.plantCode) === plantOfBranch(plant);
+  const rowPlantLabel = (r) => plantLabel(plantOfBranch(r.plantCode));
   const s = search.trim().toLowerCase();
-  const baseRows = pendingAll.filter((r) => (plant === "ALL" || r.plantCode === plant)
-    && (!s || [r.seriesNo, r.requestor, plantLabel(r.plantCode), r.batchNo].some((f) => String(f || "").toLowerCase().includes(s)))
+  const baseRows = pendingAll.filter((r) => inPlant(r)
+    && (!s || [r.seriesNo, r.requestor, plantLabel(r.plantCode), rowPlantLabel(r), r.batchNo].some((f) => String(f || "").toLowerCase().includes(s)))
     && (stageFilter === APPROVAL_ALL_PENDING || approvalStageKey(r.stage) === approvalStageKey(stageFilter))
     && (!cardFilter || cardFilter.stages.some((st) => approvalStageKey(r.stage) === approvalStageKey(st)))
     && (batch === ALL_BATCHES || r.batchNo === batch)
@@ -484,7 +491,7 @@ function ApprovalModuleTab({
     baseRows.filter((r) => kind === "all" || r.kind === kind),
     {
       seriesNo: (r) => r.seriesNo,
-      plant: (r) => plantLabel(r.plantCode),
+      plant: (r) => rowPlantLabel(r) + " " + plantLabel(r.plantCode),
       requestor: (r) => r.requestor,
       kind: (r) => r.kind,
       amount: (r) => r.amount,
@@ -499,6 +506,37 @@ function ApprovalModuleTab({
     setPlant("ALL"); setKind("all"); setSearch(""); setStageFilter(APPROVAL_ALL_PENDING);
     setBatch(ALL_BATCHES); setDateFrom(""); setDateTo(""); setCardFilter(null);
   };
+  /* ---- Select + Export Excel (APPROVAL_EXPORT_EMAILS in 19-app.jsx) ----
+     Tick rows to export just those; with nothing ticked the export takes every
+     row currently shown. Selection only counts rows still visible, so a filter
+     change can never export a hidden row. Read-only: nothing is changed. */
+  const [selected, setSelected] = useState([]);
+  const visibleKeys = rows.map((r) => r.key);
+  const selectedRows = rows.filter((r) => selected.includes(r.key));
+  const allTicked = rows.length > 0 && selectedRows.length === rows.length;
+  const toggleRow = (key) => setSelected((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
+  const toggleAll = () => setSelected(allTicked ? [] : visibleKeys);
+  const exportApprovals = () => {
+    const list = selectedRows.length ? selectedRows : rows;
+    if (!list.length) { window.alert("There is nothing to export."); return; }
+    const out = list.map((r) => ({
+      "Series No.": r.seriesNo || "",
+      "Batch No.": r.batchNo || "",
+      "Date": r.date || "",
+      "Plant": rowPlantLabel(r),
+      "Branch": plantLabel(r.plantCode),
+      "Requestor": r.requestor || "",
+      "Transaction Type": r.kind,
+      "Amount": Number(r.amount) || 0,
+      "Current Status": String(r.stage || ""),
+      "Action": APPROVAL_ACTION_LABEL[approvalStageKey(r.stage)] || "",
+    }));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(out), "Approval Module");
+    const scope = plant === "ALL" ? "All_Plants" : plantLabel(plantOfBranch(plant)).replace(/[^A-Za-z0-9]+/g, "_");
+    downloadWorkbook(wb, `Approval_Module_${scope}_${todayISO()}.xlsx`);
+  };
+
   /* KPI card click: show that card's transactions in the queue below. */
   const pickCard = (id, k, stages) => {
     if (cardFilter && cardFilter.id === id) { setCardFilter(null); setKind("all"); return; }
@@ -524,7 +562,7 @@ function ApprovalModuleTab({
      her approval. */
   const batchNos = Array.from(new Set(pendingAll.map((r) => r.batchNo).filter(Boolean))).sort().reverse();
   const batchPending = (b) => {
-    const inB = pendingAll.filter((r) => r.batchNo === b && (plant === "ALL" || r.plantCode === plant)
+    const inB = pendingAll.filter((r) => r.batchNo === b && inPlant(r)
       && approvalStageKey(r.stage) === approvalStageKey(LIQ_STAGE.FOR_FINAL));
     const pca = inB.filter((r) => r.kind === "Liquidation");
     const reimb = inB.filter((r) => r.kind === "Reimbursement");
@@ -649,6 +687,21 @@ function ApprovalModuleTab({
           <span style={{ fontSize: 11.5, color: "var(--text-mut)" }}>to</span>
           <input type="date" className="pcp-input" style={{ width: 140 }} value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To" />
           {filtersOn && <button className="pcp-btn pcp-btn-sm" onClick={clearFilters}><X size={12} /> Clear</button>}
+          {canSelectExport && (
+            <div style={{ marginLeft: "auto", display: "flex", gap: 8, alignItems: "center" }}>
+              {selectedRows.length > 0 && (
+                <button className="pcp-btn pcp-btn-sm" onClick={() => setSelected([])} title="Clear the selection">
+                  <X size={12} /> Clear selection
+                </button>
+              )}
+              <button
+                className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={exportApprovals} disabled={!rows.length}
+                title={selectedRows.length ? "Export the ticked rows to Excel" : "Export every row shown to Excel (tick rows to export only those)"}
+              >
+                <FileSpreadsheet size={12} /> Export Excel ({selectedRows.length ? `${selectedRows.length} selected` : `all ${rows.length} shown`})
+              </button>
+            </div>
+          )}
         </div>
 
         {/* Batches awaiting final approval: review a batch, then approve it whole. */}
@@ -681,6 +734,11 @@ function ApprovalModuleTab({
             <table className="pcp-table">
               <thead>
                 <tr>
+                  {canSelectExport && (
+                    <th style={{ width: 34 }}>
+                      <input type="checkbox" checked={allTicked} onChange={toggleAll} disabled={!rows.length} title="Select all shown" aria-label="Select all shown" />
+                    </th>
+                  )}
                   <SortTh field="seriesNo" sort={sort}>Series No.</SortTh>
                   <SortTh field="plant" sort={sort}>Plant</SortTh>
                   <SortTh field="requestor" sort={sort}>Requestor</SortTh>
@@ -700,6 +758,12 @@ function ApprovalModuleTab({
                     onKeyDown={(e) => { if (e.key === "Enter") openRow(r); }}
                     title={`Open ${r.seriesNo || "this transaction"}`}
                   >
+                    {canSelectExport && (
+                      /* The tick box selects the row; it must not also open it. */
+                      <td onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                        <input type="checkbox" checked={selected.includes(r.key)} onChange={() => toggleRow(r.key)} aria-label={`Select ${r.seriesNo || "row"}`} />
+                      </td>
+                    )}
                     <td>
                       <strong>{r.seriesNo || "—"}</strong>
                       {dupSeries.has(r.seriesNo.trim().toUpperCase()) && (
@@ -709,7 +773,12 @@ function ApprovalModuleTab({
                       )}
                       {r.batchNo && <div style={{ fontSize: 10.5, color: "var(--text-mut)" }}>{r.batchNo}</div>}
                     </td>
-                    <td>{plantLabel(r.plantCode)}</td>
+                    <td>
+                      {rowPlantLabel(r)}
+                      {plantOfBranch(r.plantCode) !== r.plantCode && (
+                        <div style={{ fontSize: 10.5, color: "var(--text-mut)" }}>{plantLabel(r.plantCode)}</div>
+                      )}
+                    </td>
                     <td>{r.requestor || "—"}</td>
                     <td>{r.kind}</td>
                     <td className="pcp-num" style={{ textAlign: "right" }}>{peso(r.amount)}</td>
@@ -723,7 +792,7 @@ function ApprovalModuleTab({
                     </td>
                   </tr>
                 )) : (
-                  <tr><td colSpan={9} className="pcp-empty">
+                  <tr><td colSpan={canSelectExport ? 10 : 9} className="pcp-empty">
                     {pendingAll.length ? "Nothing pending matches these filters" : "Nothing is awaiting your approval"}
                   </td></tr>
                 )}

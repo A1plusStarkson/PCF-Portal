@@ -176,6 +176,11 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   ];
   const canRevert = REVERT_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
+  /* Approval Module: row Select + Export Excel (owner's instruction, Sep 2026).
+     Read-only — exporting never changes a record. */
+  const APPROVAL_EXPORT_EMAILS = ["a1plusadmin@a1plus.com", "superuser@a1plus.com"];
+  const canApprovalExport = APPROVAL_EXPORT_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
   /* Replenishments: edit, mark completed and revert — these accounts only
      (owner's instruction, Sep 2026). Everyone else sees the records read-only. */
   const REPLEN_MANAGE_EMAILS = [
@@ -2399,6 +2404,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
         )}
         {activeModule === "approvals" && canUseApprovalModule && (
           <ApprovalModuleTab
+            canSelectExport={canApprovalExport}
             disbursements={visibleDisbursements} liquidations={visibleLiquidations}
             reimbursements={visibleReimbursements}
             replenishments={visibleReplenishments}
