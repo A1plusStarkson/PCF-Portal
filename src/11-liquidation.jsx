@@ -44,6 +44,13 @@ const ACCOUNTING_CHECKER_EMAILS = ["accounting@a1plus.com"];
    keep their review in the Liquidation and Reimbursement modules, which call
    the same handlers. */
 const APPROVAL_MODULE_EMAILS = ["a1plusadmin@a1plus.com", "superuser@a1plus.com", "accounting@a1plus.com"];
+/* VIEW-ONLY access to Grace Gan's final-approval queue (owner's instruction,
+   Sep 2026): these accounts see what is awaiting final approval, open it and
+   check it, but get no approve / reject / revert / edit action on it.
+   Accounts not on APPROVAL_MODULE_EMAILS get the module in view-only mode
+   throughout — only that queue, no actions at all. Accounting keeps its own
+   Accounting-check work there as before. See ApprovalModuleTab. */
+const APPROVAL_FINAL_VIEW_EMAILS = ["accounting@a1plus.com", "finance@a1plus.com", "puradr@a1plus.com", "lita@a1plus.com"];
 
 /* Accounting stamps are full ISO timestamps (with zone), shown in local time. */
 function fmtAcctStamp(ts) {

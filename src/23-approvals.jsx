@@ -25,7 +25,9 @@
 
    Who sees it: only Grace Gan, the System Superuser and Accounting
    (APPROVAL_MODULE_EMAILS in 11-liquidation.jsx). Custodians review in the
-   Liquidation and Reimbursement modules.
+   Liquidation and Reimbursement modules. Accounting, Finance, Pura and Lita
+   also see Grace Gan's final-approval queue VIEW-ONLY
+   (APPROVAL_FINAL_VIEW_EMAILS) — open and check, never act on it.
 
    Layout: one sortable, filterable list of what is pending on the viewer.
    Clicking a row opens the whole transaction (documents, Accounting review,
@@ -426,11 +428,29 @@ function ApprovalModuleTab({
   disbursements, liquidations, replenishments, reimbursements,
   onDecideReceipt, onRejectLiquidation, onReopenLiquidation, onCheckLiquidation, onFinalApprove,
   onReimbursementAction, onExportReimbursementAcumatica,
-  isChecker, isFinalApprover, canFinance,
-  currentUser, plantOptions, accounting, onOpenReplenishment,
-  canEditReimb, onUpdateReimbursement, reimbPlantOptions,
-  canRevert, onRevertLiquidation, canSelectExport,
+  isChecker: isCheckerIn, isFinalApprover, canFinance: canFinanceIn,
+  currentUser, plantOptions, accounting: accountingIn, onOpenReplenishment,
+  canEditReimb: canEditReimbIn, onUpdateReimbursement, reimbPlantOptions,
+  canRevert: canRevertIn, onRevertLiquidation, canSelectExport,
+  viewFinalQueue, viewOnly,
 }) {
+  /* ---- View-only access (APPROVAL_FINAL_VIEW_EMAILS in 11-liquidation.jsx) ----
+     viewFinalQueue: the viewer also sees the final approver's queue, but every
+     transaction in it opens read-only. viewOnly: the whole module is read-only
+     for this viewer — only that queue shows and no action is offered. */
+  const isChecker = !viewOnly && isCheckerIn;
+  const canFinance = !viewOnly && canFinanceIn;
+  const canEditReimb = !viewOnly && canEditReimbIn;
+  const canRevert = !viewOnly && canRevertIn;
+  const readOnlyAccounting = useMemo(() => ({ ...(accountingIn || {}), isChecker: false, onReview: undefined }), [accountingIn]);
+  const accounting = viewOnly ? readOnlyAccounting : accountingIn;
+  const seesFinalQueue = isFinalApprover || !!viewFinalQueue;
+  /* A transaction awaiting final approval, seen by someone who cannot give it. */
+  const finalViewOnly = (stage) => !isFinalApprover && !!viewFinalQueue
+    && approvalStageKey(stage) === approvalStageKey(LIQ_STAGE.FOR_FINAL);
+  const actionLabel = (stage) => (finalViewOnly(stage)
+    ? "Final approval — view only"
+    : APPROVAL_ACTION_LABEL[approvalStageKey(stage)] || "");
   /* Reimbursement open in the edit form (REIMB_EDIT_OVERRIDE_EMAILS only). */
   const [editingReimb, setEditingReimb] = useState(null);
   const isAcct = !!(accounting && accounting.isChecker);
@@ -467,15 +487,16 @@ function ApprovalModuleTab({
   }, [reimbursements, replenishments]);
 
   /* ---- Pending on this viewer ---- */
-  const pendingStages = approvalPendingStages({ isChecker, isAcct, isFinalApprover });
+  const pendingStages = approvalPendingStages({ isChecker, isAcct, isFinalApprover: seesFinalQueue });
   const pendingKeys = pendingStages.map(approvalStageKey);
   const isPendingFor = (stage, review, own) => {
     const k = approvalStageKey(stage);
     if (!pendingKeys.includes(k)) return false;
     /* Two levels, two people: whoever gave the custodian approval (or owns the
-       reimbursement) is not asked for the final one. */
+       reimbursement) is not asked for the final one. A view-only viewer sees
+       the final approver's whole queue, so is not filtered that way. */
     if (k === approvalStageKey(LIQ_STAGE.FOR_FINAL)) {
-      if (String(review.checkedBy || "").toLowerCase() === me || own) return false;
+      if (isFinalApprover && (String(review.checkedBy || "").toLowerCase() === me || own)) return false;
       if (!passesAccountingGate(review)) return false;
     }
     return true;
@@ -512,7 +533,7 @@ function ApprovalModuleTab({
       src: r,
     }));
     return liqRows.concat(reimbRows);
-  }, [pcaAll, reimbAll, isChecker, isAcct, isFinalApprover, me]); // eslint-disable-line
+  }, [pcaAll, reimbAll, isChecker, isAcct, isFinalApprover, viewFinalQueue, me]); // eslint-disable-line
 
   /* A series number belongs to one transaction. The database refuses a second
      holder (supabase-series-guard.sql); should one ever show up anyway, it is
@@ -553,7 +574,7 @@ function ApprovalModuleTab({
       amount: (r) => r.amount,
       date: (r) => r.date,
       status: (r) => approvalStageKey(r.stage),
-      action: (r) => APPROVAL_ACTION_LABEL[approvalStageKey(r.stage)] || "",
+      action: (r) => actionLabel(r.stage),
     }
   );
   const filtersOn = plant !== "ALL" || kind !== "all" || !!s || stageFilter !== APPROVAL_ALL_PENDING
@@ -585,7 +606,7 @@ function ApprovalModuleTab({
       "Transaction Type": r.kind,
       "Amount": Number(r.amount) || 0,
       "Current Status": String(r.stage || ""),
-      "Action": APPROVAL_ACTION_LABEL[approvalStageKey(r.stage)] || "",
+      "Action": actionLabel(r.stage),
     }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(out), "Approval Module");
@@ -637,11 +658,11 @@ function ApprovalModuleTab({
     const total = pca.reduce((t, r) => t + r.src.amounts.approvedTotal, 0) + reimb.reduce((t, r) => t + r.amount, 0);
     return { pca, reimb, count: inB.length, total };
   };
-  const batchesAwaiting = isFinalApprover
+  const batchesAwaiting = seesFinalQueue
     ? batchNos.map((b) => ({ batchNo: b, ...batchPending(b) })).filter((x) => x.count > 0) : [];
   const approveBatch = (b) => {
     const x = batchPending(b);
-    if (!x.count) return;
+    if (!isFinalApprover || !x.count) return;
     if (!window.confirm(`Give final approval to the whole of ${b}?\n\n`
       + x.pca.map((r) => `  ${r.seriesNo} · Liquidation · ${peso(r.src.amounts.approvedTotal)}`)
         .concat(x.reimb.map((r) => `  ${r.seriesNo} · Reimbursement · ${peso(r.amount)}`)).join("\n")
@@ -660,6 +681,8 @@ function ApprovalModuleTab({
      its new stage straight after the viewer decides it. */
   const openLiq = openLiqId ? pcaAll.find((r) => r.disb.id === openLiqId) : null;
   if (openLiq) {
+    /* Awaiting final approval and this viewer cannot give it: read-only. */
+    const lock = finalViewOnly(openLiq.stage);
     return (
       <div className="pcp-liq-full pcp-approval-page">
         <TopBar title="Approval Module" sub={`Liquidation ${openLiq.disb.voucherNo} · ${openLiq.disb.employee}`} />
@@ -670,16 +693,16 @@ function ApprovalModuleTab({
           <PcaApprovalPanel
             key={openLiq.disb.id}
             row={openLiq}
-            isChecker={isChecker}
+            isChecker={isChecker && !lock}
             isFinalApprover={isFinalApprover}
             currentUser={currentUser}
-            accounting={accounting}
+            accounting={lock ? readOnlyAccounting : accounting}
             onDecideReceipt={onDecideReceipt}
             onRejectLiquidation={onRejectLiquidation}
             onReopenLiquidation={onReopenLiquidation}
             onCheckLiquidation={onCheckLiquidation}
             onFinalApprove={onFinalApprove}
-            canRevert={canRevert}
+            canRevert={canRevert && !lock}
             onRevertLiquidation={onRevertLiquidation}
           />
         </div>
@@ -693,7 +716,9 @@ function ApprovalModuleTab({
     <div className="pcp-liq-full pcp-approval-page">
       <TopBar
         title="Approval Module"
-        sub="Everything awaiting your decision, across all plants. Click a transaction to open it."
+        sub={viewOnly
+          ? "View only — everything awaiting Grace Gan's final approval in your plants. Click a transaction to open and check it."
+          : "Everything awaiting your decision, across all plants. Click a transaction to open it."}
       />
       <div className="pcp-content">
         <div className="pcp-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12, marginBottom: 16 }}>
@@ -701,6 +726,12 @@ function ApprovalModuleTab({
             <>
               <KpiCard label="Liquidations Awaiting Your Final Approval" {...cardProps("liq-final", "Liquidation", [LIQ_STAGE.FOR_FINAL])} value={countPending("Liquidation", LIQ_STAGE.FOR_FINAL)} icon={ShieldCheck} tint="#b9790a" />
               <KpiCard label="Reimbursements Awaiting Your Final Approval" {...cardProps("reimb-final", "Reimbursement", [LIQ_STAGE.FOR_FINAL])} value={countPending("Reimbursement", LIQ_STAGE.FOR_FINAL)} icon={ArrowLeftRight} tint="#b9790a" />
+            </>
+          )}
+          {!isFinalApprover && viewFinalQueue && (
+            <>
+              <KpiCard label="Liquidations Awaiting Grace Gan's Final Approval (view only)" {...cardProps("liq-final", "Liquidation", [LIQ_STAGE.FOR_FINAL])} value={countPending("Liquidation", LIQ_STAGE.FOR_FINAL)} icon={Eye} tint="#b9790a" />
+              <KpiCard label="Reimbursements Awaiting Grace Gan's Final Approval (view only)" {...cardProps("reimb-final", "Reimbursement", [LIQ_STAGE.FOR_FINAL])} value={countPending("Reimbursement", LIQ_STAGE.FOR_FINAL)} icon={Eye} tint="#b9790a" />
             </>
           )}
           {isAcct && (
@@ -781,7 +812,9 @@ function ApprovalModuleTab({
         {/* Batches awaiting final approval: review a batch, then approve it whole. */}
         {batchesAwaiting.length > 0 && (
           <div className="pcp-card pcp-card-pad" style={{ marginBottom: 14 }}>
-            <div className="pcp-section-title" style={{ margin: "0 0 8px" }}><ShieldCheck size={15} /> Batches Awaiting Your Final Approval</div>
+            <div className="pcp-section-title" style={{ margin: "0 0 8px" }}>
+              <ShieldCheck size={15} /> {isFinalApprover ? "Batches Awaiting Your Final Approval" : "Batches Awaiting Grace Gan's Final Approval (view only)"}
+            </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {batchesAwaiting.map((x) => (
                 <div key={x.batchNo} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 12.5 }}>
@@ -792,7 +825,7 @@ function ApprovalModuleTab({
                   <button className="pcp-btn pcp-btn-sm" onClick={() => setBatch(x.batchNo)}>
                     <Eye size={12} /> Review Batch
                   </button>
-                  {batch === x.batchNo && (
+                  {isFinalApprover && batch === x.batchNo && (
                     <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={() => approveBatch(x.batchNo)}>
                       <ShieldCheck size={12} /> Final Approve {x.batchNo} ({x.count})
                     </button>
@@ -858,7 +891,7 @@ function ApprovalModuleTab({
                     <td className="pcp-num" style={{ textAlign: "right" }}>{peso(r.amount)}</td>
                     <td>{fmtDate(r.date)}</td>
                     <td><Badge status={r.stage} /></td>
-                    <td style={{ fontWeight: 600 }}>{APPROVAL_ACTION_LABEL[approvalStageKey(r.stage)] || "—"}</td>
+                    <td style={{ fontWeight: 600 }}>{actionLabel(r.stage) || "—"}</td>
                     <td>
                       <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={(e) => { e.stopPropagation(); openRow(r); }}>
                         <Eye size={12} /> Open
@@ -867,7 +900,8 @@ function ApprovalModuleTab({
                   </tr>
                 )) : (
                   <tr><td colSpan={canSelectExport ? 10 : 9} className="pcp-empty">
-                    {pendingAll.length ? "Nothing pending matches these filters" : "Nothing is awaiting your approval"}
+                    {pendingAll.length ? "Nothing pending matches these filters"
+                      : viewOnly ? "Nothing is awaiting final approval" : "Nothing is awaiting your approval"}
                   </td></tr>
                 )}
               </tbody>
@@ -876,21 +910,25 @@ function ApprovalModuleTab({
         </div>
       </div>
 
-      {detail && (
-        <ReimbursementDetail
-          reimb={(reimbursements || []).find((x) => x.id === detail.id) || detail}
-          currentUser={currentUser}
-          isChecker={isChecker}
-          isFinalApprover={isFinalApprover}
-          canFinance={canFinance}
-          accounting={accounting}
-          canRevert={canRevert}
-          onExportAcumatica={onExportReimbursementAcumatica}
-          onAction={(id, action, opts) => { onReimbursementAction(id, action, opts); setDetail(null); }}
-          onEdit={canEditReimb && onUpdateReimbursement ? (r) => { setDetail(null); setEditingReimb(r); } : undefined}
-          onClose={() => setDetail(null)}
-        />
-      )}
+      {detail && (() => {
+        /* Awaiting final approval and this viewer cannot give it: read-only. */
+        const lock = finalViewOnly((reimbAll.find((x) => x.id === detail.id) || detail).stage);
+        return (
+          <ReimbursementDetail
+            reimb={(reimbursements || []).find((x) => x.id === detail.id) || detail}
+            currentUser={currentUser}
+            isChecker={isChecker && !lock}
+            isFinalApprover={isFinalApprover}
+            canFinance={canFinance && !lock}
+            accounting={lock ? readOnlyAccounting : accounting}
+            canRevert={canRevert && !lock}
+            onExportAcumatica={onExportReimbursementAcumatica}
+            onAction={(id, action, opts) => { onReimbursementAction(id, action, opts); setDetail(null); }}
+            onEdit={canEditReimb && !lock && onUpdateReimbursement ? (r) => { setDetail(null); setEditingReimb(r); } : undefined}
+            onClose={() => setDetail(null)}
+          />
+        );
+      })()}
       {editingReimb && (
         <ReimbursementEditModal
           reimb={(reimbursements || []).find((x) => x.id === editingReimb.id) || editingReimb}

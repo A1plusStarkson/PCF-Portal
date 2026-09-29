@@ -237,9 +237,14 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   /* ACCOUNTING REVIEW: by email (ACCOUNTING_CHECKER_EMAILS), hidden while
      previewing another role. Re-checked inside accountingReview. */
   const isAccountingChecker = emailIn(ACCOUNTING_CHECKER_EMAILS) && role === (userRole || "Accounting");
-  /* APPROVAL MODULE: three accounts only (APPROVAL_MODULE_EMAILS), hidden while
-     previewing another role, like the approver flags above. */
-  const canUseApprovalModule = emailIn(APPROVAL_MODULE_EMAILS) && role === (userRole || "Accounting");
+  /* APPROVAL MODULE: three accounts (APPROVAL_MODULE_EMAILS), plus the view-only
+     accounts of APPROVAL_FINAL_VIEW_EMAILS, hidden while previewing another
+     role, like the approver flags above. A view-only account that is not a
+     module member gets no action in it at all (approvalViewOnly). */
+  const isApprovalModuleMember = emailIn(APPROVAL_MODULE_EMAILS) && role === (userRole || "Accounting");
+  const canViewFinalQueue = emailIn(APPROVAL_FINAL_VIEW_EMAILS) && role === (userRole || "Accounting");
+  const canUseApprovalModule = isApprovalModuleMember || canViewFinalQueue;
+  const approvalViewOnly = canViewFinalQueue && !isApprovalModuleMember;
   /* Nothing under Grace Gan's final approval may move — it is what gets
      replenished. (Legacy approvals are not locked; they predate the lock.) */
   const isLiquidationFinalLocked = useCallback((disbursementId) => {
@@ -2410,6 +2415,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
         {activeModule === "approvals" && canUseApprovalModule && (
           <ApprovalModuleTab
             canSelectExport={canApprovalExport}
+            viewFinalQueue={canViewFinalQueue}
+            viewOnly={approvalViewOnly}
             disbursements={visibleDisbursements} liquidations={visibleLiquidations}
             reimbursements={visibleReimbursements}
             replenishments={visibleReplenishments}
