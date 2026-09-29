@@ -82,6 +82,8 @@ function LoginScreen({ mode, onLocalLogin }) {
   const [error, setError] = useState(null);
   const [fieldErr, setFieldErr] = useState({});
   const [capsOn, setCapsOn] = useState(false);
+  /* Changes made before the session expired, still held by this tab. */
+  const blockedSaves = useBlockedSaves();
 
   /* Checked here first so the user gets a clear hint next to the field
      instead of the browser's own pop-up. */
@@ -159,6 +161,15 @@ function LoginScreen({ mode, onLocalLogin }) {
               <div className="pcp-login-sub">Sign in to the Petty Cash Portal to continue.</div>
             </div>
             <form className="pcp-login-body" onSubmit={submit} noValidate aria-busy={busy}>
+              {blockedSaves > 0 && (
+                <div className="pcp-login-err pcp-login-alert" role="alert">
+                  <AlertTriangle size={16} />
+                  <div>
+                    <b>Your session expired — {blockedSaves} change{blockedSaves === 1 ? " is" : "s are"} not saved yet</b>
+                    <div>Sign in to save {blockedSaves === 1 ? "it" : "them"}. Closing or reloading this tab first will lose {blockedSaves === 1 ? "it" : "them"}.</div>
+                  </div>
+                </div>
+              )}
               {error && (
                 <div className="pcp-login-err pcp-login-alert" role="alert">
                   <AlertTriangle size={16} />

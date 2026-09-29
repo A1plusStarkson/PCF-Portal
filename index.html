@@ -381,6 +381,11 @@
     // Cached access token, kept fresh by onAuthStateChange. The unload-time
     // keepalive write below needs it synchronously and cannot await getSession().
     var authToken = null;
+    // True while record saves are parked because the database refused them as
+    // not signed in (RLS 42501 with no user — an expired or signed-out session).
+    // Retrying cannot succeed until someone signs in again; it used to loop
+    // every 4 s forever, silently, from whichever tab was left open.
+    var authBlocked = false, refreshTried = false;
     sbReady.then(function (c) {
       client = c;
       if (!c) return;
@@ -388,9 +393,45 @@
       c.auth.getSession().then(function (r) {
         authToken = (r && r.data && r.data.session) ? r.data.session.access_token : null;
       }).catch(function () {});
-      c.auth.onAuthStateChange(function (_e, session) { authToken = session ? session.access_token : null; });
+      c.auth.onAuthStateChange(function (_e, session) {
+        authToken = session ? session.access_token : null;
+        // Signed back in: release the parked rows.
+        if (session && authBlocked) { refreshTried = false; setAuthBlocked(false); flushRecords(); }
+      });
       flush(); flushRecords();
     });
+    function setAuthBlocked(on) {
+      authBlocked = on;
+      window.PCP_SAVE_BLOCKED = on;
+      try { window.dispatchEvent(new CustomEvent("pcp-save-blocked", { detail: { blocked: on, count: Object.keys(recPending).length } })); } catch (e) {}
+    }
+    // An RLS refusal on pcp_records, or an expired token. The policy allows every
+    // authenticated user, so for this table it only ever means the request had
+    // no valid user. Matched on the MESSAGE, not the code: the accounting and
+    // delete gates also raise 42501 (insufficient_privilege) for signed-in
+    // users, and those are real refusals, not an expired session.
+    function isAuthRefusal(err) {
+      return !!err && (err.code === "PGRST301" || err.code === "PGRST303" ||
+        /row-level security|JWT expired/i.test(err.message || ""));
+    }
+    // Keeps the refused rows queued (a newer edit of the same id wins), tries one
+    // silent session refresh, and otherwise parks the queue and tells the app.
+    function onAuthRefused(rows) {
+      rows.forEach(function (row) { if (!recPending[row.id]) recPending[row.id] = row; });
+      if (authBlocked) return;
+      if (refreshTried) {
+        console.error("Petty Cash: " + Object.keys(recPending).length + " record(s) NOT saved — the session has expired. Sign in again to save them.");
+        setAuthBlocked(true);
+        return;
+      }
+      refreshTried = true;
+      client.auth.refreshSession()
+        .then(function (r) {
+          if (r && r.data && r.data.session) { authToken = r.data.session.access_token; flushRecords(); }
+          else onAuthRefused([]);
+        })
+        .catch(function () { onAuthRefused([]); });
+    }
     // flush/flushRecords return promises so flushNow() can await them.
     function flush() {
       if (!client) return Promise.resolve();
@@ -422,12 +463,14 @@
     // Flush queued per-record changes as a single batched upsert. On failure the
     // rows are requeued so a transient error never silently drops a record.
     function flushRecords() {
-      if (!client) return Promise.resolve();
+      if (!client || authBlocked) return Promise.resolve();
       var ids = Object.keys(recPending); if (!ids.length) return Promise.resolve();
       var rows = ids.map(function (id) { return recPending[id]; });
       recPending = {};
       return client.from(RECORD_TABLE).upsert(rows, { onConflict: "id" })
         .then(function (r) {
+          if (!r.error) { refreshTried = false; return; }
+          if (isAuthRefusal(r.error)) { onAuthRefused(rows); return; }
           if (r.error && /PCF_SERIES/.test(r.error.message || "")) {
             // The series guard refused a row whose number belongs to another
             // record. One bad row must not hold the whole batch hostage, so
@@ -436,6 +479,7 @@
             return Promise.all(rows.map(function (row) {
               return client.from(RECORD_TABLE).upsert([row], { onConflict: "id" }).then(function (r1) {
                 if (!r1.error) return;
+                if (isAuthRefusal(r1.error)) { onAuthRefused([row]); return; }
                 if (/PCF_SERIES/.test(r1.error.message || "")) {
                   console.error("Refused by the series guard:", row.collection, row.id, r1.error.message);
                   try { window.dispatchEvent(new CustomEvent("pcp-series-refused", { detail: { id: row.id, collection: row.collection, message: r1.error.message } })); } catch (e) {}
@@ -467,7 +511,7 @@
     function keepaliveFlushRecords() {
       var url = window.PCP_SUPABASE_URL, key = window.PCP_SUPABASE_ANON_KEY;
       var ids = Object.keys(recPending);
-      if (!url || !key || !authToken || !ids.length) return;
+      if (!url || !key || !authToken || !ids.length || authBlocked) return;
       var rows = ids.map(function (id) { return recPending[id]; });
       // recPending is deliberately NOT cleared: a keepalive request gives no
       // usable response, so the rows stay queued and the normal debounced flush
@@ -508,6 +552,12 @@
     document.addEventListener("visibilitychange", function () {
       if (document.visibilityState === "hidden") keepaliveFlushRecords();
     });
+    // Parked saves exist only in this tab's memory. Closing the tab would lose
+    // them, so ask first; signing in again (even on the login screen this tab
+    // falls back to) saves them.
+    window.addEventListener("beforeunload", function (e) {
+      if (authBlocked && Object.keys(recPending).length) { e.preventDefault(); e.returnValue = ""; }
+    });
 
     window.storage = {
       // allowLocal === false makes this CLOUD-ONLY: never fall back to the
@@ -546,6 +596,9 @@
       // Forces the debounced queues out now, resolving once they land. Await
       // this before anything that ends the session or tears down the page.
       flushNow: flushNow,
+      // Records queued but not yet saved. Non-zero while PCP_SAVE_BLOCKED is
+      // set means they are waiting for the user to sign in again.
+      unsavedCount: function () { return Object.keys(recPending).length; },
       // Per-record cloud store (pcp_records). Each transaction lives in its own
       // row keyed by its id, so concurrent users only touch the rows they change
       // and can no longer overwrite each other's records.
