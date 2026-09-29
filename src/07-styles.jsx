@@ -127,7 +127,7 @@ const CSS = `
   .pcp-btn {
     display: inline-flex; align-items: center; gap: 6px;
     padding: 8px 14px; border-radius: 9px; border: 1px solid var(--line);
-    background: #fff; color: var(--text); font-size: 12.5px; font-weight: 600;
+    background: var(--dm-surface, #fff); color: var(--text); font-size: 12.5px; font-weight: 600;
     cursor: pointer; transition: all 0.12s; white-space: nowrap; box-shadow: var(--shadow-sm);
   }
   .pcp-btn:hover { border-color: var(--mint); background: var(--mint-bg); color: var(--brand-dark); }
@@ -192,7 +192,7 @@ const CSS = `
 
   .pcp-input, .pcp-select, textarea.pcp-input {
     width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px;
-    font-size: 12.5px; background: #fff; color: var(--text); font-family: inherit;
+    font-size: 12.5px; background: var(--dm-input, #fff); color: var(--text); font-family: inherit;
   }
   .pcp-input:focus, .pcp-select:focus, textarea.pcp-input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(78,125,99,0.15); }
   .pcp-field { margin-bottom: 12px; }
@@ -204,7 +204,7 @@ const CSS = `
     align-items: flex-start; justify-content: center; z-index: 50; padding: 40px 20px; overflow-y: auto;
   }
   .pcp-modal {
-    background: #fff; border-radius: 14px; width: 100%; max-width: 620px;
+    background: var(--dm-surface, #fff); border-radius: 14px; width: 100%; max-width: 620px;
     box-shadow: 0 20px 60px rgba(0,0,0,0.25);
   }
   /* Larger modal the user can resize by dragging <ModalResizeGrip /> in the
@@ -294,7 +294,7 @@ const CSS = `
   .pcp-stl-check .box { width: 12px; height: 12px; border: 1.5px solid #9aa0ad; border-radius: 3px; display: inline-block; }
   .pcp-stl-due {
     display: inline-flex; align-items: center; gap: 4px; font-size: 11px; font-weight: 600;
-    padding: 3px 9px; border-radius: 99px; background: #fff; border: 1px solid var(--line); color: var(--text-mut); white-space: nowrap;
+    padding: 3px 9px; border-radius: 99px; background: var(--dm-surface, #fff); border: 1px solid var(--line); color: var(--text-mut); white-space: nowrap;
   }
   .pcp-stl-due.soon { color: var(--amber); border-color: #efd49a; }
   .pcp-stl-due.overdue { color: #fff; background: var(--danger); border-color: var(--danger); }
@@ -337,7 +337,7 @@ const CSS = `
   .pcp-ss-btn:disabled { background: #f1f7f3; color: var(--text-mut); cursor: not-allowed; }
   .pcp-purpose-pop, .pcp-ss-pop {
     position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 60;
-    background: #fff; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--dm-surface, #fff); border: 1px solid var(--line); border-radius: 10px;
     box-shadow: 0 12px 30px rgba(20,20,50,0.16); padding: 8px;
   }
   /* Narrow in-table pickers would clip their own option text, so the popover is
@@ -369,7 +369,7 @@ const CSS = `
 
   /* Inline document previews (checker / approver read the receipt in place) */
   .pcp-doc-gallery { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; }
-  .pcp-doc-tile { border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: #fff; }
+  .pcp-doc-tile { border: 1px solid var(--line); border-radius: 9px; overflow: hidden; background: var(--dm-surface, #fff); }
   .pcp-doc-tile-head {
     display: flex; align-items: center; gap: 7px; padding: 7px 9px;
     border-bottom: 1px solid var(--line); background: #f8f9fc;
@@ -395,7 +395,7 @@ const CSS = `
   .pcp-doc-gallery-xl .pcp-doc-frame.zoomed { height: max(520px, 78vh); }
   .pcp-doc-frame.zoomed img { max-height: none; margin: 0 auto; }
   .pcp-doc-zoombar { display: inline-flex; align-items: center; gap: 2px; margin-left: 4px; }
-  .pcp-doc-zoombar button { border: 1px solid var(--line); background: #fff; border-radius: 6px; height: 24px; min-width: 24px; padding: 0 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 600; color: var(--text); }
+  .pcp-doc-zoombar button { border: 1px solid var(--line); background: var(--dm-surface, #fff); border-radius: 6px; height: 24px; min-width: 24px; padding: 0 6px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: 600; color: var(--text); }
   .pcp-doc-zoombar button:hover { border-color: var(--brand); color: var(--brand); }
   .pcp-doc-zoombar button:disabled { opacity: 0.4; cursor: default; }
   .pcp-doc-zoomval { font-size: 10.5px; color: var(--text-mut); min-width: 34px; text-align: center; }
@@ -408,7 +408,7 @@ const CSS = `
     display: flex; align-items: center; justify-content: center; line-height: 1;
   }
   .pcp-notif-panel {
-    position: absolute; right: 0; top: calc(100% + 8px); width: 340px; background: #fff;
+    position: absolute; right: 0; top: calc(100% + 8px); width: 340px; background: var(--dm-surface, #fff);
     border: 1px solid var(--line); border-radius: 12px; box-shadow: 0 16px 44px rgba(0,0,0,0.18);
     z-index: 60; overflow: hidden;
   }
@@ -420,7 +420,7 @@ const CSS = `
   .pcp-notif-ic { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   /* Requestor liquidation reminders: a large bell with its count beside it. */
   .pcp-reminder-bell {
-    display: flex; align-items: center; gap: 8px; padding: 8px 14px 8px 12px; background: #fff;
+    display: flex; align-items: center; gap: 8px; padding: 8px 14px 8px 12px; background: var(--dm-surface, #fff);
     border: 2px solid; border-radius: 12px; cursor: pointer; font-family: inherit;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
   }
@@ -443,6 +443,13 @@ const CSS = `
     display: flex; align-items: center; gap: 6px; padding: 6px 8px 6px 10px; margin: 0 6px 10px 6px;
     background: rgba(255,255,255,0.04); border-radius: 8px;
   }
+  .pcp-theme-toggle { display: flex; gap: 2px; margin: 6px 6px 4px; padding: 2px; border-radius: 8px; background: rgba(255,255,255,0.06); }
+  .pcp-theme-toggle button {
+    flex: 1; display: flex; align-items: center; justify-content: center; height: 24px; min-width: 20px;
+    border: none; border-radius: 6px; background: transparent; color: #a9c2b3; cursor: pointer;
+  }
+  .pcp-theme-toggle button:hover { color: #fff; background: rgba(255,255,255,0.08); }
+  .pcp-theme-toggle button.on { background: rgba(255,255,255,0.16); color: #fff; }
   .pcp-user-email { flex: 1; min-width: 0; color: #8fa397; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pcp-kpi-click { cursor: pointer; transition: border-color 0.12s, box-shadow 0.12s; }
   .pcp-kpi-click:hover { border-color: var(--brand); box-shadow: 0 4px 14px rgba(78,125,99,0.10); }
@@ -686,7 +693,7 @@ const CSS = `
   @keyframes pcpDrillIn { from { transform: translateX(46px); opacity: 0.3; } to { transform: none; opacity: 1; } }
   @keyframes pcpDrillOut { from { transform: none; opacity: 1; } to { transform: translateX(46px); opacity: 0; } }
 
-  .pcp-drill-head { position: sticky; top: 0; z-index: 3; background: #fff; border-bottom: 1px solid var(--line); padding: 14px 20px; }
+  .pcp-drill-head { position: sticky; top: 0; z-index: 3; background: var(--dm-surface, #fff); border-bottom: 1px solid var(--line); padding: 14px 20px; }
   .pcp-breadcrumb { font-size: 11.5px; color: var(--text-mut); display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
   .pcp-breadcrumb .crumb { display: inline-flex; align-items: center; gap: 6px; }
   .pcp-breadcrumb .crumb.link { color: var(--brand); cursor: pointer; font-weight: 600; }
@@ -707,7 +714,7 @@ const CSS = `
   .pcp-sortable:hover { color: var(--brand); }
   .pcp-sort-ind { font-size: 9px; opacity: 0.7; margin-left: 3px; }
 
-  .pcp-detail-card { background: #fff; border: 1px solid var(--line); border-left: 3px solid var(--brand); border-radius: 8px; padding: 14px 16px; margin: 2px 0 6px; }
+  .pcp-detail-card { background: var(--dm-surface, #fff); border: 1px solid var(--line); border-left: 3px solid var(--brand); border-radius: 8px; padding: 14px 16px; margin: 2px 0 6px; }
   .pcp-detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 20px; font-size: 12px; }
   .pcp-detail-grid .lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-mut); font-weight: 700; }
   @media (max-width: 760px) { .pcp-detail-grid { grid-template-columns: 1fr 1fr; } }
@@ -747,6 +754,115 @@ const CSS = `
     .pcp-card { border: 1px solid #ccc; break-inside: avoid; }
     body, .pcp-root { background: #fff !important; }
     table.pcp-table thead th { background: #f0f0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+
+  /* ---- Dark mode ----
+     Switched by data-theme="dark" on <html> (set in index.html, toggled by
+     <ThemeToggle>). Screen only: printing always uses the light theme above,
+     and the report preview (.pcp-doc) stays a white sheet of paper because it
+     shows what will print. Mostly re-points the variables at the top of this
+     file; the rest overrides the light colours written directly into rules.
+     Components with an inline light colour use var(--dm-..., <light colour>),
+     so light mode keeps its exact colour and only dark mode defines --dm-*. */
+  @media screen {
+    :root[data-theme="dark"] {
+      color-scheme: dark;
+      --ink: #14211a;
+      --ink-2: #1a2b22;
+      --paper: #0f1713;
+      --card: #17221c;
+      --line: #2a3a31;
+      --line-soft: #213029;
+      --text: #e3ece6;
+      --text-mut: #9bb0a3;
+      --brand: #4f8a6b;
+      --brand-dark: #9fd0b4;
+      --brand-soft: #1f3329;
+      --mint: #4f8a6b;
+      --mint-bg: #223d30;
+      --danger: #e5645a;
+      --danger-dark: #f29a91;
+      --amber: #e0a43a;
+      --amber-bg: #372c14;
+      --green: #62c68b;
+      --green-bg: #173424;
+      --red-bg: #3a1f1d;
+      --blue-bg: #182a40;
+      --blue: #82b2ec;
+      --orange: #f0975c;
+      --orange-bg: #3b2617;
+      --purple: #b7a1f2;
+      --purple-bg: #29233f;
+      --shadow-sm: 0 1px 2px rgba(0,0,0,0.35);
+      --shadow-md: 0 6px 18px rgba(0,0,0,0.45);
+      --dm-surface: #17221c;
+      --dm-input: #111a15;
+      --dm-subtle: #131d18;
+      --dm-ok-bg: #173424; --dm-ok-line: #2c5a3e; --dm-ok-text: #62c68b;
+      --dm-bad-bg: #3a1f1d; --dm-bad-line: #6b3530; --dm-bad-text: #f29a91;
+      --dm-alarm-read: #17221c;
+      --dm-alarm-due1: #3b2617; --dm-alarm-due0: #3f2415; --dm-alarm-overdue: #3a1f1d;
+    }
+    [data-theme="dark"] .pcp-nav-item.active { background: var(--mint-bg); color: #e3f4ea; }
+
+    /* Surfaces that were a fixed pale tint. (The plain-white ones — buttons,
+       modals, pop-overs, inputs — read var(--dm-surface / --dm-input, #fff)
+       in their own rule, so hover and ghost variants keep working.) */
+    [data-theme="dark"] .pcp-drill-search input { background: var(--dm-input); color: var(--text); }
+    [data-theme="dark"] .pcp-btn-primary:hover { background: #5f9c7c; border-color: #5f9c7c; color: #fff; }
+    [data-theme="dark"] .pcp-btn-danger:hover { border-color: var(--dm-bad-line); }
+    [data-theme="dark"] table.pcp-table thead th { background: #1d2d25; }
+    [data-theme="dark"] table.pcp-table tbody tr:nth-child(even) td { background: #1a2620; }
+    [data-theme="dark"] table.pcp-table tbody tr:hover td { background: var(--brand-soft); }
+    [data-theme="dark"] table.pcp-table tfoot td { background: #1d2d25; }
+    [data-theme="dark"] table.pcp-table tbody tr.pcp-rr-row.on { background: #33201f; }
+    [data-theme="dark"] .pcp-row-focus td { background: #3d3414 !important; }
+    [data-theme="dark"] .pcp-badge-gray { background: #24332b; }
+    [data-theme="dark"] .pcp-collapse-head:hover { background: #1d2d25; }
+    [data-theme="dark"] .pcp-ss-btn:disabled { background: #1a2620; }
+    [data-theme="dark"] .pcp-doc-tile-head { background: #1a2620; }
+    [data-theme="dark"] .pcp-doc-frame { background: #0c120f; }
+    [data-theme="dark"] .pcp-notif-item { border-bottom-color: var(--line-soft); }
+    [data-theme="dark"] .pcp-notif-item:hover, [data-theme="dark"] .pcp-reminder-bell:hover { background: #1d2d25; }
+    [data-theme="dark"] .pcp-stl-banner.tone-amber,
+    [data-theme="dark"] .pcp-stl-banner.tone-blue,
+    [data-theme="dark"] .pcp-stl-banner.tone-green,
+    [data-theme="dark"] .pcp-stl-banner.tone-red { border-color: var(--line); }
+    [data-theme="dark"] .pcp-stl-banner.tone-amber { border-left-color: var(--amber); }
+    [data-theme="dark"] .pcp-stl-banner.tone-blue { border-left-color: var(--blue); }
+    [data-theme="dark"] .pcp-stl-banner.tone-green { border-left-color: var(--green); }
+    [data-theme="dark"] .pcp-stl-banner.tone-red { border-left-color: var(--danger); }
+    [data-theme="dark"] .pcp-stl-due.soon { border-color: #5a4520; }
+    [data-theme="dark"] .pcp-stl-entry { border-bottom-color: var(--line); }
+    [data-theme="dark"] .pcp-login-input.invalid .pcp-input { background: #2a1917; }
+    [data-theme="dark"] .pcp-login-alert { border-color: var(--dm-bad-line); }
+    [data-theme="dark"] .pcp-login-help,
+    [data-theme="dark"] .pcp-hint,
+    [data-theme="dark"] .pcp-mini-stat,
+    [data-theme="dark"] .pcp-receipt .fileicon { background: #1a2620; }
+    [data-theme="dark"] .pcp-login-caps { color: var(--amber); }
+    /* The logos are black and red; give them the same light plate the sidebar uses. */
+    [data-theme="dark"] .pcp-login-pane .pcp-brand-logos { background: #f4faf6; padding: 8px 16px; border-radius: 10px; }
+    [data-theme="dark"] .pcp-dropzone { background: #131d18; border-color: #35503f; }
+    [data-theme="dark"] .pcp-progress { background: #24332b; }
+    [data-theme="dark"] .pcp-iconbtn:hover { background: #24332b; }
+    [data-theme="dark"] .pcp-filter-chip { border-color: #35503f; }
+    [data-theme="dark"] .pcp-alarm-note { background: rgba(229,100,90,0.12); }
+    [data-theme="dark"] .pcp-home-due.orange { background: var(--orange-bg); color: var(--orange); }
+    [data-theme="dark"] .pcp-home-due.yellow { color: var(--amber); }
+    [data-theme="dark"] ::-webkit-scrollbar-thumb { background: #3a4a41; }
+    /* The report preview is a sheet of paper: dark desk, white page. */
+    [data-theme="dark"] .pcp-doc-scroll { background: #0c120f; }
+
+    /* Charts (recharts): grid lines, axis text, tooltip, legend. */
+    [data-theme="dark"] .recharts-cartesian-grid line { stroke: #2a3a31; }
+    [data-theme="dark"] .recharts-cartesian-axis-tick-value { fill: #9bb0a3; }
+    [data-theme="dark"] .recharts-default-tooltip {
+      background: var(--card) !important; border-color: var(--line) !important; color: var(--text);
+    }
+    [data-theme="dark"] .recharts-legend-item-text { color: var(--text) !important; }
+    [data-theme="dark"] .recharts-pie-label-text { fill: var(--text); }
+    [data-theme="dark"] .recharts-tooltip-cursor { fill: rgba(255,255,255,0.05); }
   }
 `;
 
@@ -807,6 +923,37 @@ function BrandLogos({ compact }) {
   );
 }
 
+/* Light / Dark / System switch for the sidebar. The preference is per browser
+   (window.PCP_THEME in index.html owns storage and applies it to <html>). */
+const THEME_OPTIONS = [
+  { key: "light", label: "Light", icon: Sun },
+  { key: "dark", label: "Dark", icon: Moon },
+  { key: "system", label: "Match my computer", icon: Monitor },
+];
+function ThemeToggle() {
+  const api = window.PCP_THEME;
+  const [theme, setTheme] = useState(() => (api ? api.get() : "light"));
+  useEffect(() => {
+    const on = () => setTheme(api ? api.get() : "light");
+    window.addEventListener("pcp-theme", on);
+    return () => window.removeEventListener("pcp-theme", on);
+  }, []);
+  if (!api) return null;
+  return (
+    <div className="pcp-theme-toggle" role="radiogroup" aria-label="Display theme">
+      {THEME_OPTIONS.map((o) => {
+        const Icon = o.icon;
+        return (
+          <button key={o.key} type="button" role="radio" aria-checked={theme === o.key}
+            className={theme === o.key ? "on" : ""} title={o.label} onClick={() => api.set(o.key)}>
+            <Icon size={13} />
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
 function Sidebar({ tab, setTab, role, navGroups, userEmail, userName, onSignOut, onChangePassword }) {
   const groups = navGroups || [];
   return (
@@ -858,6 +1005,7 @@ function Sidebar({ tab, setTab, role, navGroups, userEmail, userName, onSignOut,
             <KeyRound size={13} /> Change Password
           </button>
         )}
+        <ThemeToggle />
         <div className="pcp-logos-strip">
           <BrandLogos compact />
         </div>

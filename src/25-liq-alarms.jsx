@@ -29,9 +29,9 @@ const LIQ_ALARM_EMAILS = [
 ];
 
 const LIQ_ALARM_STAGE = {
-  due1: { key: "due1", title: "LIQUIDATION DUE TOMORROW", icon: "🔔", tint: "#ea580c", bg: "#fff4ec" },
-  due0: { key: "due0", title: "LIQUIDATION DUE TODAY", icon: "⏰", tint: "#c2410c", bg: "#ffefe5" },
-  overdue: { key: "overdue", title: "LIQUIDATION OVERDUE – AUTHORITY TO DEDUCT", icon: "⚠️", tint: "#c0392b", bg: "#fdf0ef" },
+  due1: { key: "due1", title: "LIQUIDATION DUE TOMORROW", icon: "🔔", tint: "#ea580c", bg: "var(--dm-alarm-due1, #fff4ec)" },
+  due0: { key: "due0", title: "LIQUIDATION DUE TODAY", icon: "⏰", tint: "#c2410c", bg: "var(--dm-alarm-due0, #ffefe5)" },
+  overdue: { key: "overdue", title: "LIQUIDATION OVERDUE – AUTHORITY TO DEDUCT", icon: "⚠️", tint: "#c0392b", bg: "var(--dm-alarm-overdue, #fdf0ef)" },
 };
 const LIQ_ALARM_HISTORY_MAX = 200;
 
@@ -172,7 +172,7 @@ const liqAlarmStampText = (ts) => (ts ? String(ts).replace("T", " ").slice(0, 16
 function LiqAlarmCard({ a, read, firstSeen, onOpen, onToggleRead }) {
   const st = LIQ_ALARM_STAGE[a.stage];
   return (
-    <div className={"pcp-alarm-card" + (read ? " read" : "")} style={{ borderColor: st.tint, background: read ? "#fff" : st.bg }}>
+    <div className={"pcp-alarm-card" + (read ? " read" : "")} style={{ borderColor: st.tint, background: read ? "var(--dm-alarm-read, #fff)" : st.bg }}>
       <div className="pcp-alarm-card-head" style={{ color: st.tint }}>
         <span>{st.icon} {st.title}</span>
         {!read && <span className="pcp-alarm-new" style={{ background: st.tint }}>NEW</span>}

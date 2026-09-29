@@ -6,7 +6,33 @@
 <meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate" />
 <title>Petty Cash Management System</title>
 <meta name="theme-color" content="#2c4a3c" />
-<style>html,body{margin:0;padding:0;height:100%;background:#f2f7f3;}#root{min-height:100vh;}</style>
+<style>html,body{margin:0;padding:0;height:100%;background:#f2f7f3;}#root{min-height:100vh;}html[data-theme="dark"],html[data-theme="dark"] body{background:#0f1713;}</style>
+<script>
+  /* Display theme, per browser: "light", "dark" or "system" (default: light).
+     Applied here, before anything renders, so a dark-mode user never sees a
+     white flash while the app loads. The toggle lives in the sidebar
+     (ThemeToggle in src/07-styles.jsx), which calls PCP_THEME.set(). */
+  (function () {
+    var KEY = "pcp-theme";
+    var mq = window.matchMedia ? window.matchMedia("(prefers-color-scheme: dark)") : null;
+    function pref() { try { return localStorage.getItem(KEY) || "light"; } catch (e) { return "light"; } }
+    function apply() {
+      var p = pref();
+      var dark = p === "dark" || (p === "system" && !!(mq && mq.matches));
+      document.documentElement.setAttribute("data-theme", dark ? "dark" : "light");
+    }
+    window.PCP_THEME = {
+      get: pref,
+      set: function (p) {
+        try { localStorage.setItem(KEY, p); } catch (e) {}
+        apply();
+        try { window.dispatchEvent(new CustomEvent("pcp-theme")); } catch (e) {}
+      }
+    };
+    if (mq && mq.addEventListener) mq.addEventListener("change", apply);
+    apply();
+  })();
+</script>
 
 <!-- In-browser React transpiler (no build step needed) -->
 <script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
@@ -891,7 +917,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20260929d";
+  window.PCP_SRC_VERSION = "20260929e";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",

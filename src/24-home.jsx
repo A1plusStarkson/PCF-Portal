@@ -30,7 +30,7 @@ const HOME_CSS = `
   .pcp-home-section-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; margin: 0 0 12px; }
   .pcp-home-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
   .pcp-home-link {
-    display: flex; gap: 12px; align-items: flex-start; text-align: left; background: #fff; border: 1px solid var(--line);
+    display: flex; gap: 12px; align-items: flex-start; text-align: left; background: var(--dm-surface, #fff); border: 1px solid var(--line);
     border-radius: 12px; padding: 14px; cursor: pointer; font: inherit; color: inherit;
     transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
   }

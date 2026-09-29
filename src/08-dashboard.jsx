@@ -362,7 +362,7 @@ function DrillDownModal({ chartName, label, columns, records, canEdit, onEditRec
                       </tr>
                       {expanded === r.id && (
                         <tr>
-                          <td colSpan={columns.length + 1} style={{ background: "#fafbfd" }}>
+                          <td colSpan={columns.length + 1} style={{ background: "var(--dm-subtle, #fafbfd)" }}>
                             <div className="pcp-detail-card">
                               <div className="pcp-detail-grid">
                                 <div><div className="lbl">Request No.</div>{r.requestNo || "—"}</div>
