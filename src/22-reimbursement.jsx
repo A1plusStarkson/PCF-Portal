@@ -1286,7 +1286,15 @@ function ReimbursementTab({
               </thead>
               <tbody>
                 {filtered.length ? filtered.map((r) => (
-                  <tr key={r.id}>
+                  <tr
+                    key={r.id} className="pcp-row-click" tabIndex={0}
+                    title={`Open ${r.reimbNo}`}
+                    /* The whole row opens the reimbursement, like the eye
+                       button. Clicks on the row's own buttons (view / edit /
+                       delete) keep doing what they did. */
+                    onClick={(e) => { if (!e.target.closest("button, a, input, select, textarea")) setDetail(r); }}
+                    onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); setDetail(r); } }}
+                  >
                     <td><strong>{r.reimbNo}</strong><PrevNo rec={r} /></td>
                     <td>{fmtDate(r.requestDate)}</td>
                     <td><strong>{r.employee}</strong></td>

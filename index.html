@@ -34,10 +34,13 @@
   })();
 </script>
 
-<!-- In-browser React transpiler (no build step needed) -->
-<script src="https://unpkg.com/@babel/standalone@7.25.6/babel.min.js"></script>
+<!-- The in-browser React transpiler (Babel, ~3 MB) is no longer loaded here.
+     The loader at the bottom only fetches it when the compiled portal is not
+     already saved in this browser — see "Compiled-code cache" below. -->
 
-<!-- Where the bare "react"/"recharts"/... imports resolve to -->
+<!-- Where the bare "react"/"recharts"/... imports resolve to.
+     recharts uses esm.sh's ?bundle build: ONE file instead of ~140 separate
+     lodash/d3 requests, still sharing the single React copy above. -->
 <script type="importmap">
 {
   "imports": {
@@ -46,14 +49,22 @@
     "react-dom": "https://esm.sh/react-dom@18.3.1?deps=react@18.3.1",
     "react-dom/client": "https://esm.sh/react-dom@18.3.1/client?deps=react@18.3.1",
     "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/package/xlsx.mjs",
-    "recharts": "https://esm.sh/recharts@2.13.3?deps=react@18.3.1,react-dom@18.3.1",
+    "recharts": "https://esm.sh/recharts@2.13.3?bundle&deps=react@18.3.1,react-dom@18.3.1",
     "lucide-react": "https://esm.sh/lucide-react@0.454.0?deps=react@18.3.1"
   }
 }
 </script>
+<!-- Start downloading the libraries now, in parallel with the portal's own
+     files, instead of only once the portal code asks for them. -->
+<link rel="modulepreload" href="https://esm.sh/react@18.3.1" crossorigin />
+<link rel="modulepreload" href="https://esm.sh/react-dom@18.3.1/client?deps=react@18.3.1" crossorigin />
+<link rel="modulepreload" href="https://esm.sh/recharts@2.13.3?bundle&deps=react@18.3.1,react-dom@18.3.1" crossorigin />
+<link rel="modulepreload" href="https://esm.sh/lucide-react@0.454.0?deps=react@18.3.1" crossorigin />
+<link rel="modulepreload" href="https://esm.sh/@supabase/supabase-js@2.117.2?bundle" crossorigin />
 </head>
 <body>
-<div id="root"></div>
+<!-- Shown until React replaces it, so the page is never a blank screen. -->
+<div id="root"><div style="min-height:100vh;display:flex;align-items:center;justify-content:center;font:700 14px system-ui,'Segoe UI',Arial,sans-serif;color:#4e7d63">Loading Petty Cash Portal…</div></div>
 
 <!-- ============================================================
      DATA STORAGE + LOGIN
@@ -361,7 +372,10 @@
     var sbReady = (function () {
       var url = window.PCP_SUPABASE_URL, key = window.PCP_SUPABASE_ANON_KEY;
       if (!url || !key) return Promise.resolve(null);
-      return import("https://esm.sh/@supabase/supabase-js@2")
+      // Pinned to the exact release "@2" resolved to (Sep 2026) and served as
+      // esm.sh's single-file ?bundle build: cached for a year instead of
+      // re-resolving "latest 2.x" and fetching six sub-packages on each visit.
+      return import("https://esm.sh/@supabase/supabase-js@2.117.2?bundle")
         .then(function (m) { return m.createClient(url, key, { auth: { persistSession: true, autoRefreshToken: true } }); })
         .catch(function (e) { console.warn("Supabase init failed — using local storage:", e); return null; });
     })();
@@ -909,7 +923,8 @@
      The app source lives in the src/ folder, split into readable files
      (see src/README.md). There is still NO build step: the loader below
      fetches every fragment, joins them in order, transpiles the whole thing
-     once with Babel, and runs the result as a single ES module (so the
+     with Babel (only when this browser has no saved build of the exact same
+     source — see "Compiled-code cache"), and runs the result as a single ES module (so the
      importmap above still resolves react / recharts / xlsx / lucide-react).
 
      Deploy note: upload the WHOLE src/ folder together with index.html.
@@ -917,7 +932,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20260929g";
+  window.PCP_SRC_VERSION = "20260929h";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",
@@ -958,7 +973,72 @@
         + '<br><br>Check that the whole <code>src/</code> folder was uploaded next to '
         + '<code>index.html</code>, then hard-refresh (Ctrl+F5).</div>';
     }
-    if (!window.Babel) { fail("Babel (in-browser transpiler) did not load. Check your internet connection."); return; }
+    /* ---- Compiled-code cache ----
+       Transpiling ~1.3 MB of JSX took most of a second on EVERY visit, and
+       needed the 3 MB Babel download first. The compiled result is now kept
+       in this browser's Cache Storage, keyed by a fingerprint of the exact
+       source text fetched. Any change to any src/ file — version bump or not —
+       changes the fingerprint, so a stale build can never run. Babel is only
+       downloaded when there is no saved build for the current source. This
+       cache holds program code only; no records, attachments or other data
+       are stored in it. If Cache Storage is unavailable, it simply compiles
+       every time as before. */
+    var BABEL_URL = "https://unpkg.com/@babel/standalone@7.25.6/babel.min.js";
+    var CACHE_NAME = "pcp-compiled";
+    var LAST_KEY = "pcp-compiled-key";
+    var babelPromise = null;
+    function loadBabel() {
+      if (window.Babel) return Promise.resolve();
+      if (!babelPromise) babelPromise = new Promise(function (resolve, reject) {
+        var s = document.createElement("script");
+        s.src = BABEL_URL;
+        s.onload = function () { resolve(); };
+        s.onerror = function () { reject(new Error("Babel (in-browser transpiler) did not load. Check your internet connection.")); };
+        document.head.appendChild(s);
+      });
+      return babelPromise;
+    }
+    function lastKey() { try { return localStorage.getItem(LAST_KEY); } catch (e) { return null; } }
+    // First visit in this browser: nothing is saved, so start Babel's download
+    // now, in parallel with the source files, instead of after them.
+    if (!lastKey()) loadBabel().catch(function () {});
+
+    // Fingerprint: two independent 32-bit FNV-1a hashes plus the length.
+    function fingerprint(s) {
+      var a = 0x811c9dc5, b = 0x01000193 ^ 0x5bd1e995;
+      for (var i = 0; i < s.length; i++) {
+        var c = s.charCodeAt(i);
+        a = Math.imul(a ^ c, 0x01000193);
+        b = Math.imul(b ^ c, 0x5bd1e995);
+      }
+      return s.length.toString(36) + "-" + (a >>> 0).toString(36) + "-" + (b >>> 0).toString(36);
+    }
+    var hasCache = typeof caches !== "undefined" && window.isSecureContext;
+    function cacheUrl(key) { return new URL("__pcp_compiled__/" + key + ".js", location.href).href; }
+    function readCached(key) {
+      if (!hasCache) return Promise.resolve(null);
+      return caches.open(CACHE_NAME)
+        .then(function (c) { return c.match(cacheUrl(key)); })
+        .then(function (r) { return r ? r.text() : null; })
+        .catch(function () { return null; });
+    }
+    function saveCached(key, out) {
+      if (!hasCache) return;
+      caches.open(CACHE_NAME).then(function (c) {
+        return c.put(cacheUrl(key), new Response(out, { headers: { "Content-Type": "text/javascript" } }))
+          .then(function () { return c.keys(); })
+          .then(function (reqs) {
+            // Keep only the current build.
+            reqs.forEach(function (r) { if (r.url !== cacheUrl(key)) c.delete(r); });
+            try { localStorage.setItem(LAST_KEY, key); } catch (e) {}
+          });
+      }).catch(function () {});
+    }
+    function run(out) {
+      var url = URL.createObjectURL(new Blob([out], { type: "text/javascript" }));
+      return import(url).catch(function (e) { fail("Runtime error: " + (e && e.message ? e.message : e)); });
+    }
+
     Promise.all(window.PCP_SRC_FILES.map(function (f) {
       return fetch(f + "?v=" + V).then(function (r) {
         if (!r.ok) throw new Error("Could not fetch " + f + " (HTTP " + r.status + ")");
@@ -966,14 +1046,20 @@
       }).then(function (t) { return "/* ===================== " + f + " ===================== */\n" + t; });
     })).then(function (parts) {
       var code = parts.join("\n\n");
-      var out;
-      try {
-        out = window.Babel.transform(code, { presets: ["react"], filename: "PettyCashPortal.jsx" }).code;
-      } catch (e) {
-        fail("Transpile error: " + (e && e.message ? e.message : e)); return;
-      }
-      var url = URL.createObjectURL(new Blob([out], { type: "text/javascript" }));
-      import(url).catch(function (e) { fail("Runtime error: " + (e && e.message ? e.message : e)); });
+      var key = fingerprint(code);
+      return readCached(key).then(function (saved) {
+        if (saved) return run(saved);
+        return loadBabel().then(function () {
+          var out;
+          try {
+            out = window.Babel.transform(code, { presets: ["react"], filename: "PettyCashPortal.jsx" }).code;
+          } catch (e) {
+            fail("Transpile error: " + (e && e.message ? e.message : e)); return;
+          }
+          saveCached(key, out);
+          return run(out);
+        });
+      });
     }).catch(function (e) { fail(e && e.message ? e.message : String(e)); });
   })();
 </script>

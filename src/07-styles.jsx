@@ -247,6 +247,9 @@ const CSS = `
   }
   .pcp-flow-step { flex: 1; padding: 16px 20px; position: relative; color: #fff; }
   .pcp-flow-step + .pcp-flow-step { border-left: 1px solid rgba(255,255,255,0.12); }
+  /* A table row that opens its record when clicked. */
+  tr.pcp-row-click { cursor: pointer; }
+  tr.pcp-row-click:focus-visible { outline: 2px solid var(--brand); outline-offset: -2px; }
   .pcp-flow-click { cursor: pointer; transition: background 0.12s; }
   .pcp-flow-click:hover { background: rgba(255,255,255,0.08); }
   .pcp-flow-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.6px; color: #8fa397; font-weight: 700; }
