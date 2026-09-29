@@ -31,7 +31,7 @@
 --   100 GB included against 8 GB of database, scans kept out of database
 --   backups, images served over the CDN.
 --
---   The 60 files already inside pcp_records are a different problem. Moving
+--   The 60 files already inside pcp_can you make the loading time be records are a different problem. Moving
 --   them to the bucket would mean pulling them into a browser and pushing
 --   them back up; into this table it is one INSERT … SELECT that never leaves
 --   the database host and takes about a second.
