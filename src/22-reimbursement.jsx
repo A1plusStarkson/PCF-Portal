@@ -486,15 +486,14 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
       });
     });
   };
-  /* Deleting a document already saved on the reimbursement is limited to
-     REIMB_DOC_DELETE_EMAILS (canDeleteDocs; re-checked at save). A file
-     uploaded in this form and not yet saved can always be taken back out.
-     Only the selected document is removed — the other documents and the
+  /* Deleting any attached document — saved or just uploaded — is limited to
+     REIMB_DOC_DELETE_EMAILS (canDeleteDocs; re-checked at save). Only the
+     selected document is removed — the other documents and the
      reimbursement itself are untouched, and nothing changes until saved. */
   const savedAttIds = useMemo(() => new Set(((reimb && reimb.attachments) || []).map((a) => a.id)), [reimb]);
-  const canRemoveAtt = (a) => !!canDeleteDocs || !savedAttIds.has(a.id);
+  const canRemoveAtt = () => !!canDeleteDocs;
   const removeAtt = (a) => {
-    if (!canRemoveAtt(a)) return;
+    if (!canRemoveAtt()) return;
     if (!window.confirm(`Delete "${a.name || "document"}" (${a.docType || "document"})?\n\n`
       + "Only this document is removed. The reimbursement and its other documents are not affected."
       + (savedAttIds.has(a.id) ? "\n\nThe deletion takes effect when you save." : ""))) return;

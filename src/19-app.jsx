@@ -176,7 +176,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
      stored file itself is kept. Re-checked in updateReimbursement at save. */
   const REIMB_DOC_DELETE_EMAILS = [
     "pcfrequestordisney@a1plus.com", "pcfrequestormanila@a1plus.com", "pcfrequestorrgandco@a1plus.com",
-    "superuser@a1plus.com", "accounting@a1plus.com", "finance@a1plus.com",
+    "a1plusadmin@a1plus.com", "superuser@a1plus.com", "accounting@a1plus.com", "finance@a1plus.com",
     "puradr@a1plus.com", "lita@a1plus.com", "mauwi@a1plus.com",
   ];
   const canDeleteReimbDocs = REIMB_DOC_DELETE_EMAILS.includes((userEmail || "").trim().toLowerCase())
