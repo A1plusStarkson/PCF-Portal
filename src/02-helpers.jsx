@@ -1008,6 +1008,7 @@ function liqReview(liq) {
   const r = liq.review || {};
   return {
     checked: !!r.checkedBy, checkedBy: r.checkedBy || "", checkedAt: r.checkedAt || "", checkRemarks: r.checkRemarks || "",
+    financeChecker: r.financeChecker || "",
     final: !!r.finalBy, finalBy: r.finalBy || "", finalAt: r.finalAt || "", finalRemarks: r.finalRemarks || "",
     legacy: false, history: r.history || [],
     ...acctStamps(r),
@@ -1086,7 +1087,7 @@ function clearReview(liq, actor, ts, note) {
   return {
     history: (r.history || []).concat(had ? [{
       action: note, user: actor, ts,
-      checkedBy: r.checkedBy || "", checkedAt: r.checkedAt || "",
+      checkedBy: r.checkedBy || "", financeChecker: r.financeChecker || "", checkedAt: r.checkedAt || "",
       acctCheckedBy: r.acctCheckedBy || "", acctChecker: r.acctChecker || "", acctCheckedAt: r.acctCheckedAt || "", batchNo: r.batchNo || "",
       finalBy: r.finalBy || "", finalAt: r.finalAt || "",
     }] : []),

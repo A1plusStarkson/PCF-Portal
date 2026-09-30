@@ -979,7 +979,7 @@ function ThemeToggle() {
   );
 }
 
-function Sidebar({ tab, setTab, role, navGroups, userEmail, userName, onSignOut, onChangePassword, onManageMfa }) {
+function Sidebar({ tab, setTab, role, navGroups, userEmail, userName, financeCheckerNames, financeChecker, onFinanceChecker, onSignOut, onChangePassword, onManageMfa }) {
   const groups = navGroups || [];
   return (
     <aside className="pcp-sidebar">
@@ -1014,6 +1014,21 @@ function Sidebar({ tab, setTab, role, navGroups, userEmail, userName, onSignOut,
         {(userName || role) && (
           <div className="pcp-user-card" title="Signed-in user">
             {userName && <div className="pcp-user-name">{userName}</div>}
+            {/* Finance Checker — who on the shared Finance account is checking
+                (FINANCE_CHECKER_NAMES); stamped on every transaction they approve. */}
+            {financeCheckerNames && financeCheckerNames.length > 0 && onFinanceChecker && (
+              <label style={{ display: "block", marginTop: 6 }}>
+                <span style={{ display: "block", fontSize: 10.5, color: "#9fbcab", marginBottom: 2 }}>Finance Checker:</span>
+                <select value={financeChecker || ""} onChange={(e) => onFinanceChecker(e.target.value)}
+                  title="Select your name before checking transactions"
+                  style={{ width: "100%", fontSize: 12, padding: "4px 6px", borderRadius: 6,
+                    border: financeChecker ? "1px solid rgba(255,255,255,0.25)" : "1px solid #f0b429",
+                    background: "#fff", color: "#1d2b23" }}>
+                  <option value="">— Select Name —</option>
+                  {financeCheckerNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </label>
+            )}
             {role && <div className="pcp-role-badge" style={{ marginTop: 4 }}><UserCog size={13} /> <span>{ROLES[role] ? ROLES[role].label : role}</span></div>}
           </div>
         )}

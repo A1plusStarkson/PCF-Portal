@@ -45,6 +45,23 @@ const ACCOUNTING_CHECKER_NAMES = {
   "accounting@a1plus.com": ["Roselyn Bo", "Rogielyn Mayor"],
 };
 const accountingCheckerNamesFor = (email) => ACCOUNTING_CHECKER_NAMES[String(email || "").trim().toLowerCase()] || [];
+/* The people who share the Finance account (owner's instruction, Oct 2026).
+   They pick their name under "Finance Department" in the sidebar before
+   checking; a custodian-level approval by Finance is refused without it and
+   stamps it as review.financeChecker, shown to Grace Gan in the Approval
+   Module. checkedBy stays the account name — segregation-of-duties checks
+   still compare it. */
+const FINANCE_CHECKER_NAMES = {
+  "finance@a1plus.com": ["Mary Queen Ecat", "Ayessa Milosantos"],
+};
+const financeCheckerNamesFor = (email) => FINANCE_CHECKER_NAMES[String(email || "").trim().toLowerCase()] || [];
+/* "Finance Department (Finance Checker: Mary Queen Ecat)", or just checkedBy
+   on an approval made before the Finance Checker existed. */
+const custodianCheckerLabel = (rv) => {
+  const x = rv || {};
+  if (!x.financeChecker) return x.checkedBy || "";
+  return `${x.checkedBy || "Finance"} (Finance Checker: ${x.financeChecker})`;
+};
 /* "Roselyn Bo (accounting@a1plus.com)", or just the email on a check made
    before the checker name existed. */
 const acctCheckerLabel = (rv) => {
@@ -1033,7 +1050,7 @@ function LiquidationWorksheet({
     if (!canFinalNow) return;
     const remarks = window.prompt(
       `Give final approval to the liquidation for ${disbursement.voucherNo}?\n\n`
-      + `Approved receipts: ${peso(receiptSummary.approvedTotal)} · checked by ${review.checkedBy}.\n\n`
+      + `Approved receipts: ${peso(receiptSummary.approvedTotal)} · checked by ${custodianCheckerLabel(review)}.\n\n`
       + "It becomes Fully Approved / Ready for Replenishment and can no longer be edited.\n\nRemarks (optional):", ""
     );
     if (remarks == null) return;
@@ -1214,7 +1231,7 @@ function LiquidationWorksheet({
             {/* The approval chain, stamped. */}
             {(review.checked || review.final) && !review.legacy && (
               <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 5, lineHeight: 1.5 }}>
-                {review.checked && <div>Custodian approved by <b>{review.checkedBy}</b> · {review.checkedAt.replace("T", " ")}{review.checkRemarks ? ` · "${review.checkRemarks}"` : ""}</div>}
+                {review.checked && <div>Custodian approved by <b>{custodianCheckerLabel(review)}</b> · {review.checkedAt.replace("T", " ")}{review.checkRemarks ? ` · "${review.checkRemarks}"` : ""}</div>}
                 {review.acctChecked && <div>Accounting checked by <b>{acctCheckerLabel(review)}</b> · {fmtAcctStamp(review.acctCheckedAt)} · batch <b>{review.batchNo}</b></div>}
                 {review.final && <div>Final approval by <b>{review.finalBy}</b> · {review.finalAt.replace("T", " ")}{review.finalRemarks ? ` · "${review.finalRemarks}"` : ""}</div>}
               </div>

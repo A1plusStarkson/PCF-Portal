@@ -135,6 +135,7 @@ function reimbReview(r) {
   const rv = (r && r.review) || {};
   return {
     checked: !!rv.checkedBy, checkedBy: rv.checkedBy || "", checkedAt: rv.checkedAt || "", checkRemarks: rv.checkRemarks || "",
+    financeChecker: rv.financeChecker || "",
     final: !!rv.finalBy, finalBy: rv.finalBy || "", finalAt: rv.finalAt || "", finalRemarks: rv.finalRemarks || "",
     history: rv.history || [],
     ...acctStamps(rv),
@@ -905,7 +906,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
   };
   const finalApprove = () => {
     if (!passesAccountingGate(review)) { window.alert(ACCOUNTING_GATE_MESSAGE); return; }
-    if (!window.confirm(`Give final approval to ${reimb.reimbNo}?\n\n${reimb.employee} · ${peso(total)} · custodian approved by ${review.checkedBy} · Accounting checked, batch ${review.batchNo}.\n\nIt becomes Fully Approved / Ready for Replenishment.`)) return;
+    if (!window.confirm(`Give final approval to ${reimb.reimbNo}?\n\n${reimb.employee} · ${peso(total)} · custodian approved by ${custodianCheckerLabel(review)} · Accounting checked, batch ${review.batchNo}.\n\nIt becomes Fully Approved / Ready for Replenishment.`)) return;
     act("final-approve");
   };
 
@@ -967,7 +968,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
 
           {(review.checked || review.final) && (
             <div style={{ fontSize: 11.5, color: "var(--text-mut)", marginBottom: 10, lineHeight: 1.5 }}>
-              {review.checked && <div>Custodian approved by <b>{review.checkedBy}</b> · {review.checkedAt}{review.checkRemarks ? ` · "${review.checkRemarks}"` : ""}</div>}
+              {review.checked && <div>Custodian approved by <b>{custodianCheckerLabel(review)}</b> · {review.checkedAt}{review.checkRemarks ? ` · "${review.checkRemarks}"` : ""}</div>}
               {review.acctChecked && <div>Accounting checked by <b>{acctCheckerLabel(review)}</b> · {fmtAcctStamp(review.acctCheckedAt)} · batch <b>{review.batchNo}</b></div>}
               {review.final && <div>Final approval by <b>{review.finalBy}</b> · {review.finalAt}{review.finalRemarks ? ` · "${review.finalRemarks}"` : ""}</div>}
             </div>

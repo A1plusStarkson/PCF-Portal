@@ -24,7 +24,7 @@ function replenishmentReadyItems(disbursements, liquidations, reimbursements, re
     const rv = liqReview(x.liq);
     return {
       kind: "liq", id: x.liq.id, ref: x.disb.voucherNo, employee: x.disb.employee, branchCode: x.disb.branchCode,
-      checkedBy: rv.checkedBy, checkedAt: rv.checkedAt, finalBy: rv.finalBy, finalAt: rv.finalAt, amount: x.amount,
+      checkedBy: custodianCheckerLabel(rv), checkedAt: rv.checkedAt, finalBy: rv.finalBy, finalAt: rv.finalAt, amount: x.amount,
       date: x.disb.date || "",
     };
   });
@@ -32,7 +32,7 @@ function replenishmentReadyItems(disbursements, liquidations, reimbursements, re
     const rv = reimbReview(x.reimb);
     return {
       kind: "reimb", id: x.reimb.id, ref: x.reimb.reimbNo, employee: x.reimb.employee, branchCode: x.reimb.branchCode,
-      checkedBy: rv.checkedBy, checkedAt: rv.checkedAt, finalBy: rv.finalBy, finalAt: rv.finalAt, amount: x.amount,
+      checkedBy: custodianCheckerLabel(rv), checkedAt: rv.checkedAt, finalBy: rv.finalBy, finalAt: rv.finalAt, amount: x.amount,
       date: x.reimb.requestDate || "",
     };
   });

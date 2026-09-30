@@ -189,7 +189,7 @@ function PcaApprovalPanel({
   };
   const finalApprove = () => {
     if (!passesAccountingGate(review)) { window.alert(ACCOUNTING_GATE_MESSAGE); return; }
-    if (!window.confirm(`Give final approval to ${disb.voucherNo}?\n\nApproved receipts: ${peso(amounts.approvedTotal)} · custodian approved by ${review.checkedBy} · Accounting checked, batch ${review.batchNo}.\n\nIt becomes Fully Approved / Ready for Replenishment and can no longer be edited.`)) return;
+    if (!window.confirm(`Give final approval to ${disb.voucherNo}?\n\nApproved receipts: ${peso(amounts.approvedTotal)} · custodian approved by ${custodianCheckerLabel(review)} · Accounting checked, batch ${review.batchNo}.\n\nIt becomes Fully Approved / Ready for Replenishment and can no longer be edited.`)) return;
     onFinalApprove(disb.id, remarks.trim());
     setRemarks("");
   };
@@ -241,7 +241,7 @@ function PcaApprovalPanel({
             </div>
             {!review.legacy && (review.checked || review.final) && (
               <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 5, lineHeight: 1.5 }}>
-                {review.checked && <div>Custodian approved by <b>{review.checkedBy}</b> · {review.checkedAt.replace("T", " ")}{review.checkRemarks ? ` · "${review.checkRemarks}"` : ""}</div>}
+                {review.checked && <div>Custodian approved by <b>{custodianCheckerLabel(review)}</b> · {review.checkedAt.replace("T", " ")}{review.checkRemarks ? ` · "${review.checkRemarks}"` : ""}</div>}
                 {review.acctChecked && <div>Accounting checked by <b>{acctCheckerLabel(review)}</b> · {fmtAcctStamp(review.acctCheckedAt)} · batch <b>{review.batchNo}</b></div>}
                 {review.final && <div>Final approval by <b>{review.finalBy}</b> · {review.finalAt.replace("T", " ")}{review.finalRemarks ? ` · "${review.finalRemarks}"` : ""}</div>}
               </div>

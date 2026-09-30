@@ -249,6 +249,25 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   /* ACCOUNTING REVIEW: by email (ACCOUNTING_CHECKER_EMAILS), hidden while
      previewing another role. Re-checked inside accountingReview. */
   const isAccountingChecker = emailIn(ACCOUNTING_CHECKER_EMAILS) && role === (userRole || "Accounting");
+  /* FINANCE CHECKER: the person using the shared Finance account, picked in
+     the sidebar (FINANCE_CHECKER_NAMES). Kept for this browser tab only, so
+     each sign-in starts by choosing a name. Required by checkLiquidation and
+     the reimbursement custodian-approve, which stamp it as
+     review.financeChecker. */
+  const financeCheckerNames = financeCheckerNamesFor(userEmail);
+  const [financeChecker, setFinanceCheckerRaw] = useState(() => {
+    try { return sessionStorage.getItem("pcp.financeChecker") || ""; } catch (e) { return ""; }
+  });
+  const setFinanceChecker = useCallback((v) => {
+    setFinanceCheckerRaw(v || "");
+    try { sessionStorage.setItem("pcp.financeChecker", v || ""); } catch (e) { /* storage unavailable */ }
+  }, []);
+  const activeFinanceChecker = financeCheckerNames.includes(financeChecker) ? financeChecker : "";
+  const missingFinanceChecker = () => {
+    if (!financeCheckerNames.length || activeFinanceChecker) return false;
+    window.alert("Select your name under Finance Checker (left sidebar, below Finance Department) before checking transactions.");
+    return true;
+  };
   /* APPROVAL MODULE: three accounts (APPROVAL_MODULE_EMAILS), plus the view-only
      accounts of APPROVAL_FINAL_VIEW_EMAILS, hidden while previewing another
      role, like the approver flags above. A view-only account that is not a
@@ -852,19 +871,20 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       window.alert("This liquidation cannot be approved yet — it must be submitted, with every receipt amount captured and every receipt approved.");
       return;
     }
+    if (missingFinanceChecker()) return;
     const ts = new Date().toISOString().slice(0, 19);
     const actor = userName || role;
     setLiquidations((ls) => ls.map((l) => (l.disbursementId === disbursementId ? {
       ...l, workflow: 2,
       review: {
-        ...(l.review || {}), checkedBy: actor, checkedAt: ts, checkRemarks: remarks || "", finalBy: "", finalAt: "", finalRemarks: "",
+        ...(l.review || {}), checkedBy: actor, financeChecker: activeFinanceChecker, checkedAt: ts, checkRemarks: remarks || "", finalBy: "", finalAt: "", finalRemarks: "",
         acctCheckedBy: "", acctCheckedByName: "", acctChecker: "", acctCheckedAt: "", acctRemarks: "", batchNo: "",
       },
     } : l)));
     const d = disbursements.find((x) => x.id === disbursementId);
     logAudit("Liquidation Custodian Approved", d ? d.voucherNo : disbursementId,
-      `Approved receipts ${peso(receiptAmountSummary(liq).approvedTotal)}${remarks ? ` · ${remarks}` : ""} · for final approval`);
-  }, [isLiquidationChecker, liquidations, disbursements, logAudit, userName, role]);
+      `Approved receipts ${peso(receiptAmountSummary(liq).approvedTotal)}${activeFinanceChecker ? ` · Finance Checker: ${activeFinanceChecker}` : ""}${remarks ? ` · ${remarks}` : ""} · for final approval`);
+  }, [isLiquidationChecker, liquidations, disbursements, logAudit, userName, role, activeFinanceChecker]); // eslint-disable-line
 
   /* ---- Level 2: Grace Gan's final approval ----
      Only for a liquidation the custodian approved AND whose cash is settled.
@@ -1487,7 +1507,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     };
     const voided = (rv, note, reason) => (rv.history || []).concat([{
       action: note, user: actor, ts, reason,
-      checkedBy: rv.checkedBy || "", checkedAt: rv.checkedAt || "",
+      checkedBy: rv.checkedBy || "", financeChecker: rv.financeChecker || "", checkedAt: rv.checkedAt || "",
       acctCheckedBy: rv.acctCheckedBy || "", acctChecker: rv.acctChecker || "", acctCheckedAt: rv.acctCheckedAt || "", batchNo: rv.batchNo || "",
       finalBy: rv.finalBy || "", finalAt: rv.finalAt || "",
     }]);
@@ -1825,6 +1845,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
           return;
         }
         if (isOwn) { window.alert("Segregation of duties: you cannot approve your own reimbursement request."); return; }
+        if (missingFinanceChecker()) return;
         next = REIMB_STATUS.FOR_FINAL; label = "Custodian Approved → For Final Approval";
         break;
       case "final-approve":
@@ -1873,13 +1894,16 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       default: return;
     }
     if (next === prev) return;
+    /* The Finance Checker goes on the approval and in the history / audit. */
+    const fc = action === "custodian-approve" ? activeFinanceChecker : "";
+    const logged = fc ? [`Finance Checker: ${fc}`, comments].filter(Boolean).join(" · ") : comments;
 
     setReimbursements((rs) => rs.map((r) => {
       if (r.id !== id || r.status !== prev) return r;
-      const patch = { status: next, history: [...(r.history || []), { ts, user: actor, action: label, prevStatus: prev, newStatus: next, comments }] };
+      const patch = { status: next, history: [...(r.history || []), { ts, user: actor, action: label, prevStatus: prev, newStatus: next, comments: logged, ...(fc ? { financeChecker: fc } : {}) }] };
       const cur = r.review || {};
       if (action === "custodian-approve") {
-        patch.review = { history: cur.history || [], checkedBy: actor, checkedAt: ts, checkRemarks: comments };
+        patch.review = { history: cur.history || [], checkedBy: actor, financeChecker: fc, checkedAt: ts, checkRemarks: comments };
       } else if (action === "final-approve") {
         patch.review = { ...cur, finalBy: actor, finalAt: ts, finalRemarks: comments };
         patch.approvedBy = actor; patch.approvedAt = ts;
@@ -1888,15 +1912,15 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
            into review.history, like clearReview does for a liquidation. */
         patch.review = {
           history: (cur.history || []).concat(cur.checkedBy ? [{
-            action: label, user: actor, ts, checkedBy: cur.checkedBy, checkedAt: cur.checkedAt || "",
+            action: label, user: actor, ts, checkedBy: cur.checkedBy, financeChecker: cur.financeChecker || "", checkedAt: cur.checkedAt || "",
             acctCheckedBy: cur.acctCheckedBy || "", acctChecker: cur.acctChecker || "", acctCheckedAt: cur.acctCheckedAt || "", batchNo: cur.batchNo || "",
           }] : []),
         };
       }
       return { ...r, ...patch };
     }));
-    logAudit("Reimbursement " + label, r0.reimbNo, comments);
-  }, [logAudit, reimbursements, userName, role, inScope, isLiquidationChecker, isFinalApprover, isAccountingChecker, canRevert]);
+    logAudit("Reimbursement " + label, r0.reimbNo, logged);
+  }, [logAudit, reimbursements, userName, role, inScope, isLiquidationChecker, isFinalApprover, isAccountingChecker, canRevert, activeFinanceChecker]); // eslint-disable-line
 
   const recordReimbursementPayment = useCallback((id, payment) => {
     const ts = reimbTs();
@@ -2248,7 +2272,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     <AppUI.Provider value={uiValue}>
     <div className="pcp-root">
       <style>{CSS}</style>
-      <Sidebar tab={tab} setTab={setTab} role={role} navGroups={navGroups} userEmail={userEmail} userName={userName} onSignOut={handleSignOut} onChangePassword={() => setShowChangePw(true)} onManageMfa={hasMfa ? () => setShowMfaDevices(true) : undefined} />
+      <Sidebar tab={tab} setTab={setTab} role={role} navGroups={navGroups} userEmail={userEmail} userName={userName} financeCheckerNames={financeCheckerNames} financeChecker={activeFinanceChecker} onFinanceChecker={setFinanceChecker} onSignOut={handleSignOut} onChangePassword={() => setShowChangePw(true)} onManageMfa={hasMfa ? () => setShowMfaDevices(true) : undefined} />
       <div className="pcp-main">
         {/* Shown to EVERYONE, not just admins: this one says the screen below
             is incomplete, and a custodian looking at a short list needs that

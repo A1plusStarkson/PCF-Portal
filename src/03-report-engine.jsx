@@ -295,7 +295,7 @@ function buildReport(type, D, F) {
         }
         if (isFinal ? !rv.finalBy : !rv.checkedBy) return;
         items.push({ ...base, at: isFinal ? rv.finalAt : rv.checkedAt,
-          checkedBy: rv.checkedBy || "—", finalBy: rv.finalBy || AWAITING });
+          checkedBy: custodianCheckerLabel(rv) || "—", finalBy: rv.finalBy || AWAITING });
       });
 
       const S = REIMB_STATUS;
@@ -308,7 +308,7 @@ function buildReport(type, D, F) {
         if (rv.checkedBy || rv.finalBy) {
           if (isFinal ? !rv.finalBy : !rv.checkedBy) return;
           items.push({ ...base, at: isFinal ? rv.finalAt : rv.checkedAt,
-            checkedBy: rv.checkedBy || "—", finalBy: rv.finalBy || AWAITING });
+            checkedBy: custodianCheckerLabel(rv) || "—", finalBy: rv.finalBy || AWAITING });
           return;
         }
         if (!APPROVED_REIMB.includes(r.status)) return;
