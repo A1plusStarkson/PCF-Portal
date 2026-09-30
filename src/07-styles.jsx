@@ -1400,7 +1400,7 @@ function SearchSelect({
 /* Zoom steps for large previews; 100 = fit to the frame. Display only. */
 const DOC_ZOOM_STEPS = [50, 75, 100, 125, 150, 200, 300];
 
-function AttachmentTile({ att, renderFooter, large }) {
+function AttachmentTile({ att, renderFooter, renderActions, large }) {
   const src = useFileUrl(att);
   const [zoom, setZoom] = useState(100);
   const zi = DOC_ZOOM_STEPS.indexOf(zoom);
@@ -1429,6 +1429,7 @@ function AttachmentTile({ att, renderFooter, large }) {
         )}
         {src && <a className="pcp-iconbtn" href={src} target="_blank" rel="noopener noreferrer" title="Open full size"><Search size={13} /></a>}
         {src && <a className="pcp-iconbtn" href={src} download={name} title="Download"><Download size={13} /></a>}
+        {renderActions && renderActions(att)}
       </div>
       <div className={"pcp-doc-frame" + (large && isImage && zoom !== 100 ? " zoomed" : "")}>
         {isImage && src ? (
@@ -1459,7 +1460,7 @@ function AttachmentTile({ att, renderFooter, large }) {
    be read without opening each one. Click an image to open it full size. */
 /* large="xl": larger still — the Approval Module, where documents are checked
    before approval. Large tiles get zoom in / out / fit controls. */
-function AttachmentGallery({ attachments, emptyLabel, renderFooter, large }) {
+function AttachmentGallery({ attachments, emptyLabel, renderFooter, renderActions, large }) {
   const list = attachments || [];
   if (!list.length) {
     return <div style={{ fontSize: 12, color: "var(--text-mut)" }}>{emptyLabel || "No documents attached."}</div>;
@@ -1467,7 +1468,7 @@ function AttachmentGallery({ attachments, emptyLabel, renderFooter, large }) {
   return (
     <div className={"pcp-doc-gallery" + (large ? " pcp-doc-gallery-lg" : "") + (large === "xl" ? " pcp-doc-gallery-xl" : "")}>
       {list.map((a, i) => (
-        <AttachmentTile key={a.id || (a.name || "document") + i} att={a} renderFooter={renderFooter} large={large} />
+        <AttachmentTile key={a.id || (a.name || "document") + i} att={a} renderFooter={renderFooter} renderActions={renderActions} large={large} />
       ))}
     </div>
   );

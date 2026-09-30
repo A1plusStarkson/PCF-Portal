@@ -418,7 +418,7 @@ function PurposeSelect({ value, onChange }) {
   );
 }
 
-function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride, reimb, plantOptions, allReimbursements, currentUser }) {
+function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride, reimb, plantOptions, allReimbursements, currentUser, canDeleteDocs }) {
   const isEdit = !!reimb;
   const defaultBranch = (plantOptions && plantOptions[0]) ? plantOptions[0].code : BRANCHES[0].code;
   const [step, setStep] = useState(1);
@@ -486,7 +486,20 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
       });
     });
   };
-  const removeAtt = (id) => setForm((f) => ({ ...f, attachments: f.attachments.filter((a) => a.id !== id) }));
+  /* Deleting a document already saved on the reimbursement is limited to
+     REIMB_DOC_DELETE_EMAILS (canDeleteDocs; re-checked at save). A file
+     uploaded in this form and not yet saved can always be taken back out.
+     Only the selected document is removed — the other documents and the
+     reimbursement itself are untouched, and nothing changes until saved. */
+  const savedAttIds = useMemo(() => new Set(((reimb && reimb.attachments) || []).map((a) => a.id)), [reimb]);
+  const canRemoveAtt = (a) => !!canDeleteDocs || !savedAttIds.has(a.id);
+  const removeAtt = (a) => {
+    if (!canRemoveAtt(a)) return;
+    if (!window.confirm(`Delete "${a.name || "document"}" (${a.docType || "document"})?\n\n`
+      + "Only this document is removed. The reimbursement and its other documents are not affected."
+      + (savedAttIds.has(a.id) ? "\n\nThe deletion takes effect when you save." : ""))) return;
+    setForm((f) => ({ ...f, attachments: f.attachments.filter((x) => x.id !== a.id) }));
+  };
   const setAttType = (id, docType) => setForm((f) => ({ ...f, attachments: f.attachments.map((a) => (a.id === id ? { ...a, docType } : a)) }));
 
   // Ensure each line carries its mapped account for validation/export.
@@ -698,6 +711,11 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                 attachments={form.attachments}
                 emptyLabel="No documents attached. An Original OR / Sales Invoice is required."
                 large
+                renderActions={(a) => canRemoveAtt(a) && (
+                  <button type="button" className="pcp-iconbtn" onClick={() => removeAtt(a)} title="Delete this document">
+                    <Trash2 size={13} color="var(--danger)" />
+                  </button>
+                )}
                 renderFooter={(a) => (
                   <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 9px", borderTop: "1px solid var(--line)" }}>
                     <select
@@ -707,9 +725,11 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                       {REIMB_DOC_TYPES.map((dt) => <option key={dt}>{dt}</option>)}
                     </select>
                     <span style={{ fontSize: 10.5, color: "var(--text-mut)", whiteSpace: "nowrap" }}>{(a.size / 1024).toFixed(0)} KB</span>
-                    <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => removeAtt(a.id)} title="Remove document">
-                      <Trash2 size={13} color="var(--danger)" />
-                    </button>
+                    {canRemoveAtt(a) && (
+                      <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => removeAtt(a)} title="Delete this document">
+                        <Trash2 size={13} color="var(--danger)" /> Delete
+                      </button>
+                    )}
                   </div>
                 )}
               />
@@ -833,7 +853,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
    Reimbursement list: Draft / Returned saves or resubmits as usual; any other
    stage saves in place with status and approvals kept (mode "override", which
    updateReimbursement re-checks against the list and the plant scope). */
-function ReimbursementEditModal({ reimb, plantOptions, allReimbursements, currentUser, onUpdate, onClose }) {
+function ReimbursementEditModal({ reimb, plantOptions, allReimbursements, currentUser, canDeleteDocs, onUpdate, onClose }) {
   const draftLike = reimbIsDraftLike(reimb);
   const done = (mode) => (form) => { onUpdate(reimb.id, form, mode); onClose(); };
   return (
@@ -842,6 +862,7 @@ function ReimbursementEditModal({ reimb, plantOptions, allReimbursements, curren
       plantOptions={plantOptions && plantOptions.length ? plantOptions : null}
       allReimbursements={allReimbursements}
       currentUser={currentUser}
+      canDeleteDocs={!!canDeleteDocs}
       onClose={onClose}
       onSaveDraft={done("draft")}
       onSubmit={done("submit")}
@@ -1170,7 +1191,7 @@ const REIMB_SORT_FIELDS = {
 function ReimbursementTab({
   reimbursements, allReimbursements, onSaveDraft, onSubmit, onUpdate, onAction, onRecordPayment,
   onExportAcumatica, onExportReport, onDelete, plantOptions, plantTitle, currentUser,
-  isChecker, isFinalApprover, canFinance, canDelete, canEditOverride, canEditBeforeCustodian, canRevert, accounting,
+  isChecker, isFinalApprover, canFinance, canDelete, canEditOverride, canEditBeforeCustodian, canDeleteDocs, canRevert, accounting,
 }) {
   /* Draft / Returned are editable by anyone in scope; any other stage only
      through the checking / verification override (Save Changes keeps the status).
@@ -1380,6 +1401,7 @@ function ReimbursementTab({
           plantOptions={formPlantOptions}
           allReimbursements={allReimbursements || reimbursements}
           currentUser={currentUser}
+          canDeleteDocs={!!canDeleteDocs}
           onClose={() => { setShowForm(false); setEditing(null); }}
           onSaveDraft={(form) => { editing ? onUpdate(editing.id, form, "draft") : onSaveDraft(form); setShowForm(false); setEditing(null); }}
           onSubmit={(form) => { editing ? onUpdate(editing.id, form, "submit") : onSubmit(form); setShowForm(false); setEditing(null); }}

@@ -169,6 +169,18 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   ];
   const canEditReimbBeforeCustodian = REIMB_REQUESTOR_EDIT_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
+  /* Reimbursements: delete an individual attached document (wrong, duplicate
+     or incomplete upload) so it can be replaced — these accounts only (owner's
+     instruction, Sep 2026). Only the selected document leaves the record; the
+     reimbursement, its status and its other documents are untouched, and the
+     stored file itself is kept. Re-checked in updateReimbursement at save. */
+  const REIMB_DOC_DELETE_EMAILS = [
+    "pcfrequestordisney@a1plus.com", "pcfrequestormanila@a1plus.com", "pcfrequestorrgandco@a1plus.com",
+    "superuser@a1plus.com", "accounting@a1plus.com", "finance@a1plus.com",
+    "puradr@a1plus.com", "lita@a1plus.com", "mauwi@a1plus.com",
+  ];
+  const canDeleteReimbDocs = REIMB_DOC_DELETE_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
   /* REVERT to Requestor — Liquidation and Reimbursement (owner's instruction,
      Sep 2026). While a transaction is submitted and not yet final-approved,
      these accounts can send it back with a reason; it becomes FOR SUBMISSION,
@@ -1707,6 +1719,20 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     }
     const ts = reimbTs();
     const base = buildReimbFromForm({ ...form, id });
+    /* Documents already saved on the record that this edit leaves out. Only
+       REIMB_DOC_DELETE_EMAILS may remove one; each removal is named in the
+       history and audit trail. */
+    const saved = reimbursements.find((x) => x.id === id);
+    const keptIds = new Set((base.attachments || []).map((a) => a.id));
+    const removedDocs = ((saved && saved.attachments) || []).filter((a) => !keptIds.has(a.id));
+    if (removedDocs.length && !canDeleteReimbDocs) {
+      window.alert("Your account cannot delete attached documents. Nothing was changed.");
+      return;
+    }
+    const docNote = removedDocs.length
+      ? "Document(s) deleted: " + removedDocs.map((a) => `${a.name || "document"} (${a.docType || "—"})`).join(", ")
+      : "";
+    const withDocNote = (s) => (docNote ? `${s} · ${docNote}` : s);
     /* Checking / verification override (REIMB_EDIT_OVERRIDE_EMAILS): edit in
        place at any stage — status, approvals and submission stamps are kept;
        only the content changes. Plant scope still applies. */
@@ -1716,10 +1742,10 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       setReimbursements((rs) => rs.map((r) => (r.id !== id ? r : {
         ...r, ...base, status: r.status, review: r.review,
         submittedBy: r.submittedBy, submittedAt: r.submittedAt,
-        history: [...(r.history || []), { ts, user: userName || role, action: "Edited for checking / verification", prevStatus: r.status, newStatus: r.status, comments: "" }],
+        history: [...(r.history || []), { ts, user: userName || role, action: "Edited for checking / verification", prevStatus: r.status, newStatus: r.status, comments: docNote }],
       })));
       logAudit("Reimbursement Edited (checking / verification)", r0 ? r0.reimbNo : id,
-        `${form.employee} · ${peso(reimbTotal(base))} · status kept: ${r0 ? r0.status : ""}`);
+        withDocNote(`${form.employee} · ${peso(reimbTotal(base))} · status kept: ${r0 ? r0.status : ""}`));
       moveReimbPlant(r0, base.branchCode);
       return;
     }
@@ -1739,11 +1765,11 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
         return {
           ...r, ...base, status: r.status, review: r.review,
           submittedBy: r.submittedBy, submittedAt: r.submittedAt,
-          history: [...(r.history || []), { ts, user: userName || role, action: "Edited by requestor (before custodian approval)", prevStatus: r.status, newStatus: r.status, comments: "" }],
+          history: [...(r.history || []), { ts, user: userName || role, action: "Edited by requestor (before custodian approval)", prevStatus: r.status, newStatus: r.status, comments: docNote }],
         };
       }));
       logAudit("Reimbursement Edited (before custodian approval)", r0.reimbNo,
-        `${form.employee} · ${peso(reimbTotal(base))} · ${(base.attachments || []).length} document(s) · status kept: ${r0.status}`);
+        withDocNote(`${form.employee} · ${peso(reimbTotal(base))} · ${(base.attachments || []).length} document(s) · status kept: ${r0.status}`));
       moveReimbPlant(r0, base.branchCode);
       return;
     }
@@ -1756,13 +1782,13 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
         ...r, ...base, status,
         submittedBy: submit ? (userName || role) : r.submittedBy,
         submittedAt: submit ? ts : r.submittedAt,
-        history: [...(r.history || []), { ts, user: userName || role, action, prevStatus: r.status, newStatus: status, comments: "" }],
+        history: [...(r.history || []), { ts, user: userName || role, action, prevStatus: r.status, newStatus: status, comments: docNote }],
       };
     }));
     const r = reimbursements.find((x) => x.id === id);
-    logAudit(mode === "submit" ? "Reimbursement Submitted" : "Reimbursement Edited", r ? r.reimbNo : id, `${form.employee} · ${peso(reimbTotal(base))}`);
+    logAudit(mode === "submit" ? "Reimbursement Submitted" : "Reimbursement Edited", r ? r.reimbNo : id, withDocNote(`${form.employee} · ${peso(reimbTotal(base))}`));
     if (r) moveReimbPlant(r, base.branchCode);
-  }, [buildReimbFromForm, logAudit, reimbursements, userName, role, canEditReimbOverride, canEditReimbBeforeCustodian, inScope]); // eslint-disable-line
+  }, [buildReimbFromForm, logAudit, reimbursements, userName, role, canEditReimbOverride, canEditReimbBeforeCustodian, canDeleteReimbDocs, inScope]); // eslint-disable-line
 
   /* Workflow transition. The two approval levels mirror the liquidation's
      (see 11-liquidation.jsx): a custodian-level checker (isLiquidationChecker)
@@ -2342,6 +2368,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             reimbursements={scopedReimbursements}
             onReimbursementAction={reimbursementAction}
             canEditReimb={canEditReimbOverride}
+            canDeleteReimbDocs={canDeleteReimbDocs}
             canRevert={canRevert}
             onRevertLiquidation={revertLiquidation}
             onUpdateReimbursement={updateReimbursement}
@@ -2382,6 +2409,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             canDelete={canDeleteTxn}
             canEditOverride={canEditReimbOverride}
             canEditBeforeCustodian={canEditReimbBeforeCustodian}
+            canDeleteDocs={canDeleteReimbDocs}
             canRevert={canRevert}
             onSaveDraft={(form) => addReimbursement(form, false)}
             onSubmit={(form) => addReimbursement(form, true)}
@@ -2428,6 +2456,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             accounting={accountingProps}
             onReimbursementAction={reimbursementAction}
             canEditReimb={canEditReimbOverride}
+            canDeleteReimbDocs={canDeleteReimbDocs}
             canRevert={canRevert}
             onRevertLiquidation={revertLiquidation}
             onUpdateReimbursement={updateReimbursement}

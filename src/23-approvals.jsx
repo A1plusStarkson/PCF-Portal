@@ -430,7 +430,7 @@ function ApprovalModuleTab({
   onReimbursementAction, onExportReimbursementAcumatica,
   isChecker: isCheckerIn, isFinalApprover, canFinance: canFinanceIn,
   currentUser, plantOptions, accounting: accountingIn, onOpenReplenishment,
-  canEditReimb: canEditReimbIn, onUpdateReimbursement, reimbPlantOptions,
+  canEditReimb: canEditReimbIn, canDeleteReimbDocs, onUpdateReimbursement, reimbPlantOptions,
   canRevert: canRevertIn, onRevertLiquidation, canSelectExport,
   viewFinalQueue, viewOnly,
 }) {
@@ -935,6 +935,7 @@ function ApprovalModuleTab({
           plantOptions={reimbPlantOptions}
           allReimbursements={reimbursements || []}
           currentUser={currentUser}
+          canDeleteDocs={!!canDeleteReimbDocs}
           onUpdate={onUpdateReimbursement}
           onClose={() => setEditingReimb(null)}
         />

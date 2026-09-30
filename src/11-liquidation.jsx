@@ -2111,7 +2111,7 @@ function LiquidationTab({
   canRejectLiquidation, onRejectLiquidation,
   onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser,
   reimbursements, onReimbursementAction, canFinance, accounting,
-  canEditReimb, onUpdateReimbursement, allReimbursements,
+  canEditReimb, canDeleteReimbDocs, onUpdateReimbursement, allReimbursements,
   canRevert, onRevertLiquidation,
   openRequest, onOpenHandled,
 }) {
@@ -2512,6 +2512,7 @@ function LiquidationTab({
           plantOptions={plantOptions}
           allReimbursements={allReimbursements || reimbursements || []}
           currentUser={currentUser}
+          canDeleteDocs={!!canDeleteReimbDocs}
           onUpdate={onUpdateReimbursement}
           onClose={() => setEditingReimb(null)}
         />
