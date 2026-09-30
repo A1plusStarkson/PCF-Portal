@@ -1029,6 +1029,9 @@ function acctStamps(r) {
   return {
     acctChecked: !!x.acctCheckedBy, acctCheckedBy: x.acctCheckedBy || "", acctCheckedByName: x.acctCheckedByName || "",
     acctCheckedAt: x.acctCheckedAt || "", acctRemarks: x.acctRemarks || "",
+    /* The named Accounting Checker picked at Mark as Checked (empty on checks
+       made before the dropdown existed). */
+    acctChecker: x.acctChecker || "",
     batchNo: String(x.batchNo || "").trim(),
     /* Checked after the transaction was already approved (see liqAcctMode). */
     acctRetro: !!x.acctRetro,
@@ -1084,7 +1087,7 @@ function clearReview(liq, actor, ts, note) {
     history: (r.history || []).concat(had ? [{
       action: note, user: actor, ts,
       checkedBy: r.checkedBy || "", checkedAt: r.checkedAt || "",
-      acctCheckedBy: r.acctCheckedBy || "", acctCheckedAt: r.acctCheckedAt || "", batchNo: r.batchNo || "",
+      acctCheckedBy: r.acctCheckedBy || "", acctChecker: r.acctChecker || "", acctCheckedAt: r.acctCheckedAt || "", batchNo: r.batchNo || "",
       finalBy: r.finalBy || "", finalAt: r.finalAt || "",
     }] : []),
   };

@@ -858,7 +858,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       ...l, workflow: 2,
       review: {
         ...(l.review || {}), checkedBy: actor, checkedAt: ts, checkRemarks: remarks || "", finalBy: "", finalAt: "", finalRemarks: "",
-        acctCheckedBy: "", acctCheckedByName: "", acctCheckedAt: "", acctRemarks: "", batchNo: "",
+        acctCheckedBy: "", acctCheckedByName: "", acctChecker: "", acctCheckedAt: "", acctRemarks: "", batchNo: "",
       },
     } : l)));
     const d = disbursements.find((x) => x.id === disbursementId);
@@ -925,20 +925,28 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       window.alert("Assign a Batch Number first.");
       return;
     }
+    /* The named Accounting Checker (ACCOUNTING_CHECKER_NAMES): required on a
+       check when this account has names, and must be one of them. */
+    const checkerNames = accountingCheckerNamesFor(by);
+    const checker = String(p.checker || "").trim();
+    if (action === "check" && checkerNames.length && !checkerNames.includes(checker)) {
+      window.alert("Select the Accounting Checker (your name) before marking this transaction as checked.");
+      return;
+    }
     const stamp = (cur, mode) => {
       if (action === "assign-batch") return { ...cur, batchNo };
       if (action === "check") {
         return {
-          ...cur, batchNo, acctCheckedBy: by, acctCheckedByName: byName, acctCheckedAt: ts, acctRemarks: remarks,
+          ...cur, batchNo, acctCheckedBy: by, acctCheckedByName: byName, acctChecker: checker, acctCheckedAt: ts, acctRemarks: remarks,
           acctRetro: mode === "retro",
         };
       }
       /* undo — the old stamps go to review.history, never silently lost. */
       return {
-        ...cur, acctCheckedBy: "", acctCheckedByName: "", acctCheckedAt: "", acctRemarks: "", acctRetro: false,
+        ...cur, acctCheckedBy: "", acctCheckedByName: "", acctChecker: "", acctCheckedAt: "", acctRemarks: "", acctRetro: false,
         history: (cur.history || []).concat([{
           action: `Accounting check undone${remarks ? ` — ${remarks}` : ""}`, user: byName, ts,
-          acctCheckedBy: cur.acctCheckedBy || "", acctCheckedAt: cur.acctCheckedAt || "", batchNo: cur.batchNo || "",
+          acctCheckedBy: cur.acctCheckedBy || "", acctChecker: cur.acctChecker || "", acctCheckedAt: cur.acctCheckedAt || "", batchNo: cur.batchNo || "",
         }]),
       };
     };
@@ -948,7 +956,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
        fact (retro). */
     const undoAllowed = (mode, rv) => mode === "flow" || (mode === "retro" && rv.acctRetro);
     const tag = (mode) => (mode === "retro" ? " · recorded on an already-approved transaction (approval unchanged)" : "");
-    const note = (mode) => (action === "undo" ? (remarks || "") : `Batch ${batchNo}${remarks ? ` · ${remarks}` : ""}${tag(mode)}`);
+    const checkedBy = action === "check" && checker ? ` · Accounting Checker: ${checker}` : "";
+    const note = (mode) => (action === "undo" ? (remarks || "") : `Batch ${batchNo}${checkedBy}${remarks ? ` · ${remarks}` : ""}${tag(mode)}`);
 
     if (kind === "liq") {
       const d = disbursements.find((x) => x.id === id);
@@ -1004,9 +1013,9 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     return { batches, nextBatchNo: nextBatchNumber(Object.keys(counts)) };
   }, [liquidations, reimbursements]);
   const accountingProps = useMemo(() => ({
-    isChecker: isAccountingChecker, batches: accountingBatches.batches,
+    isChecker: isAccountingChecker, checkerNames: accountingCheckerNamesFor(userEmail), batches: accountingBatches.batches,
     nextBatchNo: accountingBatches.nextBatchNo, onReview: accountingReview,
-  }), [isAccountingChecker, accountingBatches, accountingReview]);
+  }), [isAccountingChecker, userEmail, accountingBatches, accountingReview]);
 
   /* Record that the refund or reimbursement cash has ACTUALLY changed hands.
      The actual amount is stored so it can be checked against the expected one. */
@@ -1479,7 +1488,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     const voided = (rv, note, reason) => (rv.history || []).concat([{
       action: note, user: actor, ts, reason,
       checkedBy: rv.checkedBy || "", checkedAt: rv.checkedAt || "",
-      acctCheckedBy: rv.acctCheckedBy || "", acctCheckedAt: rv.acctCheckedAt || "", batchNo: rv.batchNo || "",
+      acctCheckedBy: rv.acctCheckedBy || "", acctChecker: rv.acctChecker || "", acctCheckedAt: rv.acctCheckedAt || "", batchNo: rv.batchNo || "",
       finalBy: rv.finalBy || "", finalAt: rv.finalAt || "",
     }]);
     if (kind === "liq") {
@@ -1880,7 +1889,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
         patch.review = {
           history: (cur.history || []).concat(cur.checkedBy ? [{
             action: label, user: actor, ts, checkedBy: cur.checkedBy, checkedAt: cur.checkedAt || "",
-            acctCheckedBy: cur.acctCheckedBy || "", acctCheckedAt: cur.acctCheckedAt || "", batchNo: cur.batchNo || "",
+            acctCheckedBy: cur.acctCheckedBy || "", acctChecker: cur.acctChecker || "", acctCheckedAt: cur.acctCheckedAt || "", batchNo: cur.batchNo || "",
           }] : []),
         };
       }

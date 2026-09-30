@@ -36,6 +36,22 @@ const LIQUIDATION_CHECKER_ROLES = ["Custodian", "Accounting", "Finance", "SuperA
    gate itself is passesAccountingGate in 02-helpers.jsx, re-checked in every
    final-approve handler in 19-app.jsx. */
 const ACCOUNTING_CHECKER_EMAILS = ["accounting@a1plus.com"];
+/* The people who share an Accounting account (owner's instruction, Oct 2026).
+   Before Mark as Checked they pick their name, which is stamped on the
+   transaction as review.acctChecker so Grace Gan sees who is accountable for
+   the check. The email stamp (acctCheckedBy) is unchanged — the database gate
+   still matches it. An account not listed here checks without a name. */
+const ACCOUNTING_CHECKER_NAMES = {
+  "accounting@a1plus.com": ["Roselyn Bo", "Rogielyn Mayor"],
+};
+const accountingCheckerNamesFor = (email) => ACCOUNTING_CHECKER_NAMES[String(email || "").trim().toLowerCase()] || [];
+/* "Roselyn Bo (accounting@a1plus.com)", or just the email on a check made
+   before the checker name existed. */
+const acctCheckerLabel = (rv) => {
+  const x = rv || {};
+  if (!x.acctChecker) return x.acctCheckedBy || "";
+  return x.acctCheckedBy ? `${x.acctChecker} (${x.acctCheckedBy})` : x.acctChecker;
+};
 
 /* ---- Approval Module access ----
    By the owner's instruction the Approval Module is open to these three
@@ -71,7 +87,7 @@ function AccountingCells({ review }) {
   const mut = { color: "var(--text-mut)" };
   return (<>
     <td>{rv.acctChecked ? <Badge status="YES" /> : <span style={mut}>NO</span>}</td>
-    <td>{rv.acctCheckedBy || <span style={mut}>—</span>}</td>
+    <td>{acctCheckerLabel(rv) || <span style={mut}>—</span>}</td>
     <td style={{ whiteSpace: "nowrap" }}>{rv.acctChecked ? fmtAcctStamp(rv.acctCheckedAt) : <span style={mut}>—</span>}</td>
     <td>{rv.batchNo ? <strong>{rv.batchNo}</strong> : <span style={mut}>—</span>}</td>
   </>);
@@ -80,7 +96,9 @@ function AccountingCells({ review }) {
 /* ---- Accounting Review box ----
    Shows the Accounting stamps and, for Accounting while the transaction sits
    at its stage, the Assign Batch Number / Mark as Checked actions.
-   `accounting` = { isChecker, batches, nextBatchNo, onReview } from App;
+   `accounting` = { isChecker, checkerNames, batches, nextBatchNo, onReview }
+   from App; checkerNames (ACCOUNTING_CHECKER_NAMES) fills the Accounting
+   Checker dropdown — when it has names, one must be picked to Mark as Checked.
    onReview(kind, id, action, payload) re-checks everything itself.
    `mode` — liqAcctMode / reimbAcctMode: "flow" (awaiting final approval),
    "retro" (an old, already-approved transaction) or null. */
@@ -89,7 +107,11 @@ function AccountingReviewBox({ kind, id, refNo, review, mode, accounting }) {
   const acc = accounting || {};
   const [batch, setBatch] = useState(rv.batchNo || "");
   const [remarks, setRemarks] = useState("");
+  const [checker, setChecker] = useState("");
   useEffect(() => { setBatch(rv.batchNo || ""); }, [id, rv.batchNo]); // eslint-disable-line
+  useEffect(() => { setChecker(""); }, [id]);
+  const checkerNames = acc.checkerNames || [];
+  const needChecker = checkerNames.length > 0;
   const retro = mode === "retro";
   const canAct = !!acc.isChecker && !!acc.onReview && !!mode;
   /* Never undo a check the final approval relied on. */
@@ -107,10 +129,12 @@ function AccountingReviewBox({ kind, id, refNo, review, mode, accounting }) {
   };
   const check = () => {
     if (!typed) { window.alert("Assign a Batch Number before marking this transaction as checked."); return; }
+    if (needChecker && !checker) { window.alert("Select the Accounting Checker (your name) before marking this transaction as checked."); return; }
+    const who = checker ? ` (${checker})` : "";
     if (!window.confirm(retro
-      ? `Mark ${refNo} as checked by Accounting under batch ${typed}?\n\nThis transaction is already approved — only the Accounting check and Batch Number are added; its approval and status stay as they are.`
-      : `Mark ${refNo} as checked by Accounting under batch ${typed}?\n\nIt then goes to ${FINAL_APPROVER_NAME} for final approval with the rest of ${typed}.`)) return;
-    acc.onReview(kind, id, "check", { batchNo: typed, remarks: remarks.trim() });
+      ? `Mark ${refNo} as checked by Accounting${who} under batch ${typed}?\n\nThis transaction is already approved — only the Accounting check and Batch Number are added; its approval and status stay as they are.`
+      : `Mark ${refNo} as checked by Accounting${who} under batch ${typed}?\n\nIt then goes to ${FINAL_APPROVER_NAME} for final approval with the rest of ${typed}.`)) return;
+    acc.onReview(kind, id, "check", { batchNo: typed, remarks: remarks.trim(), checker });
     setRemarks("");
   };
   const undo = () => {
@@ -124,7 +148,7 @@ function AccountingReviewBox({ kind, id, refNo, review, mode, accounting }) {
     <div className="pcp-card pcp-card-pad" style={{ marginBottom: 12, borderColor: rv.acctChecked ? "#bfe3c8" : undefined }}>
       <div className="pcp-section-title" style={{ margin: "0 0 8px" }}><ShieldCheck size={15} /> Accounting Review</div>
       {row("Accounting Checked", rv.acctChecked ? <b style={{ color: "var(--green)" }}>YES</b> : "NO")}
-      {row("Checked By", rv.acctCheckedBy || "—")}
+      {row("Checked By", acctCheckerLabel(rv) || "—")}
       {row("Checked Date", rv.acctChecked ? fmtAcctStamp(rv.acctCheckedAt) : "—")}
       {row("Batch Number", rv.batchNo ? <b>{rv.batchNo}</b> : "—")}
       {rv.acctRemarks && row("Remarks", `"${rv.acctRemarks}"`)}
@@ -167,8 +191,17 @@ function AccountingReviewBox({ kind, id, refNo, review, mode, accounting }) {
               <label>Remarks (optional)</label>
               <input className="pcp-input" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="e.g. amounts agree with ORs" />
             </div>
-            <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={check} disabled={!typed}
-              title={typed ? "Mark as checked by Accounting" : "Assign a Batch Number first"}>
+            {needChecker && (
+              <div className="pcp-field" style={{ margin: 0 }}>
+                <label>Accounting Checker</label>
+                <select className="pcp-input" style={{ width: 170 }} value={checker} onChange={(e) => setChecker(e.target.value)}>
+                  <option value="">— Select your name —</option>
+                  {checkerNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+            )}
+            <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={check} disabled={!typed || (needChecker && !checker)}
+              title={!typed ? "Assign a Batch Number first" : needChecker && !checker ? "Select the Accounting Checker first" : "Mark as checked by Accounting"}>
               <ShieldCheck size={12} /> Mark as Checked
             </button>
           </div>
@@ -1182,7 +1215,7 @@ function LiquidationWorksheet({
             {(review.checked || review.final) && !review.legacy && (
               <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 5, lineHeight: 1.5 }}>
                 {review.checked && <div>Custodian approved by <b>{review.checkedBy}</b> · {review.checkedAt.replace("T", " ")}{review.checkRemarks ? ` · "${review.checkRemarks}"` : ""}</div>}
-                {review.acctChecked && <div>Accounting checked by <b>{review.acctCheckedBy}</b> · {fmtAcctStamp(review.acctCheckedAt)} · batch <b>{review.batchNo}</b></div>}
+                {review.acctChecked && <div>Accounting checked by <b>{acctCheckerLabel(review)}</b> · {fmtAcctStamp(review.acctCheckedAt)} · batch <b>{review.batchNo}</b></div>}
                 {review.final && <div>Final approval by <b>{review.finalBy}</b> · {review.finalAt.replace("T", " ")}{review.finalRemarks ? ` · "${review.finalRemarks}"` : ""}</div>}
               </div>
             )}

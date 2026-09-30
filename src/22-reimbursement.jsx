@@ -968,7 +968,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
           {(review.checked || review.final) && (
             <div style={{ fontSize: 11.5, color: "var(--text-mut)", marginBottom: 10, lineHeight: 1.5 }}>
               {review.checked && <div>Custodian approved by <b>{review.checkedBy}</b> · {review.checkedAt}{review.checkRemarks ? ` · "${review.checkRemarks}"` : ""}</div>}
-              {review.acctChecked && <div>Accounting checked by <b>{review.acctCheckedBy}</b> · {fmtAcctStamp(review.acctCheckedAt)} · batch <b>{review.batchNo}</b></div>}
+              {review.acctChecked && <div>Accounting checked by <b>{acctCheckerLabel(review)}</b> · {fmtAcctStamp(review.acctCheckedAt)} · batch <b>{review.batchNo}</b></div>}
               {review.final && <div>Final approval by <b>{review.finalBy}</b> · {review.finalAt}{review.finalRemarks ? ` · "${review.finalRemarks}"` : ""}</div>}
             </div>
           )}
