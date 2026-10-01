@@ -149,6 +149,59 @@ function approvalQueueDoc(list, scopeLabel, generatedBy, scopeNote) {
   };
 }
 
+/* ---- Floating window ----
+   A movable, resizable window that stays on screen while the page scrolls
+   underneath — drag it by its title bar, resize from the bottom-right corner.
+   Display only. Used to keep the Expense / Liquidation Details beside the
+   receipts while checking them. */
+function FloatingWindow({ title, onClose, children }) {
+  const [pos, setPos] = useState(() => ({
+    x: Math.max(16, window.innerWidth - 720 - 24),
+    y: 84,
+  }));
+  const drag = useRef(null);
+  useEffect(() => {
+    const move = (e) => {
+      if (!drag.current) return;
+      const x = Math.min(Math.max(0, e.clientX - drag.current.dx), window.innerWidth - 120);
+      const y = Math.min(Math.max(0, e.clientY - drag.current.dy), window.innerHeight - 48);
+      setPos({ x, y });
+    };
+    const up = () => { drag.current = null; document.body.style.userSelect = ""; };
+    const key = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("keydown", key);
+    return () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", up); window.removeEventListener("keydown", key); };
+  }, [onClose]);
+  const startDrag = (e) => {
+    if (e.button !== 0 || e.target.closest("button")) return;
+    drag.current = { dx: e.clientX - pos.x, dy: e.clientY - pos.y };
+    document.body.style.userSelect = "none";
+  };
+  return (
+    <div role="dialog" aria-label={title}
+      style={{
+        position: "fixed", left: pos.x, top: pos.y, zIndex: 900, width: 720, height: 420,
+        minWidth: 360, minHeight: 180, maxWidth: "calc(100vw - 16px)", maxHeight: "calc(100vh - 16px)",
+        resize: "both", overflow: "hidden", display: "flex", flexDirection: "column",
+        background: "var(--dm-surface, #fff)", border: "1px solid var(--line)", borderRadius: 12,
+        boxShadow: "0 18px 48px rgba(15,18,30,0.28)",
+      }}>
+      <div onPointerDown={startDrag} title="Drag to move"
+        style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", cursor: "move",
+          background: "var(--ink)", color: "#fff", flexShrink: 0 }}>
+        <Move size={14} />
+        <span style={{ fontWeight: 700, fontSize: 13, flex: 1 }}>{title}</span>
+        <button type="button" className="pcp-btn pcp-btn-ghost pcp-btn-sm" style={{ color: "#fff" }} onClick={onClose} title="Close (Esc)">
+          <X size={14} />
+        </button>
+      </div>
+      <div style={{ flex: 1, overflow: "auto", padding: 12 }}>{children}</div>
+    </div>
+  );
+}
+
 /* ---- Petty Cash Advance liquidation: check & approve panel ----
    Shows what the approver has to judge — the released amount, the expense
    lines, the cash settlement and every supporting document rendered inline —
@@ -160,6 +213,40 @@ function PcaApprovalPanel({
 }) {
   const [remarks, setRemarks] = useState("");
   const [rejecting, setRejecting] = useState(false);
+  /* Expense / Liquidation Details popped out into a floating window. */
+  const [floatExpenses, setFloatExpenses] = useState(false);
+  const closeFloat = useCallback(() => setFloatExpenses(false), []);
+  /* The one expense table, shown in the page and in the floating window. */
+  const expenseTable = (
+    <div className="pcp-table-wrap">
+      <table className="pcp-table">
+        <thead>
+          <tr>
+            <th>Date</th><th>Expense</th><th>Expense Category</th>
+            <th>Department</th><th>Tax Category</th><th>Amount</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(row.liq.lines || []).length ? (row.liq.lines || []).map((l) => (
+            <tr key={l.id}>
+              <td>{fmtDate(l.date)}</td>
+              <td>{l.expense || "—"}</td>
+              <td>{l.category}</td>
+              <td>{deptDesc(l.department)}</td>
+              <td title={taxCategoryLabel(l.taxCategory)}>{l.taxCategory || "—"}</td>
+              <td className="pcp-num">{peso(l.amount)}</td>
+            </tr>
+          )) : <tr><td colSpan={6} className="pcp-empty">No expense lines captured yet</td></tr>}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colSpan={5} style={{ textAlign: "right", fontWeight: 600 }}>Total Liquidated</td>
+            <td className="pcp-num" style={{ fontWeight: 700 }}>{peso(liquidatedTotal(row.liq))}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
   const { disb, liq, approval, amounts, review, settlement: st, stage } = row;
   const rec = reconcileReceipts(disb.amount, amounts.approvedTotal);
   const rejections = liqRejections(liq);
@@ -248,6 +335,10 @@ function PcaApprovalPanel({
             )}
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+            <button className="pcp-btn pcp-btn-sm" onClick={() => setFloatExpenses((v) => !v)}
+              title="Show the Expense / Liquidation Details in a floating window you can move around">
+              <ExternalLink size={12} /> {floatExpenses ? "Hide Expense Details" : "Expense Details"}
+            </button>
             {canCheck && (
               <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={check}>
                 <ShieldCheck size={12} /> Custodian Approve
@@ -323,35 +414,13 @@ function PcaApprovalPanel({
       )}
 
       <div className="pcp-card pcp-card-pad" style={{ marginBottom: 12 }}>
-        <div className="pcp-section-title" style={{ margin: "0 0 10px" }}>Expense / Liquidation Details</div>
-        <div className="pcp-table-wrap">
-          <table className="pcp-table">
-            <thead>
-              <tr>
-                <th>Date</th><th>Expense</th><th>Expense Category</th>
-                <th>Department</th><th>Tax Category</th><th>Amount</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(liq.lines || []).length ? (liq.lines || []).map((l) => (
-                <tr key={l.id}>
-                  <td>{fmtDate(l.date)}</td>
-                  <td>{l.expense || "—"}</td>
-                  <td>{l.category}</td>
-                  <td>{deptDesc(l.department)}</td>
-                  <td title={taxCategoryLabel(l.taxCategory)}>{l.taxCategory || "—"}</td>
-                  <td className="pcp-num">{peso(l.amount)}</td>
-                </tr>
-              )) : <tr><td colSpan={6} className="pcp-empty">No expense lines captured yet</td></tr>}
-            </tbody>
-            <tfoot>
-              <tr>
-                <td colSpan={5} style={{ textAlign: "right", fontWeight: 600 }}>Total Liquidated</td>
-                <td className="pcp-num" style={{ fontWeight: 700 }}>{peso(liquidatedTotal(liq))}</td>
-              </tr>
-            </tfoot>
-          </table>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "0 0 10px" }}>
+          <div className="pcp-section-title" style={{ margin: 0, flex: 1 }}>Expense / Liquidation Details</div>
+          <button className="pcp-btn pcp-btn-sm" onClick={() => setFloatExpenses(true)} title="Open in a floating window that stays on screen while you scroll the receipts">
+            <ExternalLink size={12} /> Float
+          </button>
         </div>
+        {expenseTable}
         {st.entries.length > 0 && (
           <div style={{ marginTop: 10, fontSize: 11.5, color: "var(--text-mut)" }}>
             <b>Cash settlement:</b> {st.entries.map((e) => `${peso(e.amount)} on ${e.date || "—"} by ${e.recordedBy || "—"}`).join(" · ")}
@@ -359,7 +428,11 @@ function PcaApprovalPanel({
           </div>
         )}
       </div>
-
+      {floatExpenses && (
+        <FloatingWindow title={`Expense / Liquidation Details · ${disb.voucherNo} · ${disb.employee}`} onClose={closeFloat}>
+          {expenseTable}
+        </FloatingWindow>
+      )}
       <div className="pcp-card pcp-card-pad">
         <div className="pcp-section-title" style={{ margin: "0 0 10px" }}>
           <Receipt size={15} color="#4e7d63" /> Supporting Documents ({approval.total})

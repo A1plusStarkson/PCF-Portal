@@ -8,7 +8,7 @@ import {
   Printer, Bell, History, ShieldCheck, ArrowLeftRight, Clock, UserCog, Landmark, LogOut,
   Settings, KeyRound, FolderOpen, Upload, UploadCloud, Star, Archive, ArchiveRestore,
   Eye, File as FileIcon, Paperclip, ClipboardCheck, House, Megaphone, CalendarClock, ZoomIn, ZoomOut, Mail, Lock, EyeOff, CircleCheck,
-  Sun, Moon, Monitor
+  Sun, Moon, Monitor, Move, ExternalLink
 } from "lucide-react";
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
