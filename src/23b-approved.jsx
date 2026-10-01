@@ -33,7 +33,7 @@ function approvedTransactions(disbursements, liquidations, reimbursements, reple
     if (!rv.final || rv.legacy) return;
     const replIds = new Set(liqRepl.has(liq.id) ? [liq.id] : []);
     rows.push({
-      key: "liq:" + d.id, kind: "Liquidation",
+      key: "liq:" + d.id, id: d.id, kind: "Liquidation",
       txnNo: d.voucherNo || "", plantCode: d.branchCode, requestor: d.employee || "",
       purpose: d.purpose || disbExpense(d) || "",
       cashAdvance: Number(d.amount) || 0,
@@ -52,7 +52,7 @@ function approvedTransactions(disbursements, liquidations, reimbursements, reple
     if (!rv.final) return;
     const replIds = new Set(reimbRepl.has(r.id) ? [r.id] : []);
     rows.push({
-      key: "reimb:" + r.id, kind: "Reimbursement",
+      key: "reimb:" + r.id, id: r.id, kind: "Reimbursement",
       txnNo: r.reimbNo || "", plantCode: r.branchCode, requestor: r.employee || "",
       purpose: r.purpose || "",
       cashAdvance: null,
@@ -131,6 +131,9 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
   /* Ticked rows (keys). Only rows still shown count, so a filter change can
      never print or export a hidden row. Selection never touches a record. */
   const [selected, setSelected] = useState([]);
+  /* The transaction opened from the list — shown READ-ONLY: every permission
+     passed to the detail views is off and every handler is a no-op. */
+  const [openRow, setOpenRow] = useState(null);
   const sort = useTableSort("approvedAt", "desc");
 
   const allRows = useMemo(
@@ -242,6 +245,35 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
   };
 
   const mut = { fontSize: 10.5, color: "var(--text-mut)" };
+
+  /* ---- An opened liquidation: its full details in place of the list ---- */
+  const noop = () => {};
+  const viewAccounting = { isChecker: false };
+  const openLiq = openRow && openRow.kind === "Liquidation"
+    ? pcaApprovalQueue(disbursements, liquidations, replenishments).find((x) => x.disb.id === openRow.id) : null;
+  if (openLiq) {
+    return (
+      <div className="pcp-liq-full pcp-approval-page">
+        <TopBar title="Approved Module" sub={`Liquidation ${openLiq.disb.voucherNo} · ${openLiq.disb.employee} · view only`} />
+        <div className="pcp-content">
+          <button className="pcp-btn pcp-btn-sm" style={{ marginBottom: 12 }} onClick={() => setOpenRow(null)}>
+            <ChevronLeft size={12} /> Back to Approved Module
+          </button>
+          <PcaApprovalPanel
+            key={openLiq.disb.id} row={openLiq}
+            isChecker={false} isFinalApprover={false} currentUser={currentUser} accounting={viewAccounting}
+            onDecideReceipt={noop} onRejectLiquidation={noop} onReopenLiquidation={noop}
+            onCheckLiquidation={noop} onFinalApprove={noop}
+            canRevert={false} onRevertLiquidation={undefined}
+          />
+        </div>
+      </div>
+    );
+  }
+  const openReimb = openRow && openRow.kind === "Reimbursement"
+    ? (reimbursements || []).find((x) => x.id === openRow.id) : null;
+  const open = (r) => setOpenRow({ kind: r.kind, id: r.id });
+
   return (
     <div className="pcp-liq-full pcp-approval-page">
       <TopBar title="Approved Module" sub="View only — every transaction that has received Grace Gan's final approval, by plant." />
@@ -329,12 +361,18 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
                   <SortTh field="status" sort={sort}>Current Status</SortTh>
                   <th>Checked By</th>
                   <th>Replenishment</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
                 {rows.length ? rows.map((r) => (
-                  <tr key={r.key} style={selected.includes(r.key) ? { background: "var(--brand-soft)" } : undefined}>
-                    <td>
+                  <tr key={r.key} className="pcp-liq-row" tabIndex={0}
+                    onClick={() => open(r)}
+                    onKeyDown={(e) => { if (e.key === "Enter") open(r); }}
+                    title={`Open ${r.txnNo || "this transaction"} (view only)`}
+                    style={selected.includes(r.key) ? { background: "var(--brand-soft)" } : undefined}>
+                    {/* The tick box and batch link must not also open the row. */}
+                    <td onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
                       <input type="checkbox" checked={selected.includes(r.key)} onChange={() => toggleRow(r.key)}
                         aria-label={`Select ${r.txnNo || "row"}`} />
                     </td>
@@ -342,7 +380,7 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
                       <strong>{r.txnNo || "—"}</strong>
                       {r.batchNo && (
                         <div>
-                          <button type="button" className="pcp-linkbtn" onClick={() => setBatch(r.batchNo)} title={`Show only ${r.batchNo}`}
+                          <button type="button" className="pcp-linkbtn" onClick={(e) => { e.stopPropagation(); setBatch(r.batchNo); }} title={`Show only ${r.batchNo}`}
                             style={{ ...mut, background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline dotted" }}>
                             {r.batchNo}
                           </button>
@@ -374,9 +412,14 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
                       {r.acctBy && <div>Accounting: {r.acctBy}</div>}
                     </td>
                     <td style={{ fontSize: 11 }}>{r.replenishment}</td>
+                    <td>
+                      <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={(e) => { e.stopPropagation(); open(r); }}>
+                        <Eye size={12} /> Open
+                      </button>
+                    </td>
                   </tr>
                 )) : (
-                  <tr><td colSpan={12} className="pcp-empty">
+                  <tr><td colSpan={13} className="pcp-empty">
                     {allRows.length ? "No approved transaction matches these filters" : "No transaction has received final approval yet"}
                   </td></tr>
                 )}
@@ -385,6 +428,18 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
           </div>
         </div>
       </div>
+
+      {/* An opened reimbursement: its usual detail window, read-only. */}
+      {openReimb && (
+        <ReimbursementDetail
+          reimb={openReimb}
+          currentUser={currentUser}
+          isChecker={false} isFinalApprover={false} canFinance={false} allowPayment={false} canRevert={false}
+          accounting={viewAccounting}
+          onAction={noop}
+          onClose={() => setOpenRow(null)}
+        />
+      )}
     </div>
   );
 }
