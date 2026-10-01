@@ -411,6 +411,26 @@ const CSS = `
   .pcp-doc-zoombar button:hover { border-color: var(--brand); color: var(--brand); }
   .pcp-doc-zoombar button:disabled { opacity: 0.4; cursor: default; }
   .pcp-doc-zoomval { font-size: 10.5px; color: var(--text-mut); min-width: 34px; text-align: center; }
+  .pcp-doc-gallery-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 10px; font-size: 12px; color: var(--text-mut); }
+  .pcp-doc-gallery-bar > span:first-child { font-weight: 600; }
+  .pcp-doc-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; margin-left: auto; }
+  .pcp-doc-seg button { border: none; background: var(--dm-surface, #fff); padding: 5px 10px; font-size: 11.5px; font-weight: 600; color: var(--text-mut); cursor: pointer; }
+  .pcp-doc-seg button + button { border-left: 1px solid var(--line); }
+  .pcp-doc-seg button.on { background: var(--brand); color: #fff; }
+  .pcp-lightbox { position: fixed; inset: 0; z-index: 950; background: rgba(12,22,17,0.82); display: flex; align-items: center; justify-content: center; padding: 16px; }
+  .pcp-lightbox-panel { width: min(1400px, 100%); height: 100%; display: flex; flex-direction: column; background: var(--dm-surface, #fff); border-radius: 12px; overflow: hidden; box-shadow: 0 24px 60px rgba(0,0,0,0.4); }
+  .pcp-lightbox-head { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .pcp-lightbox-name { font-weight: 700; font-size: 13.5px; flex: 1; min-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pcp-lightbox-count { font-size: 12px; font-weight: 700; color: var(--text-mut); font-variant-numeric: tabular-nums; }
+  .pcp-lightbox-body { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .pcp-lightbox-tools { display: flex; align-items: center; gap: 6px; padding: 8px 14px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  .pcp-lightbox-stage { flex: 1; min-height: 0; background: #e9efeb; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .pcp-lightbox-stage.zoomed { overflow: auto; display: block; text-align: center; }
+  .pcp-lightbox-stage img { max-width: 100%; max-height: 100%; object-fit: contain; display: block; margin: 0 auto; }
+  .pcp-lightbox-stage iframe { width: 100%; height: 100%; border: none; display: block; }
+  .pcp-lightbox-msg { font-size: 13px; color: var(--text-mut); padding: 24px; text-align: center; }
+  .pcp-lightbox-foot { border-top: 1px solid var(--line); max-height: 30vh; overflow: auto; }
+  [data-theme="dark"] .pcp-lightbox-stage { background: #1b2420; }
   .pcp-doc-frame .pcp-doc-none { padding: 22px 14px; text-align: center; font-size: 11.5px; color: var(--text-mut); }
 
   /* ---- Notifications & role ---- */
@@ -1449,7 +1469,13 @@ function SearchSelect({
 /* Zoom steps for large previews; 100 = fit to the frame. Display only. */
 const DOC_ZOOM_STEPS = [50, 75, 100, 125, 150, 200, 300];
 
-function AttachmentTile({ att, renderFooter, renderActions, large }) {
+/* PDF viewer parameters (Chrome / Edge): hide the page-thumbnail sidebar so
+   the page gets the whole frame, keep the toolbar, then fit or zoom. */
+const pdfViewSrc = (src, zoom) => (src && !src.includes("#")
+  ? src + "#navpanes=0&toolbar=1&" + (!zoom || zoom === 100 ? "view=FitH" : "zoom=" + zoom)
+  : src);
+
+function AttachmentTile({ att, renderFooter, renderActions, large, onExpand }) {
   const src = useFileUrl(att);
   const [zoom, setZoom] = useState(100);
   const zi = DOC_ZOOM_STEPS.indexOf(zoom);
@@ -1476,7 +1502,8 @@ function AttachmentTile({ att, renderFooter, renderActions, large }) {
             {zoom !== 100 && <button type="button" onClick={() => setZoom(100)} title="Fit to frame">Fit</button>}
           </span>
         )}
-        {src && <a className="pcp-iconbtn" href={src} target="_blank" rel="noopener noreferrer" title="Open full size"><Search size={13} /></a>}
+        {onExpand && <button type="button" className="pcp-iconbtn" onClick={onExpand} title="View full screen (← → to move between documents)"><Maximize2 size={13} /></button>}
+        {src && <a className="pcp-iconbtn" href={src} target="_blank" rel="noopener noreferrer" title="Open in a new tab"><Search size={13} /></a>}
         {src && <button type="button" className="pcp-iconbtn" onClick={() => saveFileAs(src, name)} title="Download original file"><Download size={13} /></button>}
         {renderActions && renderActions(att)}
       </div>
@@ -1488,10 +1515,7 @@ function AttachmentTile({ att, renderFooter, renderActions, large }) {
         ) : isPdf && src ? (
           /* The PDF viewer reads the zoom from the URL fragment; the key
              reloads it when the zoom changes. Its own toolbar also zooms. */
-          <iframe
-            key={large ? zoom : "pdf"} title={name}
-            src={large && !src.includes("#") ? src + (zoom === 100 ? "#view=FitH" : "#zoom=" + zoom) : src}
-          />
+          <iframe key={large ? zoom : "pdf"} title={name} src={pdfViewSrc(src, large ? zoom : 100)} />
         ) : (
           <div className="pcp-doc-none">
             {pending
@@ -1509,16 +1533,119 @@ function AttachmentTile({ att, renderFooter, renderActions, large }) {
    be read without opening each one. Click an image to open it full size. */
 /* large="xl": larger still — the Approval Module, where documents are checked
    before approval. Large tiles get zoom in / out / fit controls. */
+/* Large galleries get a layout switch (1 or 2 documents per row, remembered
+   in this browser) and a full-screen viewer (DocLightbox). Display only. */
+const DOC_COLS_KEY = "pcp.docColumns";
 function AttachmentGallery({ attachments, emptyLabel, renderFooter, renderActions, large }) {
   const list = attachments || [];
+  const [cols, setColsRaw] = useState(() => { try { return localStorage.getItem(DOC_COLS_KEY) || "1"; } catch (e) { return "1"; } });
+  const setCols = (v) => { setColsRaw(v); try { localStorage.setItem(DOC_COLS_KEY, v); } catch (e) { /* storage unavailable */ } };
+  const [viewing, setViewing] = useState(-1);
   if (!list.length) {
     return <div style={{ fontSize: 12, color: "var(--text-mut)" }}>{emptyLabel || "No documents attached."}</div>;
   }
+  const oneCol = !!large && cols === "1";
   return (
-    <div className={"pcp-doc-gallery" + (large ? " pcp-doc-gallery-lg" : "") + (large === "xl" ? " pcp-doc-gallery-xl" : "")}>
-      {list.map((a, i) => (
-        <AttachmentTile key={a.id || (a.name || "document") + i} att={a} renderFooter={renderFooter} renderActions={renderActions} large={large} />
-      ))}
+    <>
+      {large && (
+        <div className="pcp-doc-gallery-bar">
+          <span>{list.length} document{list.length === 1 ? "" : "s"}</span>
+          <span className="pcp-doc-seg" role="group" aria-label="Documents per row">
+            <button type="button" className={cols === "1" ? "on" : ""} onClick={() => setCols("1")}>1 per row</button>
+            <button type="button" className={cols === "2" ? "on" : ""} onClick={() => setCols("2")}>2 per row</button>
+          </span>
+          <button type="button" className="pcp-btn pcp-btn-sm" onClick={() => setViewing(0)} title="Go through every document full screen">
+            <Maximize2 size={12} /> View all full screen
+          </button>
+        </div>
+      )}
+      <div className={"pcp-doc-gallery" + (large ? " pcp-doc-gallery-lg" : "") + (large === "xl" ? " pcp-doc-gallery-xl" : "")}
+        style={oneCol ? { gridTemplateColumns: "minmax(0, 1fr)" } : undefined}>
+        {list.map((a, i) => (
+          <AttachmentTile key={a.id || (a.name || "document") + i} att={a} renderFooter={renderFooter} renderActions={renderActions} large={large}
+            onExpand={() => setViewing(i)} />
+        ))}
+      </div>
+      {viewing >= 0 && viewing < list.length && (
+        <DocLightbox list={list} index={viewing} setIndex={setViewing} onClose={() => setViewing(-1)} renderFooter={renderFooter} />
+      )}
+    </>
+  );
+}
+
+/* Full-screen document viewer: one document at a time, Previous / Next (and
+   the arrow keys), zoom for images, the PDF viewer's own toolbar for PDFs,
+   and the tile's own footer (status, receipt no., decisions) underneath. */
+function DocLightbox({ list, index, setIndex, onClose, renderFooter }) {
+  const att = list[index];
+  const n = list.length;
+  const go = useCallback((d) => setIndex((i) => Math.min(n - 1, Math.max(0, i + d))), [n, setIndex]);
+  useEffect(() => {
+    const key = (e) => {
+      if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+      if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowRight") go(1);
+      else if (e.key === "ArrowLeft") go(-1);
+    };
+    window.addEventListener("keydown", key);
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { window.removeEventListener("keydown", key); document.body.style.overflow = prev; };
+  }, [go, onClose]);
+  return (
+    <div className="pcp-lightbox" role="dialog" aria-label={`Document ${index + 1} of ${n}`} onClick={onClose}>
+      <div className="pcp-lightbox-panel" onClick={(e) => e.stopPropagation()}>
+        <div className="pcp-lightbox-head">
+          <Paperclip size={14} />
+          <span className="pcp-lightbox-name" title={att.name}>{att.name || "document"}</span>
+          {att.docType && <span className="pcp-badge pcp-badge-gray">{att.docType}</span>}
+          <span className="pcp-lightbox-count">{index + 1} / {n}</span>
+          <button type="button" className="pcp-btn pcp-btn-sm" onClick={() => go(-1)} disabled={index === 0} title="Previous (←)"><ChevronLeft size={14} /> Prev</button>
+          <button type="button" className="pcp-btn pcp-btn-sm" onClick={() => go(1)} disabled={index === n - 1} title="Next (→)">Next <ChevronRight size={14} /></button>
+          <button type="button" className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={onClose} title="Close (Esc)"><X size={15} /></button>
+        </div>
+        <LightboxDoc key={att.id || index} att={att} />
+        {renderFooter && <div className="pcp-lightbox-foot">{renderFooter(att)}</div>}
+      </div>
+    </div>
+  );
+}
+
+function LightboxDoc({ att }) {
+  const src = useFileUrl(att);
+  const [zoom, setZoom] = useState(100);
+  const name = att.name || "document";
+  const type = String(att.type || "");
+  const ext = String(name).split(".").pop().toLowerCase();
+  const isImage = type.startsWith("image") || ["png", "jpg", "jpeg", "gif", "webp", "bmp"].includes(ext);
+  const isPdf = type.includes("pdf") || ext === "pdf";
+  const zi = DOC_ZOOM_STEPS.indexOf(zoom);
+  const step = (d) => setZoom(DOC_ZOOM_STEPS[Math.min(DOC_ZOOM_STEPS.length - 1, Math.max(0, zi + d))]);
+  return (
+    <div className="pcp-lightbox-body">
+      {src && (
+        <div className="pcp-lightbox-tools">
+          {isImage && (<>
+            <button type="button" className="pcp-btn pcp-btn-sm" onClick={() => step(-1)} disabled={zi <= 0} title="Zoom out"><ZoomOut size={13} /></button>
+            <span style={{ fontSize: 11.5, minWidth: 40, textAlign: "center" }}>{zoom === 100 ? "Fit" : zoom + "%"}</span>
+            <button type="button" className="pcp-btn pcp-btn-sm" onClick={() => step(1)} disabled={zi >= DOC_ZOOM_STEPS.length - 1} title="Zoom in"><ZoomIn size={13} /></button>
+            {zoom !== 100 && <button type="button" className="pcp-btn pcp-btn-sm" onClick={() => setZoom(100)}>Fit</button>}
+          </>)}
+          <a className="pcp-btn pcp-btn-sm" href={src} target="_blank" rel="noopener noreferrer"><Search size={12} /> Open in new tab</a>
+          <button type="button" className="pcp-btn pcp-btn-sm" onClick={() => saveFileAs(src, name)}><Download size={12} /> Download</button>
+        </div>
+      )}
+      <div className={"pcp-lightbox-stage" + (isImage && zoom !== 100 ? " zoomed" : "")}>
+        {!src ? (
+          <div className="pcp-lightbox-msg">{hasFileBytes(att) ? "Loading…" : "No file stored for this document."}</div>
+        ) : isImage ? (
+          <img src={src} alt={name} style={zoom === 100 ? undefined : { width: zoom + "%", maxWidth: "none", maxHeight: "none" }} />
+        ) : isPdf ? (
+          <iframe title={name} src={pdfViewSrc(src, 100)} />
+        ) : (
+          <div className="pcp-lightbox-msg">No in-browser preview for {ext ? ext.toUpperCase() : "this"} files — use Open in new tab or Download.</div>
+        )}
+      </div>
     </div>
   );
 }
