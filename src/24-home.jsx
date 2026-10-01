@@ -197,7 +197,10 @@ function homeDueLabel(daysLeft) {
   return `${daysLeft} day${daysLeft === 1 ? "" : "s"} left`;
 }
 
-function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, stats, notifications, onNotifClick, deadlines, onDeadlineClick }) {
+/* approvalReminders: when given (Grace Gan), Home shows ONLY what awaits her
+   final approval, in place of the liquidation deadlines and notifications. */
+function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, stats, notifications, onNotifClick, deadlines, onDeadlineClick, approvalReminders, onApprovalReminderClick }) {
+  const approvalOnly = Array.isArray(approvalReminders);
   const now = new Date();
   const announcements = (Array.isArray(window.PCP_ANNOUNCEMENTS) && window.PCP_ANNOUNCEMENTS.length)
     ? window.PCP_ANNOUNCEMENTS : HOME_DEFAULT_ANNOUNCEMENTS;
@@ -267,7 +270,35 @@ function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, stats, n
 
       <div className="pcp-home-cols">
         <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
+          {approvalOnly && (
+            <div className="pcp-card pcp-card-pad">
+              <div className="pcp-home-section-title">
+                <ClipboardCheck size={16} color="#b9790a" /> Awaiting Your Final Approval ({approvalReminders.length})
+              </div>
+              {approvalReminders.length ? (
+                <div className="pcp-home-list">
+                  {approvalReminders.slice(0, 10).map((a) => (
+                    <button key={a.id} className="pcp-home-item" onClick={() => onApprovalReminderClick && onApprovalReminderClick(a)} title="Open the Approval Module">
+                      <div className="pcp-home-item-main">
+                        <div className="pcp-home-item-title">{a.seriesNo} · {a.employee}</div>
+                        <div className="pcp-home-item-sub">
+                          {plantLabel(plantOfBranch(a.branchCode))}{plantOfBranch(a.branchCode) !== a.branchCode ? ` (${plantLabel(a.branchCode)})` : ""} · {a.kind} · {peso(a.amount)}
+                        </div>
+                      </div>
+                      {a.batchNo && <span className="pcp-home-due yellow">{a.batchNo}</span>}
+                    </button>
+                  ))}
+                  {approvalReminders.length > 10 && (
+                    <div className="pcp-home-empty">+ {approvalReminders.length - 10} more in the Approval Module</div>
+                  )}
+                </div>
+              ) : (
+                <div className="pcp-home-empty">Nothing is awaiting your final approval. You are all caught up.</div>
+              )}
+            </div>
+          )}
           {/* Upcoming liquidation deadlines */}
+          {!approvalOnly && (<>
           <div className="pcp-card pcp-card-pad">
             <div className="pcp-home-section-title"><CalendarClock size={16} color="#b9790a" /> Upcoming Liquidation Deadlines</div>
             {shownDeadlines.length ? (
@@ -311,6 +342,7 @@ function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, stats, n
               <div className="pcp-home-empty">You are all caught up.</div>
             )}
           </div>
+          </>)}
         </div>
 
         {/* System announcements */}

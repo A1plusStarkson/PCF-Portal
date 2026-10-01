@@ -2259,6 +2259,37 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       foot: `${peso(sumAmt(open, (r) => reimbTotal(r)))} in progress`, onClick: () => navigate("reimbursement") });
   }
 
+  /* Grace Gan's Home (owner's instruction, Oct 2026): no liquidation
+     deadlines or general notifications — only what awaits HER final approval,
+     the same rule as her Approval Module queue (custodian approved, Accounting
+     checked with a Batch Number, not approved as custodian by herself).
+     null for everyone else, whose Home is unchanged. */
+  const homeApprovalReminders = useMemo(() => {
+    if (!restrictedModules || !isFinalApprover) return null;
+    const me = String(userName || role).trim().toLowerCase();
+    const notMine = (rv) => String(rv.checkedBy || "").trim().toLowerCase() !== me;
+    const liqs = pcaApprovalQueue(visibleDisbursements, visibleLiquidations, visibleReplenishments)
+      .filter((x) => x.stage === LIQ_STAGE.FOR_FINAL && passesAccountingGate(x.review) && notMine(x.review))
+      .map((x) => ({
+        id: "liq:" + x.disb.id, seriesNo: x.disb.voucherNo, employee: x.disb.employee, kind: "Liquidation",
+        branchCode: x.disb.branchCode, amount: x.amounts.approvedTotal, batchNo: x.review.batchNo,
+        date: String(x.review.acctCheckedAt || x.liq.submittedAt || x.disb.date || "").slice(0, 10),
+      }));
+    const reimbs = visibleReimbursements
+      .filter((r) => r.status === REIMB_STATUS.FOR_FINAL && !reimbAwaitingAccounting(r)
+        && passesAccountingGate(reimbReview(r)) && notMine(reimbReview(r))
+        && ![r.createdBy, r.employee].some((n) => String(n || "").trim().toLowerCase() === me))
+      .map((r) => {
+        const rv = reimbReview(r);
+        return {
+          id: "reimb:" + r.id, seriesNo: r.reimbNo, employee: r.employee, kind: "Reimbursement",
+          branchCode: r.branchCode, amount: reimbTotal(r), batchNo: rv.batchNo,
+          date: String(rv.acctCheckedAt || r.submittedAt || r.requestDate || "").slice(0, 10),
+        };
+      });
+    return liqs.concat(reimbs).sort((a, b) => String(a.batchNo).localeCompare(String(b.batchNo)) || String(a.date).localeCompare(String(b.date)));
+  }, [restrictedModules, isFinalApprover, userName, role, visibleDisbursements, visibleLiquidations, visibleReplenishments, visibleReimbursements]);
+
   /* An alarm opens its record in Liquidation Aging (or, without access to
      it, the liquidation itself). */
   const [agingFocus, setAgingFocus] = useState(null);
@@ -2329,6 +2360,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
                 quickLinks={homeQuickLinks} stats={homeStats}
                 notifications={bellNotifications} onNotifClick={onNotifClick}
                 deadlines={homeDeadlines} onDeadlineClick={onReminderClick}
+                approvalReminders={homeApprovalReminders}
+                onApprovalReminderClick={() => navigate("approvals")}
               />
             </div>
           </>
