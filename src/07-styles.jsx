@@ -549,6 +549,9 @@ const CSS = `
   .pcp-login-caps svg { flex-shrink: 0; }
   .pcp-login-remember { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text); margin: 2px 0 14px; cursor: pointer; user-select: none; }
   .pcp-login-remember input { width: 15px; height: 15px; accent-color: var(--brand); cursor: pointer; }
+  .pcp-login-about { max-width: 440px; padding-left: 14px; border-left: 3px solid var(--mint, #a7d7bd); }
+  .pcp-login-about-kicker { font-size: 10.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #c5dacd; }
+  .pcp-login-about p { margin: 4px 0 0; font-size: 13.5px; line-height: 1.6; color: #eef6f1; }
   .pcp-login-quote {
     margin-top: 22px; padding: 14px 16px; border-radius: 12px; max-width: 440px;
     background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.22); border-left: 4px solid #f5c451;

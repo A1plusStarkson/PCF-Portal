@@ -87,11 +87,11 @@ function LoginBrandPanel() {
       <div className="pcp-login-brand-mid">
         <h1 className="pcp-login-hero">Manage petty cash with confidence.</h1>
         <p className="pcp-login-lead">Request, release, liquidate and replenish — with every approval and receipt on record.</p>
-        <ul className="pcp-login-features">
-          <li><CircleCheck size={17} /> Two-level approval — Custodian → Accounting → Grace Gan</li>
-          <li><CircleCheck size={17} /> Every receipt attached and checked on screen</li>
-          <li><CircleCheck size={17} /> Live fund balances for Manila, Warner, Disney and RG and Co.</li>
-        </ul>
+        {/* Short informational description of petty cash (owner's wording). */}
+        <div className="pcp-login-about">
+          <div className="pcp-login-about-kicker">What is Petty Cash?</div>
+          <p>Petty cash is a small reserve of cash kept on hand by a business to pay for minor expenses, offering convenience for quick and small-scale transactions.</p>
+        </div>
         {/* Same quote as Home today (homeDailyQuote in 24-home.jsx). */}
         <div className="pcp-login-quote">
           <div className="pcp-login-quote-kicker">☀️ Today's Cheer-Up</div>
