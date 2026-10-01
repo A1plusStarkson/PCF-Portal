@@ -113,7 +113,7 @@ const CSS = `
   .pcp-brand-logos.all .bl-a1 { height: 38px; }
   .pcp-brand-logos.all .bl-spi { height: 22px; }
   .pcp-brand-logos .bl-hamfi { height: 30px; }
-  .pcp-brand-logos .bl-rg { height: 30px; }
+  .pcp-brand-logos .bl-rg { height: 36px; border-radius: 5px; }
   .pcp-brand-logos.compact { gap: 10px; }
   .pcp-brand-logos.compact .bl-a1 { height: 32px; }
   .pcp-brand-logos.compact .bl-spi { height: 19px; }

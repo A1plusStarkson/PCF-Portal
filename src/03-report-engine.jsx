@@ -19,17 +19,11 @@ const REPORT_LOGO_HAMFI = (() => {
   try { return new URL(encodeURI("HAMFI LOGO.png"), document.baseURI).href; }
   catch (e) { return "HAMFI LOGO.png"; }
 })();
-/* RG & Co. Property Management Corporation has no bundled PNG yet — prefer an
-   "RG PAPER LOGO.png" if one is uploaded beside index.html, otherwise fall back
-   to a clean built-in SVG monogram so the report still renders professionally. */
+/* RG & Co. Property Management Corporation — the official logo (gold on navy),
+   bundled beside index.html like the others. */
 const REPORT_LOGO_RG = (() => {
-  const svg =
-    "<svg xmlns='http://www.w3.org/2000/svg' width='150' height='54' viewBox='0 0 150 54'>" +
-    "<rect x='1' y='1' width='148' height='52' rx='7' fill='#ffffff' stroke='#1f4e79' stroke-width='2'/>" +
-    "<text x='75' y='26' font-family='Georgia, serif' font-size='20' font-weight='700' fill='#1f4e79' text-anchor='middle'>RG &amp; CO.</text>" +
-    "<text x='75' y='42' font-family='Arial, sans-serif' font-size='7.5' letter-spacing='1' fill='#444' text-anchor='middle'>PROPERTY MANAGEMENT CORP.</text>" +
-    "</svg>";
-  return "data:image/svg+xml;utf8," + encodeURIComponent(svg);
+  try { return new URL(encodeURI("RG LOGO.png"), document.baseURI).href; }
+  catch (e) { return "RG LOGO.png"; }
 })();
 
 /* The header company name + logo follow the report's scope. Both are resolved
