@@ -190,10 +190,11 @@ function FloatingWindow({ title, onClose, children }) {
       }}>
       <div onPointerDown={startDrag} title="Drag to move"
         style={{ display: "flex", alignItems: "center", gap: 8, padding: "9px 12px", cursor: "move",
-          background: "var(--ink)", color: "#fff", flexShrink: 0 }}>
+          background: "#fff3c4", borderBottom: "2px solid #e8b53a", color: "#6b4a07", flexShrink: 0 }}>
         <Move size={14} />
+        <span style={{ fontWeight: 800, fontSize: 11, letterSpacing: 0.6, background: "#e8b53a", color: "#3d2a03", borderRadius: 5, padding: "2px 7px" }}>FLOAT</span>
         <span style={{ fontWeight: 700, fontSize: 13, flex: 1 }}>{title}</span>
-        <button type="button" className="pcp-btn pcp-btn-ghost pcp-btn-sm" style={{ color: "#fff" }} onClick={onClose} title="Close (Esc)">
+        <button type="button" className="pcp-btn pcp-btn-ghost pcp-btn-sm" style={{ color: "#6b4a07" }} onClick={onClose} title="Close (Esc)">
           <X size={14} />
         </button>
       </div>
@@ -335,9 +336,10 @@ function PcaApprovalPanel({
             )}
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <button className="pcp-btn pcp-btn-sm" onClick={() => setFloatExpenses((v) => !v)}
+            <button className={"pcp-btn pcp-btn-sm pcp-btn-float" + (floatExpenses ? " on" : "")} onClick={() => setFloatExpenses((v) => !v)}
+              aria-pressed={floatExpenses}
               title="Show the Expense / Liquidation Details in a floating window you can move around">
-              <ExternalLink size={12} /> {floatExpenses ? "Hide Expense Details" : "Expense Details"}
+              <ExternalLink size={12} /> {floatExpenses ? "Close FLOAT" : "FLOAT Expense Details"}
             </button>
             {canCheck && (
               <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={check}>
@@ -416,8 +418,9 @@ function PcaApprovalPanel({
       <div className="pcp-card pcp-card-pad" style={{ marginBottom: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, margin: "0 0 10px" }}>
           <div className="pcp-section-title" style={{ margin: 0, flex: 1 }}>Expense / Liquidation Details</div>
-          <button className="pcp-btn pcp-btn-sm" onClick={() => setFloatExpenses(true)} title="Open in a floating window that stays on screen while you scroll the receipts">
-            <ExternalLink size={12} /> Float
+          <button className={"pcp-btn pcp-btn-sm pcp-btn-float" + (floatExpenses ? " on" : "")} onClick={() => setFloatExpenses(true)}
+            title="Open in a floating window that stays on screen while you scroll the receipts">
+            <ExternalLink size={12} /> FLOAT
           </button>
         </div>
         {expenseTable}

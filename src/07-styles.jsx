@@ -411,6 +411,13 @@ const CSS = `
   .pcp-doc-zoombar button:hover { border-color: var(--brand); color: var(--brand); }
   .pcp-doc-zoombar button:disabled { opacity: 0.4; cursor: default; }
   .pcp-doc-zoomval { font-size: 10.5px; color: var(--text-mut); min-width: 34px; text-align: center; }
+  /* FLOAT (pop-out Expense Details): one highlight wherever it appears —
+     light yellow, bold, amber edge — distinct from every status colour. */
+  .pcp-btn.pcp-btn-float { background: #fff3c4; border-color: #e8b53a; color: #6b4a07; font-weight: 800; letter-spacing: 0.2px; }
+  .pcp-btn.pcp-btn-float:hover { background: #ffe9a0; border-color: #d39c1c; color: #5a3d04; }
+  .pcp-btn.pcp-btn-float.on { background: #e8b53a; border-color: #c9930f; color: #3d2a03; }
+  [data-theme="dark"] .pcp-btn.pcp-btn-float { background: #4a3a10; border-color: #c9930f; color: #ffe08a; }
+  [data-theme="dark"] .pcp-btn.pcp-btn-float.on { background: #c9930f; color: #1d1402; }
   .pcp-doc-gallery-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 10px; font-size: 12px; color: var(--text-mut); }
   .pcp-doc-gallery-bar > span:first-child { font-weight: 600; }
   .pcp-doc-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; margin-left: auto; }
