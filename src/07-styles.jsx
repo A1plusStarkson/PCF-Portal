@@ -919,6 +919,8 @@ const GLOBAL_MODULES = [
    across every company, so it is NOT a per-plant tab — see src/23-approvals.jsx. */
 const APPROVAL_MODULES = [
   { key: "approvals", label: "Approval Module", icon: ClipboardCheck },
+  /* View-only: every final-approved transaction (23b-approved.jsx). */
+  { key: "approved", label: "Approved Module", icon: CircleCheck },
 ];
 
 /* Consolidated monitoring modules that span every plant in one shared view.

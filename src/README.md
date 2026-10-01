@@ -52,6 +52,7 @@ reorder `PCP_SRC_FILES`. If you add a new file, insert it in the right place.
 | `18-account-admin.jsx` | User management + system settings screens. |
 | `22-reimbursement.jsx` | Reimbursement Module (AF P16): policy config + validation engine, multi-step reimbursement form, approval/liquidation/payment workflow, dashboard, aging & Acumatica export. Loads **before** `19-app.jsx` so its constants exist when `App` renders. |
 | `23-approvals.jsx` | Approval Module — one cross-plant queue for checking/approving Petty Cash Advance liquidations (per-document approve/reject, reject liquidation) and Employee Reimbursements. Loads **after** `11-liquidation.jsx` and `22-reimbursement.jsx` because it reuses `RejectLiquidationModal` and `ReimbursementDetail`. |
+| `23b-approved.jsx` | Approved Module — view-only list of every final-approved liquidation and reimbursement, by plant, with Print / PDF and Excel export (APPROVED_MODULE_EMAILS). |
 | `19-app.jsx` | The main `App` component (state, storage, navigation, wiring). |
 | `20-auth-gate.jsx` | Sign-in gate / local + Supabase auth. |
 | `21-root-mount.jsx` | `Root` component + `createRoot(...).render(...)`. |

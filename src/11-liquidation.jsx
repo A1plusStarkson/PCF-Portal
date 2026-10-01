@@ -84,6 +84,18 @@ const APPROVAL_MODULE_EMAILS = ["a1plusadmin@a1plus.com", "superuser@a1plus.com"
    throughout — only that queue, no actions at all. Accounting keeps its own
    Accounting-check work there as before. See ApprovalModuleTab. */
 const APPROVAL_FINAL_VIEW_EMAILS = ["accounting@a1plus.com", "finance@a1plus.com", "puradr@a1plus.com", "lita@a1plus.com"];
+/* APPROVED MODULE (owner's instruction, Oct 2026): a view-only list of every
+   final-approved transaction, by plant, with Print / PDF and Excel export.
+   See 23b-approved.jsx. */
+const APPROVED_MODULE_EMAILS = ["a1plusadmin@a1plus.com", "superuser@a1plus.com", "accounting@a1plus.com"];
+/* Accounts limited to these modules ONLY, whatever their role grants
+   (owner's instruction, Oct 2026). Grace Gan: Home, Approval Module,
+   Replenishment (one tab per plant) and the Approved Module — no Dashboard or
+   other module, and no role preview. Her plants and final-approval authority
+   are unchanged. */
+const RESTRICTED_MODULE_ACCESS = {
+  "a1plusadmin@a1plus.com": ["home", "approvals", "replenishment", "approved"],
+};
 
 /* Accounting stamps are full ISO timestamps (with zone), shown in local time. */
 function fmtAcctStamp(ts) {

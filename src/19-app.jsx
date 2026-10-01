@@ -15,7 +15,9 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   const [role, setRole] = useState(userRole || "Accounting");
   /* Non-admins are locked to their assigned role; admins may view-as any role. */
   useEffect(() => { setRole(userRole || "Accounting"); }, [userRole]);
-  const guardedSetRole = useCallback((r) => { if (isAdmin) setRole(r); }, [isAdmin]);
+  /* No role preview for an account held to fixed modules (RESTRICTED_MODULE_ACCESS). */
+  const canSwitchRole = !!isAdmin && !RESTRICTED_MODULE_ACCESS[(userEmail || "").trim().toLowerCase()];
+  const guardedSetRole = useCallback((r) => { if (canSwitchRole) setRole(r); }, [canSwitchRole]);
   const [historyFilter, setHistoryFilter] = useState(null);
   const [disburseTarget, setDisburseTarget] = useState(null);
   const [showEditBalances, setShowEditBalances] = useState(false);
@@ -276,6 +278,11 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   const canViewFinalQueue = emailIn(APPROVAL_FINAL_VIEW_EMAILS) && role === (userRole || "Accounting");
   const canUseApprovalModule = isApprovalModuleMember || canViewFinalQueue;
   const approvalViewOnly = canViewFinalQueue && !isApprovalModuleMember;
+  /* APPROVED MODULE: view-only, by email (APPROVED_MODULE_EMAILS). */
+  const canUseApprovedModule = emailIn(APPROVED_MODULE_EMAILS) && role === (userRole || "Accounting");
+  /* Accounts held to a fixed module list (RESTRICTED_MODULE_ACCESS) whatever
+     their role or a role preview would grant. */
+  const restrictedModules = RESTRICTED_MODULE_ACCESS[(userEmail || "").trim().toLowerCase()] || null;
   /* Nothing under Grace Gan's final approval may move — it is what gets
      replenished. (Legacy approvals are not locked; they predate the lock.) */
   const isLiquidationFinalLocked = useCallback((disbursementId) => {
@@ -2074,7 +2081,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   }, [activePlant, funds]);
 
   /* ---- Roles, navigation & notifications ---- */
-  const roleModuleKeys = (ROLES[role] || ROLES["Accounting"]).tabs;
+  const roleModuleKeys = restrictedModules || (ROLES[role] || ROLES["Accounting"]).tabs;
   /* Changing a beginning balance restates a plant's whole cash position, so the
      dashboard's "Edit Beginning Balances" button is held to the SAME gate as the
      Master Data tab (SuperAdmin / Accounting / Finance). Derived from the tab
@@ -2090,7 +2097,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
      plant with that plant's modules, then the shared administration tabs. */
   const navGroups = useMemo(() => {
     /* Home (landing page) — every role. Read-only summary + links, see 24-home.jsx. */
-    const groups = [{ key: "home", label: "", items: [{ tabKey: "home", label: "Home", icon: House }] }];
+    const groups = restrictedModules && !restrictedModules.includes("home")
+      ? [] : [{ key: "home", label: "", items: [{ tabKey: "home", label: "Home", icon: House }] }];
     const plantMods = PLANT_MODULES.filter((m) => roleModuleKeys.includes(m.key));
     if (orderedPlants.length > 1 && roleModuleKeys.includes("dashboard")) {
       groups.push({ key: "overview", label: "Overview", items: [
@@ -2106,7 +2114,9 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     });
     /* Approvals sit directly under the plants: it is the first place an approver
        looks, and it already spans every plant, so it is not repeated per plant. */
-    const apprMods = canUseApprovalModule ? APPROVAL_MODULES.filter((m) => roleModuleKeys.includes(m.key)) : [];
+    const apprMods = APPROVAL_MODULES.filter((m) => (m.key === "approved"
+      ? canUseApprovedModule && (!restrictedModules || restrictedModules.includes("approved"))
+      : canUseApprovalModule && roleModuleKeys.includes(m.key)));
     if (apprMods.length) {
       groups.push({ key: "approvals", label: "Approvals", items: apprMods.map((m) => ({ tabKey: m.key, label: m.label, icon: m.icon })) });
     }
@@ -2119,7 +2129,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       groups.push({ key: "admin", label: "Administration", items: globalMods.map((m) => ({ tabKey: m.key, label: m.label, icon: m.icon })) });
     }
     return groups;
-  }, [roleModuleKeys, orderedPlants, canUseApprovalModule]);
+  }, [roleModuleKeys, orderedPlants, canUseApprovalModule, canUseApprovedModule, restrictedModules]);
 
   /* Flat set of every valid tab key for this user — used to block navigation to
      unauthorized pages, including manual URL/state tampering. */
@@ -2128,7 +2138,9 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     navGroups.forEach((g) => g.items.forEach((it) => set.add(it.tabKey)));
     return set;
   }, [navGroups]);
-  const firstTab = (navGroups[0] && navGroups[0].items[0]) ? navGroups[0].items[0].tabKey : "dashboard";
+  /* A restricted account without Home lands on its Approval Module. */
+  const firstTab = restrictedModules && !allowedTabs.has("home") && allowedTabs.has("approvals") ? "approvals"
+    : (navGroups[0] && navGroups[0].items[0]) ? navGroups[0].items[0].tabKey : "dashboard";
 
   /* Keep the active tab valid whenever role/plants change. */
   useEffect(() => {
@@ -2210,6 +2222,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     { key: "disbursements", label: "Release Ledger", desc: "Vouchers released from the fund", icon: Receipt, tint: "#2f64a6" },
     { key: "replenishment", label: "Replenishment", desc: "Restore the fund for approved expenses", icon: RefreshCw, tint: "#6a4fb8" },
     { key: "approvals", label: "Approval", desc: "Everything awaiting your decision", icon: ClipboardCheck, tint: "#237a45" },
+    { key: "approved", label: "Approved", desc: "Transactions with Grace Gan's final approval", icon: CircleCheck, tint: "#15803d" },
   ].filter((q) => canOpen(q.key)).map((q) => ({ ...q, onClick: () => navigate(q.key) }));
   /* Summary cards. Each appears only when the account can open the module it
      summarises; the fund balance only for roles with the dashboard. */
@@ -2255,8 +2268,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   }, [allowedTabs, navigate, onReminderClick]);
 
   const uiValue = useMemo(
-    () => ({ notifications: bellNotifications, reminders, onReminderClick, role, setRole: guardedSetRole, canSwitchRole: !!isAdmin, onNotifClick, liqAlarms, onAlarmOpen }),
-    [bellNotifications, reminders, onReminderClick, role, guardedSetRole, isAdmin, onNotifClick, liqAlarms, onAlarmOpen]
+    () => ({ notifications: bellNotifications, reminders, onReminderClick, role, setRole: guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen }),
+    [bellNotifications, reminders, onReminderClick, role, guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen]
   );
 
   if (!loaded) {
@@ -2305,7 +2318,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             No existing data will be affected.
           </div>
         )}
-        {activeModule === "home" && (
+        {activeModule === "home" && allowedTabs.has("home") && (
           <>
             <TopBar title="Home" sub="Your petty cash overview and shortcuts" />
             <div className="pcp-content">
@@ -2502,6 +2515,13 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             plantOptions={plantOptions}
             onOpenReplenishment={[...allowedTabs].some((t) => parseTab(t).module === "replenishment")
               ? () => navigate("replenishment") : undefined}
+          />
+        )}
+        {activeModule === "approved" && canUseApprovedModule && allowedTabs.has("approved") && (
+          <ApprovedModuleTab
+            disbursements={visibleDisbursements} liquidations={visibleLiquidations}
+            reimbursements={visibleReimbursements} replenishments={visibleReplenishments}
+            plantOptions={plantOptions} currentUser={userName || role}
           />
         )}
         {activeModule === "aging" && (

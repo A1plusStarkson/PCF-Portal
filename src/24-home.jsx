@@ -62,6 +62,13 @@ const HOME_CSS = `
   .pcp-home-ann-title { font-size: 12.5px; font-weight: 700; }
   .pcp-home-ann-text { font-size: 12px; color: var(--text); margin-top: 2px; line-height: 1.5; }
   .pcp-home-ann-date { font-size: 10.5px; color: var(--text-mut); margin-top: 3px; }
+  .pcp-home-quote {
+    display: flex; gap: 14px; align-items: center; background: var(--dm-surface, #fff); border: 1px solid var(--line);
+    border-left: 4px solid #e0a526; border-radius: 12px; padding: 16px 20px;
+  }
+  .pcp-home-quote-icon { flex-shrink: 0; font-size: 26px; line-height: 1; }
+  .pcp-home-quote-kicker { font-size: 10.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #b9790a; }
+  .pcp-home-quote-text { font-size: 16px; font-weight: 600; font-style: italic; line-height: 1.45; margin-top: 3px; overflow-wrap: anywhere; }
   @media (max-width: 900px) {
     .pcp-home-hero, .pcp-home-cols { grid-template-columns: minmax(0, 1fr); }
   }
@@ -78,6 +85,77 @@ const HOME_DEFAULT_ANNOUNCEMENTS = [
   { title: "Series numbers are system-generated", text: "Request and Reimbursement numbers are issued automatically when you submit. They cannot be typed or changed, and are never reused." },
   { title: "Attach complete documents", text: "Upload the Original OR / Sales Invoice for every expense so custodians and approvers can check it on screen." },
 ];
+
+/* Daily cheer-up quote (owner's instruction, Oct 2026). One per calendar day,
+   the same for everyone that day, stepping through the list in order — so a
+   quote only comes back after every other one has been shown (60 days). */
+const HOME_DAILY_QUOTES = [
+  "Every day is a new opportunity to do something great. Keep going!",
+  "Small steps every day add up to big results.",
+  "Your hard work matters more than you know. Thank you!",
+  "Progress, not perfection. You are doing great.",
+  "A positive mind finds a way. Have a wonderful day!",
+  "Today is a good day to have a good day.",
+  "Believe in yourself — you have handled every tough day so far.",
+  "Great things are done by a series of small things brought together.",
+  "Teamwork makes the work lighter. We are in this together!",
+  "Keep your face to the sunshine and you will not see the shadows.",
+  "Do your best today; tomorrow will thank you for it.",
+  "One task at a time, one smile at a time.",
+  "Your effort today builds the success of tomorrow.",
+  "Be proud of how far you have come, and excited for where you are going.",
+  "Kindness and accuracy — a winning combination. Keep it up!",
+  "Start where you are. Use what you have. Do what you can.",
+  "Every well-done task is a quiet victory. Celebrate it!",
+  "You bring something special to the team every day.",
+  "Stay positive, work hard, and make it happen.",
+  "A little progress each day adds up to big things.",
+  "Difficult roads often lead to beautiful destinations.",
+  "Focus on the good, and the good gets better.",
+  "You are capable of amazing things — today included!",
+  "Take a deep breath. You have got this.",
+  "Consistency is the secret ingredient. Well done for showing up!",
+  "Make today so good that yesterday gets jealous.",
+  "The best view comes after the hardest climb.",
+  "Your attention to detail keeps everything running smoothly. Thank you!",
+  "Good things take time — keep at it.",
+  "Choose joy, choose patience, choose progress.",
+  "Smile — it is contagious, and it makes the work lighter.",
+  "Every accomplishment starts with the decision to try.",
+  "Mistakes are proof that you are trying. Keep learning!",
+  "You are stronger than any deadline.",
+  "Bloom where you are planted.",
+  "Gratitude turns what we have into enough. Have a grateful day!",
+  "Doing the right thing, the right way — that is excellence.",
+  "Little by little, a little becomes a lot.",
+  "Your positive energy makes a difference to everyone around you.",
+  "Today's effort is tomorrow's strength.",
+  "Keep calm and carry on — one record at a time.",
+  "Success is the sum of small efforts repeated day after day.",
+  "A clear mind and a kind heart can tackle anything.",
+  "Celebrate the small wins — they lead to the big ones.",
+  "Be the reason someone smiles at work today.",
+  "Hard work beats talent when talent does not work hard.",
+  "You make the team better just by being you.",
+  "Every sunrise brings a fresh start. Make the most of it!",
+  "Trust the process and enjoy the journey.",
+  "Work with purpose, rest with peace.",
+  "There is no elevator to success — take the stairs, one step at a time.",
+  "The secret of getting ahead is getting started.",
+  "Organised today, stress-free tomorrow.",
+  "You are doing better than you think. Keep shining!",
+  "Courage does not always roar — sometimes it is simply trying again tomorrow.",
+  "Good work speaks for itself. Yours speaks loudly!",
+  "Be patient with yourself — growth takes time.",
+  "Together we achieve more. Thank you for your part!",
+  "Let your enthusiasm be your energy today.",
+  "End the day proud of what you did, not worried about what you did not.",
+];
+
+function homeDailyQuote(d) {
+  const day = Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000);
+  return HOME_DAILY_QUOTES[day % HOME_DAILY_QUOTES.length];
+}
 
 function homeGreeting(d) {
   const h = d.getHours();
@@ -115,6 +193,15 @@ function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, stats, n
           {userEmail && <div className="pcp-home-user-row"><span>Account</span><span>{userEmail}</span></div>}
           {roleLabel && <div className="pcp-home-user-row"><span>Role</span><span>{roleLabel}</span></div>}
           {plantNames && <div className="pcp-home-user-row"><span>Plants</span><span>{plantNames}</span></div>}
+        </div>
+      </div>
+
+      {/* Daily cheer-up quote — changes every calendar day */}
+      <div className="pcp-home-quote" role="note" aria-label="Quote of the day">
+        <span className="pcp-home-quote-icon" aria-hidden="true">☀️</span>
+        <div style={{ minWidth: 0 }}>
+          <div className="pcp-home-quote-kicker">Today's Cheer-Up</div>
+          <div className="pcp-home-quote-text">“{homeDailyQuote(now)}”</div>
         </div>
       </div>
 
