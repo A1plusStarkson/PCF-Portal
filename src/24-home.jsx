@@ -20,6 +20,12 @@ const HOME_CSS = `
   .pcp-home-title { margin: 6px 0 4px; font-size: 26px; font-weight: 800; letter-spacing: -0.3px; }
   .pcp-home-greet { font-size: 14px; opacity: 0.95; }
   .pcp-home-date { font-size: 12px; opacity: 0.8; margin-top: 10px; }
+  .pcp-home-clock {
+    display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 4px 10px; border-radius: 99px;
+    background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.25); font-size: 12px;
+  }
+  .pcp-home-clock-time { font-weight: 800; font-size: 14px; font-variant-numeric: tabular-nums; letter-spacing: 0.3px; }
+  .pcp-home-clock-zone { opacity: 0.8; font-size: 11px; }
   .pcp-home-user {
     background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25); border-radius: 12px;
     padding: 14px 16px; font-size: 12.5px; display: flex; flex-direction: column; gap: 7px; min-width: 0;
@@ -157,6 +163,29 @@ function homeDailyQuote(d) {
   return HOME_DAILY_QUOTES[day % HOME_DAILY_QUOTES.length];
 }
 
+/* Live Philippine Standard Time (Asia/Manila, UTC+8), ticking every second —
+   shown under the date whatever time zone the computer is set to. */
+function PhilippineClock() {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const t = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  let text;
+  try {
+    text = now.toLocaleTimeString("en-PH", { timeZone: "Asia/Manila", hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true });
+  } catch (e) {
+    /* Very old browsers without time-zone support: compute UTC+8 by hand. */
+    const ph = new Date(now.getTime() + (now.getTimezoneOffset() + 480) * 60000);
+    text = ph.toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+  }
+  return (
+    <div className="pcp-home-clock" aria-live="off" title="Philippine Standard Time (UTC+8)">
+      <Clock size={13} /> <span className="pcp-home-clock-time">{text}</span> <span className="pcp-home-clock-zone">Philippine Time</span>
+    </div>
+  );
+}
+
 function homeGreeting(d) {
   const h = d.getHours();
   return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
@@ -187,6 +216,7 @@ function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, stats, n
           <h2 className="pcp-home-title">Petty Cash Portal</h2>
           <div className="pcp-home-greet">{homeGreeting(now)}{userName ? `, ${userName}` : ""}. Here is what needs your attention today.</div>
           <div className="pcp-home-date">{now.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>
+          <PhilippineClock />
         </div>
         <div className="pcp-home-user" aria-label="Signed-in account">
           {userName && <div className="pcp-home-user-row"><span>Name</span><b>{userName}</b></div>}
