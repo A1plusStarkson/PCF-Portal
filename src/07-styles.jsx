@@ -109,6 +109,11 @@ const CSS = `
   .pcp-brand-logos .bl-a1 { height: 44px; }
   .pcp-brand-logos .bl-spi { height: 27px; }
   .pcp-brand-logos .bl-sep { width: 1px; align-self: stretch; margin: 4px 0; background: #d6d9e3; flex-shrink: 0; }
+  .pcp-brand-logos.all { flex-wrap: wrap; gap: 14px; }
+  .pcp-brand-logos.all .bl-a1 { height: 38px; }
+  .pcp-brand-logos.all .bl-spi { height: 22px; }
+  .pcp-brand-logos .bl-hamfi { height: 30px; }
+  .pcp-brand-logos .bl-rg { height: 30px; }
   .pcp-brand-logos.compact { gap: 10px; }
   .pcp-brand-logos.compact .bl-a1 { height: 32px; }
   .pcp-brand-logos.compact .bl-spi { height: 19px; }
@@ -516,7 +521,8 @@ const CSS = `
   .pcp-login-card-logo { display: block; height: 48px; width: auto; margin-bottom: 14px; }
   .pcp-login-brand-name { font-size: 17px; font-weight: 800; letter-spacing: -0.2px; }
   .pcp-login-brand-sub { font-size: 11.5px; color: #c5dacd; margin-top: 2px; }
-  .pcp-login-brand-mid { max-width: 460px; }
+  /* Centred in the panel, so the space above the headline is used. */
+  .pcp-login-brand-mid { max-width: 460px; margin: auto 0; }
   .pcp-login-hero { font-size: clamp(26px, 3.2vw, 38px); line-height: 1.15; font-weight: 800; letter-spacing: -0.6px; margin: 0 0 14px; }
   .pcp-login-lead { font-size: 14px; line-height: 1.6; color: #dbe9e0; margin: 0 0 22px; }
   .pcp-login-features { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -536,7 +542,19 @@ const CSS = `
   .pcp-login-input.invalid .pcp-input { border-color: var(--danger); background: #fff8f7; }
   .pcp-login-split .pcp-field label { font-size: 12.5px; font-weight: 600; color: var(--text); }
   .pcp-login-field-err { font-size: 12px; color: var(--danger); margin-top: 5px; }
-  .pcp-login-caps { font-size: 12px; color: #92600a; margin-top: 5px; }
+  .pcp-login-caps {
+    display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; color: #92600a; margin-top: 6px;
+    background: var(--amber-bg, #fff6e0); border: 1px solid #f0d28c; border-radius: 7px; padding: 6px 9px;
+  }
+  .pcp-login-caps svg { flex-shrink: 0; }
+  .pcp-login-remember { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text); margin: 2px 0 14px; cursor: pointer; user-select: none; }
+  .pcp-login-remember input { width: 15px; height: 15px; accent-color: var(--brand); cursor: pointer; }
+  .pcp-login-quote {
+    margin-top: 22px; padding: 14px 16px; border-radius: 12px; max-width: 440px;
+    background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.22); border-left: 4px solid #f5c451;
+  }
+  .pcp-login-quote-kicker { font-size: 10.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #f5d27a; }
+  .pcp-login-quote-text { font-size: 14px; font-weight: 600; font-style: italic; line-height: 1.5; color: #fff; margin-top: 4px; }
   .pcp-login-eye { position: absolute; right: 6px; border: none; background: none; color: #8fa397; cursor: pointer; padding: 8px; border-radius: 8px; display: flex; }
   .pcp-login-eye:hover, .pcp-login-eye:focus-visible { color: var(--brand); background: var(--brand-soft); outline: none; }
   .pcp-login-input:has(.pcp-login-eye) .pcp-input { padding-right: 44px; }
@@ -556,7 +574,8 @@ const CSS = `
   .pcp-login-help svg { flex-shrink: 0; margin-top: 2px; }
   .pcp-login-copy { font-size: 11px; color: var(--text-mut); text-align: center; }
   /* ---- Login ₱ visual (PesoVisual in 20-auth-gate.jsx) ---- */
-  .pcp-peso-scene { position: relative; height: 200px; max-width: 420px; margin-top: 4px; }
+  /* Drawn at 130%: the scale leaves the layout box alone, so the margin makes room. */
+  .pcp-peso-scene { position: relative; height: 200px; max-width: 420px; margin: 70px 0 0; transform: scale(1.3); transform-origin: left bottom; }
   .pcp-peso-glow { position: absolute; left: 30%; top: 20%; width: 60%; height: 70%; border-radius: 50%; background: radial-gradient(circle, rgba(245,196,81,0.28), transparent 70%); filter: blur(6px); }
   .pcp-peso-bills { position: absolute; left: 10px; top: 36px; width: 230px; height: 118px; }
   .pcp-peso-bill {
@@ -610,13 +629,16 @@ const CSS = `
     .pcp-peso-coin { animation: none; opacity: 0.9; }
   }
 
+  /* Small screens: the green panel shrinks to a thin header (logo + name);
+     the sign-in box takes the screen. */
   @media (max-width: 860px) {
-    .pcp-login-split { grid-template-columns: minmax(0, 1fr); }
-    .pcp-peso-scene { transform: scale(0.7); transform-origin: left top; margin-bottom: -60px; }
-    .pcp-login-brand { padding: 24px 22px; gap: 16px; }
-    .pcp-login-hero { font-size: 22px; margin-bottom: 8px; }
-    .pcp-login-lead { margin-bottom: 0; font-size: 13px; }
-    .pcp-login-features { display: none; }
+    .pcp-login-split { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto 1fr; }
+    .pcp-login-brand { padding: 12px 18px; gap: 0; }
+    .pcp-login-brand-mid { display: none; }
+    .pcp-login-logo-tile { width: 40px; height: 40px; border-radius: 10px; }
+    .pcp-login-logo-tile img { max-width: 28px; max-height: 32px; }
+    .pcp-login-brand-name { font-size: 15px; }
+    .pcp-login-pane { justify-content: flex-start; padding: 24px 16px; }
   }
   @media (max-width: 480px) {
     .pcp-login-card-head { padding: 22px 20px 0; }
@@ -940,12 +962,19 @@ const parseTab = (tab) => {
 
 /* The two company logos, consistently sized and spaced (see .pcp-brand-logos).
    For light backgrounds; on a dark one, wrap it in a light plate. */
-function BrandLogos({ compact }) {
+function BrandLogos({ compact, all }) {
   return (
-    <div className={"pcp-brand-logos" + (compact ? " compact" : "")}>
+    <div className={"pcp-brand-logos" + (compact ? " compact" : "") + (all ? " all" : "")}>
       <img className="bl-a1" src={LOGO_A1_T} alt="A1+ Multinational Packaging, Inc" />
       <span className="bl-sep" aria-hidden="true" />
       <img className="bl-spi" src={LOGO_SPI_T} alt="Starkson Packaging, Inc." />
+      {/* `all`: every company in the portal (sign-in page). */}
+      {all && (<>
+        <span className="bl-sep" aria-hidden="true" />
+        <img className="bl-hamfi" src={REPORT_LOGO_HAMFI} alt="Happy Alliance Mono Film, Inc." onError={(e) => { e.currentTarget.style.display = "none"; }} />
+        <span className="bl-sep" aria-hidden="true" />
+        <img className="bl-rg" src={REPORT_LOGO_RG} alt="RG & Co. Property Management Corporation" />
+      </>)}
     </div>
   );
 }

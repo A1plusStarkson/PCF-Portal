@@ -87,15 +87,34 @@ function LoginBrandPanel() {
       <div className="pcp-login-brand-mid">
         <h1 className="pcp-login-hero">Manage petty cash with confidence.</h1>
         <p className="pcp-login-lead">Request, release, liquidate and replenish — with every approval and receipt on record.</p>
+        <ul className="pcp-login-features">
+          <li><CircleCheck size={17} /> Two-level approval — Custodian → Accounting → Grace Gan</li>
+          <li><CircleCheck size={17} /> Every receipt attached and checked on screen</li>
+          <li><CircleCheck size={17} /> Live fund balances for Manila, Warner, Disney and RG and Co.</li>
+        </ul>
+        {/* Same quote as Home today (homeDailyQuote in 24-home.jsx). */}
+        <div className="pcp-login-quote">
+          <div className="pcp-login-quote-kicker">☀️ Today's Cheer-Up</div>
+          <div className="pcp-login-quote-text">“{homeDailyQuote(new Date())}”</div>
+        </div>
         <PesoVisual />
       </div>
     </aside>
   );
 }
 
+/* "Remember me on this computer": the EMAIL only, never the password, in this
+   browser's storage. Wrapped so a blocked storage just means no remembering. */
+const LOGIN_REMEMBER_KEY = "pcp.rememberEmail";
+const readRememberedEmail = () => { try { return localStorage.getItem(LOGIN_REMEMBER_KEY) || ""; } catch (e) { return ""; } };
+const writeRememberedEmail = (v) => {
+  try { if (v) localStorage.setItem(LOGIN_REMEMBER_KEY, v); else localStorage.removeItem(LOGIN_REMEMBER_KEY); } catch (e) { /* storage unavailable */ }
+};
+
 function LoginScreen({ mode, onLocalLogin }) {
   const cloud = mode === "cloud";
-  const [identifier, setIdentifier] = useState("");
+  const [identifier, setIdentifier] = useState(() => readRememberedEmail());
+  const [remember, setRemember] = useState(() => !!readRememberedEmail());
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   /* error: { title, text } for the banner; fieldErr: per-field hints. */
@@ -124,6 +143,7 @@ function LoginScreen({ mode, onLocalLogin }) {
     setFieldErr(f);
     if (f.id || f.pw) return;
     setBusy(true);
+    writeRememberedEmail(remember ? identifier.trim() : "");
     try {
       if (cloud) {
         const res = await window.PCP_AUTH.signIn(identifier.trim(), password);
@@ -191,7 +211,7 @@ function LoginScreen({ mode, onLocalLogin }) {
                     type={cloud ? "email" : "text"}
                     className="pcp-input"
                     autoComplete="username"
-                    autoFocus
+                    autoFocus={!identifier}
                     placeholder={cloud ? "name@a1plus.com" : "e.g. a1plus"}
                     value={identifier}
                     disabled={busy}
@@ -211,6 +231,7 @@ function LoginScreen({ mode, onLocalLogin }) {
                     type={showPw ? "text" : "password"}
                     className="pcp-input"
                     autoComplete="current-password"
+                    autoFocus={!!identifier}
                     placeholder="Enter your password"
                     value={password}
                     disabled={busy}
@@ -225,8 +246,15 @@ function LoginScreen({ mode, onLocalLogin }) {
                   </button>
                 </div>
                 {fieldErr.pw && <div className="pcp-login-field-err" id="pcp-login-pw-err">{fieldErr.pw}</div>}
-                {capsOn && !fieldErr.pw && <div className="pcp-login-caps">Caps Lock is on.</div>}
+                {capsOn && !fieldErr.pw && (
+                  <div className="pcp-login-caps" role="status"><AlertTriangle size={14} /> Caps Lock is ON — passwords are case-sensitive.</div>
+                )}
               </div>
+              <label className="pcp-login-remember">
+                <input type="checkbox" checked={remember} disabled={busy}
+                  onChange={(e) => { setRemember(e.target.checked); if (!e.target.checked) writeRememberedEmail(""); }} />
+                Remember my email on this computer
+              </label>
               <button type="submit" className="pcp-btn pcp-btn-primary pcp-login-submit" disabled={busy}>
                 {busy ? <><span className="pcp-spinner" aria-hidden="true" /> Signing in…</> : "Sign In"}
               </button>
@@ -236,13 +264,15 @@ function LoginScreen({ mode, onLocalLogin }) {
               </div>
             </form>
           </div>
-          <BrandLogos />
-          <div className="pcp-login-copy">© {new Date().getFullYear()} A1+ Multinational Packaging, Inc · Starkson Packaging, Inc.</div>
+          <BrandLogos all />
+          <div className="pcp-login-copy">{LOGIN_COPYRIGHT}</div>
         </main>
       </div>
     </div>
   );
 }
+
+const LOGIN_COPYRIGHT = `© ${new Date().getFullYear()} A1+ Multinational Packaging, Inc · Starkson Packaging, Inc. · Happy Alliance Mono Film, Inc. · RG & Co. Property Management Corporation`;
 
 /* Two-step sign-in for the accounts in window.PCP_MFA_EMAILS, shown after the
    password is accepted. step="enroll" sets up an authenticator app from a QR
@@ -349,7 +379,7 @@ function MfaScreen({ step, factorId, email, onDone, onSignOut }) {
               </div>
             </form>
           </div>
-          <BrandLogos />
+          <BrandLogos all />
         </main>
       </div>
     </div>
