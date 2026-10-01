@@ -186,10 +186,12 @@ function DocDetailsModal({ doc, onClose }) {
   );
 }
 
-function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdmin, onAdd, onReplace, onUpdate, onDelete, onActivity, allDocCount }) {
-  const canUpload = isAdmin || role === "Accounting" || role === "Custodian";
-  const canEdit = isAdmin || role === "Accounting";
-  const canDelete = isAdmin || role === "Accounting";
+function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdmin, readOnly, onAdd, onReplace, onUpdate, onDelete, onActivity, allDocCount }) {
+  /* readOnly: ACCESS PCF DOCUMENTS only (PCF_DOCUMENTS_ACCESS_EMAILS) — view,
+     preview and download; no upload, rename, replace, archive or delete. */
+  const canUpload = !readOnly && (isAdmin || role === "Accounting" || role === "Custodian");
+  const canEdit = !readOnly && (isAdmin || role === "Accounting");
+  const canDelete = !readOnly && (isAdmin || role === "Accounting");
 
   const companyOpts = useMemo(() => Array.from(new Set((funds || []).map((f) => companyOfBranch(f.branchCode)).filter(Boolean))).sort(), [funds]);
   const plantOpts = plantOptions || [];
@@ -301,9 +303,7 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
       setNotice("");
     }
     if (!href) { setNotice("File content unavailable for download."); return; }
-    const a = document.createElement("a");
-    a.href = href; a.download = d.name;
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    await saveFileAs(href, d.name);
     onActivity && onActivity(d.id, "Downloaded");
   }, [onActivity]);
 
@@ -569,7 +569,8 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
                   return (
                     <tr key={d.id} style={{ opacity: d.status === "Archived" ? 0.6 : 1 }}>
                       <td>
-                        <button className="pcp-iconbtn" title={d.starred ? "Unstar" : "Star"} onClick={() => onUpdate(d.id, { starred: !d.starred }, d.starred ? "Unstarred" : "Starred")}>
+                        <button className="pcp-iconbtn" title={readOnly ? (d.starred ? "Starred" : "") : d.starred ? "Unstar" : "Star"} disabled={readOnly}
+                          onClick={() => { if (!readOnly) onUpdate(d.id, { starred: !d.starred }, d.starred ? "Unstarred" : "Starred"); }}>
                           <Star size={15} color={d.starred ? "#b9790a" : "#c3c8d4"} fill={d.starred ? "#b9790a" : "none"} />
                         </button>
                       </td>

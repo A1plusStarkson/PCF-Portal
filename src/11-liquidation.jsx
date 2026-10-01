@@ -97,8 +97,19 @@ const APPROVED_MODULE_EMAILS = ["a1plusadmin@a1plus.com", "superuser@a1plus.com"
    other module, and no role preview. Her plants and final-approval authority
    are unchanged. */
 const RESTRICTED_MODULE_ACCESS = {
-  "a1plusadmin@a1plus.com": ["home", "approvals", "replenishment", "approved"],
+  "a1plusadmin@a1plus.com": ["home", "approvals", "replenishment", "approved", "documents"],
 };
+/* ACCESS PCF DOCUMENTS (owner's instruction, Oct 2026): these accounts may
+   open the PCF Documents module to VIEW and DOWNLOAD files. It grants no
+   upload / rename / replace / archive / delete: an account that gets the
+   module only through this list (not through its role, or held to fixed
+   modules like Grace Gan) sees it read-only. Accounts whose role already
+   manages documents keep exactly what they had. */
+const PCF_DOCUMENTS_ACCESS_EMAILS = [
+  "a1plusadmin@a1plus.com", "superuser@a1plus.com", "accounting@a1plus.com", "finance@a1plus.com",
+  "puradr@a1plus.com", "lita@a1plus.com", "mauwi@a1plus.com",
+  "pcfrequestordisney@a1plus.com", "pcfrequestormanila@a1plus.com", "pcfrequestorrgandco@a1plus.com",
+];
 
 /* Accounting stamps are full ISO timestamps (with zone), shown in local time. */
 function fmtAcctStamp(ts) {
@@ -757,7 +768,7 @@ function AttachmentLinks({ att }) {
   return (
     <>
       <a className="pcp-btn pcp-btn-sm" href={src} target="_blank" rel="noopener noreferrer" title="Open full size / zoom"><Search size={12} /> Zoom</a>
-      <a className="pcp-btn pcp-btn-sm" href={src} download={att.name} title="Download receipt"><Download size={12} /></a>
+      <button type="button" className="pcp-btn pcp-btn-sm" onClick={() => saveFileAs(src, att.name)} title="Download original receipt"><Download size={12} /></button>
     </>
   );
 }

@@ -1477,7 +1477,7 @@ function AttachmentTile({ att, renderFooter, renderActions, large }) {
           </span>
         )}
         {src && <a className="pcp-iconbtn" href={src} target="_blank" rel="noopener noreferrer" title="Open full size"><Search size={13} /></a>}
-        {src && <a className="pcp-iconbtn" href={src} download={name} title="Download"><Download size={13} /></a>}
+        {src && <button type="button" className="pcp-iconbtn" onClick={() => saveFileAs(src, name)} title="Download original file"><Download size={13} /></button>}
         {renderActions && renderActions(att)}
       </div>
       <div className={"pcp-doc-frame" + (large && isImage && zoom !== 100 ? " zoomed" : "")}>

@@ -355,6 +355,31 @@ function useFileUrl(att) {
   return url;
 }
 
+/* Save the ORIGINAL file under its own name. A plain <a download> is ignored
+   by browsers when the link is on another origin (a signed Storage URL), which
+   just opened the file instead, so the bytes are fetched and saved as a blob.
+   Read-only: the stored file is never changed. Falls back to opening it. */
+async function saveFileAs(href, name) {
+  if (!href) return false;
+  const click = (url) => {
+    const a = document.createElement("a");
+    a.href = url; a.download = name || "document";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  };
+  if (/^(data|blob):/i.test(href)) { click(href); return true; }
+  try {
+    const res = await fetch(href);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const url = URL.createObjectURL(await res.blob());
+    click(url);
+    setTimeout(() => URL.revokeObjectURL(url), 30000);
+    return true;
+  } catch (e) {
+    window.open(href, "_blank", "noopener");
+    return false;
+  }
+}
+
 /* True when a file has bytes SOMEWHERE — inline, in the bucket, or in
    pcp_files. Distinct from "have they arrived yet", which is what useFileUrl
    reports. */

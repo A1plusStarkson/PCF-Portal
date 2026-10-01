@@ -283,6 +283,11 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   /* Accounts held to a fixed module list (RESTRICTED_MODULE_ACCESS) whatever
      their role or a role preview would grant. */
   const restrictedModules = RESTRICTED_MODULE_ACCESS[(userEmail || "").trim().toLowerCase()] || null;
+  /* ACCESS PCF DOCUMENTS: view + download (PCF_DOCUMENTS_ACCESS_EMAILS). Read-only
+     when the account has the module only through this grant or is held to
+     fixed modules; otherwise its role's document rights are unchanged. */
+  const canAccessPcfDocuments = emailIn(PCF_DOCUMENTS_ACCESS_EMAILS);
+  const docsReadOnly = !!restrictedModules || !(ROLES[role] || ROLES["Accounting"]).tabs.includes("documents");
   /* Nothing under Grace Gan's final approval may move — it is what gets
      replenished. (Legacy approvals are not locked; they predate the lock.) */
   const isLiquidationFinalLocked = useCallback((disbursementId) => {
@@ -2124,12 +2129,13 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     if (monMods.length) {
       groups.push({ key: "monitoring", label: "Monitoring", items: monMods.map((m) => ({ tabKey: m.key, label: m.label, icon: m.icon })) });
     }
-    const globalMods = GLOBAL_MODULES.filter((m) => roleModuleKeys.includes(m.key));
+    const globalMods = GLOBAL_MODULES.filter((m) => roleModuleKeys.includes(m.key)
+      || (m.key === "documents" && canAccessPcfDocuments && !restrictedModules));
     if (globalMods.length) {
       groups.push({ key: "admin", label: "Administration", items: globalMods.map((m) => ({ tabKey: m.key, label: m.label, icon: m.icon })) });
     }
     return groups;
-  }, [roleModuleKeys, orderedPlants, canUseApprovalModule, canUseApprovedModule, restrictedModules]);
+  }, [roleModuleKeys, orderedPlants, canUseApprovalModule, canUseApprovedModule, restrictedModules, canAccessPcfDocuments]);
 
   /* Flat set of every valid tab key for this user — used to block navigation to
      unauthorized pages, including manual URL/state tampering. */
@@ -2567,11 +2573,11 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
         {activeModule === "audit" && (
           <AuditTrailTab auditLog={auditForUser} canDelete={isSuperAdmin} onDelete={deleteAuditEntries} />
         )}
-        {activeModule === "documents" && (
+        {activeModule === "documents" && allowedTabs.has("documents") && (
           <PcfDocumentsTab
             documents={docsForUser} allDocCount={documents.length}
             funds={plantRestricted ? visibleFunds : funds} plantOptions={plantOptions}
-            userName={userName} role={role} isAdmin={isAdmin}
+            userName={userName} role={role} isAdmin={isAdmin} readOnly={docsReadOnly}
             onAdd={addDocuments} onReplace={replaceDocument} onUpdate={updateDocument}
             onDelete={deleteDocument} onActivity={docActivity}
           />
