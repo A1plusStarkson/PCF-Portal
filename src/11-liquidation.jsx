@@ -773,15 +773,39 @@ function AttachmentLinks({ att }) {
   );
 }
 
+/* Rotate left / right turns the preview in 90° steps so a receipt photographed
+   sideways or upside down can be read. Display only: the stored file is not
+   changed, and the rotation resets when the page is reloaded. Open to every
+   account that can see the worksheet. */
+const PREVIEW_H = 320;
 function AttachmentPreview({ att, isImage, isPdf }) {
   const src = useFileUrl(att);
+  const [rot, setRot] = useState(0);
   const note = (text) => (
     <div style={{ padding: 24, textAlign: "center", fontSize: 11.5, color: "var(--text-mut)" }}>{text}</div>
   );
   if (!src) return note(hasFileBytes(att) ? "Loading receipt…" : "No file stored for this receipt.");
-  if (isImage) return <img src={src} alt={att.name} style={{ display: "block", width: "100%", maxHeight: 320, objectFit: "contain" }} />;
-  if (isPdf) return <iframe title={att.name} src={src} style={{ width: "100%", height: 320, border: "none" }} />;
-  return note("Preview not available for this file type — use Zoom or Download to open it.");
+  if (!isImage && !isPdf) return note("Preview not available for this file type — use Zoom or Download to open it.");
+  const turn = (d) => setRot((r) => (r + d + 360) % 360);
+  /* Sideways (90° / 270°): the element is laid out PREVIEW_H wide and as tall
+     as the frame is wide (100cqw), centred, then turned — so after the turn it
+     fills the frame exactly instead of spilling out of it. */
+  const sideways = rot % 180 !== 0;
+  const docStyle = sideways
+    ? { position: "absolute", left: "50%", top: "50%", width: PREVIEW_H, height: "100cqw", transform: `translate(-50%, -50%) rotate(${rot}deg)` }
+    : { display: "block", width: "100%", height: PREVIEW_H, transform: rot ? `rotate(${rot}deg)` : undefined };
+  return (
+    <div style={{ position: "relative", height: PREVIEW_H, overflow: "hidden", containerType: "inline-size" }}>
+      {isImage
+        ? <img src={src} alt={att.name} style={{ ...docStyle, objectFit: "contain" }} />
+        : <iframe title={att.name} src={src} style={{ ...docStyle, border: "none" }} />}
+      <div style={{ position: "absolute", top: 6, right: 6, display: "flex", gap: 4, zIndex: 1 }}>
+        <button type="button" className="pcp-btn pcp-btn-sm" onClick={() => turn(-90)} title="Rotate left"><RotateCcw size={12} /></button>
+        <button type="button" className="pcp-btn pcp-btn-sm" onClick={() => turn(90)} title="Rotate right"><RotateCw size={12} /></button>
+        {rot !== 0 && <button type="button" className="pcp-btn pcp-btn-sm" onClick={() => setRot(0)} title="Back to original orientation">Reset</button>}
+      </div>
+    </div>
+  );
 }
 
 function normalizeAttachment(a) {
