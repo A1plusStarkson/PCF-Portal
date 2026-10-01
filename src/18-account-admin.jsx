@@ -8,6 +8,19 @@ function ChangePasswordModal({ onClose, onDone }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [ok, setOk] = useState("");
+  const [show1, setShow1] = useState(false);
+  const [show2, setShow2] = useState(false);
+  /* A password field with the login page's show/hide eye. */
+  const pwInput = (value, setValue, shown, setShown, placeholder) => (
+    <div style={{ position: "relative", display: "flex", alignItems: "center" }}>
+      <input type={shown ? "text" : "password"} className="pcp-input" style={{ width: "100%", paddingRight: 44 }}
+        autoComplete="new-password" placeholder={placeholder} value={value} onChange={(e) => setValue(e.target.value)} required />
+      <button type="button" className="pcp-login-eye" onClick={() => setShown((v) => !v)}
+        title={shown ? "Hide password" : "Show password"} aria-label={shown ? "Hide password" : "Show password"} aria-pressed={shown}>
+        {shown ? <EyeOff size={16} /> : <Eye size={16} />}
+      </button>
+    </div>
+  );
 
   const submit = async (e) => {
     e.preventDefault();
@@ -38,11 +51,11 @@ function ChangePasswordModal({ onClose, onDone }) {
           {ok && <div className="pcp-login-ok">{ok}</div>}
           <div className="pcp-field">
             <label>New Password</label>
-            <input type="password" className="pcp-input" autoComplete="new-password" placeholder="At least 8 characters" value={pw} onChange={(e) => setPw(e.target.value)} required />
+            {pwInput(pw, setPw, show1, setShow1, "At least 8 characters")}
           </div>
           <div className="pcp-field">
             <label>Confirm New Password</label>
-            <input type="password" className="pcp-input" autoComplete="new-password" placeholder="Re-type new password" value={pw2} onChange={(e) => setPw2(e.target.value)} required />
+            {pwInput(pw2, setPw2, show2, setShow2, "Re-type new password")}
           </div>
           <div className="pcp-modal-foot" style={{ padding: "8px 0 0" }}>
             <button type="button" className="pcp-btn" onClick={onClose}>Cancel</button>
