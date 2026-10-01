@@ -188,7 +188,12 @@
        the grant, whatever `plants` says — "WARNER" = Warner, "ST" = Disney
        (ST + D1..D9), "RG" = RG and Co. Owner's instruction, Sep 2026: Finance
        and Maureen Felix have no access to Warner, Disney or RG and Co. */
-    "finance@a1plus.com":    { name: "Finance Department",    role: "Finance",    plants: "ALL", excludePlants: ["WARNER", "ST", "RG"] },
+    /* Owner's instruction, Oct 2026: finance@ is used by the Manila custodians
+       Ayessa Milosantos and Mary Queen Ecat, so it is NAMED and LABELLED as the
+       Manila Custodian account. Its role stays "Finance" on purpose — same
+       modules (incl. Funds & Master Data), same Manila-only access, same
+       custodian-level review. roleLabel only changes the label shown. */
+    "finance@a1plus.com":    { name: "Ayessa Milosantos / Mary Queen Ecat", role: "Finance", roleLabel: "Custodian — Manila", plants: "ALL", excludePlants: ["WARNER", "ST", "RG"] },
     "puradr@a1plus.com":     { name: "Pura Barloso",          role: "Custodian",  plants: DISNEY_BRANCHES.concat(["RG"]) },
     "lita@a1plus.com":       { name: "Angelita Bayani",       role: "Custodian",  plants: ["WARNER"] },
     "mauwi@a1plus.com":      { name: "Maureen Felix",         role: "Custodian",  plants: MANILA_BRANCHES, excludePlants: ["WARNER", "ST", "RG"] },

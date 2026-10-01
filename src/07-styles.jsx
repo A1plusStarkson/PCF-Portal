@@ -1013,7 +1013,7 @@ function ThemeToggle() {
   );
 }
 
-function Sidebar({ tab, setTab, role, navGroups, userEmail, userName, financeCheckerNames, financeChecker, onFinanceChecker, onSignOut, onChangePassword, onManageMfa }) {
+function Sidebar({ tab, setTab, role, roleLabel, navGroups, userEmail, userName, financeCheckerNames, financeChecker, onFinanceChecker, onSignOut, onChangePassword, onManageMfa }) {
   const groups = navGroups || [];
   return (
     <aside className="pcp-sidebar">
@@ -1063,7 +1063,7 @@ function Sidebar({ tab, setTab, role, navGroups, userEmail, userName, financeChe
                 </select>
               </label>
             )}
-            {role && <div className="pcp-role-badge" style={{ marginTop: 4 }}><UserCog size={13} /> <span>{ROLES[role] ? ROLES[role].label : role}</span></div>}
+            {role && <div className="pcp-role-badge" style={{ marginTop: 4 }}><UserCog size={13} /> <span>{roleLabel || (ROLES[role] ? ROLES[role].label : role)}</span></div>}
           </div>
         )}
         {userEmail && (

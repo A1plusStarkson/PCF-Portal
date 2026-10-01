@@ -158,7 +158,10 @@ const companyProfile = (company) => COMPANY_PROFILES[company] || null;
    exactly one place. `fundId` is the stable record id — never renumber it, or a
    database that already holds that fund would gain a duplicate. */
 const PLANTS = [
-  { key: "MNL", fundId: "fund-MNL", code: "A1+", label: "Manila", custodian: "Maureen Felix", beginningBalance: 600000 },
+  /* Manila custodians (owner's instruction, Oct 2026): Ayessa Milosantos and
+     Mary Queen Ecat, replacing Maureen Felix as the NAMED custodian. Maureen's
+     account (mauwi@) keeps its custodian-review rights. */
+  { key: "MNL", fundId: "fund-MNL", code: "A1+", label: "Manila", custodian: "Ayessa Milosantos, Mary Queen Ecat", beginningBalance: 600000 },
   { key: "WARNER", fundId: "fund-WAR", code: "WARNER", label: "Warner", custodian: "Angelita Bayani", beginningBalance: 70000 },
   /* Disney's fund is filed against the Starkson company branch (ST), not D1 —
      D1..D9 are sub-locations that draw on it (see PLANT_FAMILIES below). */
@@ -964,6 +967,15 @@ function resolveUserAccess(email) {
   if (admins.includes(e) || admins.includes(username)) return { role: "Accounting", isAdmin: true, plants: "ALL", name: email };
   const fb = (window.PCP_DEFAULT_ROLE && ROLES[window.PCP_DEFAULT_ROLE]) ? window.PCP_DEFAULT_ROLE : "Custodian";
   return { role: fb, isAdmin: false, plants: [], name: email };
+}
+
+/* The role label shown for an account: its own `roleLabel` from
+   window.PCP_USERS when set (display only — the role itself is unchanged),
+   except while previewing another role. */
+function accountRoleLabel(role, email, userRole) {
+  const u = (window.PCP_USERS || {})[String(email || "").trim().toLowerCase()];
+  if (u && u.roleLabel && role === userRole) return u.roleLabel;
+  return ROLES[role] ? ROLES[role].label : role;
 }
 
 /* Build the notification feed derived from current state — approvals awaiting

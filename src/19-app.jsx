@@ -267,7 +267,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   const activeFinanceChecker = financeCheckerNames.includes(financeChecker) ? financeChecker : "";
   const missingFinanceChecker = () => {
     if (!financeCheckerNames.length || activeFinanceChecker) return false;
-    window.alert("Select your name under Finance Checker (left sidebar, below Finance Department) before checking transactions.");
+    window.alert("Select your name under Finance Checker (left sidebar, below your account name) before checking transactions.");
     return true;
   };
   /* APPROVAL MODULE: three accounts (APPROVAL_MODULE_EMAILS), plus the view-only
@@ -2316,7 +2316,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     <AppUI.Provider value={uiValue}>
     <div className="pcp-root">
       <style>{CSS}</style>
-      <Sidebar tab={tab} setTab={setTab} role={role} navGroups={navGroups} userEmail={userEmail} userName={userName} financeCheckerNames={financeCheckerNames} financeChecker={activeFinanceChecker} onFinanceChecker={setFinanceChecker} onSignOut={handleSignOut} onChangePassword={() => setShowChangePw(true)} onManageMfa={hasMfa ? () => setShowMfaDevices(true) : undefined} />
+      <Sidebar tab={tab} setTab={setTab} role={role} roleLabel={accountRoleLabel(role, userEmail, userRole || "Accounting")} navGroups={navGroups} userEmail={userEmail} userName={userName} financeCheckerNames={financeCheckerNames} financeChecker={activeFinanceChecker} onFinanceChecker={setFinanceChecker} onSignOut={handleSignOut} onChangePassword={() => setShowChangePw(true)} onManageMfa={hasMfa ? () => setShowMfaDevices(true) : undefined} />
       <div className="pcp-main">
         {/* Shown to EVERYONE, not just admins: this one says the screen below
             is incomplete, and a custodian looking at a short list needs that
@@ -2355,7 +2355,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             <div className="pcp-content">
               <HomePage
                 userName={userName} userEmail={userEmail}
-                roleLabel={ROLES[role] ? ROLES[role].label : role}
+                roleLabel={accountRoleLabel(role, userEmail, userRole || "Accounting")}
                 plants={orderedPlants}
                 quickLinks={homeQuickLinks} stats={homeStats}
                 notifications={bellNotifications} onNotifClick={onNotifClick}

@@ -46,7 +46,7 @@ const ACCOUNTING_CHECKER_NAMES = {
 };
 const accountingCheckerNamesFor = (email) => ACCOUNTING_CHECKER_NAMES[String(email || "").trim().toLowerCase()] || [];
 /* The people who share the Finance account (owner's instruction, Oct 2026).
-   They pick their name under "Finance Department" in the sidebar before
+   They pick their name under the account name in the sidebar before
    checking; a custodian-level approval by Finance is refused without it and
    stamps it as review.financeChecker, shown to Grace Gan in the Approval
    Module. checkedBy stays the account name — segregation-of-duties checks
@@ -55,11 +55,14 @@ const FINANCE_CHECKER_NAMES = {
   "finance@a1plus.com": ["Mary Queen Ecat", "Ayessa Milosantos"],
 };
 const financeCheckerNamesFor = (email) => FINANCE_CHECKER_NAMES[String(email || "").trim().toLowerCase()] || [];
-/* "Finance Department (Finance Checker: Mary Queen Ecat)", or just checkedBy
-   on an approval made before the Finance Checker existed. */
+/* "Mary Queen Ecat (Finance Checker)" when the account name already carries
+   the checker's name (finance@ is named after both, Oct 2026); "Finance
+   Department (Finance Checker: Mary Queen Ecat)" on approvals stamped under
+   the old account name; just checkedBy before the Finance Checker existed. */
 const custodianCheckerLabel = (rv) => {
   const x = rv || {};
   if (!x.financeChecker) return x.checkedBy || "";
+  if (String(x.checkedBy || "").toLowerCase().includes(x.financeChecker.toLowerCase())) return `${x.financeChecker} (Finance Checker)`;
   return `${x.checkedBy || "Finance"} (Finance Checker: ${x.financeChecker})`;
 };
 /* "Roselyn Bo (accounting@a1plus.com)", or just the email on a check made
