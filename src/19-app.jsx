@@ -171,17 +171,29 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   ];
   const canEditReimbBeforeCustodian = REIMB_REQUESTOR_EDIT_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
-  /* Reimbursements: delete an individual attached document (wrong, duplicate
-     or incomplete upload) so it can be replaced — these accounts only (owner's
-     instruction, Sep 2026). Only the selected document leaves the record; the
-     reimbursement, its status and its other documents are untouched, and the
-     stored file itself is kept. Re-checked in updateReimbursement at save. */
+  /* Reimbursements — Uploaded Files (owner's instruction, Oct 2026): upload,
+     set each document's Document Type and Amount, and delete an individual
+     document (wrong, duplicate or incomplete upload) so it can be replaced —
+     these accounts only; anyone else sees the documents read-only. Only the
+     selected document leaves the record; the reimbursement, its status and its
+     other documents are untouched, and the stored file itself is kept.
+     Re-checked in updateReimbursement at save. */
   const REIMB_DOC_DELETE_EMAILS = [
     "pcfrequestordisney@a1plus.com", "pcfrequestormanila@a1plus.com", "pcfrequestorrgandco@a1plus.com",
-    "a1plusadmin@a1plus.com", "superuser@a1plus.com", "accounting@a1plus.com", "finance@a1plus.com",
+    "superuser@a1plus.com", "accounting@a1plus.com", "finance@a1plus.com",
     "puradr@a1plus.com", "lita@a1plus.com", "mauwi@a1plus.com",
   ];
   const canDeleteReimbDocs = REIMB_DOC_DELETE_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
+  /* Reimbursements: authorize a variance between Total Expense Lines and Total
+     Uploaded Documents, with a written reason (owner's instruction, Oct 2026).
+     Requestors must balance before submitting. The authorization covers only
+     the exact variance it was given for. Re-checked at save. */
+  const REIMB_VARIANCE_AUTH_EMAILS = [
+    "superuser@a1plus.com", "accounting@a1plus.com", "finance@a1plus.com",
+    "puradr@a1plus.com", "lita@a1plus.com", "mauwi@a1plus.com",
+  ];
+  const canAuthorizeReimbVariance = REIMB_VARIANCE_AUTH_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
   /* REVERT to Requestor — Liquidation and Reimbursement (owner's instruction,
      Sep 2026). While a transaction is submitted and not yet final-approved,
@@ -1696,18 +1708,62 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
      Reimbursement Request Number as the reference, then on to Payment. */
   const reimbTs = () => new Date().toISOString().slice(0, 19).replace("T", " ");
   const buildReimbFromForm = useCallback((form) => {
-    const compliance = evaluateReimbursement(form, reimbursements, form.id);
+    /* A variance authorization is taken from the form only from an account on
+       REIMB_VARIANCE_AUTH_EMAILS; anyone else keeps whatever the saved record
+       already carries. */
+    const saved = form.id ? reimbursements.find((x) => x.id === form.id) : null;
+    const savedEx = (saved && saved.varianceException) || null;
+    const varianceException = canAuthorizeReimbVariance ? (form.varianceException || null) : savedEx;
+    const clean = { ...form, varianceException };
+    const compliance = evaluateReimbursement(clean, reimbursements, form.id);
     return {
       employee: form.employee, department: form.department, branchCode: form.branchCode,
       company: companyOfBranch(form.branchCode), purpose: form.purpose,
       requestDate: form.requestDate, remarks: form.remarks || "",
       lines: (form.lines || []).map((l) => ({ ...l, amount: Number(l.amount) || 0, account: l.account || accountForCategory(l.category) })),
-      attachments: form.attachments || [],
+      attachments: (form.attachments || []).map((a) => ({ ...a, receiptAmount: receiptAmountOf(a) || "" })),
       needsPO: !!form.needsPO, needsProof: !!form.needsProof,
       hasPersonal: !!form.hasPersonal, entertainmentNotPreApproved: !!form.entertainmentNotPreApproved, hasFines: !!form.hasFines,
+      varianceException,
       compliance,
     };
-  }, [reimbursements]);
+  }, [reimbursements, canAuthorizeReimbVariance]);
+
+  /* Save-time checks for the Uploaded Files feature, shared by add and update.
+     Returns an alert message when the save must be refused, else "". */
+  const reimbDocsGate = (base, saved, submitting) => {
+    if (!canDeleteReimbDocs) {
+      /* Accounts outside REIMB_DOC_DELETE_EMAILS may not add documents or
+         change a document's type, receipt no. or amount. */
+      const key = (a) => [a.id, a.docType || "", a.receiptNo || "", receiptAmountOf(a)].join("|");
+      const before = ((saved && saved.attachments) || []).map(key).sort().join("\n");
+      const after = (base.attachments || []).map(key).sort().join("\n");
+      if (before !== after) return "Your account cannot change the uploaded files on a reimbursement. Nothing was changed.";
+    }
+    if (submitting) {
+      const b = reimbBalance(base);
+      if (!b.ok) {
+        return `NOT BALANCED — Total Expense Lines ${peso(b.lines)} vs Total Uploaded Documents ${peso(b.docs)}.\n`
+          + `Difference: ${peso(Math.abs(b.diff))}\n\n`
+          + "Correct the document amounts or expense lines so they match before submitting. Nothing was changed.";
+      }
+      const missing = (base.attachments || []).filter((a) => reimbDocNeedsAmount(a) && !(receiptAmountOf(a) > 0));
+      if (missing.length) {
+        return "Enter the amount for every uploaded document before submitting:\n"
+          + missing.map((a) => `• ${a.name || "document"} (${a.docType || DEFAULT_DOC_TYPE})`).join("\n");
+      }
+    }
+    return "";
+  };
+  /* History / audit note when a variance authorization is given or withdrawn. */
+  const varianceNote = (base, saved) => {
+    const now = base.varianceException, was = (saved && saved.varianceException) || null;
+    if (now && (!was || was.at !== now.at || was.by !== now.by)) {
+      return `Variance of ${peso(Math.abs(now.variance))} authorized by ${now.by}: ${now.reason}`;
+    }
+    if (!now && was) return "Variance authorization withdrawn";
+    return "";
+  };
 
   const addReimbursement = useCallback(async (form, submit) => {
     /* Backend enforcement (Section 7): a SUBMITTED reimbursement must carry one
@@ -1719,6 +1775,10 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
         : "Purpose is required. Please select an approved expense category.");
       return;
     }
+    /* Uploaded Files permissions, document amounts and balancing — before a
+       number is issued, so a refused save never consumes one. */
+    const gate = reimbDocsGate(buildReimbFromForm(form), null, submit);
+    if (gate) { window.alert(gate); return; }
     /* One series per plant (RMB-M-2026-0001), issued by the database on save
        (issueSeriesNo). It used to be a portal-wide COUNT, which re-issued an
        existing number after every delete. A draft is numbered when first
@@ -1734,15 +1794,15 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     const ts = reimbTs();
     const base = buildReimbFromForm(form);
     const status = submit ? REIMB_STATUS.SUBMITTED : REIMB_STATUS.DRAFT;
-    const history = [{ ts, user: userName || role, action: submit ? "Submitted" : "Created (Draft)", prevStatus: "", newStatus: status, comments: "" }];
+    const history = [{ ts, user: userName || role, action: submit ? "Submitted" : "Created (Draft)", prevStatus: "", newStatus: status, comments: varianceNote(base, null) }];
     setReimbursements((rs) => [...rs, {
       id, reimbNo, ...base, status,
       createdBy: userName || role, createdAt: ts,
       submittedBy: submit ? (userName || role) : "", submittedAt: submit ? ts : "",
       acumaticaStatus: "Not Yet Exported", payment: null, history,
     }]);
-    logAudit(submit ? "Reimbursement Submitted" : "Reimbursement Drafted", reimbNo, `${form.employee} · ${peso(reimbTotal(base))}`);
-  }, [buildReimbFromForm, logAudit, reimbursements, userName, role]); // eslint-disable-line
+    logAudit(submit ? "Reimbursement Submitted" : "Reimbursement Drafted", reimbNo, `${form.employee} · ${peso(reimbTotal(base))}` + (varianceNote(base, null) ? ` · ${varianceNote(base, null)}` : ""));
+  }, [buildReimbFromForm, logAudit, reimbursements, userName, role, canDeleteReimbDocs]); // eslint-disable-line
 
   /* A reimbursement edited onto another plant's branch moves to that plant's
      series under a freshly issued number; the old one is retired. */
@@ -1770,9 +1830,12 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
       window.alert("Your account cannot delete attached documents. Nothing was changed.");
       return;
     }
-    const docNote = removedDocs.length
+    const gate = reimbDocsGate(base, saved, mode === "submit" || mode === "pre-approval");
+    if (gate) { window.alert(gate); return; }
+    const vNote = varianceNote(base, saved);
+    const docNote = [removedDocs.length
       ? "Document(s) deleted: " + removedDocs.map((a) => `${a.name || "document"} (${a.docType || "—"})`).join(", ")
-      : "";
+      : "", vNote].filter(Boolean).join(" · ");
     const withDocNote = (s) => (docNote ? `${s} · ${docNote}` : s);
     /* Checking / verification override (REIMB_EDIT_OVERRIDE_EMAILS): edit in
        place at any stage — status, approvals and submission stamps are kept;
@@ -2454,6 +2517,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             onReimbursementAction={reimbursementAction}
             canEditReimb={canEditReimbOverride}
             canDeleteReimbDocs={canDeleteReimbDocs}
+            canAuthorizeReimbVariance={canAuthorizeReimbVariance}
             canRevert={canRevert}
             onRevertLiquidation={revertLiquidation}
             onUpdateReimbursement={updateReimbursement}
@@ -2495,6 +2559,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             canEditOverride={canEditReimbOverride}
             canEditBeforeCustodian={canEditReimbBeforeCustodian}
             canDeleteDocs={canDeleteReimbDocs}
+            canAuthorizeVariance={canAuthorizeReimbVariance}
             canRevert={canRevert}
             onSaveDraft={(form) => addReimbursement(form, false)}
             onSubmit={(form) => addReimbursement(form, true)}
@@ -2542,6 +2607,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             onReimbursementAction={reimbursementAction}
             canEditReimb={canEditReimbOverride}
             canDeleteReimbDocs={canDeleteReimbDocs}
+            canAuthorizeReimbVariance={canAuthorizeReimbVariance}
             canRevert={canRevert}
             onRevertLiquidation={revertLiquidation}
             onUpdateReimbursement={updateReimbursement}

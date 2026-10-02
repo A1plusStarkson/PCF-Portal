@@ -170,7 +170,31 @@ const REIMB_LIQUIDATION_STATUSES = [
 /* ---- Categories treated as reimbursement expense buckets on the form.
    These reuse the company chart-of-accounts expense categories so each line
    still maps to a GL account for Acumatica. ---- */
-const REIMB_DOC_TYPES = ["Official Receipt", "Sales Invoice", "Approved Purchase Order", "Proof of Business Purpose", "Other"];
+/* Document types: the same list as Liquidation (RECEIPT_DOC_TYPES), plus the
+   two the reimbursement policy checks for. "Other" is the old catch-all —
+   still shown on documents that carry it, no longer offered for new ones. */
+const REIMB_DOC_TYPES = [...RECEIPT_DOC_TYPES, "Approved Purchase Order", "Proof of Business Purpose"];
+/* Types that support the claim without a peso amount of their own: amount
+   optional, still counted in the document total if one is entered. */
+const REIMB_NON_AMOUNT_DOC_TYPES = [...NON_AMOUNT_DOC_TYPES, "Approved Purchase Order", "Proof of Business Purpose", "Other"];
+const reimbDocNeedsAmount = (a) => !REIMB_NON_AMOUNT_DOC_TYPES.includes((a && a.docType) || DEFAULT_DOC_TYPE);
+
+/* ---- Amount balancing: expense lines vs uploaded documents ----
+   Every document carries the amount it represents (receiptAmount, as in
+   Liquidation). The documents must add up to the expense lines before the
+   reimbursement can be submitted, unless a checker has authorized the
+   variance (REIMB_VARIANCE_AUTH_EMAILS in 19-app.jsx). An authorization holds
+   only for the exact variance it was given for — change an amount and it
+   lapses, and the totals must balance or be authorized again. */
+const reimbDocsTotal = (r) => round2(((r && r.attachments) || []).reduce((s, a) => s + receiptAmountOf(a), 0));
+function reimbBalance(r) {
+  const lines = round2(reimbTotal(r || {}));
+  const docs = reimbDocsTotal(r);
+  const diff = round2(lines - docs);
+  const ex = (r && r.varianceException) || null;
+  const exceptionValid = !!ex && diff !== 0 && round2(ex.variance) === diff;
+  return { lines, docs, diff, balanced: diff === 0, exception: ex, exceptionValid, ok: diff === 0 || exceptionValid };
+}
 
 /* ============================= POLICY HELPERS ============================= */
 
@@ -302,6 +326,22 @@ function evaluateReimbursement(form, allReimbursements, selfId) {
     add("warn", "doc-proof", "Proof of business purpose is marked as needed but not attached.");
   }
 
+  // Amount per document, and documents vs expense lines
+  atts.forEach((a) => {
+    if (reimbDocNeedsAmount(a) && !(receiptAmountOf(a) > 0)) {
+      add("fail", "doc-amount", `"${a.name || "document"}" (${a.docType || DEFAULT_DOC_TYPE}): enter the amount this document represents.`);
+    }
+  });
+  const bal = reimbBalance(form);
+  if (!bal.balanced) {
+    const msg = `NOT BALANCED — Total Expense Lines ${peso(bal.lines)} vs Total Uploaded Documents ${peso(bal.docs)} · Difference ${peso(Math.abs(bal.diff))}.`;
+    if (bal.exceptionValid) {
+      add("warn", "doc-balance-ex", `${msg} Variance authorized by ${bal.exception.by} (${bal.exception.at}): "${bal.exception.reason}".`);
+    } else {
+      add("fail", "doc-balance", `${msg} Correct the document amounts or expense lines before submitting.`);
+    }
+  }
+
   // Non-reimbursable acknowledgements (Section 9)
   if (form.hasPersonal) add("fail", "nr-personal", "Personal expenses are not reimbursable (Section 9).");
   if (form.entertainmentNotPreApproved) add("fail", "nr-ent", "Entertainment expenses not pre-approved are not reimbursable (Section 9).");
@@ -319,6 +359,86 @@ function evaluateReimbursement(form, allReimbursements, selfId) {
 }
 
 /* ============================= UI: COMPLIANCE PANEL ============================= */
+
+/* Total Expense Lines vs Total Uploaded Documents, with the difference and
+   ✓ BALANCED / ⚠ NOT BALANCED. When onAuthorize is given (a checker editing
+   the form) and the totals differ, the variance can be authorized with a
+   written reason; onClearException withdraws it. */
+/* Read-only footer for a reimbursement document tile: type, receipt no. and
+   the amount it represents. */
+const reimbDocFooter = (a) => (
+  <div style={{ padding: "7px 9px", borderTop: "1px solid var(--line)", fontSize: 11.5, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+    <span style={{ color: "var(--text-mut)" }}>{a.docType || DEFAULT_DOC_TYPE}{a.receiptNo ? ` · ${a.receiptNo}` : ""}</span>
+    <span className="pcp-num" style={{ marginLeft: "auto", fontWeight: 700 }}>
+      {receiptAmountOf(a) > 0 ? peso(receiptAmountOf(a)) : reimbDocNeedsAmount(a) ? "amount missing" : "no amount"}
+    </span>
+  </div>
+);
+
+function ReimbBalancePanel({ r, onAuthorize, onClearException }) {
+  const b = reimbBalance(r);
+  const [reason, setReason] = useState("");
+  const tone = b.balanced ? "var(--green)" : b.exceptionValid ? "var(--amber)" : "var(--danger)";
+  const row = (label, value, bold) => (
+    <tr>
+      <td style={{ padding: "4px 10px 4px 0", fontSize: 12, fontWeight: bold ? 700 : 500 }}>{label}</td>
+      <td className="pcp-num" style={{ padding: "4px 0", fontSize: 12.5, fontWeight: bold ? 700 : 600, textAlign: "right" }}>{value}</td>
+    </tr>
+  );
+  return (
+    <div className="pcp-card" style={{ padding: 12, borderColor: tone }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start", justifyContent: "space-between" }}>
+        <table style={{ borderCollapse: "collapse", minWidth: 280 }}>
+          <tbody>
+            {row("Total Expense Lines", peso(b.lines))}
+            {row("Total Uploaded Documents", peso(b.docs))}
+            {row("Difference", peso(Math.abs(b.diff)), true)}
+          </tbody>
+        </table>
+        <div style={{ textAlign: "right" }}>
+          <div style={{ fontSize: 15, fontWeight: 800, color: tone }}>
+            {b.balanced ? "✓ BALANCED" : "⚠ NOT BALANCED"}
+          </div>
+          {!b.balanced && (
+            <div style={{ fontSize: 11.5, color: "var(--text-mut)", marginTop: 2 }}>
+              Difference: {peso(Math.abs(b.diff))} — documents are {b.diff > 0 ? "short of" : "over"} the expense lines
+            </div>
+          )}
+        </div>
+      </div>
+      {!b.balanced && b.exceptionValid && (
+        <div style={{ marginTop: 8, fontSize: 11.5, background: "var(--amber-bg)", color: "var(--amber)", padding: "7px 10px", borderRadius: 8, display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
+          <span>Variance of {peso(Math.abs(b.diff))} authorized by <b>{b.exception.by}</b> on {b.exception.at}: "{b.exception.reason}"</span>
+          {onClearException && <button type="button" className="pcp-btn pcp-btn-sm" onClick={onClearException}>Withdraw</button>}
+        </div>
+      )}
+      {!b.balanced && !b.exceptionValid && (
+        <div style={{ marginTop: 8, fontSize: 11.5, color: "var(--danger)" }}>
+          {b.exception
+            ? "An earlier variance authorization no longer applies — the amounts have changed since. "
+            : ""}
+          Correct the document amounts or the expense lines so they match before submitting.
+        </div>
+      )}
+      {!b.balanced && !b.exceptionValid && onAuthorize && (
+        <div style={{ marginTop: 8, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+          <input
+            className="pcp-input" style={{ flex: 1, minWidth: 220 }} value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Reason for allowing this variance (required)"
+          />
+          <button
+            type="button" className="pcp-btn pcp-btn-sm" disabled={!reason.trim()}
+            onClick={() => { onAuthorize(reason.trim(), b.diff); setReason(""); }}
+            title="Authorized exception: lets this reimbursement go through with the variance shown"
+          >
+            <ShieldCheck size={12} /> Authorize variance
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 function CompliancePill({ level }) {
   const tone = level === "PASS" ? "green" : level === "WARNING" ? "amber" : "red";
@@ -419,7 +539,7 @@ function PurposeSelect({ value, onChange }) {
   );
 }
 
-function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride, reimb, plantOptions, allReimbursements, currentUser, canDeleteDocs }) {
+function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride, reimb, plantOptions, allReimbursements, currentUser, canDeleteDocs, canAuthorizeVariance }) {
   const isEdit = !!reimb;
   const defaultBranch = (plantOptions && plantOptions[0]) ? plantOptions[0].code : BRANCHES[0].code;
   const [step, setStep] = useState(1);
@@ -434,6 +554,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
           needsPO: !!reimb.needsPO, needsProof: !!reimb.needsProof,
           hasPersonal: !!reimb.hasPersonal, entertainmentNotPreApproved: !!reimb.entertainmentNotPreApproved,
           hasFines: !!reimb.hasFines, certify: false,
+          varianceException: reimb.varianceException || null,
         }
       : {
           employee: currentUser || "", department: SUBACCOUNTS[1].code, branchCode: defaultBranch,
@@ -441,6 +562,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
           lines: [emptyReimbLine()], attachments: [],
           needsPO: false, needsProof: false, hasPersonal: false,
           entertainmentNotPreApproved: false, hasFines: false, certify: false,
+          varianceException: null,
         }
   );
   const [uploadNote, setUploadNote] = useState("");
@@ -480,26 +602,33 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
         setUploadNote(sizeNote);
         const doc = {
           id: attId, name: file.name, type: file.type || "file", size: file.size,
-          path, uploadedAt: todayISO(), docType: docType || "Official Receipt", receiptNo: "",
+          path, uploadedAt: todayISO(), docType: docType || DEFAULT_DOC_TYPE, receiptNo: "", receiptAmount: "",
         };
         setForm((f) => ({ ...f, attachments: [...f.attachments, doc] }));
       });
     });
   };
-  /* Deleting any attached document — saved or just uploaded — is limited to
-     REIMB_DOC_DELETE_EMAILS (canDeleteDocs; re-checked at save). Only the
-     selected document is removed — the other documents and the
-     reimbursement itself are untouched, and nothing changes until saved. */
+  /* Uploaded Files — upload, Document Type, Amount and Delete — are limited to
+     REIMB_DOC_DELETE_EMAILS (canDeleteDocs; re-checked at save). Any other
+     account sees the documents read-only. Deleting removes only the selected
+     document — the other documents and the reimbursement itself are
+     untouched, and nothing changes until saved. */
+  const canManageDocs = !!canDeleteDocs;
   const savedAttIds = useMemo(() => new Set(((reimb && reimb.attachments) || []).map((a) => a.id)), [reimb]);
-  const canRemoveAtt = () => !!canDeleteDocs;
   const removeAtt = (a) => {
-    if (!canRemoveAtt()) return;
+    if (!canManageDocs) return;
     if (!window.confirm(`Delete "${a.name || "document"}" (${a.docType || "document"})?\n\n`
       + "Only this document is removed. The reimbursement and its other documents are not affected."
       + (savedAttIds.has(a.id) ? "\n\nThe deletion takes effect when you save." : ""))) return;
     setForm((f) => ({ ...f, attachments: f.attachments.filter((x) => x.id !== a.id) }));
   };
-  const setAttType = (id, docType) => setForm((f) => ({ ...f, attachments: f.attachments.map((a) => (a.id === id ? { ...a, docType } : a)) }));
+  const setAttField = (id, patch) => setForm((f) => ({ ...f, attachments: f.attachments.map((a) => (a.id === id ? { ...a, ...patch } : a)) }));
+  /* Authorized variance (REIMB_VARIANCE_AUTH_EMAILS): stamped with who, when,
+     why and the exact variance it covers. Re-checked at save. */
+  const authorizeVariance = canAuthorizeVariance
+    ? (reason, variance) => set("varianceException", { by: currentUser || "", at: new Date().toISOString().slice(0, 16).replace("T", " "), reason, variance })
+    : null;
+  const clearVariance = canAuthorizeVariance && form.varianceException ? () => set("varianceException", null) : null;
 
   // Ensure each line carries its mapped account for validation/export.
   const normalizedForm = useMemo(() => ({
@@ -695,43 +824,111 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                   <input type="checkbox" checked={form.needsProof} onChange={(e) => set("needsProof", e.target.checked)} /> Proof of business purpose is needed
                 </label>
               </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {REIMB_DOC_TYPES.map((dt) => (
-                  <label key={dt} className="pcp-btn pcp-btn-sm" style={{ cursor: "pointer" }}>
-                    <Upload size={13} /> {dt}
-                    <input type="file" hidden multiple onChange={(e) => { onPickFiles(e.target.files, dt); e.target.value = ""; }} />
+              {/* Uploaded Files — the same layout as the Liquidation worksheet:
+                  one Upload button, then each document on its own card with
+                  its Document Type, Receipt / Invoice No., Amount, Zoom /
+                  Download / Delete and an inline preview. */}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>Uploaded Files ({form.attachments.length})</div>
+                {canManageDocs ? (
+                  <label className="pcp-btn pcp-btn-sm" style={{ cursor: "pointer", margin: 0 }} title="Attach supporting documents (images or PDF)">
+                    <Upload size={13} /> Upload
+                    <input type="file" hidden multiple accept="image/*,application/pdf" onChange={(e) => { onPickFiles(e.target.files); e.target.value = ""; }} />
                   </label>
-                ))}
+                ) : (
+                  <span style={{ fontSize: 11.5, color: "var(--text-mut)" }}>Read-only — your account cannot change the uploaded files.</span>
+                )}
               </div>
-              {uploadNote && <div style={{ fontSize: 12, color: "var(--danger)" }}>{uploadNote}</div>}
-              {/* Every attachment is shown as a live preview, so the employee
-                  sees exactly what the checker and approver will see. */}
-              <AttachmentGallery
-                attachments={form.attachments}
-                emptyLabel="No documents attached. An Original OR / Sales Invoice is required."
-                large
-                renderActions={(a) => canRemoveAtt(a) && (
-                  <button type="button" className="pcp-iconbtn" onClick={() => removeAtt(a)} title="Delete this document">
-                    <Trash2 size={13} color="var(--danger)" />
-                  </button>
-                )}
-                renderFooter={(a) => (
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "7px 9px", borderTop: "1px solid var(--line)" }}>
-                    <select
-                      className="pcp-select" style={{ flex: 1 }}
-                      value={a.docType} onChange={(e) => setAttType(a.id, e.target.value)}
-                    >
-                      {REIMB_DOC_TYPES.map((dt) => <option key={dt}>{dt}</option>)}
-                    </select>
-                    <span style={{ fontSize: 10.5, color: "var(--text-mut)", whiteSpace: "nowrap" }}>{(a.size / 1024).toFixed(0)} KB</span>
-                    {canRemoveAtt(a) && (
-                      <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => removeAtt(a)} title="Delete this document">
-                        <Trash2 size={13} color="var(--danger)" /> Delete
-                      </button>
-                    )}
-                  </div>
-                )}
-              />
+              {uploadNote && (
+                <div style={{ background: "var(--amber-bg)", color: "var(--amber)", fontSize: 11.5, padding: "8px 11px", borderRadius: 8 }}>{uploadNote}</div>
+              )}
+              <ReimbBalancePanel r={form} onAuthorize={authorizeVariance} onClearException={clearVariance} />
+              {form.attachments.length ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                  {form.attachments.map((a) => {
+                    const needsAmount = reimbDocNeedsAmount(a);
+                    const amountMissing = needsAmount && !(receiptAmountOf(a) > 0);
+                    const isImage = (a.type || "").startsWith("image");
+                    const isPdf = (a.type || "").includes("pdf");
+                    const typeOptions = REIMB_DOC_TYPES.includes(a.docType) || !a.docType ? REIMB_DOC_TYPES : [...REIMB_DOC_TYPES, a.docType];
+                    return (
+                      <div key={a.id} style={{ border: "1px solid var(--line)", borderRadius: 8, padding: "8px 11px" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                          <FileText size={15} color="#2054a3" style={{ flexShrink: 0 }} />
+                          <div style={{ minWidth: 0, flex: 1 }}>
+                            <div style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</div>
+                            <div style={{ fontSize: 10.5, color: "var(--text-mut)" }}>
+                              {((a.size || 0) / 1024).toFixed(0)} KB · {(a.type || "file")}{a.uploadedAt ? ` · uploaded ${fmtDate(a.uploadedAt)}` : ""}
+                            </div>
+                          </div>
+                          <AttachmentLinks att={a} />
+                          {canManageDocs && (
+                            <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => removeAtt(a)} title="Delete this document — upload the correct one after">
+                              <Trash2 size={13} color="var(--danger)" /> Delete
+                            </button>
+                          )}
+                        </div>
+                        <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "flex-end", marginTop: 8 }}>
+                          <div style={{ minWidth: 200 }}>
+                            <div className="pcp-kpi-label">Document Type</div>
+                            <select
+                              className="pcp-select" value={a.docType || DEFAULT_DOC_TYPE} disabled={!canManageDocs}
+                              onChange={(e) => setAttField(a.id, { docType: e.target.value })}
+                            >
+                              {typeOptions.map((t) => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                          </div>
+                          <div style={{ minWidth: 145 }}>
+                            <div className="pcp-kpi-label">
+                              Receipt / Invoice No. <span style={{ color: "var(--text-mut)", fontWeight: 500 }}>(optional)</span>
+                            </div>
+                            <input
+                              className="pcp-input" placeholder={needsAmount ? "e.g. OR-1234" : "—"} value={a.receiptNo || ""} readOnly={!canManageDocs}
+                              onChange={(e) => setAttField(a.id, { receiptNo: e.target.value })}
+                            />
+                          </div>
+                          <div style={{ minWidth: 150 }}>
+                            <div className="pcp-kpi-label">
+                              Amount (&#8369;) {needsAmount
+                                ? <span style={{ color: "var(--danger)" }}>*</span>
+                                : <span style={{ color: "var(--text-mut)", fontWeight: 500 }}>(optional)</span>}
+                            </div>
+                            <input
+                              type="number" min="0" step="0.01" className="pcp-input"
+                              placeholder={needsAmount ? "0.00" : "—"}
+                              value={a.receiptAmount == null ? "" : a.receiptAmount}
+                              readOnly={!canManageDocs}
+                              onChange={(e) => setAttField(a.id, { receiptAmount: e.target.value })}
+                              style={amountMissing ? { borderColor: "var(--danger)" } : undefined}
+                            />
+                          </div>
+                          <div style={{ flex: 1, minWidth: 130, textAlign: "right" }}>
+                            <div className="pcp-kpi-label">Counted in Total</div>
+                            <div className="pcp-num" style={{ fontWeight: 700 }}>{receiptAmountOf(a) > 0 ? peso(receiptAmountOf(a)) : "—"}</div>
+                          </div>
+                        </div>
+                        {amountMissing && (
+                          <div style={{ fontSize: 10.5, color: "var(--danger)", marginTop: 5 }}>
+                            Enter the amount this document represents — required before this reimbursement can be submitted.
+                          </div>
+                        )}
+                        {!needsAmount && !(receiptAmountOf(a) > 0) && (
+                          <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 5 }}>
+                            No amount needed for this document type. Enter one only if it shows a peso amount that forms part of the claim.
+                          </div>
+                        )}
+                        <div style={{ marginTop: 8, border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden", background: "var(--dm-subtle, #f4f6f9)" }}>
+                          <AttachmentPreview att={a} isImage={isImage} isPdf={isPdf} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{ fontSize: 12, color: "var(--text-mut)", padding: "10px 0" }}>
+                  No documents attached yet. Click <strong>Upload</strong> to attach receipts or invoices (images or PDF, up to {MAX_UPLOAD_MB} MB each). An Original OR / Sales Invoice is required.
+                </div>
+              )}
             </div>
           )}
 
@@ -764,8 +961,9 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
               </div>
               <div className="pcp-card" style={{ padding: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Attachments ({form.attachments.length})</div>
-                <AttachmentGallery attachments={form.attachments} emptyLabel="None" large />
+                <AttachmentGallery attachments={form.attachments} emptyLabel="None" large renderFooter={reimbDocFooter} />
               </div>
+              <ReimbBalancePanel r={form} onAuthorize={authorizeVariance} onClearException={clearVariance} />
               <div className="pcp-card" style={{ padding: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Applicable Approval Schedule</div>
                 <div style={{ fontSize: 12, color: "var(--text-mut)" }}>
@@ -784,6 +982,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
           {step === 5 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <CompliancePill level={compliance.level} />
+              <ReimbBalancePanel r={form} onAuthorize={authorizeVariance} onClearException={clearVariance} />
               <div style={{ fontSize: 12, fontWeight: 600, marginTop: 4 }}>Section 9 — Non-reimbursable acknowledgements</div>
               <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12 }}>
                 <input type="checkbox" checked={form.hasPersonal} onChange={(e) => set("hasPersonal", e.target.checked)} /> This request includes personal expenses
@@ -852,7 +1051,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
    Reimbursement list: Draft / Returned saves or resubmits as usual; any other
    stage saves in place with status and approvals kept (mode "override", which
    updateReimbursement re-checks against the list and the plant scope). */
-function ReimbursementEditModal({ reimb, plantOptions, allReimbursements, currentUser, canDeleteDocs, onUpdate, onClose }) {
+function ReimbursementEditModal({ reimb, plantOptions, allReimbursements, currentUser, canDeleteDocs, canAuthorizeVariance, onUpdate, onClose }) {
   const draftLike = reimbIsDraftLike(reimb);
   const done = (mode) => (form) => { onUpdate(reimb.id, form, mode); onClose(); };
   return (
@@ -862,6 +1061,7 @@ function ReimbursementEditModal({ reimb, plantOptions, allReimbursements, curren
       allReimbursements={allReimbursements}
       currentUser={currentUser}
       canDeleteDocs={!!canDeleteDocs}
+      canAuthorizeVariance={!!canAuthorizeVariance}
       onClose={onClose}
       onSaveDraft={done("draft")}
       onSubmit={done("submit")}
@@ -1002,7 +1202,8 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
             </div>
             {/* Rendered inline so the checker and the approver can read every
                 receipt on this one screen — no per-file "View" click. */}
-            <AttachmentGallery attachments={reimb.attachments} emptyLabel="None" large />
+            <AttachmentGallery attachments={reimb.attachments} emptyLabel="None" large renderFooter={reimbDocFooter} />
+            <div style={{ marginTop: 10 }}><ReimbBalancePanel r={reimb} /></div>
           </div>
 
           {reimb.payment && reimb.payment.date && (
@@ -1190,7 +1391,7 @@ const REIMB_SORT_FIELDS = {
 function ReimbursementTab({
   reimbursements, allReimbursements, onSaveDraft, onSubmit, onUpdate, onAction, onRecordPayment,
   onExportAcumatica, onExportReport, onDelete, plantOptions, plantTitle, currentUser,
-  isChecker, isFinalApprover, canFinance, canDelete, canEditOverride, canEditBeforeCustodian, canDeleteDocs, canRevert, accounting,
+  isChecker, isFinalApprover, canFinance, canDelete, canEditOverride, canEditBeforeCustodian, canDeleteDocs, canAuthorizeVariance, canRevert, accounting,
 }) {
   /* Draft / Returned are editable by anyone in scope; any other stage only
      through the checking / verification override (Save Changes keeps the status).
@@ -1401,6 +1602,7 @@ function ReimbursementTab({
           allReimbursements={allReimbursements || reimbursements}
           currentUser={currentUser}
           canDeleteDocs={!!canDeleteDocs}
+          canAuthorizeVariance={!!canAuthorizeVariance}
           onClose={() => { setShowForm(false); setEditing(null); }}
           onSaveDraft={(form) => { editing ? onUpdate(editing.id, form, "draft") : onSaveDraft(form); setShowForm(false); setEditing(null); }}
           onSubmit={(form) => { editing ? onUpdate(editing.id, form, "submit") : onSubmit(form); setShowForm(false); setEditing(null); }}

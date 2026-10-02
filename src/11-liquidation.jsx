@@ -794,17 +794,22 @@ function AttachmentPreview({ att, isImage, isPdf }) {
   const docStyle = sideways
     ? { position: "absolute", left: "50%", top: "50%", width: PREVIEW_H, height: "100cqw", transform: `translate(-50%, -50%) rotate(${rot}deg)` }
     : { display: "block", width: "100%", height: PREVIEW_H, transform: rot ? `rotate(${rot}deg)` : undefined };
+  /* The rotate controls sit in their own bar above the preview, not over it —
+     floating on top they covered the PDF viewer's own toolbar. */
   return (
-    <div style={{ position: "relative", height: PREVIEW_H, overflow: "hidden", containerType: "inline-size" }}>
-      {isImage
-        ? <img src={src} alt={att.name} style={{ ...docStyle, objectFit: "contain" }} />
-        : <iframe title={att.name} src={src} style={{ ...docStyle, border: "none" }} />}
-      <div style={{ position: "absolute", top: 6, right: 6, display: "flex", gap: 4, zIndex: 1 }}>
+    <>
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 4, padding: "4px 6px", borderBottom: "1px solid var(--line)", background: "var(--dm-surface, #fff)" }}>
+        {rot !== 0 && <span style={{ fontSize: 10.5, color: "var(--text-mut)", marginRight: 4 }}>Rotated {rot}°</span>}
         <button type="button" className="pcp-btn pcp-btn-sm" onClick={() => turn(-90)} title="Rotate left"><RotateCcw size={12} /></button>
         <button type="button" className="pcp-btn pcp-btn-sm" onClick={() => turn(90)} title="Rotate right"><RotateCw size={12} /></button>
         {rot !== 0 && <button type="button" className="pcp-btn pcp-btn-sm" onClick={() => setRot(0)} title="Back to original orientation">Reset</button>}
       </div>
-    </div>
+      <div style={{ position: "relative", height: PREVIEW_H, overflow: "hidden", containerType: "inline-size" }}>
+        {isImage
+          ? <img src={src} alt={att.name} style={{ ...docStyle, objectFit: "contain" }} />
+          : <iframe title={att.name} src={src} style={{ ...docStyle, border: "none" }} />}
+      </div>
+    </>
   );
 }
 
@@ -2174,7 +2179,8 @@ function ReimbursementLiquidationPanel({ reimb, canFinance, onAction }) {
         subtitle={`${(reimb.attachments || []).length} file(s) carried forward`}
         defaultOpen
       >
-        <AttachmentGallery attachments={reimb.attachments} emptyLabel="None" large />
+        <AttachmentGallery attachments={reimb.attachments} emptyLabel="None" large renderFooter={reimbDocFooter} />
+        <div style={{ marginTop: 10 }}><ReimbBalancePanel r={reimb} /></div>
       </Collapsible>
 
       <Collapsible title="Approval History & Audit Trail" subtitle={`${(reimb.history || []).length} event(s)`}>
@@ -2208,7 +2214,7 @@ function LiquidationTab({
   canRejectLiquidation, onRejectLiquidation,
   onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser,
   reimbursements, onReimbursementAction, canFinance, accounting,
-  canEditReimb, canDeleteReimbDocs, onUpdateReimbursement, allReimbursements,
+  canEditReimb, canDeleteReimbDocs, canAuthorizeReimbVariance, onUpdateReimbursement, allReimbursements,
   canRevert, onRevertLiquidation,
   openRequest, onOpenHandled,
 }) {
@@ -2610,6 +2616,7 @@ function LiquidationTab({
           allReimbursements={allReimbursements || reimbursements || []}
           currentUser={currentUser}
           canDeleteDocs={!!canDeleteReimbDocs}
+          canAuthorizeVariance={!!canAuthorizeReimbVariance}
           onUpdate={onUpdateReimbursement}
           onClose={() => setEditingReimb(null)}
         />

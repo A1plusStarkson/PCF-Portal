@@ -388,6 +388,20 @@ Company policy (AF P16) is built into the form:
 | **Max 3 MB** per supporting document (every upload in the portal) | Scan or photograph at a smaller size if needed. |
 | **No duplicates** | An exact duplicate claim is blocked. |
 | **Not reimbursable** | Personal expenses · expenses without an official receipt · expenses without proper approval · fines and penalties · entertainment that wasn't pre-approved. |
+| **Documents must balance** | Each uploaded document gets a Document Type and the **Amount** it represents. Total Uploaded Documents must equal Total Expense Lines (**✓ BALANCED**) before you can submit. |
+
+**Uploaded Files (Documents step).** Works like the Liquidation worksheet:
+click **Upload**, then for each document pick its **Document Type** and enter
+its **Amount** (and the Receipt / Invoice No. if you have it). Uploaded the
+wrong file? Click **Delete** on that document and upload the correct one; only
+that document is removed. The box under the Upload button compares Total
+Expense Lines with Total Uploaded Documents and shows the **Difference**:
+**✓ BALANCED** or **⚠ NOT BALANCED**.
+
+If the amounts legitimately can't match, a checker (Superuser, Accounting,
+Finance, Puradr, Lita or Mauwi) can **Authorize variance** with a written
+reason. It's recorded in the history and Audit Trail, and it lapses if any
+amount changes afterwards.
 
 It then goes through the **same two-level approval as a liquidation**:
 **Submitted → For Final Approval (after the custodian approves) → Fully
