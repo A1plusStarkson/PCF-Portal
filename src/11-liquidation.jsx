@@ -830,7 +830,7 @@ function LiquidationWorksheet({
   onReviewOverLiquidation, canDelete, onDeleteLiquidation,
   canRejectLiquidation, onRejectLiquidation,
   onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser, onDirtyChange, accounting,
-  canRevert, onRevertLiquidation,
+  canRevert, onRevertLiquidation, showHeaderUpload,
 }) {
   const [lines, setLines] = useState(liquidation ? liquidation.lines.map((l) => ({ ...l })) : [emptyLine()]);
   const [attachments, setAttachments] = useState(
@@ -1293,6 +1293,22 @@ function LiquidationWorksheet({
             <button className="pcp-btn pcp-btn-sm" onClick={() => onExport(disbursement, { lines: validLines })} disabled={!validLines.length}>
               <Download size={12} /> Export to Excel
             </button>
+            {/* Highlighted Upload beside Export to Excel (LIQ_HEADER_UPLOAD_EMAILS
+                in 19-app.jsx) — the same upload as Supporting Documents. */}
+            {showHeaderUpload && (
+              <label
+                className="pcp-btn pcp-btn-sm pcp-btn-upload"
+                style={{ margin: 0, cursor: canAddDocs ? "pointer" : "not-allowed", opacity: canAddDocs ? 1 : 0.5 }}
+                title={canAddDocs ? "Upload supporting documents (images or PDF, up to " + MAX_UPLOAD_MB + " MB each)" : "This liquidation has final approval — no more documents can be added."}
+              >
+                <UploadCloud size={18} strokeWidth={2.6} /> UPLOAD
+                <input
+                  type="file" multiple accept="image/*,application/pdf" style={{ display: "none" }}
+                  disabled={!canAddDocs}
+                  onChange={(e) => { onPickFiles(e.target.files); e.target.value = ""; }}
+                />
+              </label>
+            )}
             {!finalLocked && (
               <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={handleSave}>
                 {saved ? "Saved" : "Save Liquidation"}
@@ -2211,7 +2227,7 @@ function LiquidationTab({
   canApproveReceipts, onDecideReceipt, onSubmitLiquidation, onReopenLiquidation,
   onRecordSettlement, onCloseShortage, onReopenShortage, canApproveShortage,
   onReviewOverLiquidation, canDelete, onDeleteLiquidation, onDeleteReimbursement,
-  canRejectLiquidation, onRejectLiquidation,
+  canRejectLiquidation, onRejectLiquidation, showHeaderUpload,
   onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser,
   reimbursements, onReimbursementAction, canFinance, accounting,
   canEditReimb, canDeleteReimbDocs, canAuthorizeReimbVariance, onUpdateReimbursement, allReimbursements,
@@ -2586,6 +2602,7 @@ function LiquidationTab({
                 onFinalApprove={onFinalApprove}
                 canRevert={canRevert}
                 onRevertLiquidation={onRevertLiquidation}
+                showHeaderUpload={!!showHeaderUpload}
                 currentUser={currentUser}
                 accounting={accounting}
                 onDirtyChange={(d) => { worksheetDirty.current = d; }}

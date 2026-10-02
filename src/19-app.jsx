@@ -185,6 +185,16 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   ];
   const canDeleteReimbDocs = REIMB_DOC_DELETE_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
+  /* Liquidation worksheet: the highlighted Upload button beside Export to
+     Excel (owner's instruction, Oct 2026). Display only — it opens the same
+     upload as the Supporting Documents section, under the same rules. */
+  const LIQ_HEADER_UPLOAD_EMAILS = [
+    "superuser@a1plus.com", "accounting@a1plus.com", "finance@a1plus.com",
+    "puradr@a1plus.com", "lita@a1plus.com", "mauwi@a1plus.com",
+    "pcfrequestordisney@a1plus.com", "pcfrequestormanila@a1plus.com", "pcfrequestorrgandco@a1plus.com",
+  ];
+  const canLiqHeaderUpload = LIQ_HEADER_UPLOAD_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
   /* Reimbursements: authorize a variance between Total Expense Lines and Total
      Uploaded Documents, with a written reason (owner's instruction, Oct 2026).
      Requestors must balance before submitting. The authorization covers only
@@ -2495,6 +2505,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
             key={tab}
             disbursements={scopedDisbursements} liquidations={scopedLiquidations}
             onSaveLiquidation={saveLiquidation} onExport={exportLiquidation}
+            showHeaderUpload={canLiqHeaderUpload}
             onExportAll={exportAllToAcumatica}
             onDecideReceipt={decideReceipt}
             onSubmitLiquidation={submitLiquidation}

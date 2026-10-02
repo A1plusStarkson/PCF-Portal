@@ -418,6 +418,11 @@ const CSS = `
   .pcp-btn.pcp-btn-float.on { background: #e8b53a; border-color: #c9930f; color: #3d2a03; }
   [data-theme="dark"] .pcp-btn.pcp-btn-float { background: #4a3a10; border-color: #c9930f; color: #ffe08a; }
   [data-theme="dark"] .pcp-btn.pcp-btn-float.on { background: #c9930f; color: #1d1402; }
+  /* Liquidation worksheet Upload beside Export to Excel: solid yellow, bold,
+     larger icon — the most visible button in the bar. */
+  .pcp-btn.pcp-btn-upload { background: #ffd43b; border: 2px solid #e0a800; color: #3d2a03; font-weight: 800; font-size: 13px; letter-spacing: 0.4px; padding: 6px 14px; }
+  .pcp-btn.pcp-btn-upload:hover { background: #ffc107; border-color: #c99600; color: #2a1d02; }
+  [data-theme="dark"] .pcp-btn.pcp-btn-upload { background: #f5c518; border-color: #ffd43b; color: #1d1402; }
   .pcp-doc-gallery-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 10px; font-size: 12px; color: var(--text-mut); }
   .pcp-doc-gallery-bar > span:first-child { font-weight: 600; }
   .pcp-doc-seg { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; margin-left: auto; }
