@@ -774,19 +774,52 @@ function AttachmentLinks({ att }) {
 }
 
 /* Rotate left / right turns the preview in 90° steps so a receipt photographed
-   sideways or upside down can be read. Display only: the stored file is not
-   changed, and the rotation resets when the page is reloaded. Open to every
-   account that can see the worksheet. */
+   sideways or upside down can be read. Rotating alone changes nothing stored —
+   reload and it is back as uploaded. SAVE FILE (DOC_ROTATE_SAVE_EMAILS, via
+   AppUI.saveDocRotation in 19-app.jsx) makes it permanent: a rotated copy is
+   uploaded to a new path and the document points at it, so every view,
+   Zoom and Download shows the corrected orientation. The original upload stays
+   in the bucket, recorded on the document. `onRotationSaved(patch)` lets the
+   form holding the document keep the change; `persist` = { kind, recordId }
+   when the document is already saved on a record. */
 const PREVIEW_H = 320;
-function AttachmentPreview({ att, isImage, isPdf }) {
+function AttachmentPreview({ att, isImage, isPdf, onRotationSaved, persist }) {
   const src = useFileUrl(att);
+  const ui = useContext(AppUI);
   const [rot, setRot] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState("");
   const note = (text) => (
     <div style={{ padding: 24, textAlign: "center", fontSize: 11.5, color: "var(--text-mut)" }}>{text}</div>
   );
   if (!src) return note(hasFileBytes(att) ? "Loading receipt…" : "No file stored for this receipt.");
   if (!isImage && !isPdf) return note("Preview not available for this file type — use Zoom or Download to open it.");
-  const turn = (d) => setRot((r) => (r + d + 360) % 360);
+  const turn = (d) => { setMsg(""); setRot((r) => (r + d + 360) % 360); };
+  const canSave = !!(ui && ui.canSaveDocRotation && ui.saveDocRotation && onRotationSaved);
+  const saveFile = async () => {
+    if (!canSave || !rot || busy) return;
+    if (!fileStore()) { setMsg(STALE_PAGE_NOTE); return; }
+    setBusy(true); setMsg("Saving the rotated file…");
+    try {
+      const file = await rotateFileBytes(src, att, rot);
+      if (isTooLargeToUpload(file)) { setMsg(`The rotated file is larger than ${MAX_UPLOAD_MB} MB, so it was not saved. The original is unchanged.`); return; }
+      const path = await storeFile(uid("rot"), file);
+      if (!path) { setMsg("The rotated file could not be uploaded. Check your connection and try again. The original is unchanged."); return; }
+      const patch = { path, name: file.name, size: file.size, type: file.type, dataUrl: "", fileId: "" };
+      const full = ui.saveDocRotation(persist && persist.kind, persist && persist.recordId, att, patch, rot);
+      if (!full) { setMsg(""); return; }
+      onRotationSaved(full);
+      setRot(0);
+      setMsg(persist && persist.recordId
+        ? "Saved — the new orientation is now the stored file."
+        : "Rotated file ready — it is stored with this document when you save.");
+    } catch (e) {
+      console.warn("Rotation save failed:", e);
+      setMsg("The rotated file could not be created" + (e && e.message ? ` (${e.message})` : "") + ". The original is unchanged.");
+    } finally {
+      setBusy(false);
+    }
+  };
   /* Sideways (90° / 270°): the element is laid out PREVIEW_H wide and as tall
      as the frame is wide (100cqw), centred, then turned — so after the turn it
      fills the frame exactly instead of spilling out of it. */
@@ -794,15 +827,25 @@ function AttachmentPreview({ att, isImage, isPdf }) {
   const docStyle = sideways
     ? { position: "absolute", left: "50%", top: "50%", width: PREVIEW_H, height: "100cqw", transform: `translate(-50%, -50%) rotate(${rot}deg)` }
     : { display: "block", width: "100%", height: PREVIEW_H, transform: rot ? `rotate(${rot}deg)` : undefined };
-  /* The rotate controls sit in their own bar above the preview, not over it —
+  /* The controls sit in their own bar above the preview, not over it —
      floating on top they covered the PDF viewer's own toolbar. */
   return (
     <>
-      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 4, padding: "4px 6px", borderBottom: "1px solid var(--line)", background: "var(--dm-surface, #fff)" }}>
-        {rot !== 0 && <span style={{ fontSize: 10.5, color: "var(--text-mut)", marginRight: 4 }}>Rotated {rot}°</span>}
-        <button type="button" className="pcp-btn pcp-btn-sm" onClick={() => turn(-90)} title="Rotate left"><RotateCcw size={12} /></button>
-        <button type="button" className="pcp-btn pcp-btn-sm" onClick={() => turn(90)} title="Rotate right"><RotateCw size={12} /></button>
-        {rot !== 0 && <button type="button" className="pcp-btn pcp-btn-sm" onClick={() => setRot(0)} title="Back to original orientation">Reset</button>}
+      <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 6, padding: "6px 8px", borderBottom: "1px solid var(--line)", background: "var(--dm-surface, #fff)" }}>
+        {msg && <span style={{ fontSize: 11, color: "var(--text-mut)", marginRight: "auto" }}>{msg}</span>}
+        {!msg && att.rotatedAt && <span style={{ fontSize: 10.5, color: "var(--text-mut)", marginRight: "auto" }}>Orientation saved by {att.rotatedBy} · {att.rotatedAt}</span>}
+        {rot !== 0 && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mut)" }}>Rotated {rot}°</span>}
+        <button type="button" className="pcp-btn pcp-btn-rotate" onClick={() => turn(-90)} disabled={busy} title="Rotate left"><RotateCcw size={16} strokeWidth={2.6} /> ROTATE</button>
+        <button type="button" className="pcp-btn pcp-btn-rotate" onClick={() => turn(90)} disabled={busy} title="Rotate right">ROTATE <RotateCw size={16} strokeWidth={2.6} /></button>
+        {rot !== 0 && <button type="button" className="pcp-btn pcp-btn-sm" onClick={() => setRot(0)} disabled={busy} title="Back to the stored orientation">Reset</button>}
+        {canSave && (
+          <button
+            type="button" className="pcp-btn pcp-btn-savefile" onClick={saveFile} disabled={!rot || busy}
+            title={rot ? "Save this orientation permanently (the original upload is kept for the record)" : "Rotate the file first, then save it"}
+          >
+            <Check size={16} strokeWidth={3} /> {busy ? "SAVING…" : "SAVE FILE"}
+          </button>
+        )}
       </div>
       <div style={{ position: "relative", height: PREVIEW_H, overflow: "hidden", containerType: "inline-size" }}>
         {isImage
@@ -2028,7 +2071,16 @@ function LiquidationWorksheet({
                 {/* Inline preview — the receipt is visible directly on the page,
                     no "View" click needed (mirrors the reimbursement module). */}
                 <div style={{ marginTop: 8, border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden", background: "var(--dm-subtle, #f4f6f9)" }}>
-                  <AttachmentPreview att={a} isImage={isImage} isPdf={isPdf} />
+                  <AttachmentPreview
+                    att={a} isImage={isImage} isPdf={isPdf}
+                    persist={isSaved ? { kind: "liquidation", recordId: disbursement.id } : null}
+                    onRotationSaved={(patch) => {
+                      /* Saved document: the record is already updated, so the
+                         worksheet stays "Saved". New one: kept until Save. */
+                      setAttachments((as) => as.map((x) => (x.id === a.id ? { ...x, ...patch } : x)));
+                      if (!isSaved) setSaved(false);
+                    }}
+                  />
                 </div>
 
                 {canDecideReceipts && !isSaved && (

@@ -918,7 +918,11 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                           </div>
                         )}
                         <div style={{ marginTop: 8, border: "1px solid var(--line)", borderRadius: 8, overflow: "hidden", background: "var(--dm-subtle, #f4f6f9)" }}>
-                          <AttachmentPreview att={a} isImage={isImage} isPdf={isPdf} />
+                          <AttachmentPreview
+                            att={a} isImage={isImage} isPdf={isPdf}
+                            persist={reimb && savedAttIds.has(a.id) ? { kind: "reimbursement", recordId: reimb.id } : null}
+                            onRotationSaved={(patch) => setAttField(a.id, patch)}
+                          />
                         </div>
                       </div>
                     );

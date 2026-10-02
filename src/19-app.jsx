@@ -195,6 +195,16 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   ];
   const canLiqHeaderUpload = LIQ_HEADER_UPLOAD_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
+  /* Uploaded Files: SAVE FILE after rotating a document's preview (owner's
+     instruction, Oct 2026). Rotating the preview stays open to everyone; saving
+     the new orientation is these accounts only. Re-checked in saveDocRotation. */
+  const DOC_ROTATE_SAVE_EMAILS = [
+    "superuser@a1plus.com", "accounting@a1plus.com", "finance@a1plus.com",
+    "puradr@a1plus.com", "lita@a1plus.com", "mauwi@a1plus.com",
+    "pcfrequestordisney@a1plus.com", "pcfrequestormanila@a1plus.com", "pcfrequestorrgandco@a1plus.com",
+  ];
+  const canSaveDocRotation = DOC_ROTATE_SAVE_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
   /* Reimbursements: authorize a variance between Total Expense Lines and Total
      Uploaded Documents, with a written reason (owner's instruction, Oct 2026).
      Requestors must balance before submitting. The authorization covers only
@@ -798,6 +808,12 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
         approvalStatus: prev ? (prev.approvalStatus || "Pending") : (a.approvalStatus || "Pending"),
         approvalHistory: prev ? (prev.approvalHistory || []) : (a.approvalHistory || []),
       };
+      /* Likewise a saved rotation (SAVE FILE): a worksheet holding an older
+         copy of the document must not point it back at the unrotated file. */
+      if (prev && prev.rotatedAt && String(prev.rotatedAt) > String(a.rotatedAt || "")) {
+        ["path", "name", "size", "type", "dataUrl", "fileId", "originalPath", "rotatedAt", "rotatedBy", "rotationHistory"]
+          .forEach((k) => { base[k] = prev[k]; });
+      }
       const prevAmount = prev ? round2(prev.receiptAmount) : null;
       if (prev && prevAmount !== amount) {
         const entry = { prevAmount, newAmount: amount, user: actor, ts, reason: o.reason || "" };
@@ -2377,9 +2393,47 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     else onReminderClick(r);
   }, [allowedTabs, navigate, onReminderClick]);
 
+  /* SAVE FILE after a rotation (DOC_ROTATE_SAVE_EMAILS). `patch` points the
+     document at the newly uploaded, rotated file; the original stays in the
+     bucket and its path is kept on the document (originalPath) and in its
+     rotationHistory. When the document is already saved on a liquidation
+     (kind "liquidation", recordId = disbursement id) or a reimbursement
+     (recordId = reimbursement id), the record is updated at once — no other
+     field of the record changes. With no recordId (a file added since the last
+     save) the stamped patch is only returned, for the form to keep until it is
+     saved. Returns the stamped patch, or null when refused. */
+  const saveDocRotation = useCallback((kind, recordId, att, patch, turnedBy) => {
+    if (!canSaveDocRotation) {
+      window.alert("Your account cannot save a rotated file. Nothing was changed.");
+      return null;
+    }
+    const ts = new Date().toISOString().slice(0, 19).replace("T", " ");
+    const who = userName || role;
+    const full = {
+      ...patch,
+      originalPath: att.originalPath || att.path || "",
+      rotatedAt: ts, rotatedBy: who,
+      rotationHistory: [...(att.rotationHistory || []), { ts, by: who, degrees: turnedBy, fromPath: att.path || "", toPath: patch.path }],
+    };
+    if (!recordId) return full;
+    const stamp = (a) => (a.id !== att.id ? a : { ...a, ...full });
+    let ref = recordId;
+    if (kind === "liquidation") {
+      setLiquidations((ls) => ls.map((l) => (l.disbursementId !== recordId ? l : { ...l, attachments: (l.attachments || []).map(stamp) })));
+      const d = disbursements.find((x) => x.id === recordId);
+      if (d) ref = d.voucherNo;
+    } else {
+      setReimbursements((rs) => rs.map((r) => (r.id !== recordId ? r : { ...r, attachments: (r.attachments || []).map(stamp) })));
+      const r = reimbursements.find((x) => x.id === recordId);
+      if (r) ref = r.reimbNo;
+    }
+    logAudit("Document Rotation Saved", ref, `${att.name || "document"} · rotated ${turnedBy}° clockwise · original file kept`);
+    return full;
+  }, [canSaveDocRotation, userName, role, disbursements, reimbursements, logAudit]);
+
   const uiValue = useMemo(
-    () => ({ notifications: bellNotifications, reminders, onReminderClick, role, setRole: guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen }),
-    [bellNotifications, reminders, onReminderClick, role, guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen]
+    () => ({ notifications: bellNotifications, reminders, onReminderClick, role, setRole: guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation }),
+    [bellNotifications, reminders, onReminderClick, role, guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation]
   );
 
   if (!loaded) {

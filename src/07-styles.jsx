@@ -422,6 +422,15 @@ const CSS = `
      larger icon — the most visible button in the bar. */
   .pcp-btn.pcp-btn-upload { background: #ffd43b; border: 2px solid #e0a800; color: #3d2a03; font-weight: 800; font-size: 13px; letter-spacing: 0.4px; padding: 6px 14px; }
   .pcp-btn.pcp-btn-upload:hover { background: #ffc107; border-color: #c99600; color: #2a1d02; }
+  /* Document preview: ROTATE (blue) and SAVE FILE (green) — large, bold and
+     coloured so they read at a glance beside each uploaded file. */
+  .pcp-btn.pcp-btn-rotate { background: #e3efff; border: 2px solid #2f6fd6; color: #154a9e; font-weight: 800; font-size: 12.5px; letter-spacing: 0.3px; padding: 6px 12px; }
+  .pcp-btn.pcp-btn-rotate:hover:not(:disabled) { background: #cfe2ff; border-color: #1f58b5; }
+  .pcp-btn.pcp-btn-savefile { background: #1f8f4e; border: 2px solid #156b39; color: #fff; font-weight: 800; font-size: 12.5px; letter-spacing: 0.3px; padding: 6px 14px; }
+  .pcp-btn.pcp-btn-savefile:hover:not(:disabled) { background: #177a41; }
+  .pcp-btn.pcp-btn-savefile:disabled { background: #b9d8c5; border-color: #9cc4ac; color: #f4fbf6; cursor: default; }
+  [data-theme="dark"] .pcp-btn.pcp-btn-rotate { background: #1b2f4f; border-color: #5b95f0; color: #cfe0ff; }
+  [data-theme="dark"] .pcp-btn.pcp-btn-savefile:disabled { background: #284a36; border-color: #335c44; color: #9fbcab; }
   [data-theme="dark"] .pcp-btn.pcp-btn-upload { background: #f5c518; border-color: #ffd43b; color: #1d1402; }
   .pcp-doc-gallery-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 10px; font-size: 12px; color: var(--text-mut); }
   .pcp-doc-gallery-bar > span:first-child { font-weight: 600; }

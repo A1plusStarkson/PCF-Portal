@@ -446,6 +446,44 @@ function storeFile(attId, file) {
     .catch(() => "");
 }
 
+/* ---- Save a rotated document ----
+   Builds a NEW file with the orientation turned by `deg` (90 / 180 / 270,
+   clockwise) from the document's current bytes at `src`. Images are redrawn
+   on a canvas; PDFs keep their content and get each page's rotation set
+   (pdf-lib, loaded only when first needed). The caller uploads the result to
+   its own path — the original upload is never overwritten. */
+async function rotateFileBytes(src, att, deg) {
+  const res = await fetch(src);
+  if (!res.ok) throw new Error("Could not read the file (" + res.status + ").");
+  const blob = await res.blob();
+  const name = (att && att.name) || "document";
+  const type = String((att && att.type) || blob.type || "").toLowerCase();
+  const turn = ((deg % 360) + 360) % 360;
+  if (type.includes("pdf") || /\.pdf$/i.test(name)) {
+    const { PDFDocument, degrees } = await import("pdf-lib");
+    const pdf = await PDFDocument.load(await blob.arrayBuffer(), { ignoreEncryption: true });
+    pdf.getPages().forEach((p) => p.setRotation(degrees((p.getRotation().angle + turn) % 360)));
+    const bytes = await pdf.save();
+    return new File([bytes], name, { type: "application/pdf" });
+  }
+  const bmp = await createImageBitmap(blob);
+  const sideways = turn % 180 !== 0;
+  const canvas = document.createElement("canvas");
+  canvas.width = sideways ? bmp.height : bmp.width;
+  canvas.height = sideways ? bmp.width : bmp.height;
+  const ctx = canvas.getContext("2d");
+  ctx.translate(canvas.width / 2, canvas.height / 2);
+  ctx.rotate((turn * Math.PI) / 180);
+  ctx.drawImage(bmp, -bmp.width / 2, -bmp.height / 2);
+  const norm = type === "image/jpg" ? "image/jpeg" : type;
+  const outType = ["image/jpeg", "image/png", "image/webp"].includes(norm) ? norm : "image/png";
+  const out = await new Promise((resolve) => canvas.toBlob(resolve, outType, 0.92));
+  if (!out) throw new Error("The browser could not encode the rotated image.");
+  /* A format the canvas cannot write (GIF, BMP…) is saved as PNG — rename to match. */
+  const outName = outType === norm ? name : name.replace(/\.[^.]+$/, "") + ".png";
+  return new File([out], outName, { type: outType });
+}
+
 /* ---- Legacy whole-state blob: READ ONLY, and only to migrate ----
    pcp_records is the store. This reads the old pcp_state blob for exactly one
    purpose: seeding pcp_records on a project that predates it (see the load
