@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useMemo, useCallback, useContext, useRef } from "react";
 import { createRoot } from "react-dom/client";
+import { createPortal } from "react-dom";
 import {
   LayoutDashboard, FileText, Wallet, Receipt, Database, Plus, Download,
   Check, X, Search, AlertTriangle, TrendingUp, Users, Building2, Trash2,

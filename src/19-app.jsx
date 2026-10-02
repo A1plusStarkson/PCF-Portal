@@ -212,6 +212,18 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   ];
   const showModuleDocTotals = MODULE_DOC_TOTAL_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
+  /* Searchable dropdowns (Category, Department, Tax…): the open list floats
+     above the screen so a table or pop-up can never cut it off, opens up or
+     down to fit, and scrolls the field into view (owner's instruction, Oct
+     2026). These accounts only; everyone else keeps the original list.
+     Display only. */
+  const FIXED_DROPDOWN_EMAILS = [
+    "superuser@a1plus.com", "accounting@a1plus.com", "finance@a1plus.com",
+    "puradr@a1plus.com", "lita@a1plus.com", "mauwi@a1plus.com",
+    "pcfrequestordisney@a1plus.com", "pcfrequestormanila@a1plus.com", "pcfrequestorrgandco@a1plus.com",
+  ];
+  const fixedDropdowns = FIXED_DROPDOWN_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
   /* Uploaded Files: SAVE FILE after rotating a document's preview (owner's
      instruction, Oct 2026). Rotating the preview stays open to everyone; saving
      the new orientation is these accounts only. Re-checked in saveDocRotation. */
@@ -2449,8 +2461,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   }, [canSaveDocRotation, userName, role, disbursements, reimbursements, logAudit]);
 
   const uiValue = useMemo(
-    () => ({ notifications: bellNotifications, reminders, onReminderClick, role, setRole: guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation, showDocTotals, showModuleDocTotals }),
-    [bellNotifications, reminders, onReminderClick, role, guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation, showDocTotals, showModuleDocTotals]
+    () => ({ notifications: bellNotifications, reminders, onReminderClick, role, setRole: guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation, showDocTotals, showModuleDocTotals, fixedDropdowns }),
+    [bellNotifications, reminders, onReminderClick, role, guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation, showDocTotals, showModuleDocTotals, fixedDropdowns]
   );
 
   if (!loaded) {

@@ -355,6 +355,13 @@ const CSS = `
   /* Narrow in-table pickers would clip their own option text, so the popover is
      allowed to grow past the cell it is anchored to. */
   .pcp-ss-pop { min-width: 240px; }
+  /* The open list is portalled to <body> (outside .pcp-root), so it carries
+     the root's font, colour and bold weight itself, and sits above modals. */
+  .pcp-ss-pop.pcp-ss-pop-fixed {
+    z-index: 1200; color: var(--text); font-variant-numeric: tabular-nums;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  .pcp-ss-pop-fixed, .pcp-ss-pop-fixed *, .pcp-ss-pop-fixed input::placeholder { font-weight: 700; }
   .pcp-purpose-group, .pcp-ss-group {
     font-size: 10px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase;
     color: var(--text-mut); padding: 8px 8px 4px;
@@ -1449,15 +1456,55 @@ function SearchSelect({
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
+  const [pos, setPos] = useState(null);
+  /* Fixed, portalled list (below) — FIXED_DROPDOWN_EMAILS in 19-app.jsx only;
+     everyone else keeps the list inside the field's own box (max 260px). */
+  const fixedPop = !!(useContext(AppUI) || {}).fixedDropdowns;
+  const placePop = (node) => (fixedPop ? createPortal(node, document.body) : node);
   const wrapRef = useRef(null);
+  const popRef = useRef(null);
 
-  /* Close on an outside click so an open list never sits over the next field. */
+  /* Close on an outside click so an open list never sits over the next field.
+     The list is portalled to <body>, so a click inside it counts as inside. */
   useEffect(() => {
     if (!open) return;
-    const onDoc = (e) => { if (wrapRef.current && !wrapRef.current.contains(e.target)) setOpen(false); };
+    const onDoc = (e) => {
+      if (wrapRef.current && wrapRef.current.contains(e.target)) return;
+      if (popRef.current && popRef.current.contains(e.target)) return;
+      setOpen(false);
+    };
     document.addEventListener("mousedown", onDoc);
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
+
+  /* ---- Where the open list goes ----
+     Rendered in a portal at fixed screen coordinates, so a scrolling table
+     (the Reimbursement / Liquidation expense lines) or a modal can never clip
+     it. Opens below the field, or above when there is more room there; the
+     option list takes the height available (up to 420px). The field is first
+     scrolled into view so the user always sees what they are typing. Follows
+     the field on scroll / resize. */
+  useEffect(() => {
+    if (!open || !fixedPop) { setPos(null); return; }
+    const btn = wrapRef.current;
+    if (btn && btn.scrollIntoView) btn.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const place = () => {
+      if (!wrapRef.current) return;
+      const r = wrapRef.current.getBoundingClientRect();
+      const vh = window.innerHeight, vw = window.innerWidth;
+      const below = vh - r.bottom - 12, above = r.top - 12;
+      const up = below < 300 && above > below;
+      const room = Math.max(140, (up ? above : below) - 70); // 70 ≈ search box + padding
+      const minW = Math.max(r.width, 240, (popStyle && Number(popStyle.minWidth)) || 0);
+      const width = Math.min(minW, vw - 16);
+      const left = Math.min(Math.max(8, r.left), vw - width - 8);
+      setPos({ left, width, listMax: Math.min(420, room), ...(up ? { bottom: vh - r.top + 4 } : { top: r.bottom + 4 }) });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => { window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
+  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   /* Normalize flat and grouped inputs to one grouped shape (a flat list becomes
      a single unlabelled group) so the render path below stays single. */
@@ -1507,8 +1554,14 @@ function SearchSelect({
           style={{ transform: open ? "rotate(-90deg)" : "rotate(90deg)", flexShrink: 0, opacity: 0.6, transition: "transform 0.12s" }}
         />
       </button>
-      {open && (
-        <div className="pcp-ss-pop" style={popStyle}>
+      {open && (!fixedPop || pos) && placePop(
+        <div
+          ref={popRef} className={"pcp-ss-pop" + (fixedPop ? " pcp-ss-pop-fixed" : "")}
+          style={fixedPop
+            ? { ...popStyle, position: "fixed", left: pos.left, width: pos.width, minWidth: 0, right: "auto",
+                top: pos.top != null ? pos.top : "auto", bottom: pos.bottom != null ? pos.bottom : "auto" }
+            : popStyle}
+        >
           <div style={{ position: "relative" }}>
             <Search size={13} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
             <input
@@ -1526,7 +1579,7 @@ function SearchSelect({
               }}
             />
           </div>
-          <div style={{ maxHeight: 260, overflowY: "auto", marginTop: 6 }} role="listbox">
+          <div style={{ maxHeight: fixedPop ? pos.listMax : 260, overflowY: "auto", marginTop: 6 }} role="listbox">
             {emptyOptionLabel && !ql && (
               <div
                 role="option" aria-selected={!value}
