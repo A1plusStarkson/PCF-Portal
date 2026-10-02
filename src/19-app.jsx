@@ -1,6 +1,6 @@
 /* ============================= APP ============================= */
 
-export default function App({ userEmail, userName, onSignOut, userRole, isAdmin, userPlants, userExcludePlants }) {
+export default function App({ userEmail, userName: accountName, onSignOut, userRole, isAdmin, userPlants, userExcludePlants }) {
   const [loaded, setLoaded] = useState(false);
   /* Everyone starts on the Home landing page (24-home.jsx). */
   const [tab, setTab] = useState("home");
@@ -339,6 +339,13 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     try { sessionStorage.setItem("pcp.financeChecker", v || ""); } catch (e) { /* storage unavailable */ }
   }, []);
   const activeFinanceChecker = financeCheckerNames.includes(financeChecker) ? financeChecker : "";
+  /* The name every action is recorded under (history, audit, approvals,
+     receipt decisions, reverts, settlements, payments…). On the shared
+     Finance account it is the Finance Checker picked in the sidebar — so a
+     transaction shows "Mary Queen Ecat" or "Ayessa Milosantos", never the
+     account's combined name (owner's instruction, Oct 2026). Everyone else:
+     the account name, as before. Records already saved are not changed. */
+  const userName = activeFinanceChecker || accountName;
   const missingFinanceChecker = () => {
     if (!financeCheckerNames.length || activeFinanceChecker) return false;
     window.alert("Select your name under Finance Checker (left sidebar, below your account name) before checking transactions.");
@@ -2492,7 +2499,33 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     <div className="pcp-root">
       <style>{CSS}</style>
       <ToastHost />
-      <Sidebar tab={tab} setTab={setTab} role={role} roleLabel={accountRoleLabel(role, userEmail, userRole || "Accounting")} navGroups={navGroups} userEmail={userEmail} userName={userName} financeCheckerNames={financeCheckerNames} financeChecker={activeFinanceChecker} onFinanceChecker={setFinanceChecker} onSignOut={handleSignOut} onChangePassword={() => setShowChangePw(true)} onManageMfa={hasMfa ? () => setShowMfaDevices(true) : undefined} />
+      {/* Shared Finance account: pick who is working before anything else, so
+          every action is recorded under that person's own name (userName
+          above) — never the account's combined name. Can be changed any time
+          in the sidebar. Not shown while previewing another role. */}
+      {financeCheckerNames.length > 0 && !activeFinanceChecker && role === (userRole || "Accounting") && (
+        <div className="pcp-modal-backdrop" style={{ zIndex: 1500, alignItems: "center" }}>
+          <div className="pcp-modal" style={{ maxWidth: 440 }} role="dialog" aria-label="Select Finance Checker">
+            <div className="pcp-modal-head" style={{ cursor: "default" }}><h3>Who is using the Finance account?</h3></div>
+            <div className="pcp-modal-body">
+              <div style={{ fontSize: 12.5, color: "var(--text-mut)", marginBottom: 12 }}>
+                Select your name. Every transaction you check or process is recorded as
+                <b> Finance Checked By: your name</b>. You can switch names any time under
+                Finance Checker in the left sidebar.
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {financeCheckerNames.map((n) => (
+                  <button key={n} type="button" className="pcp-btn pcp-btn-primary" style={{ justifyContent: "center", fontSize: 14, padding: "10px 14px" }}
+                    onClick={() => { setFinanceChecker(n); logAudit("Finance Checker Selected", userEmail || "Finance", n); }}>
+                    <UserCog size={15} /> {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      <Sidebar tab={tab} setTab={setTab} role={role} roleLabel={accountRoleLabel(role, userEmail, userRole || "Accounting")} navGroups={navGroups} userEmail={userEmail} userName={accountName} financeCheckerNames={financeCheckerNames} financeChecker={activeFinanceChecker} onFinanceChecker={setFinanceChecker} onSignOut={handleSignOut} onChangePassword={() => setShowChangePw(true)} onManageMfa={hasMfa ? () => setShowMfaDevices(true) : undefined} />
       <div className="pcp-main">
         {/* Shown to EVERYONE, not just admins: this one says the screen below
             is incomplete, and a custodian looking at a short list needs that
