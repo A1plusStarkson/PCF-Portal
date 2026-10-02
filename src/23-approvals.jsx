@@ -395,6 +395,12 @@ function PcaApprovalPanel({
             <div className="pcp-kpi-label">Total Documents</div>
             <div className="pcp-doc-total-num"><Paperclip size={16} strokeWidth={2.6} /> {(liq.attachments || []).length}</div>
           </div>}
+          {/* TOTAL AMOUNT of every uploaded document (approved, pending and
+              rejected alike) — Approved Receipts beside it is the approved part. */}
+          {showDocTotals && <div className="pcp-liq-metric pcp-doc-total" title={`Sum of the amounts on all ${(liq.attachments || []).length} uploaded documents · approved: ${peso(amounts.approvedTotal)}`}>
+            <div className="pcp-kpi-label">Total Amount</div>
+            <div className="pcp-doc-total-num">{peso(amounts.allTotal)}</div>
+          </div>}
         </div>
       </div>
 
@@ -448,7 +454,7 @@ function PcaApprovalPanel({
         <div className="pcp-section-title" style={{ margin: "0 0 10px" }}>
           <Receipt size={15} color="#4e7d63" /> Supporting Documents
           {showDocTotals
-            ? <span className="pcp-doc-total-chip lg" style={{ marginLeft: 8 }}>TOTAL: {(liq.attachments || []).length}</span>
+            ? <span className="pcp-doc-total-chip lg" style={{ marginLeft: 8 }}>TOTAL: {(liq.attachments || []).length} · {peso(amounts.allTotal)}</span>
             : ` (${approval.total})`}
         </div>
         {(canDecide || canCheck || canFinal || canReject) && (
@@ -601,6 +607,7 @@ function ApprovalModuleTab({
       requestor: r.disb.employee || "",
       amount: liquidatedTotal(r.liq),
       docs: ((r.liq && r.liq.attachments) || []).length,
+      docsAmount: receiptAmountSummary(r.liq).allTotal,
       date: String(r.liq.submittedAt || r.disb.date || "").slice(0, 10),
       stage: r.stage,
       batchNo: r.review.batchNo || "",
@@ -616,6 +623,7 @@ function ApprovalModuleTab({
       requestor: r.employee || "",
       amount: reimbTotal(r),
       docs: (r.attachments || []).length,
+      docsAmount: reimbDocsTotal(r),
       date: String(r.submittedAt || r.requestDate || "").slice(0, 10),
       stage: r.stage,
       batchNo: r.rv.batchNo || "",
@@ -663,6 +671,7 @@ function ApprovalModuleTab({
       kind: (r) => r.kind,
       amount: (r) => r.amount,
       docs: (r) => r.docs,
+      docsAmount: (r) => r.docsAmount,
       date: (r) => r.date,
       status: (r) => approvalStageKey(r.stage),
       action: (r) => actionLabel(r.stage),
@@ -943,6 +952,7 @@ function ApprovalModuleTab({
                   <SortTh field="kind" sort={sort}>Transaction Type</SortTh>
                   <SortTh field="amount" sort={sort} align="right">Amount</SortTh>
                   {showDocTotals && <SortTh field="docs" sort={sort} align="right">Total Docs</SortTh>}
+                  {showDocTotals && <SortTh field="docsAmount" sort={sort} align="right">Total Doc Amount</SortTh>}
                   <SortTh field="date" sort={sort}>Date</SortTh>
                   <SortTh field="status" sort={sort}>Current Status</SortTh>
                   <SortTh field="action" sort={sort}>Action</SortTh>
@@ -982,6 +992,7 @@ function ApprovalModuleTab({
                     <td>{r.kind}</td>
                     <td className="pcp-num" style={{ textAlign: "right" }}>{peso(r.amount)}</td>
                     {showDocTotals && <td style={{ textAlign: "right" }}><span className="pcp-doc-total-chip" title={`${r.docs} uploaded document(s)`}><Paperclip size={11} /> {r.docs}</span></td>}
+                    {showDocTotals && <td className="pcp-num" style={{ textAlign: "right", fontWeight: 800 }}>{peso(r.docsAmount)}</td>}
                     <td>{fmtDate(r.date)}</td>
                     <td><Badge status={r.stage} /></td>
                     <td style={{ fontWeight: 600 }}>{actionLabel(r.stage) || "—"}</td>
@@ -992,7 +1003,7 @@ function ApprovalModuleTab({
                     </td>
                   </tr>
                 )) : (
-                  <tr><td colSpan={(canSelectExport ? 10 : 9) + (showDocTotals ? 1 : 0)} className="pcp-empty">
+                  <tr><td colSpan={(canSelectExport ? 10 : 9) + (showDocTotals ? 2 : 0)} className="pcp-empty">
                     {pendingAll.length ? "Nothing pending matches these filters"
                       : viewOnly ? "Nothing is awaiting final approval" : "Nothing is awaiting your approval"}
                   </td></tr>

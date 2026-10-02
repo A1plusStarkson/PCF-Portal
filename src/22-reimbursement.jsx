@@ -1206,7 +1206,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
             <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
               Supporting Documents
               {showDocTotals
-                ? <span className="pcp-doc-total-chip lg" style={{ marginLeft: 8 }}>TOTAL: {(reimb.attachments || []).length}</span>
+                ? <span className="pcp-doc-total-chip lg" style={{ marginLeft: 8 }}>TOTAL: {(reimb.attachments || []).length} · {peso(reimbDocsTotal(reimb))}</span>
                 : ` (${(reimb.attachments || []).length})`}
             </div>
             {/* Rendered inline so the checker and the approver can read every
