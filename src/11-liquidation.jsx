@@ -794,6 +794,23 @@ function AttachmentPreview({ att, isImage, isPdf, onRotationSaved, persist }) {
   const [rot, setRot] = useState(0);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState("");
+  /* Image zoom (ZOOM IN / ZOOM OUT): 100 = fit the frame; DOC_ZOOM_STEPS.
+     Display only. The image is laid out at its zoomed, rotated size so the
+     frame scrolls to every part of it; that needs the image's natural size
+     (nat) and the frame's width (cw). */
+  const [zoom, setZoom] = useState(100);
+  const [nat, setNat] = useState(null);
+  const [stageEl, setStageEl] = useState(null);
+  const [cw, setCw] = useState(0);
+  useEffect(() => {
+    if (!stageEl) return undefined;
+    const upd = () => setCw(stageEl.clientWidth);
+    upd();
+    if (typeof ResizeObserver === "undefined") return undefined;
+    const ro = new ResizeObserver(upd);
+    ro.observe(stageEl);
+    return () => ro.disconnect();
+  }, [stageEl]);
   const note = (text) => (
     <div style={{ padding: 24, textAlign: "center", fontSize: 11.5, color: "var(--text-mut)" }}>{text}</div>
   );
@@ -834,6 +851,20 @@ function AttachmentPreview({ att, isImage, isPdf, onRotationSaved, persist }) {
   const docStyle = sideways
     ? { position: "absolute", left: "50%", top: "50%", width: PREVIEW_H, height: "100cqw", transform: `translate(-50%, -50%) rotate(${rot}deg)` }
     : { display: "block", width: "100%", height: PREVIEW_H, transform: rot ? `rotate(${rot}deg)` : undefined };
+  /* Zoomed image: a box the size of the rotated, scaled image (so the frame's
+     scrollbars reach every edge), with the image centred in it and turned.
+     Scale 1 at zoom 100 = the whole image fits the frame. Falls back to the
+     plain fitted layout until the natural size and frame width are known. */
+  const zi = DOC_ZOOM_STEPS.indexOf(zoom);
+  const stepZoom = (d) => setZoom(DOC_ZOOM_STEPS[Math.min(DOC_ZOOM_STEPS.length - 1, Math.max(0, zi + d))]);
+  let imgBox = null, imgStyle = null;
+  if (isImage && nat && cw) {
+    const bw = sideways ? nat.h : nat.w, bh = sideways ? nat.w : nat.h;
+    const s = Math.min(cw / bw, PREVIEW_H / bh) * (zoom / 100);
+    imgBox = { position: "relative", flexShrink: 0, margin: "auto", width: bw * s, height: bh * s };
+    imgStyle = { position: "absolute", left: "50%", top: "50%", width: nat.w * s, height: nat.h * s, maxWidth: "none", maxHeight: "none", transform: `translate(-50%, -50%) rotate(${rot}deg)` };
+  }
+  const onImgLoad = (e) => setNat({ w: e.currentTarget.naturalWidth, h: e.currentTarget.naturalHeight });
   /* The controls sit in their own bar above the preview, not over it —
      floating on top they covered the PDF viewer's own toolbar. */
   return (
@@ -841,6 +872,15 @@ function AttachmentPreview({ att, isImage, isPdf, onRotationSaved, persist }) {
       <div style={{ display: "flex", justifyContent: "flex-end", alignItems: "center", flexWrap: "wrap", gap: 6, padding: "6px 8px", borderBottom: "1px solid var(--line)", background: "var(--dm-surface, #fff)" }}>
         {msg && <span style={{ fontSize: 11, color: "var(--text-mut)", marginRight: "auto" }}>{msg}</span>}
         {!msg && att.rotatedAt && <span style={{ fontSize: 10.5, color: "var(--text-mut)", marginRight: "auto" }}>Orientation saved by {att.rotatedBy} · {att.rotatedAt}</span>}
+        {isImage && (
+          <>
+            <button type="button" className="pcp-btn pcp-btn-rotate" onClick={() => stepZoom(-1)} disabled={zi <= 0} title="Zoom out"><ZoomOut size={16} strokeWidth={2.6} /> ZOOM OUT</button>
+            <span style={{ fontSize: 11.5, fontWeight: 800, minWidth: 40, textAlign: "center", color: "var(--text-mut)" }}>{zoom === 100 ? "Fit" : zoom + "%"}</span>
+            <button type="button" className="pcp-btn pcp-btn-rotate" onClick={() => stepZoom(1)} disabled={zi >= DOC_ZOOM_STEPS.length - 1} title="Zoom in">ZOOM IN <ZoomIn size={16} strokeWidth={2.6} /></button>
+            {zoom !== 100 && <button type="button" className="pcp-btn pcp-btn-sm" onClick={() => setZoom(100)} title="Fit the whole image in the frame">Fit</button>}
+            <span style={{ width: 1, alignSelf: "stretch", background: "var(--line)", margin: "0 4px" }} />
+          </>
+        )}
         {rot !== 0 && <span style={{ fontSize: 11, fontWeight: 700, color: "var(--text-mut)" }}>Rotated {rot}°</span>}
         <button type="button" className="pcp-btn pcp-btn-rotate" onClick={() => turn(-90)} disabled={busy} title="Rotate left"><RotateCcw size={16} strokeWidth={2.6} /> ROTATE</button>
         <button type="button" className="pcp-btn pcp-btn-rotate" onClick={() => turn(90)} disabled={busy} title="Rotate right">ROTATE <RotateCw size={16} strokeWidth={2.6} /></button>
@@ -854,11 +894,17 @@ function AttachmentPreview({ att, isImage, isPdf, onRotationSaved, persist }) {
           </button>
         )}
       </div>
-      <div style={{ position: "relative", height: PREVIEW_H, overflow: "hidden", containerType: "inline-size" }}>
-        {isImage
-          ? <img src={src} alt={att.name} style={{ ...docStyle, objectFit: "contain" }} />
-          : <iframe title={att.name} src={src} style={{ ...docStyle, border: "none" }} />}
-      </div>
+      {isImage ? (
+        <div ref={setStageEl} style={{ position: "relative", height: PREVIEW_H, overflow: imgBox && zoom > 100 ? "auto" : "hidden", display: "flex", containerType: "inline-size" }}>
+          {imgBox
+            ? <div style={imgBox}><img src={src} alt={att.name} onLoad={onImgLoad} style={imgStyle} /></div>
+            : <img src={src} alt={att.name} onLoad={onImgLoad} style={{ ...docStyle, objectFit: "contain" }} />}
+        </div>
+      ) : (
+        <div style={{ position: "relative", height: PREVIEW_H, overflow: "hidden", containerType: "inline-size" }}>
+          <iframe title={att.name} src={src} style={{ ...docStyle, border: "none" }} />
+        </div>
+      )}
     </>
   );
 }
