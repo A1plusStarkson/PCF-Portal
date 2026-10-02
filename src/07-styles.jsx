@@ -422,6 +422,15 @@ const CSS = `
      larger icon — the most visible button in the bar. */
   .pcp-btn.pcp-btn-upload { background: #ffd43b; border: 2px solid #e0a800; color: #3d2a03; font-weight: 800; font-size: 13px; letter-spacing: 0.4px; padding: 6px 14px; }
   .pcp-btn.pcp-btn-upload:hover { background: #ffc107; border-color: #c99600; color: #2a1d02; }
+  /* Approval Module: TOTAL uploaded documents — the header metric, the
+     section badge and the queue column. */
+  .pcp-liq-metric.pcp-doc-total { background: #fff3c4; border: 2px solid #e8b53a; border-radius: 8px; padding: 4px 12px; }
+  .pcp-doc-total .pcp-kpi-label { color: #6b4a07; font-weight: 800; }
+  .pcp-doc-total-num { display: flex; align-items: center; gap: 5px; font-size: 20px; font-weight: 800; color: #3d2a03; font-variant-numeric: tabular-nums; }
+  .pcp-doc-total-chip { display: inline-flex; align-items: center; gap: 4px; background: #fff3c4; border: 1px solid #e8b53a; color: #5a3d04; border-radius: 999px; padding: 1px 8px; font-size: 11.5px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .pcp-doc-total-chip.lg { font-size: 12.5px; padding: 2px 10px; letter-spacing: 0.3px; }
+  [data-theme="dark"] .pcp-liq-metric.pcp-doc-total, [data-theme="dark"] .pcp-doc-total-chip { background: #4a3a10; border-color: #c9930f; }
+  [data-theme="dark"] .pcp-doc-total .pcp-kpi-label, [data-theme="dark"] .pcp-doc-total-num, [data-theme="dark"] .pcp-doc-total-chip { color: #ffe08a; }
   /* Upload status pop-ups (ToastHost). */
   .pcp-toasts { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 2000; display: flex; flex-direction: column; gap: 8px; width: min(520px, calc(100vw - 32px)); pointer-events: none; }
   .pcp-toast { pointer-events: auto; display: flex; align-items: flex-start; gap: 10px; padding: 12px 12px 12px 14px; border-radius: 10px; border: 2px solid; background: #fff; box-shadow: 0 12px 32px rgba(15,18,30,0.28); animation: pcpToastIn 0.18s ease; }
