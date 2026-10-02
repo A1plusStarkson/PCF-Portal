@@ -462,6 +462,7 @@ const CSS = `
   .pcp-btn.pcp-btn-savefile:disabled { background: #b9d8c5; border-color: #9cc4ac; color: #f4fbf6; cursor: default; }
   [data-theme="dark"] .pcp-btn.pcp-btn-rotate { background: #1b2f4f; border-color: #5b95f0; color: #cfe0ff; }
   [data-theme="dark"] .pcp-btn.pcp-btn-savefile:disabled { background: #284a36; border-color: #335c44; color: #9fbcab; }
+  .pcp-btn.pcp-btn-upload.pcp-btn-addline { font-size: 14px; padding: 9px 18px; border-radius: 10px; }
   [data-theme="dark"] .pcp-btn.pcp-btn-upload { background: #f5c518; border-color: #ffd43b; color: #1d1402; }
   .pcp-doc-gallery-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 10px; font-size: 12px; color: var(--text-mut); }
   .pcp-doc-gallery-bar > span:first-child { font-weight: 600; }

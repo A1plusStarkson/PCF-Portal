@@ -1929,7 +1929,15 @@ function LiquidationWorksheet({
         <div className="pcp-num val">{peso(total)}</div>
         <div></div>
       </div>
-      <button className="pcp-btn pcp-btn-sm" onClick={addLine} style={{ marginTop: 10 }}><Plus size={12} /> Add Receipt Line</button>
+      {/* Yellow, larger Add Receipt Line for LIQ_HEADER_UPLOAD_EMAILS (19-app.jsx)
+          — the same nine accounts and the same yellow as the header UPLOAD. */}
+      {showHeaderUpload ? (
+        <button className="pcp-btn pcp-btn-upload pcp-btn-addline" onClick={addLine} style={{ marginTop: 10 }}>
+          <Plus size={18} strokeWidth={3} /> ADD RECEIPT LINE
+        </button>
+      ) : (
+        <button className="pcp-btn pcp-btn-sm" onClick={addLine} style={{ marginTop: 10 }}><Plus size={12} /> Add Receipt Line</button>
+      )}
 
       {/* Supporting documents */}
       <div style={{ marginTop: 18, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
