@@ -206,7 +206,7 @@ const CSS = `
 
   .pcp-modal-backdrop {
     position: fixed; inset: 0; background: rgba(15,18,30,0.55); display: flex;
-    align-items: flex-start; justify-content: center; z-index: 50; padding: 40px 20px; overflow-y: auto;
+    align-items: flex-start; justify-content: center; z-index: 50; padding: 12px; overflow-y: auto;
   }
   .pcp-modal {
     background: var(--dm-surface, #fff); border-radius: 14px; width: 100%; max-width: 620px;
@@ -215,8 +215,8 @@ const CSS = `
   /* Larger modal the user can resize by dragging <ModalResizeGrip /> in the
      bottom-right corner. Pair with backdropCloseProps() on the backdrop. */
   .pcp-modal.pcp-modal-resizable {
-    position: relative; width: min(1000px, 96vw); max-width: 98vw; min-width: min(360px, 96vw);
-    max-height: calc(100vh - 40px); min-height: 300px;
+    position: relative; width: min(1200px, 98vw); max-width: 98vw; min-width: min(360px, 96vw);
+    max-height: calc(100vh - 24px); min-height: 300px;
     overflow: hidden; display: flex; flex-direction: column;
   }
   .pcp-modal-resizable .pcp-modal-body { flex: 1; min-height: 0; max-height: none; overflow-y: auto; }
@@ -235,7 +235,7 @@ const CSS = `
   .pcp-modal-head :is(button, a, input, select, textarea) { cursor: pointer; }
   .pcp-modal-head :is(input, textarea) { cursor: text; }
   .pcp-modal-head h3 { margin: 0; font-size: 15px; font-weight: 700; }
-  .pcp-modal-body { padding: 20px 22px; max-height: 65vh; overflow-y: auto; }
+  .pcp-modal-body { padding: 20px 22px; max-height: calc(100vh - 170px); overflow-y: auto; }
   .pcp-modal-foot { padding: 14px 22px; border-top: 1px solid var(--line); display: flex; justify-content: flex-end; gap: 8px; }
 
   .pcp-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
@@ -313,7 +313,7 @@ const CSS = `
   .pcp-stl-entry { font-size: 11.5px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; padding: 4px 0; border-bottom: 1px dashed #e9f1eb; }
   .pcp-stl-entry:last-child { border-bottom: none; }
   /* Liquidation worksheet pop-up: wide and tall by default (still resizable). */
-  .pcp-modal.pcp-liq-modal { width: min(1300px, 96vw); height: calc(100vh - 80px); }
+  .pcp-modal.pcp-liq-modal { width: min(1600px, 98vw); height: calc(100vh - 24px); }
   .pcp-liq-modal .pcp-modal-body { background: var(--paper); padding: 14px 16px; }
   .pcp-liq-workspace { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 14px; align-items: start; }
   .pcp-liq-sticky {

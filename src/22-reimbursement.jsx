@@ -671,7 +671,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
       <div
         className="pcp-modal pcp-modal-resizable"
         onClick={(e) => e.stopPropagation()}
-        style={{ width: "min(1200px, 96vw)", height: "calc(100vh - 80px)", minHeight: 400 }}
+        style={{ width: "min(1600px, 98vw)", height: "calc(100vh - 24px)", minHeight: 400 }}
       >
         <div className="pcp-modal-head">
           <h3>{isEdit ? `Edit Reimbursement · ${reimb.reimbNo}` : "New Reimbursement Request"}</h3>
@@ -1142,7 +1142,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
       <div
         className="pcp-modal pcp-modal-resizable"
         onClick={(e) => e.stopPropagation()}
-        style={{ width: "min(1280px, 96vw)", height: "calc(100vh - 80px)", minHeight: 400 }}
+        style={{ width: "min(1600px, 98vw)", height: "calc(100vh - 24px)", minHeight: 400 }}
       >
         <div className="pcp-modal-head">
           <h3>{reimb.reimbNo} · <Badge status={atAccounting ? REIMB_STAGE.FOR_ACCOUNTING : st} /></h3>

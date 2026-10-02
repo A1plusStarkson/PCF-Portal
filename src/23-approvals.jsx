@@ -156,7 +156,7 @@ function approvalQueueDoc(list, scopeLabel, generatedBy, scopeNote) {
    receipts while checking them. */
 function FloatingWindow({ title, onClose, children }) {
   const [pos, setPos] = useState(() => ({
-    x: Math.max(16, window.innerWidth - 720 - 24),
+    x: Math.max(8, window.innerWidth - Math.min(1000, window.innerWidth - 32) - 24),
     y: 84,
   }));
   const drag = useRef(null);
@@ -182,7 +182,7 @@ function FloatingWindow({ title, onClose, children }) {
   return (
     <div role="dialog" aria-label={title}
       style={{
-        position: "fixed", left: pos.x, top: pos.y, zIndex: 900, width: 720, height: 420,
+        position: "fixed", left: pos.x, top: pos.y, zIndex: 900, width: "min(1000px, calc(100vw - 32px))", height: "calc(100vh - 100px)",
         minWidth: 360, minHeight: 180, maxWidth: "calc(100vw - 16px)", maxHeight: "calc(100vh - 16px)",
         resize: "both", overflow: "hidden", display: "flex", flexDirection: "column",
         background: "var(--dm-surface, #fff)", border: "1px solid var(--line)", borderRadius: 12,

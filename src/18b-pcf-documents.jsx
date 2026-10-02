@@ -97,7 +97,7 @@ function DocPreviewModal({ doc, onClose, onDownload }) {
           <h3 style={{ display: "flex", alignItems: "center", gap: 8 }}><Eye size={16} /> {doc.name}</h3>
           <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose}><X size={15} /></button>
         </div>
-        <div className="pcp-modal-body" style={{ maxHeight: "70vh" }}>
+        <div className="pcp-modal-body">
           {meta.kind === "image" && src ? (
             <img src={src} alt={doc.name} style={{ maxWidth: "100%", borderRadius: 8, display: "block", margin: "0 auto" }} />
           ) : meta.kind === "pdf" && src ? (
