@@ -401,6 +401,25 @@ function fileStore() {
 }
 const STALE_PAGE_NOTE = "This page is out of date — reload it (Ctrl+Shift+R) before uploading.";
 
+/* ---- Upload size limit: 3 MB per file, every upload in the portal ----
+   Checked when the file is picked, before anything is sent to the bucket, so
+   an oversized file is never stored. storeFile repeats the check as a safety
+   net, and the bucket itself carries the same limit (supabase-upload-limit.sql). */
+const MAX_UPLOAD_MB = 3;
+const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
+const isTooLargeToUpload = (file) => !!file && file.size > MAX_UPLOAD_BYTES;
+const UPLOAD_TOO_LARGE_MSG = `File upload failed. The maximum allowed file size is ${MAX_UPLOAD_MB} MB per file. Please compress the file and try again.`;
+/* Splits a pick into files that may upload and the message for the rest
+   ("" when every file is within the limit). */
+function splitBySizeLimit(files) {
+  const ok = [], tooBig = [];
+  (files || []).forEach((f) => (isTooLargeToUpload(f) ? tooBig : ok).push(f));
+  const note = tooBig.length
+    ? `${UPLOAD_TOO_LARGE_MSG} (${tooBig.map((f) => `"${f.name}" — ${(f.size / 1048576).toFixed(1)} MB`).join(", ")})`
+    : "";
+  return { ok, tooBig, note };
+}
+
 /* Object path for a newly uploaded file. The attachment id is already unique
    (uid("att") / uid("ratt") / uid("doc")), so it alone prevents collisions;
    the file name rides along only so the bucket stays browsable by a human.
@@ -420,7 +439,7 @@ function storagePathFor(attId, fileName) {
    worse than no attachment, because it looks liquidated. */
 function storeFile(attId, file) {
   const store = fileStore();
-  if (!store) return Promise.resolve("");
+  if (!store || isTooLargeToUpload(file)) return Promise.resolve("");
   const path = storagePathFor(attId, file.name);
   return store.upload(path, file)
     .then((ok) => (ok ? path : ""))

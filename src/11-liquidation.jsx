@@ -451,7 +451,7 @@ function RecordSettlementModal({ disbursement, st, currentUser, onClose, onConfi
 
   const pickAck = (file) => {
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) { setUploadNote(`"${file.name}" is larger than 2 MB. Please compress it first.`); return; }
+    if (isTooLargeToUpload(file)) { setUploadNote(splitBySizeLimit([file]).note); return; }
     if (!fileStore()) { setUploadNote(STALE_PAGE_NOTE); return; }
     const id = uid("ack");
     setUploadNote(`Uploading "${file.name}"…`);
@@ -885,31 +885,28 @@ function LiquidationWorksheet({
   const removeLine = (id) => { setLines((ls) => ls.filter((l) => l.id !== id)); setSaved(false); };
 
   /* Supporting documents (official receipts, sales invoices, etc.) are read as
-     data URLs and stored with the liquidation. Capped per-file to keep the
-     shared record from growing too large. */
-  const MAX_FILE_BYTES = 2 * 1024 * 1024; // 2 MB per file
+     data URLs and stored with the liquidation. Capped at MAX_UPLOAD_MB per
+     file; an oversized file is refused before anything is uploaded, and its
+     message stays on screen while the other files finish. */
   const onPickFiles = (fileList) => {
-    const files = Array.from(fileList || []);
-    if (!files.length) return;
-    setUploadNote("");
+    const picked = Array.from(fileList || []);
+    if (!picked.length) return;
+    const { ok: files, note: sizeNote } = splitBySizeLimit(picked);
+    setUploadNote(sizeNote);
     files.forEach((file) => {
-      if (file.size > MAX_FILE_BYTES) {
-        setUploadNote(`"${file.name}" is larger than 2 MB and was skipped. Please compress it first.`);
-        return;
-      }
       /* The bytes go to the Storage bucket and the record keeps only the
          path. Nothing is added to the worksheet until the upload SUCCEEDS —
          an attachment row pointing at bytes that were never stored is worse
          than no attachment at all, because it looks liquidated. */
       if (!fileStore()) { setUploadNote(STALE_PAGE_NOTE); return; }
       const attId = uid("att");
-      setUploadNote(`Uploading "${file.name}"…`);
+      setUploadNote(sizeNote || `Uploading "${file.name}"…`);
       storeFile(attId, file).then((path) => {
         if (!path) {
-          setUploadNote(`"${file.name}" could not be uploaded. Check your connection and try again.`);
+          setUploadNote(`"${file.name}" could not be uploaded. Check your connection and try again.` + (sizeNote ? " " + sizeNote : ""));
           return;
         }
-        setUploadNote("");
+        setUploadNote(sizeNote);
         const doc = {
           id: attId, name: file.name, type: file.type || "file",
           size: file.size, path, uploadedAt: todayISO(),
@@ -2057,7 +2054,7 @@ function LiquidationWorksheet({
           </div>
         ) : (
           <div style={{ fontSize: 12, color: "var(--text-mut)", padding: "10px 0" }}>
-            No documents attached yet. Click <strong>Upload</strong> to attach scanned receipts or invoices (images or PDF, up to 2 MB each).
+            No documents attached yet. Click <strong>Upload</strong> to attach scanned receipts or invoices (images or PDF, up to {MAX_UPLOAD_MB} MB each).
           </div>
         )}
       </div>

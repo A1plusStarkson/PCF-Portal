@@ -385,7 +385,7 @@ Company policy (AF P16) is built into the form:
 | Submit within **5 working days** of the expense | Later than that and the portal flags it for review. |
 | Approvals run on the **15th and the 30th** | The form shows you the scheduled approval date. |
 | **Original OR / Sales Invoice required** | No receipt, no reimbursement. |
-| **Max 2 MB** per supporting document | Scan or photograph at a smaller size if needed. |
+| **Max 3 MB** per supporting document (every upload in the portal) | Scan or photograph at a smaller size if needed. |
 | **No duplicates** | An exact duplicate claim is blocked. |
 | **Not reimbursable** | Personal expenses · expenses without an official receipt · expenses without proper approval · fines and penalties · entertainment that wasn't pre-approved. |
 
@@ -536,7 +536,7 @@ kept), archive or restore. Every document gets a reference number
 | "Database setup incomplete" banner | The database is missing a table. Tell the administrator. |
 | "Cloud database not configured" | The app lost its connection — tell the administrator. |
 | Reports won't print | Allow pop-ups for the site; the report opens in a new window. |
-| A receipt won't upload | Check the file size (reimbursement documents are capped at 2 MB) and the file type. |
+| A receipt won't upload | Check the file size (every upload is capped at 3 MB per file — compress larger files first) and the file type. |
 | I deleted something by mistake | Tell Grace Gan straight away. Restores come from the Supabase daily backup (7 days), so the sooner the better. |
 
 ---

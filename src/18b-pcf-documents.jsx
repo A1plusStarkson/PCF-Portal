@@ -230,9 +230,12 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
     if (!canUpload) { setNotice("You do not have permission to upload documents."); return; }
     const files = Array.from(fileList || []);
     if (!files.length) return;
-    const valid = files.filter(isSupportedDoc);
-    const rejected = files.length - valid.length;
-    if (!valid.length) { setNotice(`Unsupported file type. Allowed: ${DOC_EXTS.join(", ").toUpperCase()}.`); return; }
+    const supported = files.filter(isSupportedDoc);
+    const rejected = files.length - supported.length;
+    if (!supported.length) { setNotice(`Unsupported file type. Allowed: ${DOC_EXTS.join(", ").toUpperCase()}.`); return; }
+    /* Size limit is checked before anything is uploaded. */
+    const { ok: valid, note: sizeNote } = splitBySizeLimit(supported);
+    if (!valid.length) { setNotice(sizeNote); return; }
 
     if (!fileStore()) { setNotice(STALE_PAGE_NOTE); return; }
     setUploading(true); setProgress(0);
@@ -281,6 +284,7 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
             `${built.length} document${built.length === 1 ? "" : "s"} uploaded`
             + (rejected ? ` · ${rejected} unsupported file(s) skipped` : "")
             + (failed ? ` · ${failed} failed to upload — please retry` : "")
+            + (sizeNote ? ` · ${sizeNote}` : "")
           );
         }
       });
@@ -314,6 +318,7 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
     e.target.value = "";
     if (!file || !target) return;
     if (!isSupportedDoc(file)) { setNotice("Unsupported file type for replacement."); return; }
+    if (isTooLargeToUpload(file)) { setNotice(splitBySizeLimit([file]).note); return; }
     /* A replacement gets its OWN object path, never overwriting the
        superseded one — the old version's bytes stay put for audit. */
     if (!fileStore()) { setNotice(STALE_PAGE_NOTE); return; }

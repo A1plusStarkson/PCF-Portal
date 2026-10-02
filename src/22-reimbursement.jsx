@@ -19,7 +19,7 @@ const REIMBURSEMENT_POLICY = {
   approvalDays: [15, 30],                   // approvals processed every 15th and 30th
   requireOriginalReceipt: true,            // Original OR / Sales Invoice required
   blockDuplicates: true,                   // prevent an exact duplicate reimbursement
-  maxFileBytes: 2 * 1024 * 1024,           // 2 MB per supporting document
+  maxFileBytes: MAX_UPLOAD_BYTES,          // 3 MB per supporting document (portal-wide limit)
   /* Section 9 — expenses that are NOT reimbursable. */
   nonReimbursable: [
     "Personal expenses",
@@ -459,26 +459,25 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
   const removeLine = (id) => setForm((f) => ({ ...f, lines: f.lines.length > 1 ? f.lines.filter((l) => l.id !== id) : f.lines }));
 
   const onPickFiles = (fileList, docType) => {
-    const files = Array.from(fileList || []);
-    if (!files.length) return;
-    setUploadNote("");
+    const picked = Array.from(fileList || []);
+    if (!picked.length) return;
+    /* Oversized files are refused before anything is uploaded; their message
+       stays on screen while the other files finish. */
+    const { ok: files, note: sizeNote } = splitBySizeLimit(picked);
+    setUploadNote(sizeNote);
     files.forEach((file) => {
-      if (file.size > REIMBURSEMENT_POLICY.maxFileBytes) {
-        setUploadNote(`"${file.name}" is larger than 2 MB and was skipped. Please compress it first.`);
-        return;
-      }
       /* Bytes go to the Storage bucket — the record carries only the path.
          The attachment is added only after the upload succeeds, so a form can
          never reference bytes that were never stored. */
       if (!fileStore()) { setUploadNote(STALE_PAGE_NOTE); return; }
       const attId = uid("ratt");
-      setUploadNote(`Uploading "${file.name}"…`);
+      setUploadNote(sizeNote || `Uploading "${file.name}"…`);
       storeFile(attId, file).then((path) => {
         if (!path) {
-          setUploadNote(`"${file.name}" could not be uploaded. Check your connection and try again.`);
+          setUploadNote(`"${file.name}" could not be uploaded. Check your connection and try again.` + (sizeNote ? " " + sizeNote : ""));
           return;
         }
-        setUploadNote("");
+        setUploadNote(sizeNote);
         const doc = {
           id: attId, name: file.name, type: file.type || "file", size: file.size,
           path, uploadedAt: todayISO(), docType: docType || "Official Receipt", receiptNo: "",
