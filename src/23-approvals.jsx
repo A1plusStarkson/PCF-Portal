@@ -216,6 +216,7 @@ function PcaApprovalPanel({
   const [rejecting, setRejecting] = useState(false);
   /* Expense / Liquidation Details popped out into a floating window. */
   const [floatExpenses, setFloatExpenses] = useState(false);
+  const txnDateLabels = !!(useContext(AppUI) || {}).txnDateLabels; // "Transaction / OR Date" — TXN_DATE_EMAILS
   const closeFloat = useCallback(() => setFloatExpenses(false), []);
   /* The one expense table, shown in the page and in the floating window. */
   const expenseTable = (
@@ -223,7 +224,7 @@ function PcaApprovalPanel({
       <table className="pcp-table">
         <thead>
           <tr>
-            <th>Date</th><th>Expense</th><th>Expense Category</th>
+            <th>{txnDateLabels ? "Transaction / OR Date" : "Date"}</th><th>Expense</th><th>Expense Category</th>
             <th>Department</th><th>Tax Category</th><th>Amount</th>
           </tr>
         </thead>

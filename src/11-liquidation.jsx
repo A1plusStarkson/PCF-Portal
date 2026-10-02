@@ -305,9 +305,21 @@ const reimbStatusFilter = (label) => ({
 /* ---- Liquidation list columns ----
    Sort accessors for the two list tables (see useTableSort). Functions, not
    values, so reimbTotal / REIMB_* from later fragments resolve at render time. */
+/* Earliest and latest Transaction / OR Date on a liquidation's expense lines
+   ({ first, last }, "" when none) — the dates the expenses actually happened,
+   never the submission date. */
+function liqTxnDates(liq) {
+  const ds = ((liq && liq.lines) || []).map((l) => l.date).filter(Boolean).sort();
+  return { first: ds[0] || "", last: ds[ds.length - 1] || "" };
+}
+const fmtTxnRange = (t) => (!t || !t.first ? "" : t.first === t.last ? fmtDate(t.first) : `${fmtDate(t.first)} – ${fmtDate(t.last)}`);
+
 const LIQ_PETTY_SORT_FIELDS = {
   voucherNo: (d) => d.voucherNo,
   date: (d) => d.date,
+  /* TRANSACTION / OR DATE view (TXN_DATE_EMAILS): the earliest expense-line
+     date, falling back to the voucher date while no line is dated. */
+  txnDate: (d) => (d.txn && d.txn.first) || d.date,
   employee: (d) => d.employee,
   branchCode: (d) => d.branchCode,
   department: (d) => subaccountLabel(d.department),
@@ -929,6 +941,7 @@ function LiquidationWorksheet({
   canRevert, onRevertLiquidation, showHeaderUpload,
 }) {
   const showModuleDocTotals = !!(useContext(AppUI) || {}).showModuleDocTotals; // TOTAL boxes — MODULE_DOC_TOTAL_EMAILS
+  const txnDateLabels = !!(useContext(AppUI) || {}).txnDateLabels; // "Transaction / OR Date" — TXN_DATE_EMAILS
   const [lines, setLines] = useState(liquidation ? liquidation.lines.map((l) => ({ ...l })) : [emptyLine()]);
   const [attachments, setAttachments] = useState(
     liquidation && liquidation.attachments ? liquidation.attachments.map(normalizeAttachment) : []
@@ -1908,7 +1921,7 @@ function LiquidationWorksheet({
         </div>
       )}
       <div className="pcp-liq-line-head">
-        <div>Date</div>
+        <div>{txnDateLabels ? "Transaction / OR Date" : "Date"}</div>
         <div>Expense <span style={{ color: "var(--danger)" }}>*</span></div>
         <div>Expense Category (COA)</div><div>Department</div><div>Tax Category</div>
         <div>Amount <span style={{ color: "var(--danger)" }}>*</span></div>
@@ -2381,7 +2394,9 @@ function LiquidationTab({
   const [search, setSearch] = useState("");
   /* Who-owes-whom filter (petty cash only) — e.g. everyone who still owes cash. */
   const [settleFilter, setSettleFilter] = useState(SETTLEMENT_FILTERS[0]);
-  const pettySort = useTableSort("date", "desc");
+  /* TRANSACTION / OR DATE column (TXN_DATE_EMAILS in 19-app.jsx). */
+  const txnDateLabels = !!(useContext(AppUI) || {}).txnDateLabels;
+  const pettySort = useTableSort(txnDateLabels ? "txnDate" : "date", "desc");
   const reimbSort = useTableSort("requestDate", "desc");
   /* Unsaved worksheet edits live only in the pop-up, so closing it asks first. */
   const worksheetDirty = useRef(false);
@@ -2408,6 +2423,7 @@ function LiquidationTab({
     liqStatus: liqStatusFor(d, liquidations),
     finalStatus: liqFinalStatus(d, liquidationFor(d.id, liquidations)),
     stl: settlementInfo(d, liquidationFor(d.id, liquidations)),
+    txn: liqTxnDates(liquidationFor(d.id, liquidations)),
     acct: liqReview(liquidationFor(d.id, liquidations)),
     stage: liqApprovalStage(d, liquidationFor(d.id, liquidations)),
     acctMode: liqAcctMode(liquidationFor(d.id, liquidations)),
@@ -2572,7 +2588,9 @@ function LiquidationTab({
                 <thead>
                   <tr>
                     <SortTh field="voucherNo" sort={pettySort}>Voucher No.</SortTh>
-                    <SortTh field="date" sort={pettySort}>Date</SortTh>
+                    {txnDateLabels
+                      ? <SortTh field="txnDate" sort={pettySort}>Transaction / OR Date</SortTh>
+                      : <SortTh field="date" sort={pettySort}>Date</SortTh>}
                     <SortTh field="employee" sort={pettySort}>Employee</SortTh>
                     <SortTh field="branchCode" sort={pettySort}>Plant</SortTh>
                     <SortTh field="department" sort={pettySort}>Department</SortTh>
@@ -2589,7 +2607,11 @@ function LiquidationTab({
                   {list.length ? list.map((d) => (
                     <tr key={d.id} className="pcp-liq-row" onClick={() => setSelectedId(d.id)} title="Open liquidation">
                       <td><strong>{d.voucherNo}</strong></td>
-                      <td>{fmtDate(d.date)}</td>
+                      {txnDateLabels ? (
+                        <td title={d.txn.first ? "Transaction / OR Date of the expense lines" : `No dated expense line yet · voucher released ${fmtDate(d.date)}`}>
+                          {d.txn.first ? fmtTxnRange(d.txn) : <span style={{ color: "var(--text-mut)" }}>—</span>}
+                        </td>
+                      ) : <td>{fmtDate(d.date)}</td>}
                       <td>{d.employee}</td>
                       <td>{d.branchCode}</td>
                       <td title={subaccountLabel(d.department)} style={LIQ_CLIP_CELL}>{subaccountLabel(d.department)}</td>

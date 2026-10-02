@@ -237,6 +237,17 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   ];
   const reimbAutoCategory = REIMB_AUTO_CATEGORY_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
+  /* Liquidation: the expense-line date reads TRANSACTION / OR DATE, and the
+     Liquidation list's date column shows the expense lines' Transaction / OR
+     Dates instead of the voucher date (owner's instruction, Oct 2026). Also
+     the Approval Module's expense table header. These accounts only. */
+  const TXN_DATE_EMAILS = [
+    "superuser@a1plus.com", "accounting@a1plus.com", "finance@a1plus.com",
+    "puradr@a1plus.com", "lita@a1plus.com", "mauwi@a1plus.com",
+    "pcfrequestordisney@a1plus.com", "pcfrequestormanila@a1plus.com", "pcfrequestorrgandco@a1plus.com",
+  ];
+  const txnDateLabels = TXN_DATE_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
   /* Uploaded Files: SAVE FILE after rotating a document's preview (owner's
      instruction, Oct 2026). Rotating the preview stays open to everyone; saving
      the new orientation is these accounts only. Re-checked in saveDocRotation. */
@@ -2481,8 +2492,8 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   }, [canSaveDocRotation, userName, role, disbursements, reimbursements, logAudit]);
 
   const uiValue = useMemo(
-    () => ({ notifications: bellNotifications, reminders, onReminderClick, role, setRole: guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation, showDocTotals, showModuleDocTotals, fixedDropdowns, reimbAutoCategory }),
-    [bellNotifications, reminders, onReminderClick, role, guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation, showDocTotals, showModuleDocTotals, fixedDropdowns, reimbAutoCategory]
+    () => ({ notifications: bellNotifications, reminders, onReminderClick, role, setRole: guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation, showDocTotals, showModuleDocTotals, fixedDropdowns, reimbAutoCategory, txnDateLabels }),
+    [bellNotifications, reminders, onReminderClick, role, guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation, showDocTotals, showModuleDocTotals, fixedDropdowns, reimbAutoCategory, txnDateLabels]
   );
 
   if (!loaded) {
