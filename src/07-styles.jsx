@@ -1450,13 +1450,51 @@ function Collapsible({ title, subtitle, defaultOpen, right, children }) {
    options — the search box only filters, it is never the value — so free text
    can never reach a record through one of these fields.
 --------------------------------------------------------------------------- */
+/* ---- Floating list position ----
+   For a list drawn in a portal at fixed screen coordinates, so a scrolling
+   table (the Reimbursement / Liquidation expense lines) or a modal can never
+   clip it. While `active`, returns { left, width, top | bottom, listMax }:
+   below the anchor, or above when there is more room there; listMax is the
+   height left for the options (up to 420px) after `reserve` px of header.
+   The anchor is first scrolled into view so the user always sees what they
+   are typing, and the position follows scroll / resize. null when inactive. */
+function useFixedPopPos(active, anchorRef, minWidth, reserve) {
+  const [pos, setPos] = useState(null);
+  useEffect(() => {
+    if (!active) { setPos(null); return; }
+    const el = anchorRef.current;
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest", inline: "nearest" });
+    const place = () => {
+      if (!anchorRef.current) return;
+      const r = anchorRef.current.getBoundingClientRect();
+      const vh = window.innerHeight, vw = window.innerWidth;
+      const below = vh - r.bottom - 12, above = r.top - 12;
+      const up = below < 300 && above > below;
+      const room = Math.max(140, (up ? above : below) - (reserve || 0));
+      const width = Math.min(Math.max(r.width, 240, Number(minWidth) || 0), vw - 16);
+      const left = Math.min(Math.max(8, r.left), vw - width - 8);
+      setPos({ left, width, listMax: Math.min(420, room), ...(up ? { bottom: vh - r.top + 4 } : { top: r.bottom + 4 }) });
+    };
+    place();
+    window.addEventListener("resize", place);
+    window.addEventListener("scroll", place, true);
+    return () => { window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
+  }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
+  return pos;
+}
+/* Inline style for a list placed by useFixedPopPos. */
+const fixedPopStyle = (pos, extra) => ({
+  ...extra, position: "fixed", left: pos.left, width: pos.width, minWidth: 0, right: "auto",
+  top: pos.top != null ? pos.top : "auto", bottom: pos.bottom != null ? pos.bottom : "auto",
+});
+
 function SearchSelect({
   value, onChange, options, placeholder, searchPlaceholder, emptyOptionLabel,
   disabled, title, invalid, style, popStyle,
 }) {
   const [open, setOpen] = useState(false);
   const [q, setQ] = useState("");
-  const [pos, setPos] = useState(null);
+
   /* Fixed, portalled list (below) — FIXED_DROPDOWN_EMAILS in 19-app.jsx only;
      everyone else keeps the list inside the field's own box (max 260px). */
   const fixedPop = !!(useContext(AppUI) || {}).fixedDropdowns;
@@ -1477,34 +1515,8 @@ function SearchSelect({
     return () => document.removeEventListener("mousedown", onDoc);
   }, [open]);
 
-  /* ---- Where the open list goes ----
-     Rendered in a portal at fixed screen coordinates, so a scrolling table
-     (the Reimbursement / Liquidation expense lines) or a modal can never clip
-     it. Opens below the field, or above when there is more room there; the
-     option list takes the height available (up to 420px). The field is first
-     scrolled into view so the user always sees what they are typing. Follows
-     the field on scroll / resize. */
-  useEffect(() => {
-    if (!open || !fixedPop) { setPos(null); return; }
-    const btn = wrapRef.current;
-    if (btn && btn.scrollIntoView) btn.scrollIntoView({ block: "nearest", inline: "nearest" });
-    const place = () => {
-      if (!wrapRef.current) return;
-      const r = wrapRef.current.getBoundingClientRect();
-      const vh = window.innerHeight, vw = window.innerWidth;
-      const below = vh - r.bottom - 12, above = r.top - 12;
-      const up = below < 300 && above > below;
-      const room = Math.max(140, (up ? above : below) - 70); // 70 ≈ search box + padding
-      const minW = Math.max(r.width, 240, (popStyle && Number(popStyle.minWidth)) || 0);
-      const width = Math.min(minW, vw - 16);
-      const left = Math.min(Math.max(8, r.left), vw - width - 8);
-      setPos({ left, width, listMax: Math.min(420, room), ...(up ? { bottom: vh - r.top + 4 } : { top: r.bottom + 4 }) });
-    };
-    place();
-    window.addEventListener("resize", place);
-    window.addEventListener("scroll", place, true);
-    return () => { window.removeEventListener("resize", place); window.removeEventListener("scroll", place, true); };
-  }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+  /* Where the open list goes — see useFixedPopPos. */
+  const pos = useFixedPopPos(open && fixedPop, wrapRef, popStyle && popStyle.minWidth, 70);
 
   /* Normalize flat and grouped inputs to one grouped shape (a flat list becomes
      a single unlabelled group) so the render path below stays single. */
@@ -1558,8 +1570,7 @@ function SearchSelect({
         <div
           ref={popRef} className={"pcp-ss-pop" + (fixedPop ? " pcp-ss-pop-fixed" : "")}
           style={fixedPop
-            ? { ...popStyle, position: "fixed", left: pos.left, width: pos.width, minWidth: 0, right: "auto",
-                top: pos.top != null ? pos.top : "auto", bottom: pos.bottom != null ? pos.bottom : "auto" }
+            ? fixedPopStyle(pos, popStyle)
             : popStyle}
         >
           <div style={{ position: "relative" }}>

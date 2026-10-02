@@ -687,9 +687,14 @@ function ExpenseDescriptionInput({ value, onChange, match, category, filled, onP
   const [hi, setHi] = useState(0);
   const list = match.suggestions;
   const show = open && String(value || "").trim().length >= 2;
+  /* FIXED_DROPDOWN_EMAILS: the list floats above the screen (useFixedPopPos)
+     so a scrolling table — the Reimbursement expense lines — cannot clip it. */
+  const wrapRef = useRef(null);
+  const fixedPop = !!(useContext(AppUI) || {}).fixedDropdowns;
+  const pos = useFixedPopPos(show && fixedPop, wrapRef, 330, 60);
   const pick = (c) => { onPickCategory(c); setOpen(false); };
   return (
-    <div className="pcp-ss-wrap">
+    <div className="pcp-ss-wrap" ref={wrapRef}>
       <input
         className="pcp-input" placeholder="e.g. Meals, Fuel, Toll Fee" autoComplete="off"
         value={value} style={style} title={title}
@@ -705,17 +710,17 @@ function ExpenseDescriptionInput({ value, onChange, match, category, filled, onP
           else if (e.key === "Enter") { e.preventDefault(); pick(list[Math.min(hi, list.length - 1)].category); }
         }}
       />
-      {show && (
+      {show && (!fixedPop || pos) && ((node) => (fixedPop ? createPortal(node, document.body) : node))(
         /* mousedown is swallowed so clicking an option does not blur the input
            (and close the list) before the click lands. */
-        <div className="pcp-ss-pop" style={{ minWidth: 330 }} role="listbox" onMouseDown={(e) => e.preventDefault()}>
+        <div className={"pcp-ss-pop" + (fixedPop ? " pcp-ss-pop-fixed" : "")} style={fixedPop ? fixedPopStyle(pos) : { minWidth: 330 }} role="listbox" onMouseDown={(e) => e.preventDefault()}>
           {!!match.detected.length && (
             <div className="pcp-ss-group" style={{ textTransform: "none", letterSpacing: 0 }}>
               Detected: {match.detected.join(" · ")}
             </div>
           )}
           {list.length ? (
-            <div style={{ maxHeight: 250, overflowY: "auto" }}>
+            <div style={{ maxHeight: fixedPop ? pos.listMax : 250, overflowY: "auto" }}>
               {list.map((s, i) => (
                 <div
                   key={s.category} role="option" aria-selected={s.category === category}

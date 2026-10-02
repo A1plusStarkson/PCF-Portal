@@ -462,9 +462,12 @@ function ComplianceList({ compliance }) {
 
 /* ============================= REIMBURSEMENT FORM (WIZARD) ============================= */
 
-function emptyReimbLine() {
+/* blankCategory: start with NO category — filled in from the Description
+   (suggestExpenseCategories) or picked by hand, as in Liquidation
+   (REIMB_AUTO_CATEGORY_EMAILS). Otherwise the first category, as before. */
+function emptyReimbLine(blankCategory) {
   return {
-    id: uid("rln"), date: todayISO(), category: EXPENSE_CATEGORIES[0],
+    id: uid("rln"), date: todayISO(), category: blankCategory ? "" : EXPENSE_CATEGORIES[0],
     description: "", vendor: "", department: SUBACCOUNTS[1].code,
     taxCategory: "", amount: "", businessPurpose: "", receiptNo: "",
   };
@@ -541,6 +544,10 @@ function PurposeSelect({ value, onChange }) {
 
 function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride, reimb, plantOptions, allReimbursements, currentUser, canDeleteDocs, canAuthorizeVariance }) {
   const isEdit = !!reimb;
+  const ui = useContext(AppUI) || {};
+  /* Automatic Expense Category from the Description, same engine and approved
+     list as Liquidation — REIMB_AUTO_CATEGORY_EMAILS in 19-app.jsx only. */
+  const autoCat = !!ui.reimbAutoCategory;
   const defaultBranch = (plantOptions && plantOptions[0]) ? plantOptions[0].code : BRANCHES[0].code;
   const [step, setStep] = useState(1);
   const [form, setForm] = useState(
@@ -559,14 +566,14 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
       : {
           employee: currentUser || "", department: SUBACCOUNTS[1].code, branchCode: defaultBranch,
           purpose: "", requestDate: todayISO(), remarks: "",
-          lines: [emptyReimbLine()], attachments: [],
+          lines: [emptyReimbLine(autoCat)], attachments: [],
           needsPO: false, needsProof: false, hasPersonal: false,
           entertainmentNotPreApproved: false, hasFines: false, certify: false,
           varianceException: null,
         }
   );
   const [uploadNote, setUploadNote] = useState("");
-  const showModuleDocTotals = !!(useContext(AppUI) || {}).showModuleDocTotals; // TOTAL boxes — MODULE_DOC_TOTAL_EMAILS
+  const showModuleDocTotals = !!ui.showModuleDocTotals; // TOTAL boxes — MODULE_DOC_TOTAL_EMAILS
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const setLine = (id, patch) => setForm((f) => ({
@@ -578,8 +585,28 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
       return next;
     }),
   }));
-  const addLine = () => setForm((f) => ({ ...f, lines: [...f.lines, emptyReimbLine()] }));
+  const addLine = () => setForm((f) => ({ ...f, lines: [...f.lines, emptyReimbLine(autoCat)] }));
   const removeLine = (id) => setForm((f) => ({ ...f, lines: f.lines.length > 1 ? f.lines.filter((l) => l.id !== id) : f.lines }));
+
+  /* ---- Automatic Expense Category (autoCat) ----
+     Same rule as the Liquidation worksheet: autoPicked holds, per line, the
+     category the SYSTEM filled in. The system keeps re-deciding a line's
+     category only while it is blank or still holds that auto pick. Once
+     someone picks a category by hand, or on any line loaded from a saved
+     reimbursement, the category is theirs and typing only offers
+     suggestions — a stored category is never rewritten. */
+  const autoPicked = useRef({});
+  const reclassify = (l, patch) => {
+    const next = { ...l, ...patch };
+    const cur = l.category || "";
+    if (cur && autoPicked.current[l.id] !== cur) return patch;
+    const { auto } = suggestExpenseCategories(next.description, { department: next.department });
+    if (auto) autoPicked.current[l.id] = auto; else delete autoPicked.current[l.id];
+    return { ...patch, category: auto || "" };
+  };
+  const setLineDescription = (l, description) => setLine(l.id, autoCat ? reclassify(l, { description }) : { description });
+  const setLineDepartment = (l, department) => setLine(l.id, autoCat ? reclassify(l, { department }) : { department });
+  const setLineCategory = (l, category) => { delete autoPicked.current[l.id]; setLine(l.id, { category }); };
 
   const onPickFiles = (fileList, docType) => {
     const picked = Array.from(fileList || []);
@@ -757,14 +784,78 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
               <div className="pcp-table-wrap">
                 <table className="pcp-table">
                   <thead>
+                    {autoCat ? (
+                      /* Field order (owner's instruction, Oct 2026): Date →
+                         Description → Expense Category → Vendor → … */
+                      <tr>
+                        <th>Transaction / OR Date</th><th>Description</th><th>Expense Category</th><th>Vendor</th>
+                        <th>Department</th><th>Tax</th><th>Business Purpose <span style={{ fontWeight: 500, textTransform: "none" }}>(optional)</span></th>
+                        <th>Receipt No.</th><th>Amount</th><th></th>
+                      </tr>
+                    ) : (
                     <tr>
                       <th>Date</th><th>Category</th><th>Description</th><th>Vendor</th>
                       <th>Department</th><th>Tax</th><th>Business Purpose <span style={{ fontWeight: 500, textTransform: "none" }}>(optional)</span></th>
                       <th>Receipt No.</th><th>Amount</th><th></th>
                     </tr>
+                    )}
                   </thead>
                   <tbody>
-                    {form.lines.map((l) => (
+                    {form.lines.map((l) => {
+                      if (autoCat) {
+                        /* Same engine, approved list and "Auto" tag as the
+                           Liquidation worksheet's expense lines. */
+                        const match = suggestExpenseCategories(l.description, { department: l.department });
+                        const isAuto = !!l.category && autoPicked.current[l.id] === l.category;
+                        return (
+                          <tr key={l.id}>
+                            <td><input type="date" className="pcp-input" style={{ minWidth: 130 }} value={l.date} onChange={(e) => setLine(l.id, { date: e.target.value })} /></td>
+                            <td style={{ minWidth: 190 }}>
+                              <ExpenseDescriptionInput
+                                value={l.description} onChange={(v) => setLineDescription(l, v)}
+                                match={match} category={l.category} filled={isAuto} onPickCategory={(c) => setLineCategory(l, c)}
+                              />
+                            </td>
+                            <td>
+                              <div style={{ position: "relative", minWidth: 180 }}>
+                                <SearchSelect
+                                  value={l.category} onChange={(v) => setLineCategory(l, v)}
+                                  options={lineCategoryOptions(match)}
+                                  placeholder="Select Expense Category"
+                                  searchPlaceholder="Search expense category / COA…"
+                                  popStyle={{ minWidth: 340 }}
+                                  title={isAuto ? `${l.category} (suggested from the Description, click to change)` : undefined}
+                                />
+                                {isAuto && <span className="pcp-exp-auto" title="Suggested from the Description">Auto</span>}
+                              </div>
+                            </td>
+                            <td><input className="pcp-input" style={{ minWidth: 110 }} value={l.vendor} onChange={(e) => setLine(l.id, { vendor: e.target.value })} /></td>
+                            <td>
+                              <SearchSelect
+                                value={l.department} onChange={(v) => setLineDepartment(l, v)}
+                                options={DEPARTMENT_CHOICES}
+                                placeholder="— Select Department —"
+                                searchPlaceholder="Search department or sub-account…"
+                                style={{ minWidth: 150 }} popStyle={{ minWidth: 300 }}
+                              />
+                            </td>
+                            <td>
+                              <SearchSelect
+                                value={l.taxCategory} onChange={(v) => setLine(l.id, { taxCategory: v })}
+                                options={TAX_CATEGORY_CHOICES}
+                                placeholder="—" emptyOptionLabel="—"
+                                searchPlaceholder="Search tax category…"
+                                style={{ minWidth: 100 }} popStyle={{ minWidth: 300 }}
+                              />
+                            </td>
+                            <td><input className="pcp-input" style={{ minWidth: 120 }} value={l.businessPurpose} placeholder="Optional" onChange={(e) => setLine(l.id, { businessPurpose: e.target.value })} /></td>
+                            <td><input className="pcp-input" style={{ minWidth: 90 }} value={l.receiptNo} onChange={(e) => setLine(l.id, { receiptNo: e.target.value })} /></td>
+                            <td><input type="number" min="0" step="0.01" className="pcp-input" style={{ minWidth: 90 }} value={l.amount} onChange={(e) => setLine(l.id, { amount: e.target.value })} /></td>
+                            <td><button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => removeLine(l.id)} title="Remove line"><Trash2 size={13} color="var(--danger)" /></button></td>
+                          </tr>
+                        );
+                      }
+                      return (
                       <tr key={l.id}>
                         <td><input type="date" className="pcp-input" style={{ minWidth: 130 }} value={l.date} onChange={(e) => setLine(l.id, { date: e.target.value })} /></td>
                         <td>
@@ -801,7 +892,8 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                         <td><input type="number" min="0" step="0.01" className="pcp-input" style={{ minWidth: 90 }} value={l.amount} onChange={(e) => setLine(l.id, { amount: e.target.value })} /></td>
                         <td><button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => removeLine(l.id)} title="Remove line"><Trash2 size={13} color="var(--danger)" /></button></td>
                       </tr>
-                    ))}
+                      );
+                    })}
                   </tbody>
                   <tfoot>
                     <tr>
