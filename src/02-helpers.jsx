@@ -432,18 +432,52 @@ function storagePathFor(attId, fileName) {
   return "receipts/" + attId + "/" + safe;
 }
 
+/* ---- Upload status pop-up (toast) ----
+   Every upload reports its outcome in a pop-up fixed at the top of the screen
+   (<ToastHost /> in 07-styles.jsx, mounted once in 19-app.jsx), so the user
+   sees it wherever they are scrolled. storeFile reports success / failure for
+   every upload in the portal; the pick handlers report files refused before
+   uploading (too large, wrong type, page out of date). */
+const TOAST_EVENT = "pcp-toast";
+function showToast(type, title, detail) {
+  try { window.dispatchEvent(new CustomEvent(TOAST_EVENT, { detail: { type, title, detail: detail || "" } })); } catch (e) { /* no window */ }
+}
+const toastUploadOk = (name) => showToast("success", "File uploaded successfully.", name ? `"${name}" was accepted and stored by the PCF Portal.` : "");
+const toastUploadFailed = (name, reason) => showToast("error", "File upload failed. Please try again.",
+  `${name ? `"${name}" was not uploaded.` : "The file was not uploaded."}${reason ? ` Reason: ${reason}` : ""}`);
+const toastUploadRefused = (reason) => showToast("warning", "File was not uploaded. Please check the file and try again.", reason);
+
+/* Plain-language reason for a failed upload. */
+function uploadFailReason() {
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return "you appear to be offline. Check your internet connection.";
+  const raw = String(window.__pcpLastUploadError || "");
+  window.__pcpLastUploadError = "";
+  if (/size|too large|exceed/i.test(raw)) return `the file is larger than the ${MAX_UPLOAD_MB} MB limit.`;
+  if (/jwt|auth|permission|policy|denied|unauthor/i.test(raw)) return "your sign-in has expired or is not allowed to upload. Reload the page and sign in again.";
+  return raw ? `the server did not accept the file (${raw}).` : "the connection to the server failed.";
+}
+
 /* Uploads a picked File to the bucket and resolves its object path, or ""
    if anything failed. The raw File goes up as-is — no base64 — so nothing is
    inflated by a third on the way. Callers MUST treat "" as a hard failure and
    record nothing: an attachment pointing at bytes that were never stored is
    worse than no attachment, because it looks liquidated. */
-function storeFile(attId, file) {
+/* Pass { quiet: true } to skip the pop-up (the caller reports the outcome
+   itself, e.g. a batch upload that shows one summary). */
+function storeFile(attId, file, opts) {
+  const quiet = !!(opts && opts.quiet);
+  const name = file && file.name;
   const store = fileStore();
-  if (!store || isTooLargeToUpload(file)) return Promise.resolve("");
-  const path = storagePathFor(attId, file.name);
+  if (!store) { if (!quiet) toastUploadRefused(STALE_PAGE_NOTE); return Promise.resolve(""); }
+  if (isTooLargeToUpload(file)) { if (!quiet) toastUploadRefused(splitBySizeLimit([file]).note); return Promise.resolve(""); }
+  const path = storagePathFor(attId, name);
   return store.upload(path, file)
     .then((ok) => (ok ? path : ""))
-    .catch(() => "");
+    .catch(() => "")
+    .then((p) => {
+      if (!quiet) { if (p) toastUploadOk(name); else toastUploadFailed(name, uploadFailReason()); }
+      return p;
+    });
 }
 
 /* ---- Save a rotated document ----

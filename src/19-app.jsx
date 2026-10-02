@@ -2449,6 +2449,7 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
     <AppUI.Provider value={uiValue}>
     <div className="pcp-root">
       <style>{CSS}</style>
+      <ToastHost />
       <Sidebar tab={tab} setTab={setTab} role={role} roleLabel={accountRoleLabel(role, userEmail, userRole || "Accounting")} navGroups={navGroups} userEmail={userEmail} userName={userName} financeCheckerNames={financeCheckerNames} financeChecker={activeFinanceChecker} onFinanceChecker={setFinanceChecker} onSignOut={handleSignOut} onChangePassword={() => setShowChangePw(true)} onManageMfa={hasMfa ? () => setShowMfaDevices(true) : undefined} />
       <div className="pcp-main">
         {/* Shown to EVERYONE, not just admins: this one says the screen below

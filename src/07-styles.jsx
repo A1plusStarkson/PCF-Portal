@@ -422,6 +422,21 @@ const CSS = `
      larger icon — the most visible button in the bar. */
   .pcp-btn.pcp-btn-upload { background: #ffd43b; border: 2px solid #e0a800; color: #3d2a03; font-weight: 800; font-size: 13px; letter-spacing: 0.4px; padding: 6px 14px; }
   .pcp-btn.pcp-btn-upload:hover { background: #ffc107; border-color: #c99600; color: #2a1d02; }
+  /* Upload status pop-ups (ToastHost). */
+  .pcp-toasts { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 2000; display: flex; flex-direction: column; gap: 8px; width: min(520px, calc(100vw - 32px)); pointer-events: none; }
+  .pcp-toast { pointer-events: auto; display: flex; align-items: flex-start; gap: 10px; padding: 12px 12px 12px 14px; border-radius: 10px; border: 2px solid; background: #fff; box-shadow: 0 12px 32px rgba(15,18,30,0.28); animation: pcpToastIn 0.18s ease; }
+  .pcp-toast-success { border-color: #1f8f4e; background: #eaf7ef; color: #11532d; }
+  .pcp-toast-error { border-color: #c62828; background: #fdecec; color: #7f1414; }
+  .pcp-toast-warning { border-color: #e0a800; background: #fff6d6; color: #5a3d04; }
+  .pcp-toast-icon { flex-shrink: 0; margin-top: 1px; }
+  .pcp-toast-title { font-weight: 800; font-size: 13.5px; }
+  .pcp-toast-detail { font-size: 12px; margin-top: 2px; line-height: 1.4; word-break: break-word; }
+  .pcp-toast-x { flex-shrink: 0; border: none; background: transparent; color: inherit; cursor: pointer; padding: 2px; opacity: 0.7; }
+  .pcp-toast-x:hover { opacity: 1; }
+  @keyframes pcpToastIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+  [data-theme="dark"] .pcp-toast-success { background: #173826; color: #c9f0d6; }
+  [data-theme="dark"] .pcp-toast-error { background: #4a1919; color: #ffd6d6; }
+  [data-theme="dark"] .pcp-toast-warning { background: #4a3a10; color: #ffe8a8; }
   /* Document preview: ROTATE (blue) and SAVE FILE (green) — large, bold and
      coloured so they read at a glance beside each uploaded file. */
   .pcp-btn.pcp-btn-rotate { background: #e3efff; border: 2px solid #2f6fd6; color: #154a9e; font-weight: 800; font-size: 12.5px; letter-spacing: 0.3px; padding: 6px 12px; }
@@ -1134,6 +1149,46 @@ function Sidebar({ tab, setTab, role, roleLabel, navGroups, userEmail, userName,
         </div>
       </div>
     </aside>
+  );
+}
+
+/* Upload status pop-ups (showToast in 02-helpers.jsx). Fixed at the top
+   centre of the screen, above every modal, so the user sees the outcome
+   without scrolling. Success closes itself after 5 s, a warning after 9 s, a
+   failure after 12 s; each has a close button, and hovering pauses nothing —
+   it simply stays until its time is up or it is closed. */
+const TOAST_ICON = { success: CircleCheck, error: X, warning: AlertTriangle };
+const TOAST_MS = { success: 5000, warning: 9000, error: 12000 };
+function ToastHost() {
+  const [items, setItems] = useState([]);
+  useEffect(() => {
+    const timers = new Set();
+    const onToast = (e) => {
+      const t = { id: uid("toast"), ...(e.detail || {}) };
+      setItems((xs) => [...xs.slice(-3), t]);
+      const h = setTimeout(() => { timers.delete(h); setItems((xs) => xs.filter((x) => x.id !== t.id)); }, TOAST_MS[t.type] || 6000);
+      timers.add(h);
+    };
+    window.addEventListener(TOAST_EVENT, onToast);
+    return () => { window.removeEventListener(TOAST_EVENT, onToast); timers.forEach(clearTimeout); };
+  }, []);
+  if (!items.length) return null;
+  return (
+    <div className="pcp-toasts" role="status" aria-live="polite">
+      {items.map((t) => {
+        const Icon = TOAST_ICON[t.type] || Bell;
+        return (
+          <div key={t.id} className={"pcp-toast pcp-toast-" + (t.type || "info")}>
+            <span className="pcp-toast-icon"><Icon size={18} strokeWidth={2.6} /></span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="pcp-toast-title">{t.title}</div>
+              {t.detail && <div className="pcp-toast-detail">{t.detail}</div>}
+            </div>
+            <button type="button" className="pcp-toast-x" onClick={() => setItems((xs) => xs.filter((x) => x.id !== t.id))} title="Close"><X size={15} /></button>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 

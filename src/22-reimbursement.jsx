@@ -586,12 +586,13 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
     /* Oversized files are refused before anything is uploaded; their message
        stays on screen while the other files finish. */
     const { ok: files, note: sizeNote } = splitBySizeLimit(picked);
+    if (sizeNote) toastUploadRefused(sizeNote);
     setUploadNote(sizeNote);
     files.forEach((file) => {
       /* Bytes go to the Storage bucket — the record carries only the path.
          The attachment is added only after the upload succeeds, so a form can
          never reference bytes that were never stored. */
-      if (!fileStore()) { setUploadNote(STALE_PAGE_NOTE); return; }
+      if (!fileStore()) { setUploadNote(STALE_PAGE_NOTE); toastUploadRefused(STALE_PAGE_NOTE); return; }
       const attId = uid("ratt");
       setUploadNote(sizeNote || `Uploading "${file.name}"…`);
       storeFile(attId, file).then((path) => {

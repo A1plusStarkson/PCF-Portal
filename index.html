@@ -927,10 +927,10 @@
               // can never be overwritten after it is stored.
               .upload(path, file, { upsert: false, contentType: file.type || "application/octet-stream" })
               .then(function (res) {
-                if (res.error) { console.warn("Receipt upload failed:", res.error.message); return false; }
+                if (res.error) { console.warn("Receipt upload failed:", res.error.message); window.__pcpLastUploadError = res.error.message; return false; }
                 return true;
               });
-          }).catch(function (e) { console.warn("Receipt upload failed:", e && e.message); return false; });
+          }).catch(function (e) { console.warn("Receipt upload failed:", e && e.message); window.__pcpLastUploadError = (e && e.message) || ""; return false; });
         },
 
         // Exchanges a bucket path for a short-lived signed URL. Signed because
@@ -1007,7 +1007,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20261002f";
+  window.PCP_SRC_VERSION = "20261002g";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",

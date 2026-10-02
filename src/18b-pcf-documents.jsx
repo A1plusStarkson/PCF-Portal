@@ -232,27 +232,32 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
     if (!files.length) return;
     const supported = files.filter(isSupportedDoc);
     const rejected = files.length - supported.length;
-    if (!supported.length) { setNotice(`Unsupported file type. Allowed: ${DOC_EXTS.join(", ").toUpperCase()}.`); return; }
+    const typeNote = `Unsupported file type. Allowed: ${DOC_EXTS.join(", ").toUpperCase()}.`;
+    if (!supported.length) { setNotice(typeNote); toastUploadRefused(typeNote); return; }
+    if (rejected) toastUploadRefused(`${rejected} file(s) skipped — ${typeNote}`);
     /* Size limit is checked before anything is uploaded. */
     const { ok: valid, note: sizeNote } = splitBySizeLimit(supported);
+    if (sizeNote) toastUploadRefused(sizeNote);
     if (!valid.length) { setNotice(sizeNote); return; }
 
-    if (!fileStore()) { setNotice(STALE_PAGE_NOTE); return; }
+    if (!fileStore()) { setNotice(STALE_PAGE_NOTE); toastUploadRefused(STALE_PAGE_NOTE); return; }
     setUploading(true); setProgress(0);
     const built = [];
     let done = 0;
     /* Numbered from the FULL document count — `documents` may be only the
        plants this user can see. */
     const baseSeq = (allDocCount != null ? allDocCount : (documents ? documents.length : 0)) + 1;
-    let failed = 0;
+    let failed = 0, failReason = "";
+    /* Several files: one summary pop-up at the end instead of one per file. */
+    const batch = valid.length > 1;
     valid.forEach((file, idx) => {
       /* Bytes go to the Storage bucket; the record keeps only the path. A
          failed upload adds nothing — a document row with no file behind it
          reads as filed when it is not. */
       const docId = uid("doc");
-      storeFile(docId, file).then((path) => {
+      storeFile(docId, file, { quiet: batch }).then((path) => {
         const ts = nowTs();
-        if (!path) { failed++; }
+        if (!path) { failed++; if (batch && !failReason) failReason = uploadFailReason(); }
         else built.push({
           id: docId,
           refNo: makeDocRef(baseSeq + idx),
@@ -280,6 +285,10 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
         if (done === valid.length) {
           if (built.length) onAdd(built);
           setUploading(false); setProgress(0);
+          if (batch) {
+            if (!failed) showToast("success", "File uploaded successfully.", `All ${built.length} files were accepted and stored by the PCF Portal.`);
+            else showToast("error", "File upload failed. Please try again.", `${failed} of ${valid.length} files were not uploaded${failReason ? ` — ${failReason}` : "."}${built.length ? ` ${built.length} uploaded successfully.` : ""}`);
+          }
           setNotice(
             `${built.length} document${built.length === 1 ? "" : "s"} uploaded`
             + (rejected ? ` · ${rejected} unsupported file(s) skipped` : "")
@@ -317,11 +326,11 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
     const target = replaceTargetRef.current;
     e.target.value = "";
     if (!file || !target) return;
-    if (!isSupportedDoc(file)) { setNotice("Unsupported file type for replacement."); return; }
-    if (isTooLargeToUpload(file)) { setNotice(splitBySizeLimit([file]).note); return; }
+    if (!isSupportedDoc(file)) { setNotice("Unsupported file type for replacement."); toastUploadRefused("Unsupported file type for replacement."); return; }
+    if (isTooLargeToUpload(file)) { const n = splitBySizeLimit([file]).note; setNotice(n); toastUploadRefused(n); return; }
     /* A replacement gets its OWN object path, never overwriting the
        superseded one — the old version's bytes stay put for audit. */
-    if (!fileStore()) { setNotice(STALE_PAGE_NOTE); return; }
+    if (!fileStore()) { setNotice(STALE_PAGE_NOTE); toastUploadRefused(STALE_PAGE_NOTE); return; }
     setNotice(`Uploading "${file.name}"…`);
     storeFile(uid("docv"), file).then((path) => {
       if (!path) { setNotice(`"${file.name}" could not be uploaded. Please try again.`); return; }

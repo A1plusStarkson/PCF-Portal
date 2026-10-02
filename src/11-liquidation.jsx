@@ -451,8 +451,8 @@ function RecordSettlementModal({ disbursement, st, currentUser, onClose, onConfi
 
   const pickAck = (file) => {
     if (!file) return;
-    if (isTooLargeToUpload(file)) { setUploadNote(splitBySizeLimit([file]).note); return; }
-    if (!fileStore()) { setUploadNote(STALE_PAGE_NOTE); return; }
+    if (isTooLargeToUpload(file)) { const n = splitBySizeLimit([file]).note; setUploadNote(n); toastUploadRefused(n); return; }
+    if (!fileStore()) { setUploadNote(STALE_PAGE_NOTE); toastUploadRefused(STALE_PAGE_NOTE); return; }
     const id = uid("ack");
     setUploadNote(`Uploading "${file.name}"…`);
     storeFile(id, file).then((path) => {
@@ -798,13 +798,13 @@ function AttachmentPreview({ att, isImage, isPdf, onRotationSaved, persist }) {
   const canSave = !!(ui && ui.canSaveDocRotation && ui.saveDocRotation && onRotationSaved);
   const saveFile = async () => {
     if (!canSave || !rot || busy) return;
-    if (!fileStore()) { setMsg(STALE_PAGE_NOTE); return; }
+    if (!fileStore()) { setMsg(STALE_PAGE_NOTE); toastUploadRefused(STALE_PAGE_NOTE); return; }
     setBusy(true); setMsg("Saving the rotated file…");
     try {
       const file = await rotateFileBytes(src, att, rot);
-      if (isTooLargeToUpload(file)) { setMsg(`The rotated file is larger than ${MAX_UPLOAD_MB} MB, so it was not saved. The original is unchanged.`); return; }
-      const path = await storeFile(uid("rot"), file);
-      if (!path) { setMsg("The rotated file could not be uploaded. Check your connection and try again. The original is unchanged."); return; }
+      if (isTooLargeToUpload(file)) { const n = `The rotated file is larger than ${MAX_UPLOAD_MB} MB, so it was not saved. The original is unchanged.`; setMsg(n); toastUploadRefused(n); return; }
+      const path = await storeFile(uid("rot"), file, { quiet: true });
+      if (!path) { setMsg("The rotated file could not be uploaded. Check your connection and try again. The original is unchanged."); toastUploadFailed(file.name, uploadFailReason() + " The original is unchanged."); return; }
       const patch = { path, name: file.name, size: file.size, type: file.type, dataUrl: "", fileId: "" };
       const full = ui.saveDocRotation(persist && persist.kind, persist && persist.recordId, att, patch, rot);
       if (!full) { setMsg(""); return; }
@@ -813,9 +813,11 @@ function AttachmentPreview({ att, isImage, isPdf, onRotationSaved, persist }) {
       setMsg(persist && persist.recordId
         ? "Saved — the new orientation is now the stored file."
         : "Rotated file ready — it is stored with this document when you save.");
+      showToast("success", "File uploaded successfully.", `The rotated "${file.name}" was saved${persist && persist.recordId ? "" : " — it is stored with this document when you save"}.`);
     } catch (e) {
       console.warn("Rotation save failed:", e);
       setMsg("The rotated file could not be created" + (e && e.message ? ` (${e.message})` : "") + ". The original is unchanged.");
+      toastUploadFailed(att.name, "the rotated file could not be created" + (e && e.message ? ` (${e.message})` : "") + ". The original is unchanged.");
     } finally {
       setBusy(false);
     }
@@ -940,13 +942,14 @@ function LiquidationWorksheet({
     const picked = Array.from(fileList || []);
     if (!picked.length) return;
     const { ok: files, note: sizeNote } = splitBySizeLimit(picked);
+    if (sizeNote) toastUploadRefused(sizeNote);
     setUploadNote(sizeNote);
     files.forEach((file) => {
       /* The bytes go to the Storage bucket and the record keeps only the
          path. Nothing is added to the worksheet until the upload SUCCEEDS —
          an attachment row pointing at bytes that were never stored is worse
          than no attachment at all, because it looks liquidated. */
-      if (!fileStore()) { setUploadNote(STALE_PAGE_NOTE); return; }
+      if (!fileStore()) { setUploadNote(STALE_PAGE_NOTE); toastUploadRefused(STALE_PAGE_NOTE); return; }
       const attId = uid("att");
       setUploadNote(sizeNote || `Uploading "${file.name}"…`);
       storeFile(attId, file).then((path) => {
