@@ -143,7 +143,7 @@ const REQUEST_SORT_FIELDS = {
   status: (r) => r.status,
 };
 
-function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, onDisburse, canEditDisbursed, plantOptions, canApprove, canRelease, plantTitle, canDelete, onDelete }) {
+function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, onDisburse, missingVoucherIds, canEditDisbursed, plantOptions, canApprove, canRelease, plantTitle, canDelete, onDelete }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All");
@@ -238,7 +238,15 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
                     </td>
                     <td className="pcp-num"><strong>{peso(r.amount)}</strong></td>
                     <td>{r.approver || "—"}</td>
-                    <td><Badge status={r.status} /></td>
+                    <td>
+                      <Badge status={r.status} />
+                      {/* Disbursed with no voucher saved (missingVoucherIds, 19-app.jsx). */}
+                      {missingVoucherIds && missingVoucherIds.has(r.id) && (
+                        <div style={{ marginTop: 4 }} title="This request reads Disbursed, but no voucher was ever saved for it — it is not in the Release Ledger or Liquidation. Release it again with the amount actually given.">
+                          <span className="pcp-badge pcp-badge-red"><AlertTriangle size={10} /> Voucher missing</span>
+                        </div>
+                      )}
+                    </td>
                     <td>
                       <div style={{ display: "flex", gap: 6 }}>
                         {canApprove && r.status === "Pending" && (
@@ -258,6 +266,10 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
                           <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => onDelete(r.id)} title="Delete request (super admin)">
                             <Trash2 size={13} color="var(--danger)" />
                           </button>
+                        )}
+                        {canRelease && missingVoucherIds && missingVoucherIds.has(r.id) && (
+                          <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={() => onDisburse(r)}
+                            title="No voucher was saved for this release — release it again (enter the amount actually given)">Release again</button>
                         )}
                         {canRelease && r.status === "Approved" && (
                           <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={() => onDisburse(r)}>Release</button>

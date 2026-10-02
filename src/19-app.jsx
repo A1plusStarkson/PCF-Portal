@@ -795,6 +795,19 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     .map((d) => ({ disb: d, status: liqFinalStatus(d, liquidationFor(d.id, liquidations)) })),
   [disbursements, liquidations]);
 
+  /* Requests that read "Disbursed" with NO voucher behind them. A release
+     writes the voucher and the request's status as two records; if the
+     database refused the voucher (e.g. the series guard), the request still
+     saved as Disbursed and nothing reached the Release Ledger or Liquidation
+     (PCR-RGC-2026-0003, Oct 2026). Checked against EVERY voucher, not the
+     plant-scoped list — disbursements load with requests, before the portal
+     shows. Such a request gets a "Voucher missing" flag and can be released
+     again (confirmDisburse still refuses if a voucher exists). */
+  const missingVoucherIds = useMemo(() => {
+    const withVoucher = new Set(disbursements.map((d) => d.requestId));
+    return new Set(requests.filter((r) => r.status === "Disbursed" && !withVoucher.has(r.id)).map((r) => r.id));
+  }, [requests, disbursements]);
+
   const confirmDisburse = useCallback(async (extra) => {
     const req = disburseTarget;
     if (!req) return;
@@ -819,6 +832,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     }]);
     setRequests((rs) => rs.map((r) => (r.id === req.id ? { ...r, status: "Disbursed" } : r)));
     logAudit("Released", voucherNo, `Cash released to ${req.employee} · ${peso(extra.amount)}`
+      + (req.status === "Disbursed" ? ` · re-released: ${req.requestNo} read Disbursed but no voucher had been saved` : "")
       + (outstanding.length
         ? ` · employee has ${outstanding.length} unliquidated advance(s): ${outstanding.map((o) => `${o.disb.voucherNo} (${o.status})`).join(", ")}`
         : ""));
@@ -2624,6 +2638,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
             onCreate={addRequest} onEdit={editRequest}
             onApprove={approveRequest} onReject={rejectRequest}
             onDisburse={(req) => setDisburseTarget(req)}
+            missingVoucherIds={missingVoucherIds}
             canEditDisbursed={canEditOverride}
             plantOptions={scopedPlantOptions} canApprove={canApprove} canRelease={canRelease}
             plantTitle={activePlantLabel}
