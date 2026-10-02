@@ -1161,6 +1161,26 @@ function Sidebar({ tab, setTab, role, roleLabel, navGroups, userEmail, userName,
   );
 }
 
+/* TOTAL DOCUMENTS + TOTAL AMOUNT boxes — the same yellow boxes as the
+   Approval Module header (.pcp-doc-total), shared so Liquidation and
+   Reimbursement look identical. `amount` is the sum of the amounts on every
+   uploaded document. Display only. */
+function DocTotalBoxes({ count, amount, approved }) {
+  return (
+    <>
+      <div className="pcp-liq-metric pcp-doc-total" title="Total uploaded supporting documents">
+        <div className="pcp-kpi-label">Total Documents</div>
+        <div className="pcp-doc-total-num"><Paperclip size={16} strokeWidth={2.6} /> {count}</div>
+      </div>
+      <div className="pcp-liq-metric pcp-doc-total"
+        title={`Sum of the amounts on all ${count} uploaded documents${approved != null ? ` · approved: ${peso(approved)}` : ""}`}>
+        <div className="pcp-kpi-label">Total Amount</div>
+        <div className="pcp-doc-total-num">{peso(amount)}</div>
+      </div>
+    </>
+  );
+}
+
 /* Upload status pop-ups (showToast in 02-helpers.jsx). Fixed at the top
    centre of the screen, above every modal, so the user sees the outcome
    without scrolling. Success closes itself after 5 s, a warning after 9 s, a

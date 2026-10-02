@@ -201,6 +201,17 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   const DOC_TOTAL_EMAILS = ["a1plusadmin@a1plus.com", "superuser@a1plus.com", "accounting@a1plus.com"];
   const showDocTotals = DOC_TOTAL_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
+  /* Liquidation and Reimbursement modules: the same TOTAL DOCUMENTS and TOTAL
+     AMOUNT boxes as the Approval Module (owner's instruction, Oct 2026) — in
+     the Liquidation worksheet, the reimbursement panels and the Reimbursement
+     form's Documents step. Display only. */
+  const MODULE_DOC_TOTAL_EMAILS = [
+    "superuser@a1plus.com", "accounting@a1plus.com", "finance@a1plus.com",
+    "puradr@a1plus.com", "lita@a1plus.com", "mauwi@a1plus.com",
+    "pcfrequestordisney@a1plus.com", "pcfrequestormanila@a1plus.com", "pcfrequestorrgandco@a1plus.com",
+  ];
+  const showModuleDocTotals = MODULE_DOC_TOTAL_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
   /* Uploaded Files: SAVE FILE after rotating a document's preview (owner's
      instruction, Oct 2026). Rotating the preview stays open to everyone; saving
      the new orientation is these accounts only. Re-checked in saveDocRotation. */
@@ -2438,8 +2449,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   }, [canSaveDocRotation, userName, role, disbursements, reimbursements, logAudit]);
 
   const uiValue = useMemo(
-    () => ({ notifications: bellNotifications, reminders, onReminderClick, role, setRole: guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation, showDocTotals }),
-    [bellNotifications, reminders, onReminderClick, role, guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation, showDocTotals]
+    () => ({ notifications: bellNotifications, reminders, onReminderClick, role, setRole: guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation, showDocTotals, showModuleDocTotals }),
+    [bellNotifications, reminders, onReminderClick, role, guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation, showDocTotals, showModuleDocTotals]
   );
 
   if (!loaded) {

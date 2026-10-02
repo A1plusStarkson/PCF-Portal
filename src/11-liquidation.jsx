@@ -877,6 +877,7 @@ function LiquidationWorksheet({
   onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser, onDirtyChange, accounting,
   canRevert, onRevertLiquidation, showHeaderUpload,
 }) {
+  const showModuleDocTotals = !!(useContext(AppUI) || {}).showModuleDocTotals; // TOTAL boxes — MODULE_DOC_TOTAL_EMAILS
   const [lines, setLines] = useState(liquidation ? liquidation.lines.map((l) => ({ ...l })) : [emptyLine()]);
   const [attachments, setAttachments] = useState(
     liquidation && liquidation.attachments ? liquidation.attachments.map(normalizeAttachment) : []
@@ -1430,6 +1431,15 @@ function LiquidationWorksheet({
             <div className="pcp-num" style={{ color: st.type === "reimburse" ? "var(--danger)" : st.type === "excess" ? "var(--amber)" : "var(--green)" }}>{peso(st.expected)}</div>
           </div>
           <div className="pcp-liq-metric"><div className="pcp-kpi-label">Status</div><div><Badge status={finalStatus} /></div></div>
+          {/* MODULE_DOC_TOTAL_EMAILS (19-app.jsx). From the worksheet's own
+              documents, so it follows every upload, delete and amount edit. */}
+          {showModuleDocTotals && (
+            <DocTotalBoxes
+              count={attachments.length}
+              amount={round2(attachments.reduce((s, a) => s + receiptAmountOf(a), 0))}
+              approved={receiptSummary.approvedTotal}
+            />
+          )}
         </div>
         {/* Why Submit is disabled, on screen rather than only in the button's
             hover tooltip — and WHICH documents still need an amount, since a
@@ -2175,6 +2185,7 @@ function LiquidationWorksheet({
    through FOR LIQUIDATION → UNDER REVIEW → LIQUIDATION COMPLETED, then payment. */
 function ReimbursementLiquidationPanel({ reimb, canFinance, onAction }) {
   const [comments, setComments] = useState("");
+  const showModuleDocTotals = !!(useContext(AppUI) || {}).showModuleDocTotals; // TOTAL boxes — MODULE_DOC_TOTAL_EMAILS
   const approved = reimbTotal(reimb);
   /* For a reimbursement the validated expense equals the approved line items,
      so the variance is normally zero. */
@@ -2217,6 +2228,7 @@ function ReimbursementLiquidationPanel({ reimb, canFinance, onAction }) {
           <div className="pcp-liq-metric"><div className="pcp-kpi-label">Validated Expense</div><div className="pcp-num">{peso(validated)}</div></div>
           <div className="pcp-liq-metric"><div className="pcp-kpi-label">Variance</div><div className="pcp-num" style={{ color: variance === 0 ? "var(--green)" : "var(--danger)" }}>{peso(variance)}</div></div>
           <div className="pcp-liq-metric"><div className="pcp-kpi-label">Status</div><div><Badge status={st} /></div></div>
+          {showModuleDocTotals && <DocTotalBoxes count={(reimb.attachments || []).length} amount={reimbDocsTotal(reimb)} />}
         </div>
       </div>
 

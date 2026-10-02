@@ -566,6 +566,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
         }
   );
   const [uploadNote, setUploadNote] = useState("");
+  const showModuleDocTotals = !!(useContext(AppUI) || {}).showModuleDocTotals; // TOTAL boxes — MODULE_DOC_TOTAL_EMAILS
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
   const setLine = (id, patch) => setForm((f) => ({
@@ -843,6 +844,11 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
               {uploadNote && (
                 <div style={{ background: "var(--amber-bg)", color: "var(--amber)", fontSize: 11.5, padding: "8px 11px", borderRadius: 8 }}>{uploadNote}</div>
               )}
+              {showModuleDocTotals && (
+                <div className="pcp-liq-sticky-grid">
+                  <DocTotalBoxes count={form.attachments.length} amount={reimbDocsTotal(form)} />
+                </div>
+              )}
               <ReimbBalancePanel r={form} onAuthorize={authorizeVariance} onClearException={clearVariance} />
               {form.attachments.length ? (
                 <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -1077,7 +1083,10 @@ function ReimbursementEditModal({ reimb, plantOptions, allReimbursements, curren
 
 function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, currentUser, isChecker, isFinalApprover, canFinance, allowPayment, accounting, onEdit, canRevert }) {
   const [comments, setComments] = useState("");
-  const showDocTotals = !!(useContext(AppUI) || {}).showDocTotals; // TOTAL badge — DOC_TOTAL_EMAILS only
+  /* TOTAL badge / boxes: Approval Module accounts (DOC_TOTAL_EMAILS) and the
+     Liquidation / Reimbursement accounts (MODULE_DOC_TOTAL_EMAILS). */
+  const ui = useContext(AppUI) || {};
+  const showDocTotals = !!(ui.showDocTotals || ui.showModuleDocTotals);
   const total = reimbTotal(reimb);
   const me = (currentUser || "").trim().toLowerCase();
   const isOwn = (reimb.employee || "").trim().toLowerCase() === me
@@ -1170,6 +1179,12 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
               ? <>{purposeCategory(reimb.purpose) && <span className="pcp-badge pcp-badge-gray">{purposeCategory(reimb.purpose)}</span>}<span style={{ color: "var(--text-mut)" }}>{reimb.purpose}</span></>
               : <span style={{ color: "var(--text-mut)" }}>—</span>}
           </div>
+          {showDocTotals && (
+            <div className="pcp-liq-sticky-grid" style={{ marginBottom: 10 }}>
+              <div className="pcp-liq-metric"><div className="pcp-kpi-label">Total Reimbursement</div><div className="pcp-num">{peso(total)}</div></div>
+              <DocTotalBoxes count={(reimb.attachments || []).length} amount={reimbDocsTotal(reimb)} />
+            </div>
+          )}
 
           {(review.checked || review.final) && (
             <div style={{ fontSize: 11.5, color: "var(--text-mut)", marginBottom: 10, lineHeight: 1.5 }}>
