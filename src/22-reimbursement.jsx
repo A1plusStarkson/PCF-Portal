@@ -1077,6 +1077,7 @@ function ReimbursementEditModal({ reimb, plantOptions, allReimbursements, curren
 
 function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, currentUser, isChecker, isFinalApprover, canFinance, allowPayment, accounting, onEdit, canRevert }) {
   const [comments, setComments] = useState("");
+  const showDocTotals = !!(useContext(AppUI) || {}).showDocTotals; // TOTAL badge — DOC_TOTAL_EMAILS only
   const total = reimbTotal(reimb);
   const me = (currentUser || "").trim().toLowerCase();
   const isOwn = (reimb.employee || "").trim().toLowerCase() === me
@@ -1204,7 +1205,9 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
           <div className="pcp-card" style={{ padding: 12, marginTop: 12 }}>
             <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
               Supporting Documents
-              <span className="pcp-doc-total-chip lg" style={{ marginLeft: 8 }}>TOTAL: {(reimb.attachments || []).length}</span>
+              {showDocTotals
+                ? <span className="pcp-doc-total-chip lg" style={{ marginLeft: 8 }}>TOTAL: {(reimb.attachments || []).length}</span>
+                : ` (${(reimb.attachments || []).length})`}
             </div>
             {/* Rendered inline so the checker and the approver can read every
                 receipt on this one screen — no per-file "View" click. */}

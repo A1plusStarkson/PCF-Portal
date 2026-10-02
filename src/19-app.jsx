@@ -195,6 +195,12 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   ];
   const canLiqHeaderUpload = LIQ_HEADER_UPLOAD_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
+  /* Approval Module: TOTAL uploaded documents (header metric, section badge,
+     Total Docs column) — Grace Gan, Superuser and Accounting (owner's instruction, Oct
+     2026). Display only. */
+  const DOC_TOTAL_EMAILS = ["a1plusadmin@a1plus.com", "superuser@a1plus.com", "accounting@a1plus.com"];
+  const showDocTotals = DOC_TOTAL_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
   /* Uploaded Files: SAVE FILE after rotating a document's preview (owner's
      instruction, Oct 2026). Rotating the preview stays open to everyone; saving
      the new orientation is these accounts only. Re-checked in saveDocRotation. */
@@ -2432,8 +2438,8 @@ export default function App({ userEmail, userName, onSignOut, userRole, isAdmin,
   }, [canSaveDocRotation, userName, role, disbursements, reimbursements, logAudit]);
 
   const uiValue = useMemo(
-    () => ({ notifications: bellNotifications, reminders, onReminderClick, role, setRole: guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation }),
-    [bellNotifications, reminders, onReminderClick, role, guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation]
+    () => ({ notifications: bellNotifications, reminders, onReminderClick, role, setRole: guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation, showDocTotals }),
+    [bellNotifications, reminders, onReminderClick, role, guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation, showDocTotals]
   );
 
   if (!loaded) {
