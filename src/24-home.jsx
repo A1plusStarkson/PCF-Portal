@@ -34,15 +34,43 @@ const HOME_CSS = `
   .pcp-home-user-row span:first-child { opacity: 0.75; min-width: 62px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; }
   .pcp-home-user-row b, .pcp-home-user-row span:last-child { overflow-wrap: anywhere; }
   .pcp-home-section-title { display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; margin: 0 0 12px; }
-  .pcp-home-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+  .pcp-home-count { margin-left: auto; font-size: 11px; font-weight: 700; padding: 2px 9px; border-radius: 99px; background: var(--brand-soft); color: var(--brand); }
+  .pcp-home-hero-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .pcp-home-chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 99px; font-size: 12px; font-weight: 700;
+    background: rgba(255,255,255,0.16); border: 1px solid rgba(255,255,255,0.3); color: #fff; cursor: pointer; font-family: inherit;
+  }
+  .pcp-home-chip:hover, .pcp-home-chip:focus-visible { background: rgba(255,255,255,0.26); outline: none; }
+  .pcp-home-chip.warn { background: rgba(255,120,110,0.28); border-color: rgba(255,170,160,0.6); }
+  .pcp-home-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
   .pcp-home-link {
-    display: flex; gap: 12px; align-items: flex-start; text-align: left; background: var(--dm-surface, #fff); border: 1px solid var(--line);
-    border-radius: 12px; padding: 14px; cursor: pointer; font: inherit; color: inherit;
+    display: flex; gap: 14px; align-items: center; text-align: left; background: var(--dm-surface, #fff); border: 1px solid var(--line);
+    border-radius: 14px; padding: 16px; cursor: pointer; font: inherit; color: inherit; min-height: 78px;
     transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
   }
-  .pcp-home-link:hover, .pcp-home-link:focus-visible { border-color: var(--brand); box-shadow: 0 6px 18px rgba(78,125,99,0.12); transform: translateY(-1px); outline: none; }
-  .pcp-home-link-icon { flex-shrink: 0; width: 38px; height: 38px; border-radius: 10px; display: flex; align-items: center; justify-content: center; }
-  .pcp-home-link-label { font-size: 13.5px; font-weight: 700; }
+  .pcp-home-link:hover, .pcp-home-link:focus-visible { border-color: var(--brand); box-shadow: 0 8px 22px rgba(78,125,99,0.14); transform: translateY(-2px); outline: none; }
+  .pcp-home-link-icon { flex-shrink: 0; width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
+  .pcp-home-link-label { font-size: 14px; font-weight: 700; }
+  .pcp-home-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+  .pcp-home-action {
+    display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer;
+    background: none; border: none; border-bottom: 1px solid var(--line); padding: 10px 4px;
+  }
+  .pcp-home-action:last-child { border-bottom: none; }
+  .pcp-home-action:hover, .pcp-home-action:focus-visible { background: var(--brand-soft); outline: none; }
+  .pcp-home-action-n {
+    flex-shrink: 0; min-width: 40px; height: 40px; padding: 0 8px; border-radius: 10px; display: flex; align-items: center; justify-content: center;
+    font-size: 17px; font-weight: 800; font-variant-numeric: tabular-nums;
+  }
+  .pcp-home-fund { display: block; width: 100%; text-align: left; font: inherit; color: inherit; cursor: pointer; background: none; border: none; border-bottom: 1px solid var(--line); padding: 10px 4px; }
+  .pcp-home-fund:last-child { border-bottom: none; }
+  .pcp-home-fund:hover, .pcp-home-fund:focus-visible { background: var(--brand-soft); outline: none; }
+  .pcp-home-fund-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+  .pcp-home-fund-amt { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .pcp-home-fund-bar { height: 7px; border-radius: 99px; background: var(--line); overflow: hidden; margin: 6px 0 4px; }
+  .pcp-home-fund-bar > span { display: block; height: 100%; border-radius: 99px; }
+  .pcp-home-act-time { flex-shrink: 0; font-size: 11px; color: var(--text-mut); white-space: nowrap; }
+  .pcp-home-clamp { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
   .pcp-home-link-desc { font-size: 11.5px; color: var(--text-mut); margin-top: 2px; line-height: 1.4; }
   .pcp-home-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; }
   .pcp-home-cols { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; align-items: start; }
@@ -76,7 +104,7 @@ const HOME_CSS = `
   .pcp-home-quote-kicker { font-size: 10.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #b9790a; }
   .pcp-home-quote-text { font-size: 16px; font-weight: 600; font-style: italic; line-height: 1.45; margin-top: 3px; overflow-wrap: anywhere; }
   @media (max-width: 900px) {
-    .pcp-home-hero, .pcp-home-cols { grid-template-columns: minmax(0, 1fr); }
+    .pcp-home-hero, .pcp-home-cols, .pcp-home-top { grid-template-columns: minmax(0, 1fr); }
   }
   @media (max-width: 520px) {
     .pcp-home-hero { padding: 18px 16px; }
@@ -191,6 +219,19 @@ function homeGreeting(d) {
   return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
 }
 
+/* "5 min ago" / "3 hr ago" / a date. Audit timestamps are UTC (toISOString). */
+function homeAgo(ts) {
+  if (!ts) return "";
+  const t = new Date(String(ts).length <= 19 ? ts + "Z" : ts).getTime();
+  if (isNaN(t)) return "";
+  const s = Math.max(0, Math.floor((Date.now() - t) / 1000));
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} hr ago`;
+  if (s < 7 * 86400) return `${Math.floor(s / 86400)} day${s < 2 * 86400 ? "" : "s"} ago`;
+  return fmtDate(new Date(t).toISOString().slice(0, 10));
+}
+
 function homeDueLabel(daysLeft) {
   if (daysLeft < 0) return `Overdue ${-daysLeft} day${daysLeft === -1 ? "" : "s"}`;
   if (daysLeft === 0) return "Due today";
@@ -199,7 +240,10 @@ function homeDueLabel(daysLeft) {
 
 /* approvalReminders: when given (Grace Gan), Home shows ONLY what awaits her
    final approval, in place of the liquidation deadlines and notifications. */
-function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, stats, notifications, onNotifClick, deadlines, onDeadlineClick, approvalReminders, onApprovalReminderClick }) {
+/* funds: per-plant balances (null when the role has no dashboard). actions:
+   "My action items" from 19-app.jsx. activity: recent audit entries about
+   records this account can see. */
+function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, stats, funds, actions, activity, notifications, onNotifClick, deadlines, onDeadlineClick, approvalReminders, onApprovalReminderClick }) {
   const approvalOnly = Array.isArray(approvalReminders);
   const now = new Date();
   const announcements = (Array.isArray(window.PCP_ANNOUNCEMENTS) && window.PCP_ANNOUNCEMENTS.length)
@@ -207,6 +251,10 @@ function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, stats, n
   const shownDeadlines = (deadlines || []).slice(0, 8);
   const shownNotifs = (notifications || []).slice(0, 8);
   const plantNames = (plants || []).map((p) => p.label).join(", ");
+  const actionList = actions || [];
+  const actionTotal = actionList.reduce((s, a) => s + a.n, 0);
+  const lowFunds = (funds || []).filter((f) => f.low);
+  const fundTotal = (funds || []).reduce((s, f) => s + f.available, 0);
 
   return (
     <div className="pcp-home">
@@ -220,6 +268,20 @@ function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, stats, n
           <div className="pcp-home-greet">{homeGreeting(now)}{userName ? `, ${userName}` : ""}. Here is what needs your attention today.</div>
           <div className="pcp-home-date">{now.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>
           <PhilippineClock />
+          {!approvalOnly && (actionTotal > 0 || lowFunds.length > 0) && (
+            <div className="pcp-home-hero-chips">
+              {actionTotal > 0 && (
+                <button type="button" className="pcp-home-chip" onClick={actionList[0].onClick} title={"Open — " + actionList[0].label}>
+                  <ClipboardCheck size={13} /> {actionTotal} item{actionTotal === 1 ? "" : "s"} need your action
+                </button>
+              )}
+              {lowFunds.map((f) => (
+                <button key={f.code} type="button" className="pcp-home-chip warn" onClick={f.onClick} title={`Open the ${f.label} dashboard`}>
+                  <AlertTriangle size={13} /> {f.label} fund is low
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="pcp-home-user" aria-label="Signed-in account">
           {userName && <div className="pcp-home-user-row"><span>Name</span><b>{userName}</b></div>}
@@ -237,6 +299,67 @@ function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, stats, n
           <div className="pcp-home-quote-text">“{homeDailyQuote(now)}”</div>
         </div>
       </div>
+
+      {/* My action items + fund balances */}
+      {(!approvalOnly || funds) && (
+        <div className="pcp-home-top" style={!funds || approvalOnly ? { gridTemplateColumns: "minmax(0, 1fr)" } : undefined}>
+          {!approvalOnly && (
+            <div className="pcp-card pcp-card-pad" style={{ minWidth: 0 }}>
+              <div className="pcp-home-section-title">
+                <ClipboardCheck size={16} color="#237a45" /> My Action Items
+                {actionTotal > 0 && <span className="pcp-home-count">{actionTotal}</span>}
+              </div>
+              {actionList.length ? (
+                <div className="pcp-home-list">
+                  {actionList.map((a) => {
+                    const Icon = a.icon;
+                    return (
+                      <button key={a.key} type="button" className="pcp-home-action" onClick={a.onClick} title={`Open — ${a.label}`}>
+                        <span className="pcp-home-action-n" style={{ background: a.tint + "1f", color: a.tint }}>{a.n}</span>
+                        <div className="pcp-home-item-main">
+                          <div className="pcp-home-item-title">{a.label}</div>
+                          {a.foot && <div className="pcp-home-item-sub">{a.foot}</div>}
+                        </div>
+                        <Icon size={16} color={a.tint} />
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="pcp-home-empty">Nothing needs your action right now. You are all caught up.</div>
+              )}
+            </div>
+          )}
+          {funds && (
+            <div className="pcp-card pcp-card-pad" style={{ minWidth: 0 }}>
+              <div className="pcp-home-section-title">
+                <Wallet size={16} color="#4e7d63" /> Fund Balances
+                <span className="pcp-home-count" title="Total available across your plants">{peso(fundTotal)}</span>
+              </div>
+              {funds.length ? (
+                <div className="pcp-home-list">
+                  {funds.map((f) => {
+                    const pct = f.fund > 0 ? Math.max(0, Math.min(100, (f.available / f.fund) * 100)) : 0;
+                    const color = f.low ? "#c0392b" : pct < 50 ? "#b9790a" : "#4e7d63";
+                    return (
+                      <button key={f.code} type="button" className="pcp-home-fund" onClick={f.onClick} title={`Open the ${f.label} dashboard`}>
+                        <div className="pcp-home-fund-row">
+                          <span className="pcp-home-item-title">{f.label}{f.low && <span className="pcp-home-due red" style={{ marginLeft: 8 }}>Low balance</span>}</span>
+                          <span className="pcp-home-fund-amt" style={{ color: f.low ? color : undefined }}>{peso(f.available)}</span>
+                        </div>
+                        <div className="pcp-home-fund-bar"><span style={{ width: pct + "%", background: color }} /></div>
+                        <div className="pcp-home-item-sub">{Math.round(pct)}% of {peso(f.fund)} fund · {peso(f.outstanding)} in open advances</div>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="pcp-home-empty">No petty cash funds are set up for your plants.</div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Quick access — only modules this account can already open */}
       {quickLinks.length > 0 && (
@@ -345,16 +468,41 @@ function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, stats, n
           </>)}
         </div>
 
-        {/* System announcements */}
-        <div className="pcp-card pcp-card-pad" style={{ minWidth: 0 }}>
-          <div className="pcp-home-section-title"><Megaphone size={16} color="#4e7d63" /> Announcements</div>
-          {announcements.map((a, i) => (
-            <div key={i} className="pcp-home-ann">
-              {a.title && <div className="pcp-home-ann-title">{a.title}</div>}
-              {a.text && <div className="pcp-home-ann-text">{a.text}</div>}
-              {a.date && <div className="pcp-home-ann-date">{a.date}</div>}
+        <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
+          {/* Recent activity on records this account can see */}
+          {!approvalOnly && activity && (
+            <div className="pcp-card pcp-card-pad" style={{ minWidth: 0 }}>
+              <div className="pcp-home-section-title"><History size={16} color="#6a4fb8" /> Recent Activity</div>
+              {activity.length ? (
+                <div className="pcp-home-list">
+                  {activity.map((a) => (
+                    <div key={a.id || (a.ts + a.entity)} className="pcp-home-item">
+                      <div className="pcp-home-item-main">
+                        <div className="pcp-home-item-title">{a.action} · {a.entity}</div>
+                        {a.remarks && <div className="pcp-home-item-sub pcp-home-clamp" title={a.remarks}>{a.remarks}</div>}
+                        {a.user && <div className="pcp-home-item-sub">by {a.user}</div>}
+                      </div>
+                      <span className="pcp-home-act-time" title={String(a.ts || "").replace("T", " ") + " UTC"}>{homeAgo(a.ts)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="pcp-home-empty">No recent activity yet.</div>
+              )}
             </div>
-          ))}
+          )}
+
+          {/* System announcements */}
+          <div className="pcp-card pcp-card-pad" style={{ minWidth: 0 }}>
+            <div className="pcp-home-section-title"><Megaphone size={16} color="#4e7d63" /> Announcements</div>
+            {announcements.map((a, i) => (
+              <div key={i} className="pcp-home-ann">
+                {a.title && <div className="pcp-home-ann-title">{a.title}</div>}
+                {a.text && <div className="pcp-home-ann-text">{a.text}</div>}
+                {a.date && <div className="pcp-home-ann-date">{a.date}</div>}
+              </div>
+            ))}
+          </div>
         </div>
       </div>
     </div>

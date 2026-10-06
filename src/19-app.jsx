@@ -2412,11 +2412,69 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
      summarises; the fund balance only for roles with the dashboard. */
   const sumAmt = (xs, f) => xs.reduce((s, x) => s + (Number(f ? f(x) : x.amount) || 0), 0);
   const homeStats = [];
-  if (canOpen("dashboard")) {
-    const bal = sumAmt(visibleFunds, (f) => monitoringForFund(f, visibleDisbursements, visibleLiquidations, visibleReplenishments).available);
-    homeStats.push({ label: "💰 Petty Cash Balance", value: peso(bal), icon: Wallet, tint: bal < 0 ? "#c0392b" : "#4e7d63",
-      foot: `${visibleFunds.length} fund(s) available`, onClick: () => navigate("dashboard") });
-  }
+  /* Fund balance per plant (its whole branch family, as the plant dashboard
+     counts it) — only for roles with the dashboard, as before. */
+  const homeFunds = useMemo(() => {
+    if (!allowedTabs.has(tabFor("dashboard"))) return null;
+    return orderedPlants.map((p) => {
+      const fam = new Set(branchesOfPlant(p.code).filter((c) => allowedPlants.includes(c)).concat([p.code]));
+      const inP = (x) => fam.has(x.branchCode);
+      const d = visibleDisbursements.filter(inP);
+      const ids = new Set(d.map((x) => x.id));
+      const m = computeMetrics(visibleFunds.filter(inP), visibleRequests.filter(inP), d,
+        visibleLiquidations.filter((l) => ids.has(l.disbursementId)), visibleReplenishments.filter(inP));
+      return { code: p.code, label: p.label, fund: m.totalFund, available: m.availableBalance, outstanding: m.outstanding,
+        low: dashLowBalance(m.availableBalance, m.totalFund), onClick: () => navigate(plantTabKey(p.code, "dashboard")) };
+    }).filter((x) => x.fund || x.outstanding);
+  }, [allowedTabs, orderedPlants, allowedPlants, visibleFunds, visibleRequests, visibleDisbursements, visibleLiquidations, visibleReplenishments]); // eslint-disable-line
+
+  /* "My action items": what this account itself can act on now, by the same
+     rights the modules use. Counts only; each opens the module that does it. */
+  const homeActions = useMemo(() => {
+    const out = [];
+    const add = (n, label, foot, key, icon, tint) => { if (n > 0 && allowedTabs.has(tabFor(key))) out.push({ key: label, n, label, foot, icon, tint, onClick: () => navigate(key) }); };
+    if (canApprove) {
+      const p = visibleRequests.filter((r) => r.status === "Pending");
+      add(p.length, "Requests to approve", peso(sumAmt(p)), "requests", ClipboardList, "#b9790a");
+    }
+    if (canRelease) {
+      const a = visibleRequests.filter((r) => r.status === "Approved");
+      add(a.length, "Approved requests to release", peso(sumAmt(a)), "requests", Banknote, "#2054a3");
+    }
+    const replenished = replenishedLiquidationIds(visibleReplenishments);
+    const stageCount = (stage) => visibleDisbursements.filter((d) => {
+      const liq = liquidationFor(d.id, visibleLiquidations);
+      return liq && liqApprovalStage(d, liq, replenished) === stage;
+    }).length;
+    if (isLiquidationChecker) add(stageCount(LIQ_STAGE.FOR_CHECK), "Liquidations to review", "Submitted, waiting for the custodian", "liquidation", ClipboardCheck, "#237a45");
+    if (isAccountingChecker) add(stageCount(LIQ_STAGE.FOR_ACCOUNTING), "Liquidations for Accounting check", "Custodian-reviewed", canOpen("approvals") ? "approvals" : "liquidation", ClipboardCheck, "#2f64a6");
+    add(stageCount(LIQ_STAGE.NEEDS_CORRECTION), "Liquidations needing correction", "A receipt was rejected", "liquidation", AlertTriangle, "#c0392b");
+    const overdue = homeDeadlines.filter((d) => d.daysLeft < 0);
+    add(overdue.length, "Overdue liquidations", peso(sumAmt(overdue)), canOpen("aging") ? "aging" : "liquidation", AlertTriangle, "#c0392b");
+    const soon = homeDeadlines.filter((d) => d.daysLeft >= 0 && d.daysLeft <= 1);
+    add(soon.length, "Liquidations due today or tomorrow", peso(sumAmt(soon)), "liquidation", CalendarClock, "#c2560c");
+    if (!isRequestor) {
+      const ready = replenishmentReadyItems(visibleDisbursements, visibleLiquidations, visibleReimbursements, visibleReplenishments);
+      add(ready.length, "Ready for replenishment", peso(sumAmt(ready)), "replenishment", RefreshCw, "#6a4fb8");
+    }
+    return out;
+  }, [allowedTabs, canApprove, canRelease, isLiquidationChecker, isAccountingChecker, isRequestor, visibleRequests, visibleDisbursements, visibleLiquidations, visibleReplenishments, visibleReimbursements, homeDeadlines]); // eslint-disable-line
+
+  /* Recent activity: the latest audit entries about records this account can
+     already see (matched by their number), never another plant's. */
+  const homeActivity = useMemo(() => {
+    const mine = new Set();
+    const note = (list, key) => list.forEach((r) => { if (r && r[key]) mine.add(String(r[key]).trim().toUpperCase()); });
+    note(visibleRequests, "requestNo"); note(visibleDisbursements, "voucherNo");
+    note(visibleReimbursements, "reimbNo"); note(visibleReplenishments, "replenishmentNo");
+    const out = [];
+    for (let i = auditForUser.length - 1; i >= 0 && out.length < 8; i--) {
+      const a = auditForUser[i];
+      if (a && mine.has(String(a.entity || "").trim().toUpperCase())) out.push(a);
+    }
+    return out.sort((a, b) => String(b.ts || "").localeCompare(String(a.ts || "")));
+  }, [auditForUser, visibleRequests, visibleDisbursements, visibleReimbursements, visibleReplenishments]);
+
   if (canOpen("requests")) {
     const active = visibleRequests.filter((r) => r.status === "Pending" || r.status === "Approved");
     const pend = active.filter((r) => r.status === "Pending").length;
@@ -2607,6 +2665,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
                 roleLabel={accountRoleLabel(role, userEmail, userRole || "Accounting")}
                 plants={orderedPlants}
                 quickLinks={homeQuickLinks} stats={homeStats}
+                funds={homeFunds} actions={homeActions} activity={homeActivity}
                 notifications={bellNotifications} onNotifClick={onNotifClick}
                 deadlines={homeDeadlines} onDeadlineClick={onReminderClick}
                 approvalReminders={homeApprovalReminders}
@@ -2641,7 +2700,8 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
                 right={canEditFunds ? <button className="pcp-btn" onClick={() => setShowEditBalances(true)}><Edit3 size={14} /> Edit Beginning Balances</button> : null}
               />
               <div className="pcp-content">
-                <Dashboard funds={scopedFunds} requests={scopedRequests} disbursements={scopedDisbursements} liquidations={scopedLiquidations} replenishments={scopedReplenishments} onNavigate={navigate} canEdit={canEdit} />
+                <Dashboard funds={scopedFunds} requests={scopedRequests} disbursements={scopedDisbursements} liquidations={scopedLiquidations} replenishments={scopedReplenishments} onNavigate={navigate} canEdit={canEdit}
+                  onOpenPlant={(code) => navigate(plantTabKey(code, "dashboard"))} />
               </div>
             </>
           )
