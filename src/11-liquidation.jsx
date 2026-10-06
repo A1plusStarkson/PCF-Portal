@@ -938,7 +938,7 @@ function LiquidationWorksheet({
   onReviewOverLiquidation, canDelete, onDeleteLiquidation,
   canRejectLiquidation, onRejectLiquidation,
   onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser, onDirtyChange, accounting,
-  canRevert, onRevertLiquidation, showHeaderUpload,
+  canRevert, onRevertLiquidation, showHeaderUpload, canRequestorEdit, onRequestorEdit,
 }) {
   const showModuleDocTotals = !!(useContext(AppUI) || {}).showModuleDocTotals; // TOTAL boxes — MODULE_DOC_TOTAL_EMAILS
   const txnDateLabels = !!(useContext(AppUI) || {}).txnDateLabels; // "Transaction / OR Date" — TXN_DATE_EMAILS
@@ -1198,6 +1198,23 @@ function LiquidationWorksheet({
   const checkedBySelf = review.checked
     && String(review.checkedBy).toLowerCase() === String(currentUser || "").toLowerCase();
   const canFinalNow = !!canFinalApprove && !!onFinalApprove && stage === LIQ_STAGE.FOR_FINAL && !checkedBySelf;
+  /* Requestor EDIT (LIQ_REQUESTOR_EDIT_EMAILS): a submitted liquidation the
+     custodian has not touched yet — no receipt decided, not approved. The
+     same rule is enforced again in requestorEditLiquidation (19-app.jsx). */
+  const showRequestorEdit = !!canRequestorEdit && !!onRequestorEdit && isSubmitted && !finalLocked;
+  const requestorEditOpen = showRequestorEdit && !review.checked
+    && ((liquidation && liquidation.attachments) || []).every((a) => (a.approvalStatus || "Pending") === "Pending");
+  const editedByRequestor = isDraft && !!(liquidation && (liquidation.requestorEdits || []).length);
+  const handleRequestorEdit = () => {
+    if (!requestorEditOpen) return;
+    if (!window.confirm(
+      `Edit the liquidation for ${disbursement.voucherNo}?\n\n`
+      + "It is taken back from the custodian so you can correct the expense lines and add, delete or replace "
+      + "the uploaded files. Nothing is lost — your current details stay as they are until you change them.\n\n"
+      + "When you are done: click SAVE, then RESUBMIT LIQUIDATION. The custodian does not see it again until you resubmit."
+    )) return;
+    onRequestorEdit(disbursement.id);
+  };
 
   const handleCheck = () => {
     if (!canCheckNow) return;
@@ -1432,10 +1449,22 @@ function LiquidationWorksheet({
                 disabled={!canSubmit}
                 title={canSubmit ? "Submit the liquidation for custodian review" : `To submit: ${submitBlockers.join("; ")}`}
               >
-                <Check size={12} /> {isRejected || liqIsReverted(liquidation) ? "Resubmit Liquidation" : "Submit Liquidation"}
+                <Check size={12} /> {isRejected || liqIsReverted(liquidation) || editedByRequestor ? "Resubmit Liquidation" : "Submit Liquidation"}
               </button>
             ) : (
               <>
+                {showRequestorEdit && (
+                  <button
+                    className="pcp-btn pcp-btn-sm pcp-btn-upload"
+                    onClick={handleRequestorEdit}
+                    disabled={!requestorEditOpen}
+                    title={requestorEditOpen
+                      ? "Edit the expense lines and uploaded files, then save and resubmit"
+                      : "The custodian has already started reviewing this liquidation — ask the custodian to use Revert to Requestor if a correction is needed"}
+                  >
+                    <Edit3 size={13} /> EDIT
+                  </button>
+                )}
                 {canApproveReceipts && onCheckLiquidation && !review.checked && !finalLocked && (
                   <button
                     className="pcp-btn pcp-btn-sm pcp-btn-primary"
@@ -1508,6 +1537,13 @@ function LiquidationWorksheet({
         {/* Why Submit is disabled, on screen rather than only in the button's
             hover tooltip — and WHICH documents still need an amount, since a
             document without one adds ₱0 and the totals can look complete. */}
+        {editedByRequestor && (
+          <div style={{ marginTop: 10, padding: "8px 12px", borderRadius: 8, background: "var(--amber-bg)", color: "#92600a", fontSize: 12, lineHeight: 1.5 }}>
+            <Edit3 size={12} style={{ verticalAlign: "-2px" }} /> <b>Editing.</b> Correct the expense lines, delete a wrong file
+            (<Trash2 size={11} style={{ verticalAlign: "-1px" }} />) and upload its replacement, then click <b>Save Liquidation</b> and
+            <b> Resubmit Liquidation</b>. The custodian does not see it until you resubmit.
+          </div>
+        )}
         {isDraft && !canSubmit && submitBlockers.length > 0 && (
           <div style={{ marginTop: 10, fontSize: 11.5, color: "var(--danger)" }}>
             <AlertTriangle size={12} style={{ verticalAlign: "-2px" }} /> To submit: {submitBlockers.join("; ")}.
@@ -2370,7 +2406,7 @@ function LiquidationTab({
   onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser,
   reimbursements, onReimbursementAction, canFinance, accounting,
   canEditReimb, canDeleteReimbDocs, canAuthorizeReimbVariance, onUpdateReimbursement, allReimbursements,
-  canRevert, onRevertLiquidation,
+  canRevert, onRevertLiquidation, canRequestorEdit, onRequestorEdit,
   openRequest, onOpenHandled, dashFilter, onClearDashFilter,
 }) {
   const [acctFilter, setAcctFilter] = useState(accounting && accounting.isChecker ? "For Accounting Check" : "All");
@@ -2757,6 +2793,7 @@ function LiquidationTab({
                 onFinalApprove={onFinalApprove}
                 canRevert={canRevert}
                 onRevertLiquidation={onRevertLiquidation}
+                canRequestorEdit={canRequestorEdit} onRequestorEdit={onRequestorEdit}
                 showHeaderUpload={!!showHeaderUpload}
                 currentUser={currentUser}
                 accounting={accounting}

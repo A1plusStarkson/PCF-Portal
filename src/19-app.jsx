@@ -281,6 +281,17 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   ];
   const canRevert = REVERT_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
+  /* Liquidation EDIT for the PCF Requestor accounts (owner's instruction,
+     Oct 2026): a SUBMITTED liquidation the custodian has not yet touched can
+     be taken back to Draft by the requestor, corrected (lines, files) and
+     resubmitted — same record and voucher. Re-checked in
+     requestorEditLiquidation; before submission the worksheet is already
+     fully editable. */
+  const LIQ_REQUESTOR_EDIT_EMAILS = [
+    "pcfrequestordisney@a1plus.com", "pcfrequestormanila@a1plus.com", "pcfrequestorrgandco@a1plus.com",
+  ];
+  const canRequestorEdit = LIQ_REQUESTOR_EDIT_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
   /* Approval Module: row Select + Export Excel (owner's instruction, Sep 2026).
      Read-only — exporting never changes a record. */
   const APPROVAL_EXPORT_EMAILS = ["a1plusadmin@a1plus.com", "superuser@a1plus.com"];
@@ -1366,6 +1377,35 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     logAudit("Liquidation Rejected", d ? d.voucherNo : disbursementId,
       `Reason: ${reason}${comment ? ` · Comment: ${comment}` : ""} · ${prevStatus} → REJECTED`);
   }, [isLiquidationChecker, isFinalApprover, isLiquidationFinalLocked, logAudit, disbursements, liquidations, requests, userName, role]);
+
+  /* ---- Requestor EDIT (LIQ_REQUESTOR_EDIT_EMAILS) ----
+     Only while the custodian has not started: submitted, no receipt approved
+     or rejected, not custodian-approved. It goes back to Draft (out of the
+     custodian's queue) so the requestor can change the lines and replace
+     files, then resubmits with the normal Submit. Same record and voucher;
+     each edit is kept in liq.requestorEdits and the audit trail. Once the
+     custodian has acted, only their Revert to Requestor reopens it. */
+  const liqEditableByRequestor = (liq) => !!liq
+    && (liq.submissionStatus || "Draft") === "Submitted"
+    && !liqReview(liq).checked && !liqReview(liq).final
+    && (liq.attachments || []).every((a) => (a.approvalStatus || "Pending") === "Pending");
+  const requestorEditLiquidation = useCallback((disbursementId) => {
+    const liq0 = liquidations.find((l) => l.disbursementId === disbursementId);
+    if (!canRequestorEdit || !liqEditableByRequestor(liq0) || isLiquidationFinalLocked(disbursementId)) {
+      window.alert("This liquidation can no longer be edited by the requestor — the custodian has already started reviewing it.\n\nAsk the custodian to use Revert to Requestor if a correction is needed.");
+      return;
+    }
+    const ts = new Date().toISOString().slice(0, 19);
+    const actor = userName || role;
+    const d = disbursements.find((x) => x.id === disbursementId);
+    setLiquidations((ls) => ls.map((l) => (
+      l.disbursementId === disbursementId && liqEditableByRequestor(l)
+        ? { ...l, submissionStatus: "Draft", requestorEdits: [...(l.requestorEdits || []), { editedBy: actor, editedAt: ts, prevSubmittedAt: l.submittedAt || "" }] }
+        : l
+    )));
+    logAudit("Liquidation Opened for Edit", d ? d.voucherNo : disbursementId,
+      "Requestor took the submitted liquidation back to Draft to correct it · resubmit required");
+  }, [canRequestorEdit, isLiquidationFinalLocked, logAudit, disbursements, liquidations, userName, role]); // eslint-disable-line
 
   /* ---- Revert to Requestor (REVERT_EMAILS) ----
      A submitted liquidation that is not yet final-approved goes back to the
@@ -2829,6 +2869,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
             canAuthorizeReimbVariance={canAuthorizeReimbVariance}
             canRevert={canRevert}
             onRevertLiquidation={revertLiquidation}
+            canRequestorEdit={canRequestorEdit} onRequestorEdit={requestorEditLiquidation}
             onUpdateReimbursement={updateReimbursement}
             allReimbursements={reimbursements}
             canFinance={["Accounting", "Finance", "SuperAdmin"].includes(role) || !!isAdmin}
