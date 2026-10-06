@@ -705,6 +705,61 @@ const CSS = `
     .pcp-peso-coin { animation: none; opacity: 0.9; }
   }
 
+  /* ---- Sign-in page polish (Oct 2026) ---- */
+  .pcp-login-brand::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
+    background-image: radial-gradient(rgba(255,255,255,0.10) 1px, transparent 1px); background-size: 22px 22px;
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 85%); mask-image: linear-gradient(180deg, #000 0%, transparent 85%);
+  }
+  .pcp-login-brand > * { position: relative; }
+  .pcp-login-kicker { font-size: 11px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: #a7d7bd; margin-bottom: 10px; }
+  .pcp-login-steps { list-style: none; padding: 0; margin: 0 0 22px; display: flex; flex-wrap: wrap; gap: 6px 4px; }
+  .pcp-login-steps li { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; color: #eef6f1; }
+  .pcp-login-step-icon {
+    width: 28px; height: 28px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.22); color: #f5d27a;
+  }
+  .pcp-login-step-arrow { color: rgba(255,255,255,0.45); margin: 0 2px; }
+  .pcp-login-brand-foot {
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 12px; color: #c5dacd;
+  }
+  .pcp-login-brand-foot .pcp-home-clock {
+    display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 99px;
+    background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.22); color: #fff; font-size: 12px;
+  }
+  .pcp-login-brand-foot .pcp-home-clock-time { font-weight: 800; font-variant-numeric: tabular-nums; }
+  .pcp-login-brand-foot .pcp-home-clock-zone { opacity: 0.8; font-size: 11px; }
+  /* Wide screens: text and ₱ artwork side by side. */
+  @media (min-width: 1500px) {
+    .pcp-login-brand-mid { max-width: none; display: grid; grid-template-columns: minmax(0, 460px) minmax(0, 1fr); align-items: center; gap: 24px; }
+    .pcp-login-brand-mid .pcp-peso-scene { margin: 0 0 0 10px; transform: scale(1.45); transform-origin: left center; }
+  }
+  .pcp-login-pane {
+    background: radial-gradient(circle at 80% 0%, rgba(167,215,189,0.22), transparent 45%),
+                radial-gradient(circle at 0% 100%, rgba(245,196,81,0.10), transparent 40%), var(--paper);
+  }
+  .pcp-login-split .pcp-login-card { position: relative; border-top: 0; }
+  .pcp-login-split .pcp-login-card::before {
+    content: ""; display: block; height: 5px; background: linear-gradient(90deg, #2c4a3c, #4e7d63 45%, #a7d7bd 75%, #f5c451);
+  }
+  .pcp-login-split .pcp-login-card-logo { height: 52px; margin-bottom: 16px; }
+  .pcp-login-greet { font-size: 12px; font-weight: 700; color: var(--brand); letter-spacing: 0.3px; margin-bottom: 4px; }
+  .pcp-login-submit { gap: 6px; }
+  .pcp-login-submit svg { transition: transform 0.15s; }
+  .pcp-login-submit:hover:not(:disabled) svg { transform: translateX(3px); }
+  .pcp-login-secure { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 12px; font-size: 11.5px; color: var(--text-mut); }
+  .pcp-login-secure svg { color: var(--brand); flex-shrink: 0; }
+  .pcp-login-pane .pcp-brand-logos {
+    padding: 10px 18px; border-radius: 14px; background: var(--card); border: 1px solid var(--line);
+    box-shadow: 0 6px 18px rgba(15,18,30,0.05);
+    max-width: 100%; flex-wrap: wrap; justify-content: center;
+  }
+  .pcp-login-copy { max-width: 420px; line-height: 1.5; }
+  .pcp-login-pane { min-width: 0; }
+  @media (max-width: 860px) {
+    .pcp-login-brand-foot, .pcp-login-brand::before { display: none; }
+  }
+
   /* Small screens: the green panel shrinks to a thin header (logo + name);
      the sign-in box takes the screen. */
   @media (max-width: 860px) {

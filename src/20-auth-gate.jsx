@@ -73,6 +73,14 @@ function PesoVisual() {
   );
 }
 
+/* The four stages named in the lead line, shown as a strip. */
+const LOGIN_STEPS = [
+  { label: "Request", icon: ClipboardList },
+  { label: "Release", icon: Banknote },
+  { label: "Liquidate", icon: Receipt },
+  { label: "Replenish", icon: RefreshCw },
+];
+
 /* Left-hand brand panel shared by the sign-in and two-step screens. */
 function LoginBrandPanel() {
   return (
@@ -84,20 +92,41 @@ function LoginBrandPanel() {
           <div className="pcp-login-brand-sub">Imprest Fund Management System</div>
         </div>
       </div>
+      {/* Text on the left; on wide screens the ₱ artwork sits beside it
+          instead of under it, so the panel has no empty half. */}
       <div className="pcp-login-brand-mid">
-        <h1 className="pcp-login-hero">Manage petty cash with confidence.</h1>
-        <p className="pcp-login-lead">Request, release, liquidate and replenish — with every approval and receipt on record.</p>
-        {/* Short informational description of petty cash (owner's wording). */}
-        <div className="pcp-login-about">
-          <div className="pcp-login-about-kicker">What is Petty Cash?</div>
-          <p>Petty cash is a small reserve of cash kept on hand by a business to pay for minor expenses, offering convenience for quick and small-scale transactions.</p>
-        </div>
-        {/* Same quote as Home today (homeDailyQuote in 24-home.jsx). */}
-        <div className="pcp-login-quote">
-          <div className="pcp-login-quote-kicker">☀️ Today's Cheer-Up</div>
-          <div className="pcp-login-quote-text">“{homeDailyQuote(new Date())}”</div>
+        <div className="pcp-login-brand-text">
+          <div className="pcp-login-kicker">PCF Portal · A1+ Group</div>
+          <h1 className="pcp-login-hero">Manage petty cash with confidence.</h1>
+          <p className="pcp-login-lead">Request, release, liquidate and replenish — with every approval and receipt on record.</p>
+          <ol className="pcp-login-steps" aria-label="How petty cash moves through the portal">
+            {LOGIN_STEPS.map((s, i) => {
+              const Icon = s.icon;
+              return (
+                <li key={s.label}>
+                  <span className="pcp-login-step-icon"><Icon size={15} /></span>
+                  <span>{s.label}</span>
+                  {i < LOGIN_STEPS.length - 1 && <ChevronRight className="pcp-login-step-arrow" size={14} aria-hidden="true" />}
+                </li>
+              );
+            })}
+          </ol>
+          {/* Short informational description of petty cash (owner's wording). */}
+          <div className="pcp-login-about">
+            <div className="pcp-login-about-kicker">What is Petty Cash?</div>
+            <p>Petty cash is a small reserve of cash kept on hand by a business to pay for minor expenses, offering convenience for quick and small-scale transactions.</p>
+          </div>
+          {/* Same quote as Home today (homeDailyQuote in 24-home.jsx). */}
+          <div className="pcp-login-quote">
+            <div className="pcp-login-quote-kicker">☀️ Today's Cheer-Up</div>
+            <div className="pcp-login-quote-text">“{homeDailyQuote(new Date())}”</div>
+          </div>
         </div>
         <PesoVisual />
+      </div>
+      <div className="pcp-login-brand-foot">
+        <span>{new Date().toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</span>
+        <PhilippineClock />
       </div>
     </aside>
   );
@@ -183,6 +212,7 @@ function LoginScreen({ mode, onLocalLogin }) {
           <div className="pcp-login-card">
             <div className="pcp-login-card-head">
               <img className="pcp-login-card-logo" src={LOGO_PORTAL} alt="" aria-hidden="true" />
+              <div className="pcp-login-greet">{homeGreeting(new Date())} 👋</div>
               <h2 className="pcp-login-title">Welcome back</h2>
               <div className="pcp-login-sub">Sign in to the Petty Cash Portal to continue.</div>
             </div>
@@ -256,8 +286,12 @@ function LoginScreen({ mode, onLocalLogin }) {
                 Remember my email on this computer
               </label>
               <button type="submit" className="pcp-btn pcp-btn-primary pcp-login-submit" disabled={busy}>
-                {busy ? <><span className="pcp-spinner" aria-hidden="true" /> Signing in…</> : "Sign In"}
+                {busy ? <><span className="pcp-spinner" aria-hidden="true" /> Signing in…</> : <>Sign In <ChevronRight size={17} aria-hidden="true" /></>}
               </button>
+              <div className="pcp-login-secure">
+                <ShieldCheck size={14} />
+                <span>Secure sign-in · for authorized A1+ Group personnel only</span>
+              </div>
               <div className="pcp-login-help">
                 <KeyRound size={13} />
                 <span>Forgot your password? Contact your administrator to have it reset. Access is provided by your administrator.</span>
