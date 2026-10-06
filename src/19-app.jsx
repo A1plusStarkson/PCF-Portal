@@ -808,6 +808,21 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     return new Set(requests.filter((r) => r.status === "Disbursed" && !withVoucher.has(r.id)).map((r) => r.id));
   }, [requests, disbursements]);
 
+  /* The reverse case: the voucher saved but the request's status did not, so
+     it still reads "Approved" and offers Release — which confirmDisburse then
+     refuses as already released (PCR-W-2026-0038, Oct 2026). The voucher is
+     the record of the release, so the request is set to Disbursed to match. */
+  useEffect(() => {
+    if (!loaded) return;
+    const withVoucher = new Map(disbursements.map((d) => [d.requestId, d.voucherNo]));
+    const stale = requests.filter((r) => r.status === "Approved" && withVoucher.has(r.id));
+    if (!stale.length) return;
+    const ids = new Set(stale.map((r) => r.id));
+    setRequests((rs) => rs.map((r) => (ids.has(r.id) && r.status === "Approved" ? { ...r, status: "Disbursed" } : r)));
+    stale.forEach((r) => logAudit("Status Corrected", r.requestNo,
+      `Read Approved but voucher ${withVoucher.get(r.id)} was already released · status set to Disbursed`));
+  }, [loaded, requests, disbursements]); // eslint-disable-line
+
   const confirmDisburse = useCallback(async (extra) => {
     const req = disburseTarget;
     if (!req) return;
