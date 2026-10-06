@@ -214,6 +214,17 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   ];
   const showModuleDocTotals = MODULE_DOC_TOTAL_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
+  /* Liquidation module: a reverted liquidation (FOR SUBMISSION) is shown
+     highlighted in YELLOW — the worksheet notice and its list row — so the
+     requestor sees at once that it needs correcting and resubmitting
+     (owner's instruction, Oct 2026). Display only. */
+  const REVERT_HIGHLIGHT_EMAILS = [
+    "a1plusadmin@a1plus.com", "superuser@a1plus.com", "accounting@a1plus.com", "finance@a1plus.com",
+    "puradr@a1plus.com", "lita@a1plus.com", "mauwi@a1plus.com",
+    "pcfrequestordisney@a1plus.com", "pcfrequestormanila@a1plus.com", "pcfrequestorrgandco@a1plus.com",
+  ];
+  const revertHighlight = REVERT_HIGHLIGHT_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
   /* Searchable dropdowns (Category, Department, Tax…): the open list floats
      above the screen so a table or pop-up can never cut it off, opens up or
      down to fit, and scrolls the field into view (owner's instruction, Oct
@@ -2682,8 +2693,8 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   }, [canSaveDocRotation, userName, role, disbursements, reimbursements, logAudit]);
 
   const uiValue = useMemo(
-    () => ({ notifications: bellNotifications, reminders, onReminderClick, role, setRole: guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation, showDocTotals, showModuleDocTotals, fixedDropdowns, reimbAutoCategory, txnDateLabels }),
-    [bellNotifications, reminders, onReminderClick, role, guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation, showDocTotals, showModuleDocTotals, fixedDropdowns, reimbAutoCategory, txnDateLabels]
+    () => ({ notifications: bellNotifications, reminders, onReminderClick, role, setRole: guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation, showDocTotals, showModuleDocTotals, fixedDropdowns, reimbAutoCategory, txnDateLabels, revertHighlight }),
+    [bellNotifications, reminders, onReminderClick, role, guardedSetRole, canSwitchRole, onNotifClick, liqAlarms, onAlarmOpen, canSaveDocRotation, saveDocRotation, showDocTotals, showModuleDocTotals, fixedDropdowns, reimbAutoCategory, txnDateLabels, revertHighlight]
   );
 
   if (!loaded) {

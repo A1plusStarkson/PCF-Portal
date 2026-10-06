@@ -942,6 +942,7 @@ function LiquidationWorksheet({
 }) {
   const showModuleDocTotals = !!(useContext(AppUI) || {}).showModuleDocTotals; // TOTAL boxes — MODULE_DOC_TOTAL_EMAILS
   const txnDateLabels = !!(useContext(AppUI) || {}).txnDateLabels; // "Transaction / OR Date" — TXN_DATE_EMAILS
+  const revertHighlight = !!(useContext(AppUI) || {}).revertHighlight; // yellow reverted notice — REVERT_HIGHLIGHT_EMAILS
   const [lines, setLines] = useState(liquidation ? liquidation.lines.map((l) => ({ ...l })) : [emptyLine()]);
   const [attachments, setAttachments] = useState(
     liquidation && liquidation.attachments ? liquidation.attachments.map(normalizeAttachment) : []
@@ -1567,21 +1568,29 @@ function LiquidationWorksheet({
 
       {/* Revert history — each Revert to Requestor, newest first. While it is
           FOR SUBMISSION the latest reason is what the requestor must fix. */}
-      {liqReverts(liquidation).length > 0 && (
-        <div className="pcp-card pcp-card-pad" style={{ marginBottom: 12, borderColor: liqIsReverted(liquidation) ? "var(--amber)" : "var(--line)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <ArrowLeftRight size={15} color="var(--amber)" />
-            <div className="pcp-section-title" style={{ margin: 0 }}>Reverted to Requestor</div>
-            <span style={{ fontSize: 11, color: "var(--text-mut)" }}>({liqReverts(liquidation).length})</span>
+      {liqReverts(liquidation).length > 0 && (() => {
+        /* REVERT_HIGHLIGHT_EMAILS: while it is FOR SUBMISSION, the notice is
+           a yellow action-required banner rather than a plain card. */
+        const hl = revertHighlight && liqIsReverted(liquidation);
+        return (
+        <div className={"pcp-card pcp-card-pad" + (hl ? " pcp-revert-hl" : "")} role={hl ? "alert" : undefined}
+          style={{ marginBottom: 12, borderColor: liqIsReverted(liquidation) ? "var(--amber)" : "var(--line)" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+            {hl ? <AlertTriangle size={18} color="#8a5a00" /> : <ArrowLeftRight size={15} color="var(--amber)" />}
+            <div className="pcp-section-title" style={{ margin: 0, ...(hl ? { color: "#5c3d00", fontSize: 15, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.4 } : {}) }}>
+              Reverted to Requestor
+            </div>
+            <span style={{ fontSize: 11, color: hl ? "#7a5200" : "var(--text-mut)" }}>({liqReverts(liquidation).length})</span>
+            {hl && <span className="pcp-revert-hl-tag">Action required</span>}
           </div>
           {liqIsReverted(liquidation) && (
-            <div style={{ fontSize: 12, color: "var(--brand-dark)", marginBottom: 10 }}>
+            <div style={{ fontSize: hl ? 13 : 12, color: hl ? "#5c3d00" : "var(--brand-dark)", fontWeight: hl ? 600 : undefined, marginBottom: 10 }}>
               FOR SUBMISSION — the custodian sent this back. Edit the details or upload the missing attachments, then click Resubmit Liquidation.
             </div>
           )}
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {liqReverts(liquidation).slice().reverse().map((r, i, all) => (
-              <div key={r.id || i} style={{ border: "1px solid var(--line)", borderRadius: 8, padding: "9px 11px" }}>
+              <div key={r.id || i} style={{ border: "1px solid " + (hl ? "#f0c54a" : "var(--line)"), borderRadius: 8, padding: "9px 11px", background: hl ? "#fffdf2" : undefined }}>
                 <div style={{ fontSize: 12.5, fontWeight: 700 }}>Revert #{all.length - i}</div>
                 <div style={{ fontSize: 12, marginTop: 4 }}><strong>Reason:</strong> {r.reason}</div>
                 <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 4 }}>
@@ -1592,7 +1601,8 @@ function LiquidationWorksheet({
             ))}
           </div>
         </div>
-      )}
+        );
+      })()}
       {/* Rejection history — every rejection kept as its own record and never
           overwritten. The most recent appears first. */}
       {rejections.length > 0 && (
@@ -2432,6 +2442,7 @@ function LiquidationTab({
   const [settleFilter, setSettleFilter] = useState(SETTLEMENT_FILTERS[0]);
   /* TRANSACTION / OR DATE column (TXN_DATE_EMAILS in 19-app.jsx). */
   const txnDateLabels = !!(useContext(AppUI) || {}).txnDateLabels;
+  const revertHighlight = !!(useContext(AppUI) || {}).revertHighlight; // REVERT_HIGHLIGHT_EMAILS
   const pettySort = useTableSort(txnDateLabels ? "txnDate" : "date", "desc");
   const reimbSort = useTableSort("requestDate", "desc");
   /* Unsaved worksheet edits live only in the pop-up, so closing it asks first. */
@@ -2467,6 +2478,7 @@ function LiquidationTab({
     acct: liqReview(liquidationFor(d.id, liquidations)),
     stage: liqApprovalStage(d, liquidationFor(d.id, liquidations)),
     acctMode: liqAcctMode(liquidationFor(d.id, liquidations)),
+    reverted: liqIsReverted(liquidationFor(d.id, liquidations)),
   }));
   /* Accounting filter. Like a status filter it overrides the worklist gate.
      "Old / Approved — Not Checked" is the backlog of already-approved
@@ -2648,8 +2660,12 @@ function LiquidationTab({
                 </thead>
                 <tbody>
                   {list.length ? list.map((d) => (
-                    <tr key={d.id} className="pcp-liq-row" onClick={() => setSelectedId(d.id)} title="Open liquidation">
-                      <td><strong>{d.voucherNo}</strong></td>
+                    <tr key={d.id} className={"pcp-liq-row" + (revertHighlight && d.reverted ? " pcp-revert-hl-row" : "")} onClick={() => setSelectedId(d.id)}
+                      title={revertHighlight && d.reverted ? "Reverted to requestor — correct and resubmit" : "Open liquidation"}>
+                      <td>
+                        <strong>{d.voucherNo}</strong>
+                        {revertHighlight && d.reverted && <div><span className="pcp-revert-hl-tag">Reverted — Action Required</span></div>}
+                      </td>
                       {txnDateLabels ? (
                         <td title={d.txn.first ? "Transaction / OR Date of the expense lines" : `No dated expense line yet · voucher released ${fmtDate(d.date)}`}>
                           {d.txn.first ? fmtTxnRange(d.txn) : <span style={{ color: "var(--text-mut)" }}>—</span>}

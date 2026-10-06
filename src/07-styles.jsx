@@ -705,6 +705,24 @@ const CSS = `
     .pcp-peso-coin { animation: none; opacity: 0.9; }
   }
 
+  /* ---- Reverted to Requestor highlight (REVERT_HIGHLIGHT_EMAILS) ---- */
+  .pcp-card.pcp-revert-hl {
+    background: #fff4c2; border: 2px solid #f5c451 !important; border-left: 6px solid #e0a526 !important;
+    box-shadow: 0 6px 18px rgba(224,165,38,0.25);
+  }
+  .pcp-revert-hl-tag {
+    display: inline-block; font-size: 10.5px; font-weight: 800; letter-spacing: 0.4px; text-transform: uppercase;
+    padding: 3px 9px; border-radius: 99px; background: #f5c451; color: #5c3d00; white-space: nowrap; margin-top: 3px;
+  }
+  tr.pcp-revert-hl-row td { background: #fff4c2 !important; }
+  tr.pcp-revert-hl-row td:first-child { box-shadow: inset 5px 0 0 #e0a526; }
+  tr.pcp-revert-hl-row:hover td { background: #ffeaa0 !important; }
+  [data-theme="dark"] .pcp-card.pcp-revert-hl { background: #3a3114; }
+  [data-theme="dark"] .pcp-card.pcp-revert-hl .pcp-section-title,
+  [data-theme="dark"] .pcp-card.pcp-revert-hl div { color: #ffe08a !important; }
+  [data-theme="dark"] .pcp-card.pcp-revert-hl div[style*="border"] { background: transparent !important; }
+  [data-theme="dark"] tr.pcp-revert-hl-row td { background: #3a3114 !important; }
+
   /* ---- Sign-in page polish (Oct 2026) ---- */
   .pcp-login-brand::before {
     content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0.5;
