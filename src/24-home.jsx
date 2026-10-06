@@ -103,8 +103,44 @@ const HOME_CSS = `
   .pcp-home-quote-icon { flex-shrink: 0; font-size: 26px; line-height: 1; }
   .pcp-home-quote-kicker { font-size: 10.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #b9790a; }
   .pcp-home-quote-text { font-size: 16px; font-weight: 600; font-style: italic; line-height: 1.45; margin-top: 3px; overflow-wrap: anywhere; }
+  .pcp-home-tagline { font-size: 13px; opacity: 0.9; margin: 2px 0 10px; max-width: 640px; line-height: 1.5; }
+  .pcp-home-links-main { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .pcp-home-links-main .pcp-home-link { min-height: 92px; padding: 18px; }
+  .pcp-home-links-main .pcp-home-link-icon { width: 50px; height: 50px; border-radius: 14px; }
+  .pcp-home-links-main .pcp-home-link-label { font-size: 15px; text-transform: uppercase; letter-spacing: 0.3px; }
+  .pcp-home-status { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+  .pcp-home-status-item {
+    display: flex; flex-direction: column; gap: 2px; text-align: left; font: inherit; color: inherit; cursor: pointer;
+    background: var(--dm-surface, #fff); border: 1px solid var(--line); border-radius: 12px; padding: 12px;
+  }
+  .pcp-home-status-item:hover, .pcp-home-status-item:focus-visible { border-color: var(--brand); background: var(--brand-soft); outline: none; }
+  .pcp-home-status-item.warn { border-color: #e8a3a3; background: var(--red-bg); }
+  .pcp-home-status-n { font-size: 24px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .pcp-home-status-label { font-size: 12px; font-weight: 700; }
+  .pcp-home-ann-card { border-top: 3px solid #c0392b; }
+  .pcp-home-flow { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 22px; }
+  .pcp-home-flow-step { position: relative; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 4px; }
+  .pcp-home-flow-step:not(:last-child)::after {
+    content: "\\2192"; position: absolute; right: -18px; top: 8px; font-size: 16px; color: var(--text-mut);
+  }
+  .pcp-home-flow-n {
+    width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    background: var(--brand); color: #fff; font-weight: 800; font-size: 14px;
+  }
+  .pcp-home-flow-title { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.3px; }
+  .pcp-home-flow-text { font-size: 11px; color: var(--text-mut); line-height: 1.35; }
+  @media (max-width: 1100px) {
+    .pcp-home-flow { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .pcp-home-flow-step::after { display: none; }
+  }
   @media (max-width: 900px) {
     .pcp-home-hero, .pcp-home-cols, .pcp-home-top { grid-template-columns: minmax(0, 1fr); }
+    .pcp-home-links-main { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (max-width: 640px) {
+    .pcp-home-flow { grid-template-columns: minmax(0, 1fr); }
+    .pcp-home-flow-step { flex-direction: row; text-align: left; gap: 10px; }
+    .pcp-home-flow-n { flex-shrink: 0; }
   }
   @media (max-width: 520px) {
     .pcp-home-hero { padding: 18px 16px; }
@@ -113,11 +149,31 @@ const HOME_CSS = `
   }
 `;
 
-/* Shown when index.html sets no announcements of its own. */
+/* Shown when neither the portal (Manage) nor index.html sets announcements. */
+const HOME_SUBMIT_REMINDER = {
+  title: "Important Reminder",
+  text: "After saving your liquidation, please click SUBMIT LIQUIDATION located at the upper-right portion of the screen. A liquidation is not forwarded to the Custodian until SUBMIT LIQUIDATION is clicked.",
+};
 const HOME_DEFAULT_ANNOUNCEMENTS = [
+  HOME_SUBMIT_REMINDER,
   { title: "Liquidate on time", text: `Cash advances must be liquidated within ${AGING_DUE_DAYS} days of release. Upcoming deadlines are listed on this page.` },
   { title: "Series numbers are system-generated", text: "Request and Reimbursement numbers are issued automatically when you submit. They cannot be typed or changed, and are never reused." },
   { title: "Attach complete documents", text: "Upload the Original OR / Sales Invoice for every expense so custodians and approvers can check it on screen." },
+];
+
+/* The six main Quick Access cards (keys of homeQuickLinks in 19-app.jsx);
+   any other card the account has follows them. */
+const HOME_MAIN_LINKS = ["requests", "disbursements", "liquidation", "reimbursement", "replenishment", "dashboard"];
+
+/* How PCF Works — the workflow strip for new requestors. */
+const HOME_WORKFLOW = [
+  { title: "Request", text: "File a Petty Cash Request" },
+  { title: "Approval", text: "Custodian approves it" },
+  { title: "Release", text: "Cash is released on a voucher" },
+  { title: "Expense", text: "Spend and keep the OR / invoice" },
+  { title: "Liquidation / Reimbursement", text: `Liquidate within ${AGING_DUE_DAYS} days, then SUBMIT` },
+  { title: "Accounting Check", text: "Custodian review, Accounting check, final approval" },
+  { title: "Replenishment", text: "The fund is restored" },
 ];
 
 /* Daily cheer-up quote (owner's instruction, Oct 2026). One per calendar day,
@@ -243,11 +299,19 @@ function homeDueLabel(daysLeft) {
 /* funds: per-plant balances (null when the role has no dashboard). actions:
    "My action items" from 19-app.jsx. activity: recent audit entries about
    records this account can see. */
-function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, stats, funds, actions, activity, notifications, onNotifClick, deadlines, onDeadlineClick, approvalReminders, onApprovalReminderClick }) {
+/* myStatus: the person's own records (My PCF Status). savedAnnouncements: the
+   portal-managed list (empty until first saved — then index.html's list, or
+   the built-in one, shows). */
+function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, funds, actions, activity, myStatus, announcements: savedAnnouncements, canManageAnnouncements, onSaveAnnouncements, notifications, onNotifClick, deadlines, onDeadlineClick, approvalReminders, onApprovalReminderClick }) {
   const approvalOnly = Array.isArray(approvalReminders);
   const now = new Date();
-  const announcements = (Array.isArray(window.PCP_ANNOUNCEMENTS) && window.PCP_ANNOUNCEMENTS.length)
-    ? window.PCP_ANNOUNCEMENTS : HOME_DEFAULT_ANNOUNCEMENTS;
+  const [editingAnn, setEditingAnn] = useState(false);
+  const announcements = (savedAnnouncements && savedAnnouncements.length) ? savedAnnouncements
+    : (Array.isArray(window.PCP_ANNOUNCEMENTS) && window.PCP_ANNOUNCEMENTS.length)
+      ? window.PCP_ANNOUNCEMENTS : HOME_DEFAULT_ANNOUNCEMENTS;
+  const statusList = myStatus || [];
+  const mainLinks = quickLinks.filter((q) => HOME_MAIN_LINKS.includes(q.key));
+  const otherLinks = quickLinks.filter((q) => !HOME_MAIN_LINKS.includes(q.key));
   const shownDeadlines = (deadlines || []).slice(0, 8);
   const shownNotifs = (notifications || []).slice(0, 8);
   const plantNames = (plants || []).map((p) => p.label).join(", ");
@@ -263,8 +327,11 @@ function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, stats, f
       {/* Title and the signed-in account */}
       <div className="pcp-home-hero">
         <div style={{ minWidth: 0 }}>
-          <div className="pcp-home-kicker">A1+ Group · Imprest Fund System</div>
-          <h2 className="pcp-home-title">Petty Cash Portal</h2>
+          <div className="pcp-home-kicker">PCF Portal · A1+ Group</div>
+          <h2 className="pcp-home-title">Petty Cash Fund Management System</h2>
+          <div className="pcp-home-tagline">
+            A centralized platform for managing Petty Cash Requests, Releases, Liquidations, Reimbursements, and Replenishments.
+          </div>
           <div className="pcp-home-greet">{homeGreeting(now)}{userName ? `, ${userName}` : ""}. Here is what needs your attention today.</div>
           <div className="pcp-home-date">{now.toLocaleDateString(undefined, { weekday: "long", year: "numeric", month: "long", day: "numeric" })}</div>
           <PhilippineClock />
@@ -300,36 +367,92 @@ function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, stats, f
         </div>
       </div>
 
-      {/* My action items + fund balances */}
-      {(!approvalOnly || funds) && (
-        <div className="pcp-home-top" style={!funds || approvalOnly ? { gridTemplateColumns: "minmax(0, 1fr)" } : undefined}>
-          {!approvalOnly && (
-            <div className="pcp-card pcp-card-pad" style={{ minWidth: 0 }}>
-              <div className="pcp-home-section-title">
-                <ClipboardCheck size={16} color="#237a45" /> My Action Items
-                {actionTotal > 0 && <span className="pcp-home-count">{actionTotal}</span>}
-              </div>
-              {actionList.length ? (
-                <div className="pcp-home-list">
-                  {actionList.map((a) => {
-                    const Icon = a.icon;
-                    return (
-                      <button key={a.key} type="button" className="pcp-home-action" onClick={a.onClick} title={`Open — ${a.label}`}>
-                        <span className="pcp-home-action-n" style={{ background: a.tint + "1f", color: a.tint }}>{a.n}</span>
-                        <div className="pcp-home-item-main">
-                          <div className="pcp-home-item-title">{a.label}</div>
-                          {a.foot && <div className="pcp-home-item-sub">{a.foot}</div>}
-                        </div>
-                        <Icon size={16} color={a.tint} />
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div className="pcp-home-empty">Nothing needs your action right now. You are all caught up.</div>
-              )}
+      {/* My PCF Status + Announcements */}
+      <div className="pcp-home-top" style={approvalOnly || !statusList.length ? { gridTemplateColumns: "minmax(0, 1fr)" } : undefined}>
+        {!approvalOnly && statusList.length > 0 && (
+          <div className="pcp-card pcp-card-pad" style={{ minWidth: 0 }}>
+            <div className="pcp-home-section-title"><CircleCheck size={16} color="#2f64a6" /> My PCF Status</div>
+            <div className="pcp-home-status">
+              {statusList.map((s) => (
+                <button key={s.key} type="button" className={"pcp-home-status-item" + (s.warn ? " warn" : "")} onClick={s.onClick}
+                  title={s.n ? `Open my ${s.label.toLowerCase()}` : `Open ${s.label}`}>
+                  <span className="pcp-home-status-n" style={{ color: s.n ? s.tint : "var(--text-mut)" }}>{s.n}</span>
+                  <span className="pcp-home-status-label">{s.label}</span>
+                  {s.foot && <span className="pcp-home-item-sub">{s.foot}</span>}
+                </button>
+              ))}
             </div>
-          )}
+          </div>
+        )}
+        <div className="pcp-card pcp-card-pad pcp-home-ann-card" style={{ minWidth: 0 }}>
+          <div className="pcp-home-section-title">
+            <Megaphone size={16} color="#c0392b" /> PCF Portal Announcements
+            {canManageAnnouncements && onSaveAnnouncements && (
+              <button type="button" className="pcp-btn pcp-btn-sm" style={{ marginLeft: "auto" }} onClick={() => setEditingAnn(true)}>
+                <Edit3 size={12} /> Manage
+              </button>
+            )}
+          </div>
+          {announcements.map((a, i) => (
+            <div key={a.id || i} className="pcp-home-ann">
+              {a.title && <div className="pcp-home-ann-title">{a.title}</div>}
+              {a.text && <div className="pcp-home-ann-text">{a.text}</div>}
+              {a.date && <div className="pcp-home-ann-date">{a.date}</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Quick access — the six main modules, then any others; only those
+          this account can already open */}
+      {quickLinks.length > 0 && (
+        <div>
+          <div className="pcp-home-section-title">Quick Access</div>
+          <div className="pcp-home-links pcp-home-links-main">
+            {mainLinks.concat(otherLinks).map((q) => {
+              const Icon = q.icon;
+              return (
+                <button key={q.key} className="pcp-home-link" onClick={q.onClick} title={`Open ${q.label}`}>
+                  <span className="pcp-home-link-icon" style={{ background: q.tint + "1f", color: q.tint }}><Icon size={22} /></span>
+                  <span style={{ minWidth: 0 }}>
+                    <div className="pcp-home-link-label">{q.label}</div>
+                    <div className="pcp-home-link-desc">{q.desc}</div>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* My action items + fund balances */}
+      {!approvalOnly && (
+        <div className="pcp-home-top" style={!funds ? { gridTemplateColumns: "minmax(0, 1fr)" } : undefined}>
+          <div className="pcp-card pcp-card-pad" style={{ minWidth: 0 }}>
+            <div className="pcp-home-section-title">
+              <ClipboardCheck size={16} color="#237a45" /> My Action Items
+              {actionTotal > 0 && <span className="pcp-home-count">{actionTotal}</span>}
+            </div>
+            {actionList.length ? (
+              <div className="pcp-home-list">
+                {actionList.map((a) => {
+                  const Icon = a.icon;
+                  return (
+                    <button key={a.key} type="button" className="pcp-home-action" onClick={a.onClick} title={`Open — ${a.label}`}>
+                      <span className="pcp-home-action-n" style={{ background: a.tint + "1f", color: a.tint }}>{a.n}</span>
+                      <div className="pcp-home-item-main">
+                        <div className="pcp-home-item-title">{a.label}</div>
+                        {a.foot && <div className="pcp-home-item-sub">{a.foot}</div>}
+                      </div>
+                      <Icon size={16} color={a.tint} />
+                    </button>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="pcp-home-empty">Nothing needs your action right now. You are all caught up.</div>
+            )}
+          </div>
           {funds && (
             <div className="pcp-card pcp-card-pad" style={{ minWidth: 0 }}>
               <div className="pcp-home-section-title">
@@ -361,35 +484,19 @@ function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, stats, f
         </div>
       )}
 
-      {/* Quick access — only modules this account can already open */}
-      {quickLinks.length > 0 && (
-        <div>
-          <div className="pcp-home-section-title">Quick Access</div>
-          <div className="pcp-home-links">
-            {quickLinks.map((q) => {
-              const Icon = q.icon;
-              return (
-                <button key={q.key} className="pcp-home-link" onClick={q.onClick} title={`Open ${q.label}`}>
-                  <span className="pcp-home-link-icon" style={{ background: q.tint + "1f", color: q.tint }}><Icon size={18} /></span>
-                  <span style={{ minWidth: 0 }}>
-                    <div className="pcp-home-link-label">{q.label}</div>
-                    <div className="pcp-home-link-desc">{q.desc}</div>
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Pending actions at a glance */}
-      {stats.length > 0 && (
-        <div className="pcp-home-stats">
-          {stats.map((s) => (
-            <KpiCard key={s.label} label={s.label} value={s.value} icon={s.icon} tint={s.tint} foot={s.foot} onClick={s.onClick} />
+      {/* How PCF works — the workflow, for new requestors */}
+      <div className="pcp-card pcp-card-pad">
+        <div className="pcp-home-section-title"><RefreshCw size={16} color="#4e7d63" /> How PCF Works</div>
+        <ol className="pcp-home-flow">
+          {HOME_WORKFLOW.map((s, i) => (
+            <li key={s.title} className="pcp-home-flow-step">
+              <span className="pcp-home-flow-n">{i + 1}</span>
+              <span className="pcp-home-flow-title">{s.title}</span>
+              <span className="pcp-home-flow-text">{s.text}</span>
+            </li>
           ))}
-        </div>
-      )}
+        </ol>
+      </div>
 
       <div className="pcp-home-cols">
         <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
@@ -468,41 +575,86 @@ function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, stats, f
           </>)}
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 18, minWidth: 0 }}>
-          {/* Recent activity on records this account can see */}
-          {!approvalOnly && activity && (
-            <div className="pcp-card pcp-card-pad" style={{ minWidth: 0 }}>
-              <div className="pcp-home-section-title"><History size={16} color="#6a4fb8" /> Recent Activity</div>
-              {activity.length ? (
-                <div className="pcp-home-list">
-                  {activity.map((a) => (
-                    <div key={a.id || (a.ts + a.entity)} className="pcp-home-item">
-                      <div className="pcp-home-item-main">
-                        <div className="pcp-home-item-title">{a.action} · {a.entity}</div>
-                        {a.remarks && <div className="pcp-home-item-sub pcp-home-clamp" title={a.remarks}>{a.remarks}</div>}
-                        {a.user && <div className="pcp-home-item-sub">by {a.user}</div>}
-                      </div>
-                      <span className="pcp-home-act-time" title={String(a.ts || "").replace("T", " ") + " UTC"}>{homeAgo(a.ts)}</span>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="pcp-home-empty">No recent activity yet.</div>
-              )}
-            </div>
-          )}
-
-          {/* System announcements */}
+        {/* Recent activity on records this account can see */}
+        {!approvalOnly && activity && (
           <div className="pcp-card pcp-card-pad" style={{ minWidth: 0 }}>
-            <div className="pcp-home-section-title"><Megaphone size={16} color="#4e7d63" /> Announcements</div>
-            {announcements.map((a, i) => (
-              <div key={i} className="pcp-home-ann">
-                {a.title && <div className="pcp-home-ann-title">{a.title}</div>}
-                {a.text && <div className="pcp-home-ann-text">{a.text}</div>}
-                {a.date && <div className="pcp-home-ann-date">{a.date}</div>}
+            <div className="pcp-home-section-title"><History size={16} color="#6a4fb8" /> Recent Activity</div>
+            {activity.length ? (
+              <div className="pcp-home-list">
+                {activity.map((a) => (
+                  <div key={a.id || (a.ts + a.entity)} className="pcp-home-item">
+                    <div className="pcp-home-item-main">
+                      <div className="pcp-home-item-title">{a.action} · {a.entity}</div>
+                      {a.remarks && <div className="pcp-home-item-sub pcp-home-clamp" title={a.remarks}>{a.remarks}</div>}
+                      {a.user && <div className="pcp-home-item-sub">by {a.user}</div>}
+                    </div>
+                    <span className="pcp-home-act-time" title={String(a.ts || "").replace("T", " ") + " UTC"}>{homeAgo(a.ts)}</span>
+                  </div>
+                ))}
               </div>
-            ))}
+            ) : (
+              <div className="pcp-home-empty">No recent activity yet.</div>
+            )}
           </div>
+        )}
+      </div>
+
+      {editingAnn && (
+        <AnnouncementEditor
+          initial={announcements}
+          onClose={() => setEditingAnn(false)}
+          onSave={(list) => { onSaveAnnouncements(list); setEditingAnn(false); }}
+        />
+      )}
+    </div>
+  );
+}
+
+/* Announcement editor (Accounting / admins). Starts from what Home shows now,
+   so the first save carries the index.html list over instead of losing it. */
+function AnnouncementEditor({ initial, onClose, onSave }) {
+  const [rows, setRows] = useState(() => (initial || []).map((a) => ({ id: a.id, title: a.title || "", text: a.text || "", date: a.date || "" })));
+  const set = (i, patch) => setRows((rs) => rs.map((r, j) => (j === i ? { ...r, ...patch } : r)));
+  const move = (i, by) => setRows((rs) => {
+    const j = i + by;
+    if (j < 0 || j >= rs.length) return rs;
+    const copy = rs.slice();
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+    return copy;
+  });
+  const clean = rows.map((r) => ({ ...r, title: r.title.trim(), text: r.text.trim(), date: r.date.trim() })).filter((r) => r.title || r.text);
+  return (
+    <div className="pcp-modal-backdrop" onClick={onClose}>
+      <div className="pcp-modal" style={{ maxWidth: 760, width: "100%" }} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Manage announcements">
+        <div className="pcp-modal-head">
+          <h3>Manage PCF Portal Announcements</h3>
+          <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose} aria-label="Close"><X size={15} /></button>
+        </div>
+        <div className="pcp-modal-body">
+          <div style={{ fontSize: 12.5, color: "var(--text-mut)", marginBottom: 12 }}>
+            Shown on everyone's Home page, top first. Saved changes appear for all users right away and are recorded in the Audit Trail.
+          </div>
+          {rows.map((r, i) => (
+            <div key={r.id || "new" + i} style={{ border: "1px solid var(--line)", borderRadius: 10, padding: 12, marginBottom: 10 }}>
+              <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
+                <input className="pcp-input" placeholder="Title, e.g. Important Reminder" value={r.title} onChange={(e) => set(i, { title: e.target.value })} />
+                <input className="pcp-input" style={{ width: 150 }} placeholder="Date (optional)" value={r.date} onChange={(e) => set(i, { date: e.target.value })} />
+                <button type="button" className="pcp-btn pcp-btn-sm pcp-btn-ghost" disabled={i === 0} onClick={() => move(i, -1)} title="Move up"><ChevronLeft size={13} style={{ transform: "rotate(90deg)" }} /></button>
+                <button type="button" className="pcp-btn pcp-btn-sm pcp-btn-ghost" disabled={i === rows.length - 1} onClick={() => move(i, 1)} title="Move down"><ChevronRight size={13} style={{ transform: "rotate(90deg)" }} /></button>
+                <button type="button" className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => setRows((rs) => rs.filter((_, j) => j !== i))} title="Remove"><Trash2 size={13} color="var(--danger)" /></button>
+              </div>
+              <textarea className="pcp-input" rows={3} style={{ resize: "vertical", width: "100%" }} placeholder="Message" value={r.text} onChange={(e) => set(i, { text: e.target.value })} />
+            </div>
+          ))}
+          <button type="button" className="pcp-btn pcp-btn-sm" onClick={() => setRows((rs) => rs.concat([{ title: "", text: "", date: "" }]))}>
+            <Plus size={13} /> Add announcement
+          </button>
+        </div>
+        <div className="pcp-modal-foot">
+          <button className="pcp-btn" onClick={onClose}>Cancel</button>
+          <button className="pcp-btn pcp-btn-primary" disabled={!clean.length} onClick={() => onSave(clean)}>
+            <Check size={13} /> Publish {clean.length} announcement{clean.length === 1 ? "" : "s"}
+          </button>
         </div>
       </div>
     </div>

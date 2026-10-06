@@ -12,6 +12,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   const [auditLog, setAuditLog] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [reimbursements, setReimbursements] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
   const [role, setRole] = useState(userRole || "Accounting");
   /* Non-admins are locked to their assigned role; admins may view-as any role. */
   useEffect(() => { setRole(userRole || "Accounting"); }, [userRole]);
@@ -534,7 +535,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     setAuditLog(nextAudit);
     const next = {
       dataVersion: DATA_VERSION, funds, requests, disbursements, liquidations,
-      replenishments, auditLog: nextAudit, documents, reimbursements,
+      replenishments, auditLog: nextAudit, documents, reimbursements, announcements,
     };
     /* Guarded: syncedRef is null until the initial load finishes, and a throw
        here must not skip the flush below. */
@@ -546,7 +547,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     } catch (e) { /* sign out regardless; nothing more we can do here */ }
     if (onSignOut) onSignOut();
   }, [onSignOut, userName, userEmail, funds, requests, disbursements, liquidations,
-      replenishments, auditLog, documents, reimbursements]);
+      replenishments, auditLog, documents, reimbursements, announcements]);
 
   useEffect(() => {
     (async () => {
@@ -601,12 +602,14 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       setAuditLog(source.auditLog || []);
       setDocuments(source.documents || []);
       setReimbursements(source.reimbursements || []);
+      setAnnouncements(source.announcements || []);
 
       /* Baseline for per-record change detection. */
       const startState = {
         funds: startFunds, requests: source.requests || [], disbursements: source.disbursements || [],
         liquidations: source.liquidations || [], replenishments: source.replenishments || [],
         auditLog: source.auditLog || [], documents: source.documents || [], reimbursements: source.reimbursements || [],
+        announcements: source.announcements || [],
       };
       if (!readFailed && (seedFromBlob || !rows.length)) {
         /* Either a legacy migration, or an empty store that needs initialising.
@@ -656,12 +659,12 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
 
   useEffect(() => {
     if (!loaded) return;
-    const next = { dataVersion: DATA_VERSION, funds, requests, disbursements, liquidations, replenishments, auditLog, documents, reimbursements };
+    const next = { dataVersion: DATA_VERSION, funds, requests, disbursements, liquidations, replenishments, auditLog, documents, reimbursements, announcements };
     /* The only write path: sync the records that actually changed to their own
        rows in Supabase. No blob, no browser copy — one store, so two accounts
        cannot end up looking at different versions of the same database. */
     try { syncRecords(diffSync(syncedRef.current, next)); } catch (e) { /* best effort */ }
-  }, [funds, requests, disbursements, liquidations, replenishments, auditLog, documents, reimbursements, loaded]);
+  }, [funds, requests, disbursements, liquidations, replenishments, auditLog, documents, reimbursements, announcements, loaded]);
 
   /* ---- Live sync ----
      Streams every change to pcp_records into this tab, so accounts converge
@@ -681,6 +684,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       funds: setFunds, requests: setRequests, disbursements: setDisbursements,
       liquidations: setLiquidations, replenishments: setReplenishments,
       auditLog: setAuditLog, documents: setDocuments, reimbursements: setReimbursements,
+      announcements: setAnnouncements,
     };
     let channel = null;
     let stopped = false;
@@ -2392,6 +2396,31 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     navigate(target);
   }, [orderedPlants, navigate]);
 
+  /* ---- Dashboard drill-through ----
+     A dashboard count or View button opens its module showing exactly the
+     records behind that number ({ module, ids, label }), under a banner that
+     can be cleared. It opens on the tab of the plant holding most of them
+     (a module tab only lists its own plant). Cleared on leaving the module. */
+  const [dashFilter, setDashFilter] = useState(null);
+  const openFiltered = useCallback((module, records, label) => {
+    const list = records || [];
+    const tally = new Map();
+    list.forEach((r) => { const p = plantOfBranch(r.branchCode); tally.set(p, (tally.get(p) || 0) + 1); });
+    const best = Array.from(tally.entries()).sort((a, b) => b[1] - a[1])[0];
+    const cur = parseTab(tab).plant;
+    const plant = cur && tally.has(cur) ? cur : best ? best[0] : cur;
+    const target = plant && allowedTabs.has(plantTabKey(plant, module)) ? plantTabKey(plant, module) : module;
+    setDashFilter({ module, ids: new Set(list.map((r) => r.id)), label, at: Date.now() });
+    navigate(target);
+  }, [tab, allowedTabs, navigate]);
+  useEffect(() => {
+    if (dashFilter && parseTab(tab).module !== dashFilter.module) setDashFilter(null);
+  }, [tab]); // eslint-disable-line
+  const dashFilterFor = (module) => (dashFilter && dashFilter.module === module ? dashFilter : null);
+  /* Which dashboard a role gets (see DashboardCore in 08-dashboard.jsx). */
+  const dashRole = role === "SuperAdmin" ? "admin"
+    : role === "Accounting" || role === "Finance" ? "accounting" : "custodian";
+
   /* ---- Home (landing page) data — derived only, nothing is written ---- */
   const tabFor = (key) => (PLANT_MODULE_KEYS.includes(key) && orderedPlants[0] ? plantTabKey(orderedPlants[0].code, key) : key);
   const canOpen = (key) => allowedTabs.has(tabFor(key));
@@ -2399,19 +2428,73 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     () => liquidationReminders(visibleDisbursements, visibleLiquidations, today),
     [visibleDisbursements, visibleLiquidations, today]
   );
-  const homeQuickLinks = [
-    { key: "requests", label: "Petty Cash Request", desc: "Request a cash advance and track its approval", icon: ClipboardList, tint: "#4e7d63" },
-    { key: "reimbursement", label: "Reimbursement", desc: "Claim back expenses you paid yourself", icon: ArrowLeftRight, tint: "#3f9c8f" },
-    { key: "liquidation", label: "Liquidation", desc: "Liquidate released cash with receipts", icon: FileSpreadsheet, tint: "#a86b06" },
-    { key: "disbursements", label: "Release Ledger", desc: "Vouchers released from the fund", icon: Receipt, tint: "#2f64a6" },
-    { key: "replenishment", label: "Replenishment", desc: "Restore the fund for approved expenses", icon: RefreshCw, tint: "#6a4fb8" },
-    { key: "approvals", label: "Approval", desc: "Everything awaiting your decision", icon: ClipboardCheck, tint: "#237a45" },
-    { key: "approved", label: "Approved", desc: "Transactions with Grace Gan's final approval", icon: CircleCheck, tint: "#15803d" },
-  ].filter((q) => canOpen(q.key)).map((q) => ({ ...q, onClick: () => navigate(q.key) }));
-  /* Summary cards. Each appears only when the account can open the module it
-     summarises; the fund balance only for roles with the dashboard. */
   const sumAmt = (xs, f) => xs.reduce((s, x) => s + (Number(f ? f(x) : x.amount) || 0), 0);
-  const homeStats = [];
+  /* The six main cards in workflow order, then Approval / Approved for the
+     accounts that have them. The Dashboard card opens the consolidated view
+     when the account has one, else its first plant's dashboard. */
+  const homeQuickLinks = [
+    { key: "requests", label: "Petty Cash Request", desc: "Create and track your PCF request.", icon: ClipboardList, tint: "#4e7d63" },
+    { key: "disbursements", label: "Release", desc: "View released petty cash transactions.", icon: Receipt, tint: "#2f64a6" },
+    { key: "liquidation", label: "Liquidation", desc: "Submit and monitor liquidation.", icon: FileSpreadsheet, tint: "#a86b06" },
+    { key: "reimbursement", label: "Reimbursement", desc: "Submit employee-paid expenses for reimbursement.", icon: ArrowLeftRight, tint: "#3f9c8f" },
+    { key: "replenishment", label: "Replenishment", desc: "Manage PCF replenishment.", icon: RefreshCw, tint: "#6a4fb8" },
+    { key: "dashboard", label: "Dashboard", desc: "View PCF balances and transaction status.", icon: LayoutDashboard, tint: "#b9790a" },
+    { key: "approvals", label: "Approval", desc: "Everything awaiting your decision.", icon: ClipboardCheck, tint: "#237a45" },
+    { key: "approved", label: "Approved", desc: "Transactions with Grace Gan's final approval.", icon: CircleCheck, tint: "#15803d" },
+  ].filter((q) => canOpen(q.key) || (q.key === "dashboard" && allowedTabs.has("dashboard")))
+    .map((q) => ({ ...q, onClick: () => (q.key === "dashboard" && allowedTabs.has("dashboard") ? setTab("dashboard") : navigate(q.key)) }));
+
+  /* My PCF Status: the signed-in person's OWN records (matched by name, as
+     the outstanding-advance check does), each opening exactly those. */
+  const homeMyStatus = useMemo(() => {
+    const me = userName;
+    if (!me) return [];
+    const mine = (n) => samePerson(n, me);
+    const out = [];
+    const add = (label, xs, module, foot, tint, opts) => {
+      if (!allowedTabs.has(tabFor(module))) return;
+      out.push({ key: label, label, n: xs.length, foot, tint, warn: opts && opts.warn,
+        onClick: xs.length ? () => (opts && opts.openAs ? opts.openAs() : openFiltered(module, xs, "My " + label)) : () => navigate(module) });
+    };
+    const reqs = visibleRequests.filter((r) => mine(r.employee) && (r.status === "Pending" || r.status === "Approved"));
+    add("Pending Requests", reqs, "requests", `${reqs.filter((r) => r.status === "Approved").length} approved, awaiting release`, "#2f64a6");
+    const adv = visibleDisbursements.filter((d) => mine(d.employee) && liqStatusFor(d, visibleLiquidations) !== "Fully Liquidated");
+    add("Active Cash Advances", adv, "liquidation", peso(sumAmt(adv)), "#b9790a");
+    const due = homeDeadlines.filter((d) => mine(d.employee));
+    const dueIds = new Set(due.map((d) => d.id));
+    const dueRecs = visibleDisbursements.filter((d) => dueIds.has(d.id));
+    add("Pending Liquidations", dueRecs, "liquidation", "Not yet submitted", "#c2560c");
+    const overIds = new Set(due.filter((d) => d.daysLeft < 0).map((d) => d.id));
+    add("Overdue Liquidations", visibleDisbursements.filter((d) => overIds.has(d.id)), "liquidation",
+      overIds.size ? "Liquidate now to avoid salary deduction" : "None overdue", "#c0392b", { warn: overIds.size > 0 });
+    const closed = [REIMB_STATUS.DRAFT, REIMB_STATUS.COMPLETED, REIMB_STATUS.PAID, REIMB_STATUS.REJECTED];
+    const reimbs = visibleReimbursements.filter((r) => (mine(r.employee) || mine(r.createdBy)) && !closed.includes(r.status));
+    add("Reimbursements", reimbs, "reimbursement", `${peso(sumAmt(reimbs, (r) => reimbTotal(r)))} in progress`, "#3f9c8f",
+      { openAs: () => navigate("reimbursement") });
+    return out;
+  }, [userName, allowedTabs, visibleRequests, visibleDisbursements, visibleLiquidations, visibleReimbursements, homeDeadlines, openFiltered]); // eslint-disable-line
+
+  /* Announcements: kept as records (the "announcements" collection) so
+     Accounting / admins edit them on the Home page with no code change. Until
+     the first save, Home shows window.PCP_ANNOUNCEMENTS (index.html). */
+  const canManageAnnouncements = !!isAdmin && role === (userRole || "Accounting");
+  const homeAnnouncements = useMemo(
+    () => [...announcements].sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0)),
+    [announcements]
+  );
+  const saveAnnouncements = useCallback((list) => {
+    const who = userName || role;
+    const ts = new Date().toISOString().slice(0, 19);
+    const prev = new Map(announcements.map((a) => [a.id, a]));
+    setAnnouncements(list.map((a, i) => {
+      const id = a.id && prev.has(a.id) ? a.id : uid("ann");
+      const before = prev.get(id);
+      const same = before && before.title === a.title && before.text === a.text && before.date === a.date && before.order === i;
+      return same ? before : { id, title: a.title, text: a.text, date: a.date || "", order: i,
+        createdBy: (before && before.createdBy) || who, createdAt: (before && before.createdAt) || ts, updatedBy: who, updatedAt: ts };
+    }));
+    logAudit("Announcements Updated", "Home Page", `${list.length} announcement(s) published`);
+  }, [announcements, userName, role, logAudit]);
   /* Fund balance per plant (its whole branch family, as the plant dashboard
      counts it) — only for roles with the dashboard, as before. */
   const homeFunds = useMemo(() => {
@@ -2432,33 +2515,39 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
      rights the modules use. Counts only; each opens the module that does it. */
   const homeActions = useMemo(() => {
     const out = [];
-    const add = (n, label, foot, key, icon, tint) => { if (n > 0 && allowedTabs.has(tabFor(key))) out.push({ key: label, n, label, foot, icon, tint, onClick: () => navigate(key) }); };
+    /* With `records`, the item opens exactly those in Requests / Liquidation
+       (openFiltered); without, it opens the module. */
+    const add = (n, label, foot, key, icon, tint, records) => {
+      if (n > 0 && allowedTabs.has(tabFor(key))) out.push({ key: label, n, label, foot, icon, tint,
+        onClick: records && (key === "requests" || key === "liquidation") ? () => openFiltered(key, records, label) : () => navigate(key) });
+    };
     if (canApprove) {
       const p = visibleRequests.filter((r) => r.status === "Pending");
-      add(p.length, "Requests to approve", peso(sumAmt(p)), "requests", ClipboardList, "#b9790a");
+      add(p.length, "Requests to approve", peso(sumAmt(p)), "requests", ClipboardList, "#b9790a", p);
     }
     if (canRelease) {
       const a = visibleRequests.filter((r) => r.status === "Approved");
-      add(a.length, "Approved requests to release", peso(sumAmt(a)), "requests", Banknote, "#2054a3");
+      add(a.length, "Approved requests to release", peso(sumAmt(a)), "requests", Banknote, "#2054a3", a);
     }
     const replenished = replenishedLiquidationIds(visibleReplenishments);
-    const stageCount = (stage) => visibleDisbursements.filter((d) => {
+    const atStage = (stage) => visibleDisbursements.filter((d) => {
       const liq = liquidationFor(d.id, visibleLiquidations);
       return liq && liqApprovalStage(d, liq, replenished) === stage;
-    }).length;
-    if (isLiquidationChecker) add(stageCount(LIQ_STAGE.FOR_CHECK), "Liquidations to review", "Submitted, waiting for the custodian", "liquidation", ClipboardCheck, "#237a45");
-    if (isAccountingChecker) add(stageCount(LIQ_STAGE.FOR_ACCOUNTING), "Liquidations for Accounting check", "Custodian-reviewed", canOpen("approvals") ? "approvals" : "liquidation", ClipboardCheck, "#2f64a6");
-    add(stageCount(LIQ_STAGE.NEEDS_CORRECTION), "Liquidations needing correction", "A receipt was rejected", "liquidation", AlertTriangle, "#c0392b");
+    });
+    const vouchersOf = (rows) => { const ids = new Set(rows.map((r) => r.id)); return visibleDisbursements.filter((d) => ids.has(d.id)); };
+    if (isLiquidationChecker) { const xs = atStage(LIQ_STAGE.FOR_CHECK); add(xs.length, "Liquidations to review", "Submitted, waiting for the custodian", "liquidation", ClipboardCheck, "#237a45", xs); }
+    if (isAccountingChecker) { const xs = atStage(LIQ_STAGE.FOR_ACCOUNTING); add(xs.length, "Liquidations for Accounting check", "Custodian-reviewed", canOpen("approvals") ? "approvals" : "liquidation", ClipboardCheck, "#2f64a6", xs); }
+    { const xs = atStage(LIQ_STAGE.NEEDS_CORRECTION); add(xs.length, "Liquidations needing correction", "A receipt was rejected", "liquidation", AlertTriangle, "#c0392b", xs); }
     const overdue = homeDeadlines.filter((d) => d.daysLeft < 0);
-    add(overdue.length, "Overdue liquidations", peso(sumAmt(overdue)), canOpen("aging") ? "aging" : "liquidation", AlertTriangle, "#c0392b");
+    add(overdue.length, "Overdue liquidations", peso(sumAmt(overdue)), "liquidation", AlertTriangle, "#c0392b", vouchersOf(overdue));
     const soon = homeDeadlines.filter((d) => d.daysLeft >= 0 && d.daysLeft <= 1);
-    add(soon.length, "Liquidations due today or tomorrow", peso(sumAmt(soon)), "liquidation", CalendarClock, "#c2560c");
+    add(soon.length, "Liquidations due today or tomorrow", peso(sumAmt(soon)), "liquidation", CalendarClock, "#c2560c", vouchersOf(soon));
     if (!isRequestor) {
       const ready = replenishmentReadyItems(visibleDisbursements, visibleLiquidations, visibleReimbursements, visibleReplenishments);
       add(ready.length, "Ready for replenishment", peso(sumAmt(ready)), "replenishment", RefreshCw, "#6a4fb8");
     }
     return out;
-  }, [allowedTabs, canApprove, canRelease, isLiquidationChecker, isAccountingChecker, isRequestor, visibleRequests, visibleDisbursements, visibleLiquidations, visibleReplenishments, visibleReimbursements, homeDeadlines]); // eslint-disable-line
+  }, [allowedTabs, canApprove, canRelease, isLiquidationChecker, isAccountingChecker, isRequestor, visibleRequests, visibleDisbursements, visibleLiquidations, visibleReplenishments, visibleReimbursements, homeDeadlines, openFiltered]); // eslint-disable-line
 
   /* Recent activity: the latest audit entries about records this account can
      already see (matched by their number), never another plant's. */
@@ -2474,32 +2563,6 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     }
     return out.sort((a, b) => String(b.ts || "").localeCompare(String(a.ts || "")));
   }, [auditForUser, visibleRequests, visibleDisbursements, visibleReimbursements, visibleReplenishments]);
-
-  if (canOpen("requests")) {
-    const active = visibleRequests.filter((r) => r.status === "Pending" || r.status === "Approved");
-    const pend = active.filter((r) => r.status === "Pending").length;
-    homeStats.push({ label: "📋 Active Requests", value: active.length, icon: ClipboardList, tint: "#2f64a6",
-      foot: `${pend} pending · ${active.length - pend} awaiting release · ${peso(sumAmt(active))}`, onClick: () => navigate("requests") });
-  }
-  if (canOpen("liquidation")) {
-    const overdue = homeDeadlines.filter((d) => d.daysLeft < 0);
-    homeStats.push({ label: "⏳ For Liquidation", value: homeDeadlines.length, icon: FileSpreadsheet, tint: "#c2560c",
-      foot: peso(sumAmt(homeDeadlines)), onClick: () => navigate("liquidation") });
-    homeStats.push({ label: "⚠️ Overdue Liquidations", value: overdue.length, icon: AlertTriangle, tint: overdue.length ? "#c0392b" : "#237a45",
-      foot: overdue.length ? `${peso(sumAmt(overdue))} · for Authority to Deduct` : "None overdue",
-      onClick: () => navigate(canOpen("aging") ? "aging" : "liquidation") });
-  }
-  if (canOpen("replenishment")) {
-    const ready = replenishmentReadyItems(visibleDisbursements, visibleLiquidations, visibleReimbursements, visibleReplenishments);
-    homeStats.push({ label: "🔄 For Replenishment", value: ready.length, icon: RefreshCw, tint: "#6a4fb8",
-      foot: peso(sumAmt(ready)), onClick: () => navigate("replenishment") });
-  }
-  if (canOpen("reimbursement")) {
-    const closed = [REIMB_STATUS.DRAFT, REIMB_STATUS.COMPLETED, REIMB_STATUS.PAID, REIMB_STATUS.REJECTED];
-    const open = visibleReimbursements.filter((r) => !closed.includes(r.status));
-    homeStats.push({ label: "💵 Reimbursements", value: open.length, icon: Banknote, tint: "#3f9c8f",
-      foot: `${peso(sumAmt(open, (r) => reimbTotal(r)))} in progress`, onClick: () => navigate("reimbursement") });
-  }
 
   /* Grace Gan's Home (owner's instruction, Oct 2026): no liquidation
      deadlines or general notifications — only what awaits HER final approval,
@@ -2664,8 +2727,9 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
                 userName={userName} userEmail={userEmail}
                 roleLabel={accountRoleLabel(role, userEmail, userRole || "Accounting")}
                 plants={orderedPlants}
-                quickLinks={homeQuickLinks} stats={homeStats}
-                funds={homeFunds} actions={homeActions} activity={homeActivity}
+                quickLinks={homeQuickLinks}
+                funds={homeFunds} actions={homeActions} activity={homeActivity} myStatus={homeMyStatus}
+                announcements={homeAnnouncements} canManageAnnouncements={canManageAnnouncements} onSaveAnnouncements={saveAnnouncements}
                 notifications={bellNotifications} onNotifClick={onNotifClick}
                 deadlines={homeDeadlines} onDeadlineClick={onReminderClick}
                 approvalReminders={homeApprovalReminders}
@@ -2688,6 +2752,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
                   branchCode={activeBranch.branchCode}
                   branchCodes={scopeCodes}
                   funds={scopedFunds} requests={scopedRequests} disbursements={scopedDisbursements} liquidations={scopedLiquidations} replenishments={scopedReplenishments}
+                  reimbursements={scopedReimbursements} role={dashRole} onOpenFiltered={openFiltered}
                   onNavigate={navigate}
                 />
               </div>
@@ -2701,6 +2766,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
               />
               <div className="pcp-content">
                 <Dashboard funds={scopedFunds} requests={scopedRequests} disbursements={scopedDisbursements} liquidations={scopedLiquidations} replenishments={scopedReplenishments} onNavigate={navigate} canEdit={canEdit}
+                  reimbursements={scopedReimbursements} role={dashRole} onOpenFiltered={openFiltered}
                   onOpenPlant={(code) => navigate(plantTabKey(code, "dashboard"))} />
               </div>
             </>
@@ -2714,6 +2780,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
             onApprove={approveRequest} onReject={rejectRequest}
             onDisburse={(req) => setDisburseTarget(req)}
             missingVoucherIds={missingVoucherIds}
+            dashFilter={dashFilterFor("requests")} onClearDashFilter={() => setDashFilter(null)}
             canEditDisbursed={canEditOverride}
             plantOptions={scopedPlantOptions} canApprove={canApprove} canRelease={canRelease}
             plantTitle={activePlantLabel}
@@ -2767,6 +2834,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
             canFinance={["Accounting", "Finance", "SuperAdmin"].includes(role) || !!isAdmin}
             plantOptions={scopedPlantOptions}
             plantTitle={activePlantLabel}
+            dashFilter={dashFilterFor("liquidation")} onClearDashFilter={() => setDashFilter(null)}
             openRequest={liqOpenRequest}
             onOpenHandled={() => setLiqOpenRequest(null)}
           />

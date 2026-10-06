@@ -2371,7 +2371,7 @@ function LiquidationTab({
   reimbursements, onReimbursementAction, canFinance, accounting,
   canEditReimb, canDeleteReimbDocs, canAuthorizeReimbVariance, onUpdateReimbursement, allReimbursements,
   canRevert, onRevertLiquidation,
-  openRequest, onOpenHandled,
+  openRequest, onOpenHandled, dashFilter, onClearDashFilter,
 }) {
   const [acctFilter, setAcctFilter] = useState(accounting && accounting.isChecker ? "For Accounting Check" : "All");
   const [selectedId, setSelectedId] = useState(null);
@@ -2416,6 +2416,10 @@ function LiquidationTab({
     setPlant("ALL"); setSource("pettycash"); setSelectedReimbId(null);
     setSelectedId(openRequest.id);
   }, [openRequest]); // eslint-disable-line
+  /* A dashboard drill-through lists petty cash vouchers across the plant. */
+  useEffect(() => {
+    if (dashFilter) { setSource("pettycash"); setPlant("ALL"); }
+  }, [dashFilter]);
 
   const scoped = plant === "ALL" ? disbursements : disbursements.filter((d) => d.branchCode === plant);
   const enriched = scoped.map((d) => ({
@@ -2448,7 +2452,9 @@ function LiquidationTab({
      that record, and hiding it because it is already complete made finished
      vouchers look deleted (the Release Ledger shows them, this list did not). */
   const settleFilterOn = settleFilter !== SETTLEMENT_FILTERS[0];
-  const pettyFiltered = (pettyStatus === LIQ_STATUS_FILTER_ALL
+  /* Opened from a dashboard count: exactly those vouchers, complete or not,
+     whatever the other filters say (DashFilterBanner shows what it is). */
+  const pettyFiltered = dashFilter ? enriched.filter((d) => dashFilter.ids.has(d.id)) : (pettyStatus === LIQ_STATUS_FILTER_ALL
     ? (showAll || q || settleFilterOn || acctFilterOn ? enriched : enriched.filter((d) => !liqIsComplete(d.finalStatus)))
     : enriched.filter((d) => d.liqStatus === PCA_STATUS_FILTERS[pettyStatus]))
     .filter((d) => hit(d.voucherNo, d.requestNo, d.employee, d.branchCode, plantLabel(d.branchCode),
@@ -2508,6 +2514,7 @@ function LiquidationTab({
       />
       <div className="pcp-content">
         <PlantScopeTabs plants={plantOptions} value={plant} onChange={(v) => { setPlant(v); setSelectedId(null); setSelectedReimbId(null); }} />
+        <DashFilterBanner filter={dashFilter} shown={list.length} onClear={onClearDashFilter} noun="voucher" />
 
         {/* Source selector — keep petty cash and reimbursement rules separate. */}
         <div className="pcp-tabs" style={{ marginBottom: 14 }}>

@@ -666,7 +666,7 @@ function DeptDrilldownPanel({ funds, requests, disbursements, liquidations }) {
   );
 }
 
-/* ---- Date range, KPI groups, trend and plant comparison ------------------
+/* ---- Analytics: date range, trend and plant comparison -------------------
    The date range filters ACTIVITY only — releases (by voucher date),
    liquidated receipts (by receipt date) and requests (by request date) — and
    every chart and drill-down built from them. Balances and the "as of today"
@@ -676,14 +676,6 @@ const DASH_CSS = `
   .pcp-dash-range { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-bottom: 14px; }
   .pcp-dash-range .pcp-tab { padding: 6px 12px; }
   .pcp-dash-range-note { font-size: 11.5px; color: var(--text-mut); margin-left: auto; }
-  .pcp-dash-group { margin-bottom: 16px; }
-  .pcp-dash-group-title {
-    display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.8px;
-    text-transform: uppercase; color: var(--text-mut); margin: 0 0 8px;
-  }
-  .pcp-dash-group-title::after { content: ""; flex: 1; height: 1px; background: var(--line); }
-  .pcp-dash-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
-  .pcp-dash-kpis .pcp-kpi { margin: 0; }
   .pcp-dash-low { color: var(--danger-dark, #c0392b); font-weight: 700; }
   .pcp-dash-bar { height: 6px; border-radius: 99px; background: var(--line); overflow: hidden; margin-top: 4px; min-width: 70px; }
   .pcp-dash-bar > span { display: block; height: 100%; border-radius: 99px; }
@@ -757,15 +749,6 @@ function DashDateFilter({ r }) {
       <div className="pcp-dash-range-note">
         Activity: <b>{dashRangeText(r.bounds)}</b> · balances and worklists are as of today
       </div>
-    </div>
-  );
-}
-
-function DashKpiGroup({ title, children }) {
-  return (
-    <div className="pcp-dash-group">
-      <div className="pcp-dash-group-title">{title}</div>
-      <div className="pcp-dash-kpis">{children}</div>
     </div>
   );
 }
@@ -905,22 +888,527 @@ function PlantComparison({ rows, onOpenPlant }) {
   );
 }
 
-function Dashboard({ funds, requests, disbursements: allDisb, liquidations, replenishments, onNavigate, onOpenPlant, canEdit }) {
+/* ---- Dashboard drill-through banner ----
+   Shown at the top of Requests / Liquidation when they were opened from a
+   dashboard count (openFiltered in 19-app.jsx): names what is listed and
+   clears back to the module's normal view. Inline styles, because the
+   dashboard's stylesheet is not on those pages. */
+function DashFilterBanner({ filter, shown, onClear, noun }) {
+  if (!filter) return null;
+  const total = filter.ids.size;
+  return (
+    <div role="status" style={{
+      display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14, padding: "10px 14px",
+      borderRadius: 10, border: "1px solid var(--brand)", background: "var(--brand-soft)", fontSize: 12.5,
+    }}>
+      <FilterIcon size={14} color="var(--brand)" />
+      <span>
+        From the Dashboard: <b>{filter.label}</b> · showing {shown} {noun}{shown === 1 ? "" : "s"}
+        {shown < total ? ` (${total - shown} more are in another plant's tab or hidden by the search)` : ""}
+      </span>
+      {onClear && (
+        <button className="pcp-btn pcp-btn-sm" style={{ marginLeft: "auto" }} onClick={onClear}>
+          <X size={12} /> Clear filter
+        </button>
+      )}
+    </div>
+  );
+}
+
+const DASH_CORE_CSS = `
+  .pcp-dash-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 14px; }
+  .pcp-dash-head label { font-size: 11px; font-weight: 700; letter-spacing: 0.8px; text-transform: uppercase; color: var(--text-mut); }
+  .pcp-dash-kpi-foot-mix { display: flex; flex-wrap: wrap; gap: 4px 10px; margin-top: 4px; font-size: 11px; }
+  .pcp-dash-kpi-foot-mix button { background: none; border: none; padding: 0; font: inherit; color: inherit; cursor: pointer; display: inline-flex; align-items: center; gap: 4px; }
+  .pcp-dash-kpi-foot-mix button:hover { text-decoration: underline; }
+  .pcp-dash-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .pcp-dash-action-table td { vertical-align: middle; }
+  .pcp-dash-count {
+    background: none; border: none; font: inherit; font-size: 16px; font-weight: 800; cursor: pointer; padding: 2px 6px;
+    border-radius: 6px; color: inherit; font-variant-numeric: tabular-nums;
+  }
+  .pcp-dash-count:hover:not(:disabled) { background: var(--brand-soft); text-decoration: underline; }
+  .pcp-dash-count:disabled { cursor: default; color: var(--text-mut); font-weight: 600; }
+  .pcp-dash-aging-row {
+    display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 6px; border: none; border-bottom: 1px solid var(--line);
+    background: none; font: inherit; color: inherit; text-align: left; cursor: pointer;
+  }
+  .pcp-dash-aging-row:last-child { border-bottom: none; }
+  .pcp-dash-aging-row:hover:not(:disabled) { background: var(--brand-soft); }
+  .pcp-dash-aging-row:disabled { cursor: default; }
+  .pcp-dash-aging-n { margin-left: auto; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; min-width: 34px; text-align: right; }
+  .pcp-dash-aging-bar { height: 10px; display: flex; border-radius: 99px; overflow: hidden; background: var(--line); margin: 4px 0 10px; }
+  .pcp-dash-util-bar { height: 16px; display: flex; border-radius: 99px; overflow: hidden; background: var(--line); margin: 10px 0 8px; }
+  .pcp-dash-util-bar > span, .pcp-dash-aging-bar > span { display: block; height: 100%; }
+  .pcp-dash-util-row { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: 12.5px; }
+  .pcp-dash-util-row:last-child { border-bottom: none; }
+  .pcp-dash-util-row b { font-variant-numeric: tabular-nums; }
+  .pcp-dash-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 11px; color: var(--text-mut); margin-bottom: 6px; }
+  .pcp-dash-legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .pcp-dash-title-row { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .pcp-dash-title-row .pcp-section-title { margin: 0; }
+  .pcp-dash-section-label {
+    display: flex; align-items: center; gap: 8px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.8px;
+    text-transform: uppercase; color: var(--text-mut); margin: 22px 0 10px;
+  }
+  .pcp-dash-section-label::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  @media (max-width: 900px) { .pcp-dash-kpi8 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
+  @media (max-width: 520px) { .pcp-dash-kpi8 { grid-template-columns: minmax(0, 1fr) !important; } }
+`;
+
+/* Liquidation aging of a voucher not yet fully liquidated, against the
+   AGING_DUE_DAYS deadline counted from its release date. */
+const DASH_AGING = [
+  { key: "within", label: "Within Due Date", short: "Within Due Date", color: "#15803d" },
+  { key: "soon", label: "Due Within 1 Day", short: "Due Soon", color: "#d4a017" },
+  { key: "late", label: "Overdue 1–4 Days", short: "Overdue 1–4 Days", color: "#ea580c" },
+  { key: "late5", label: "Overdue 5+ Days", short: "Overdue 5+ Days", color: "#c0392b" },
+];
+function dashAgingBucket(d, today) {
+  const daysLeft = daysBetween(today, addDaysISO(d.date || today, AGING_DUE_DAYS));
+  if (daysLeft >= 2) return "within";
+  if (daysLeft >= 0) return "soon";
+  if (daysLeft >= -4) return "late";
+  return "late5";
+}
+
+/* Active Cash Advances — the list behind "Employees w/ Active Advances". */
+function ActiveAdvancesModal({ rows, onOpen, onOpenAll, onClose }) {
+  const [q, setQ] = useState("");
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  const needle = q.trim().toLowerCase();
+  const shown = needle ? rows.filter((r) => [r.d.employee, r.d.voucherNo, plantLabel(r.d.branchCode)].join(" ").toLowerCase().includes(needle)) : rows;
+  const people = new Set(rows.map((r) => String(r.d.employee || "").trim().toLowerCase())).size;
+  return (
+    <div className="pcp-modal-backdrop" onClick={onClose}>
+      <div className="pcp-modal" style={{ maxWidth: 980, width: "100%" }} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Active Cash Advances">
+        <div className="pcp-modal-head">
+          <h3>Active Cash Advances</h3>
+          <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose} aria-label="Close"><X size={15} /></button>
+        </div>
+        <div className="pcp-modal-body">
+          <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
+            <div style={{ fontSize: 12.5, color: "var(--text-mut)" }}>
+              <b style={{ color: "var(--text)" }}>{people}</b> employee{people === 1 ? "" : "s"} · {rows.length} voucher{rows.length === 1 ? "" : "s"} ·{" "}
+              <b style={{ color: "var(--text)" }}>{peso(rows.reduce((s, r) => s + r.balance, 0))}</b> not yet liquidated
+            </div>
+            <div style={{ position: "relative", marginLeft: "auto", width: 240 }}>
+              <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
+              <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search employee or voucher" value={q} onChange={(e) => setQ(e.target.value)} />
+            </div>
+            {onOpenAll && <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={onOpenAll}>Open all in Liquidation</button>}
+          </div>
+          <div className="pcp-table-wrap" style={{ maxHeight: "60vh", overflow: "auto" }}>
+            <table className="pcp-table">
+              <thead>
+                <tr><th>Employee</th><th>Voucher</th><th>Plant</th><th style={{ textAlign: "right" }}>Amount</th><th style={{ textAlign: "right" }}>Not Liquidated</th><th>Date Released</th><th>Aging</th><th>Status</th></tr>
+              </thead>
+              <tbody>
+                {shown.length ? shown.map((r) => {
+                  const b = DASH_AGING.find((x) => x.key === r.bucket);
+                  return (
+                    <tr key={r.d.id} className="pcp-dash-row-click" onClick={() => onOpen(r.d)} title={`Open ${r.d.voucherNo} in Liquidation`}>
+                      <td><strong>{r.d.employee}</strong></td>
+                      <td>{r.d.voucherNo}</td>
+                      <td>{plantLabel(r.d.branchCode)}</td>
+                      <td className="pcp-num" style={{ textAlign: "right" }}>{peso(r.d.amount)}</td>
+                      <td className="pcp-num" style={{ textAlign: "right" }}>{peso(r.balance)}</td>
+                      <td>{fmtDate(r.d.date)}</td>
+                      <td style={{ whiteSpace: "nowrap" }}>
+                        <span className="pcp-dash-dot" style={{ background: b.color, marginRight: 6 }} />
+                        {r.age} day{r.age === 1 ? "" : "s"}
+                      </td>
+                      <td><Badge status={r.status} /></td>
+                    </tr>
+                  );
+                }) : <tr><td colSpan={8} className="pcp-empty">No active cash advances</td></tr>}
+              </tbody>
+            </table>
+          </div>
+          <div className="pcp-chart-hint">Oldest first. Click a row to open that voucher in Liquidation.</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---- Plant dashboard core ----
+   One layout, used by each plant's dashboard and by the consolidated view for
+   the chosen location. It answers, in order: how much money is there
+   (financial summary + the eight KPI cards), what needs attention (Action
+   Required, Liquidation Aging, Fund Utilization), and what happened recently
+   (Recent Transactions). Every count opens the records behind it through
+   onOpenFiltered(module, records, label) — 19-app.jsx lists exactly those in
+   that module. `role` ("custodian" | "accounting" | "admin") only decides
+   which Action Required rows appear. */
+function DashboardCore({ label, funds, requests, disbursements, liquidations, replenishments, reimbursements, role, multiPlant, onNavigate, onOpenFiltered }) {
+  const [showAdvances, setShowAdvances] = useState(false);
+  const today = todayISO();
+  const m = useMemo(
+    () => computeMetrics(funds, requests, disbursements, liquidations, replenishments),
+    [funds, requests, disbursements, liquidations, replenishments]
+  );
+  const nav = (key) => (onNavigate ? () => onNavigate(key) : undefined);
+  const open = (module, records, what) => {
+    if (!records.length) return;
+    if (onOpenFiltered) onOpenFiltered(module, records, what);
+    else if (onNavigate) onNavigate(module);
+  };
+
+  /* Not fully liquidated — the same rule as the Pending Liquidation card
+     (computeMetrics), so the aging buckets always add up to it. */
+  const w = useMemo(() => {
+    const balance = (d) => Math.max(0, (Number(d.amount) || 0) - liquidatedTotal(liquidationFor(d.id, liquidations)));
+    const pending = [];
+    const aging = { within: [], soon: [], late: [], late5: [] };
+    disbursements.forEach((d) => {
+      const status = liqStatusFor(d, liquidations);
+      if (status === "Fully Liquidated") return;
+      const bucket = dashAgingBucket(d, today);
+      const row = { d, status, bucket, balance: balance(d), age: Math.max(0, daysBetween(d.date || today, today)) };
+      pending.push(row);
+      aging[bucket].push(row);
+    });
+    pending.sort((a, b) => b.age - a.age);
+    const replenished = replenishedLiquidationIds(replenishments);
+    const stage = (s) => disbursements.filter((d) => {
+      const l = liquidationFor(d.id, liquidations);
+      return l && liqApprovalStage(d, l, replenished) === s;
+    });
+    const missingDocs = disbursements.filter((d) => {
+      const l = liquidationFor(d.id, liquidations);
+      return l && (l.lines || []).some((ln) => Number(ln.amount) > 0) && !(l.attachments || []).length;
+    });
+    const settleOverdue = disbursements.filter((d) => settlementInfo(d, liquidationFor(d.id, liquidations)).overdue);
+    const notExported = disbursements.filter((d) => {
+      const l = liquidationFor(d.id, liquidations);
+      const s = l ? liqApprovalStage(d, l, replenished) : null;
+      return !d.billed && (s === LIQ_STAGE.READY || s === LIQ_STAGE.REPLENISHED);
+    });
+    return {
+      pending, aging, balance,
+      forCheck: stage(LIQ_STAGE.FOR_CHECK), forAcct: stage(LIQ_STAGE.FOR_ACCOUNTING),
+      correction: stage(LIQ_STAGE.NEEDS_CORRECTION), missingDocs, settleOverdue, notExported,
+    };
+  }, [disbursements, liquidations, replenishments, today]);
+
+  const pendingReq = useMemo(() => requests.filter((r) => r.status === "Pending"), [requests]);
+  const approvedReq = useMemo(() => requests.filter((r) => r.status === "Approved"), [requests]);
+  const billed = useMemo(() => disbursements.filter((d) => d.billed), [disbursements]);
+  const reimbAcct = useMemo(() => (reimbursements || []).filter((r) => reimbAwaitingAccounting(r)), [reimbursements]);
+  const readyRepl = useMemo(
+    () => replenishmentReadyItems(disbursements, liquidations, reimbursements || [], replenishments),
+    [disbursements, liquidations, reimbursements, replenishments]
+  );
+  const openRepl = useMemo(() => (replenishments || []).filter((r) => r.status !== "Completed" && r.status !== "Reverted"), [replenishments]);
+
+  const amt = (xs, f) => xs.reduce((s, x) => s + (Number(f ? f(x) : x.amount) || 0), 0);
+  const rowsOf = (xs) => xs.map((x) => x.d);
+  const overdue = w.aging.late.concat(w.aging.late5);
+  const isAdmin = role === "admin";
+  const isAcct = role === "accounting" || isAdmin;
+  const isCust = role === "custodian" || isAdmin;
+
+  /* Action Required rows. `records` drive the drill-through; rows without
+     records (reimbursements, replenishments) open their module instead. */
+  const actions = [
+    { key: "overdue", color: "#c0392b", label: "Overdue Liquidations", sub: `Past the ${AGING_DUE_DAYS}-day deadline`, n: overdue.length,
+      amount: amt(overdue, (r) => r.balance), records: rowsOf(overdue), module: "liquidation", verb: "View" },
+    { key: "soon", color: "#d4a017", label: "Due Soon", sub: "Due today or tomorrow", n: w.aging.soon.length,
+      amount: amt(w.aging.soon, (r) => r.balance), records: rowsOf(w.aging.soon), module: "liquidation", verb: "View" },
+    { key: "req", color: "#ea580c", label: "Pending Requests", sub: "Awaiting approval", n: pendingReq.length,
+      amount: amt(pendingReq), records: pendingReq, module: "requests", verb: "Review" },
+    isCust && { key: "release", color: "#2054a3", label: "Approved — For Release", sub: "Approved, cash not yet released", n: approvedReq.length,
+      amount: amt(approvedReq), records: approvedReq, module: "requests", verb: "Release" },
+    isCust && { key: "check", color: "#2f64a6", label: "Pending Custodian Review", sub: "Liquidations submitted to the custodian", n: w.forCheck.length,
+      amount: amt(w.forCheck), records: w.forCheck, module: "liquidation", verb: "Review" },
+    isAcct && { key: "acct", color: "#2f64a6", label: "For Accounting Check", sub: "Custodian-reviewed liquidations", n: w.forAcct.length,
+      amount: amt(w.forAcct), records: w.forAcct, module: "liquidation", verb: "Review" },
+    isAcct && { key: "reimb", color: "#3f9c8f", label: "Reimbursements for Accounting Check", sub: "Opens the Liquidation module", n: reimbAcct.length,
+      amount: amt(reimbAcct, (r) => reimbTotal(r)), module: "liquidation", verb: "Review" },
+    { key: "docs", color: "#7c3aed", label: "Missing Documents", sub: "Expenses entered with no receipt attached", n: w.missingDocs.length,
+      amount: null, records: w.missingDocs, module: "liquidation", verb: "View" },
+    { key: "fix", color: "#c0392b", label: "Needs Correction", sub: "A receipt was rejected", n: w.correction.length,
+      amount: amt(w.correction), records: w.correction, module: "liquidation", verb: "View" },
+    { key: "settle", color: "#c0392b", label: "Overdue Cash Settlements", sub: "Change to return / amount to reimburse is past due", n: w.settleOverdue.length,
+      amount: null, records: w.settleOverdue, module: "liquidation", verb: "View" },
+    isCust && { key: "repl", color: "#6a4fb8", label: "Ready for Replenishment", sub: "Fully approved, not yet replenished", n: readyRepl.length,
+      amount: amt(readyRepl), module: "replenishment", verb: "View" },
+    isAcct && { key: "replopen", color: "#6a4fb8", label: "Replenishments in Progress", sub: "Awaiting completion", n: openRepl.length,
+      amount: amt(openRepl), module: "replenishment", verb: "View" },
+    isAcct && { key: "export", color: "#15803d", label: "Not Yet Exported to Acumatica", sub: "Fully approved, not billed", n: w.notExported.length,
+      amount: amt(w.notExported), records: w.notExported, module: "liquidation", verb: "View" },
+  ].filter(Boolean);
+  const runAction = (a) => {
+    if (!a.n) return;
+    if (a.records) open(a.module, a.records, a.label);
+    else if (onNavigate) onNavigate(a.module);
+  };
+  const needAttention = actions.filter((a) => a.n > 0).length;
+
+  const agingCount = (k) => w.aging[k].length;
+  const pendingTotal = w.pending.length;
+
+  /* Fund utilization: the fund splits into cash still out as advances, spent
+     cash waiting to be replenished, and what is left. */
+  const fund = m.totalFund;
+  const outPart = Math.max(0, m.outstanding);
+  const spentPart = Math.max(0, fund - m.availableBalance - outPart);
+  const pct = (v) => (fund > 0 ? Math.max(0, Math.min(100, (v / fund) * 100)) : 0);
+  const availPct = pct(m.availableBalance);
+  const low = dashLowBalance(m.availableBalance, fund);
+
+  const recent = useMemo(
+    () => [...disbursements].sort((a, b) => (b.date || "").localeCompare(a.date || "") || String(b.voucherNo).localeCompare(String(a.voucherNo))).slice(0, 8),
+    [disbursements]
+  );
+
+  const custodians = Array.from(new Set(funds.flatMap((f) => String(f.custodian || "").split(",")).map((s) => s.trim()).filter(Boolean))).join(", ");
+
+  return (
+    <div>
+      <style>{DASH_CSS + DASH_CORE_CSS}</style>
+
+      {/* Financial summary */}
+      <div className="pcp-flow">
+        <div className="pcp-flow-step pcp-flow-click" onClick={nav("masterdata")}>
+          <div className="pcp-flow-label">Beginning Balance</div>
+          <div className="pcp-flow-value pcp-num">{peso(m.totalFund)}</div>
+          <ChevronRight className="pcp-flow-arrow" size={18} />
+        </div>
+        <div className="pcp-flow-step pcp-flow-click" onClick={nav("disbursements")}>
+          <div className="pcp-flow-label">Total Disbursed</div>
+          <div className="pcp-flow-value pcp-num">{peso(m.totalDisbursed)}</div>
+          <ChevronRight className="pcp-flow-arrow" size={18} />
+        </div>
+        <div className="pcp-flow-step pcp-flow-click" onClick={nav("liquidation")}>
+          <div className="pcp-flow-label">Total Liquidated</div>
+          <div className="pcp-flow-value pcp-num">{peso(m.totalLiquidated)}</div>
+          <ChevronRight className="pcp-flow-arrow" size={18} />
+        </div>
+        <div className="pcp-flow-step pcp-flow-click" onClick={nav("masterdata")}>
+          <div className="pcp-flow-label">Available Balance</div>
+          <div className="pcp-flow-value pcp-num" style={{ color: m.availableBalance < 0 ? "#ff8080" : "#8fffb0" }}>
+            {peso(m.availableBalance)}
+          </div>
+        </div>
+      </div>
+
+      {(funds.length > 0 || custodians) && (
+        <div className="pcp-eyebrow" style={{ marginBottom: 10 }}>
+          {label}{custodians ? ` · Custodian: ${custodians}` : ""}
+        </div>
+      )}
+
+      {/* The eight KPI cards — every one opens what it counts. */}
+      <div className="pcp-kpi-grid pcp-dash-kpi8" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
+        <KpiCard label="Beginning Balance" value={peso(m.totalFund)} icon={Banknote} tint="#2054a3" onClick={nav("masterdata")} />
+        <KpiCard label="Total Disbursed" value={peso(m.totalDisbursed)} icon={ArrowUpRight} tint="#b9790a" onClick={nav("disbursements")} />
+        <KpiCard label="Total Liquidated" value={peso(m.totalLiquidated)} icon={ArrowDownRight} tint="#15803d" onClick={nav("liquidation")} />
+        <KpiCard label="Available Balance" value={peso(m.availableBalance)} icon={CircleDollarSign}
+          tint={low ? "#c0392b" : "#15803d"}
+          foot={m.availableBalance < 0 ? "Over committed — replenish soon" : low ? "Below 20% of the fund — replenish soon" : "Cash on hand"}
+          onClick={nav("masterdata")} />
+        <KpiCard label="Completed & Billed" value={m.completedBilled} icon={Check} tint="#15803d" foot="Exported to Acumatica"
+          onClick={billed.length ? () => open("liquidation", billed, "Completed & Billed") : nav("disbursements")} />
+        <KpiCard label="Pending Requests" value={m.pendingRequests} icon={ClipboardList} tint="#b9790a" foot="Awaiting approval"
+          onClick={pendingReq.length ? () => open("requests", pendingReq, "Pending Requests") : nav("requests")} />
+        <KpiCard label="Pending Liquidation" value={pendingTotal} icon={FileSpreadsheet} tint="#2054a3"
+          onClick={pendingTotal ? () => open("liquidation", rowsOf(w.pending), "Pending Liquidation") : nav("liquidation")}
+          foot={
+            <>
+              Vouchers not fully liquidated
+              {pendingTotal > 0 && (
+                <span className="pcp-dash-kpi-foot-mix" onClick={(e) => e.stopPropagation()}>
+                  {[["Overdue", overdue, "#c0392b"], ["Due Soon", w.aging.soon, "#d4a017"], ["Within Due Date", w.aging.within, "#15803d"]].map(([t, xs, c]) => (
+                    <button key={t} type="button" disabled={!xs.length} title={`Open the ${t.toLowerCase()} vouchers`}
+                      onClick={() => open("liquidation", rowsOf(xs), "Pending Liquidation — " + t)}>
+                      <span className="pcp-dash-dot" style={{ background: c }} /> {t}: <b>{xs.length}</b>
+                    </button>
+                  ))}
+                </span>
+              )}
+            </>
+          } />
+        <KpiCard label="Employees w/ Active Advances" value={m.activeEmployeeCount} icon={Users} tint="#7c3aed" foot="Click to see who and how much"
+          onClick={() => setShowAdvances(true)} />
+      </div>
+
+      {/* Action Required */}
+      <div className="pcp-card pcp-card-pad" style={{ marginBottom: 16 }}>
+        <div className="pcp-dash-title-row">
+          <div className="pcp-section-title"><Bell size={15} color="#c0392b" /> Action Required</div>
+          <span style={{ marginLeft: "auto", fontSize: 11.5, color: "var(--text-mut)" }}>
+            {needAttention ? `${needAttention} item type${needAttention === 1 ? "" : "s"} need attention` : "Nothing needs attention right now"}
+          </span>
+        </div>
+        <div className="pcp-table-wrap">
+          <table className="pcp-table pcp-dash-action-table">
+            <thead><tr><th>Action</th><th style={{ textAlign: "center" }}>Count</th><th style={{ textAlign: "right" }}>Amount</th><th></th></tr></thead>
+            <tbody>
+              {actions.map((a) => (
+                <tr key={a.key} style={a.n ? undefined : { opacity: 0.55 }}>
+                  <td>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                      <span className="pcp-dash-dot" style={{ background: a.color, width: 11, height: 11 }} />
+                      <div>
+                        <div style={{ fontWeight: 700 }}>{a.label}</div>
+                        <div style={{ fontSize: 11.5, color: "var(--text-mut)" }}>{a.sub}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td style={{ textAlign: "center" }}>
+                    <button type="button" className="pcp-dash-count" disabled={!a.n} onClick={() => runAction(a)}
+                      style={a.n ? { color: a.color } : undefined} title={a.n ? `Open the ${a.n} record(s)` : undefined}>{a.n}</button>
+                  </td>
+                  <td className="pcp-num" style={{ textAlign: "right" }}>{a.amount == null || !a.n ? "—" : peso(a.amount)}</td>
+                  <td style={{ textAlign: "right" }}>
+                    <button className="pcp-btn pcp-btn-sm" disabled={!a.n} onClick={() => runAction(a)}>{a.verb}</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Liquidation Aging + Fund Utilization */}
+      <div className="pcp-grid-2" style={{ marginBottom: 16 }}>
+        <div className="pcp-card pcp-card-pad">
+          <div className="pcp-section-title"><CalendarClock size={15} color="#b9790a" /> Liquidation Aging — {label}</div>
+          {pendingTotal > 0 && (
+            <div className="pcp-dash-aging-bar" aria-hidden="true">
+              {DASH_AGING.map((b) => <span key={b.key} style={{ width: (agingCount(b.key) / pendingTotal) * 100 + "%", background: b.color }} />)}
+            </div>
+          )}
+          {DASH_AGING.map((b) => {
+            const rows = w.aging[b.key];
+            return (
+              <button key={b.key} type="button" className="pcp-dash-aging-row" disabled={!rows.length}
+                onClick={() => open("liquidation", rowsOf(rows), "Liquidation Aging — " + b.label)}
+                title={rows.length ? `Open these ${rows.length} voucher(s) in Liquidation` : undefined}>
+                <span className="pcp-dash-dot" style={{ background: b.color, width: 12, height: 12 }} />
+                <span>
+                  <div style={{ fontWeight: 700, fontSize: 13 }}>{b.label}</div>
+                  <div style={{ fontSize: 11.5, color: "var(--text-mut)" }}>{peso(amt(rows, (r) => r.balance))} not yet liquidated</div>
+                </span>
+                <span className="pcp-dash-aging-n" style={{ color: rows.length ? b.color : "var(--text-mut)" }}>{rows.length}</span>
+              </button>
+            );
+          })}
+          <div className="pcp-chart-hint">Vouchers not fully liquidated, by days from release ({AGING_DUE_DAYS}-day deadline). Click a row to open them.</div>
+        </div>
+
+        <div className="pcp-card pcp-card-pad">
+          <div className="pcp-section-title"><PiggyBank size={15} color="#4e7d63" /> PCF Fund Utilization</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+            <div>
+              <div style={{ fontSize: 11, color: "var(--text-mut)", textTransform: "uppercase", letterSpacing: 0.6 }}>Beginning Fund</div>
+              <div style={{ fontSize: 18, fontWeight: 800 }} className="pcp-num">{peso(fund)}</div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div style={{ fontSize: 11, color: "var(--text-mut)", textTransform: "uppercase", letterSpacing: 0.6 }}>Available</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: low ? "#c0392b" : "#15803d" }} className="pcp-num">{peso(m.availableBalance)}</div>
+            </div>
+          </div>
+          <div className="pcp-dash-util-bar" role="img" aria-label={`${Math.round(availPct)}% of the fund is available`}>
+            <span style={{ width: pct(outPart) + "%", background: "#b9790a" }} title={`Open advances ${peso(outPart)}`} />
+            <span style={{ width: pct(spentPart) + "%", background: "#8a978f" }} title={`Spent, awaiting replenishment ${peso(spentPart)}`} />
+            <span style={{ width: availPct + "%", background: low ? "#c0392b" : "#4e7d63" }} title={`Available ${peso(m.availableBalance)}`} />
+          </div>
+          <div className="pcp-dash-legend">
+            <span><span className="pcp-dash-dot" style={{ background: "#b9790a" }} /> Open advances {Math.round(pct(outPart))}%</span>
+            <span><span className="pcp-dash-dot" style={{ background: "#8a978f" }} /> Spent, for replenishment {Math.round(pct(spentPart))}%</span>
+            <span><span className="pcp-dash-dot" style={{ background: low ? "#c0392b" : "#4e7d63" }} /> Available {Math.round(availPct)}%</span>
+          </div>
+          <div className="pcp-dash-util-row"><span>Disbursed</span><b>{peso(m.totalDisbursed)}</b></div>
+          <div className="pcp-dash-util-row"><span>Liquidated</span><b>{peso(m.totalLiquidated)}</b></div>
+          <div className="pcp-dash-util-row"><span>Replenished</span><b>{peso(m.totalReplenished)}</b></div>
+          <div className="pcp-dash-util-row"><span>Open advances (not yet liquidated)</span><b>{peso(m.outstanding)}</b></div>
+          {low && <div className="pcp-chart-hint" style={{ color: "#c0392b", fontWeight: 600 }}>Available balance is below 20% of the fund — replenish soon.</div>}
+        </div>
+      </div>
+
+      {/* Recent Transactions */}
+      <div className="pcp-card pcp-card-pad" style={{ marginBottom: 16 }}>
+        <div className="pcp-dash-title-row">
+          <div className="pcp-section-title">Recent Transactions — {label}</div>
+          {onNavigate && <button className="pcp-btn pcp-btn-sm" style={{ marginLeft: "auto" }} onClick={() => onNavigate("disbursements")}>View All <ChevronRight size={13} /></button>}
+        </div>
+        <div className="pcp-table-wrap">
+          <table className="pcp-table">
+            <thead>
+              <tr><th>Voucher</th><th>Employee</th><th>Date</th>{multiPlant && <th>Plant</th>}<th style={{ textAlign: "right" }}>Amount</th><th>Status</th></tr>
+            </thead>
+            <tbody>
+              {recent.length ? recent.map((d) => (
+                <tr key={d.id} className="pcp-dash-row-click" onClick={() => open("liquidation", [d], d.voucherNo)} title={`Open ${d.voucherNo} in Liquidation`}>
+                  <td><strong>{d.voucherNo}</strong></td>
+                  <td>{d.employee}</td>
+                  <td>{fmtDate(d.date)}</td>
+                  {multiPlant && <td>{plantLabel(plantOfBranch(d.branchCode))}</td>}
+                  <td className="pcp-num" style={{ textAlign: "right" }}>{peso(d.amount)}</td>
+                  <td><Badge status={liqStatusFor(d, liquidations)} /></td>
+                </tr>
+              )) : <tr><td colSpan={multiPlant ? 6 : 5} className="pcp-empty">No disbursements recorded for {label}</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {showAdvances && (
+        <ActiveAdvancesModal
+          rows={w.pending}
+          onOpen={(d) => { setShowAdvances(false); open("liquidation", [d], d.voucherNo); }}
+          onOpenAll={w.pending.length ? () => { setShowAdvances(false); open("liquidation", rowsOf(w.pending), "Active Cash Advances"); } : null}
+          onClose={() => setShowAdvances(false)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* Consolidated dashboard: a PCF Location filter (All or one plant) over the
+   same core layout, then an Analytics section — date range, plant
+   comparison and the clickable charts. */
+function Dashboard({ funds: allFunds, requests: allReq, disbursements: allDisbAll, liquidations: allLiq, replenishments: allRep, reimbursements: allReimb, role, onNavigate, onOpenPlant, onOpenFiltered, canEdit }) {
+  const [loc, setLoc] = useState("ALL");
+  const locations = useMemo(() => {
+    const seen = new Set();
+    const out = [];
+    [allFunds, allDisbAll].forEach((list) => list.forEach((x) => {
+      const p = plantOfBranch(x.branchCode);
+      if (p && !seen.has(p)) { seen.add(p); out.push(p); }
+    }));
+    return out.sort((a, b) => PLANT_CODES.indexOf(a) - PLANT_CODES.indexOf(b));
+  }, [allFunds, allDisbAll]);
+  const inLoc = useCallback((x) => loc === "ALL" || plantOfBranch(x.branchCode) === loc, [loc]);
+  const funds = useMemo(() => allFunds.filter(inLoc), [allFunds, inLoc]);
+  const requests = useMemo(() => allReq.filter(inLoc), [allReq, inLoc]);
+  const allDisb = useMemo(() => allDisbAll.filter(inLoc), [allDisbAll, inLoc]);
+  const liquidations = useMemo(() => {
+    const ids = new Set(allDisb.map((d) => d.id));
+    return allLiq.filter((l) => ids.has(l.disbursementId));
+  }, [allLiq, allDisb]);
+  const replenishments = useMemo(() => (allRep || []).filter(inLoc), [allRep, inLoc]);
+  const reimbursements = useMemo(() => (allReimb || []).filter(inLoc), [allReimb, inLoc]);
+  const locLabel = loc === "ALL" ? "All Plants" : plantLabel(loc);
+
   const [drill, setDrill] = useState(null);
   const openDrill = (chartName, label) => { if (label == null || label === "") return; setDrill({ chartName, label: String(label) }); };
-  /* Balances and worklist counts: every record, as of today. */
-  const m = useMemo(() => computeMetrics(funds, requests, allDisb, liquidations, replenishments), [funds, requests, allDisb, liquidations, replenishments]);
   const dr = useDashRange();
-  const { pReq, pDisb, pLines } = useMemo(() => dashPeriodData(requests, allDisb, liquidations, dr.bounds), [requests, allDisb, liquidations, dr.bounds]);
+  const { pDisb, pLines } = useMemo(() => dashPeriodData(requests, allDisb, liquidations, dr.bounds), [requests, allDisb, liquidations, dr.bounds]);
   /* Charts and drill-downs below read the period's vouchers. */
   const disbursements = pDisb;
   const plantRows = useMemo(
-    () => dashPlantRows(funds, requests, allDisb, liquidations, replenishments, dr.bounds),
-    [funds, requests, allDisb, liquidations, replenishments, dr.bounds]
+    () => dashPlantRows(allFunds, allReq, allDisbAll, allLiq, allRep, dr.bounds),
+    [allFunds, allReq, allDisbAll, allLiq, allRep, dr.bounds]
   );
   const flow = useMemo(() => dashMonthlyFlow(pDisb, pLines), [pDisb, pLines]);
-  const periodReleased = useMemo(() => pDisb.reduce((s, d) => s + (Number(d.amount) || 0), 0), [pDisb]);
-  const periodLiquidated = useMemo(() => pLines.reduce((s, l) => s + (Number(l.amount) || 0), 0), [pLines]);
 
   const byBranch = useMemo(() => groupSum(disbursements, (d) => d.branchCode, (d) => d.amount), [disbursements]);
   const byCompany = useMemo(() => groupSum(disbursements, (d) => companyOfBranch(d.branchCode), (d) => d.amount), [disbursements]);
@@ -929,57 +1417,14 @@ function Dashboard({ funds, requests, disbursements: allDisb, liquidations, repl
     return s ? s.desc || s.code : d.department;
   }, (d) => d.amount), [disbursements]);
   const byCategory = useMemo(() => groupSum(disbursements, (d) => disbExpense(d), (d) => d.amount), [disbursements]);
-
   const topCategories = useMemo(() => {
     const g = groupSum(pLines, (l) => l.category, (l) => l.amount);
     return g.sort((a, b) => b.value - a.value).slice(0, 6);
   }, [pLines]);
-
-  const liqStatusCounts = useMemo(() => {
-    const g = groupSum(disbursements, (d) => liqStatusFor(d, liquidations));
-    return g;
-  }, [disbursements, liquidations]);
-
-  const recentDisbursements = useMemo(() =>
-    [...allDisb].sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 5),
-    [allDisb]);
-
+  const liqStatusCounts = useMemo(() => groupSum(disbursements, (d) => liqStatusFor(d, liquidations)), [disbursements, liquidations]);
   const recentLiquidations = useMemo(() =>
     [...liquidations].sort((a, b) => (b.createdDate || "").localeCompare(a.createdDate || "")).slice(0, 5),
     [liquidations]);
-
-  /* ---- Policy / approval widgets ---- */
-  const receiptStats = useMemo(() => {
-    let pending = 0, forRevision = 0;
-    liquidations.forEach((l) => {
-      const s = receiptApprovalSummary(l);
-      pending += s.pending;
-      if (s.anyRejected) forRevision++;
-    });
-    return { pending, forRevision };
-  }, [liquidations]);
-
-  /* Worklist counts below are as of today, over every voucher. */
-  const overdueLiquidations = useMemo(() => allDisb.filter((d) => {
-    if (liqStatusFor(d, liquidations) === "Fully Liquidated") return false;
-    const ageDays = Math.floor((Date.now() - new Date((d.date || todayISO()) + "T00:00:00").getTime()) / 86400000);
-    return ageDays > 5; // liquidation due within 5 calendar days
-  }).length, [allDisb, liquidations]);
-
-  /* Cash still owed past the settlement due date (see settlementInfo). */
-  const overdueSettlements = useMemo(() => {
-    let count = 0, amount = 0;
-    allDisb.forEach((d) => {
-      const info = settlementInfo(d, liquidationFor(d.id, liquidations));
-      if (info.overdue) { count++; amount += info.st.remaining; }
-    });
-    return { count, amount };
-  }, [allDisb, liquidations]);
-
-  /* Vouchers released in the period that are now fully liquidated. */
-  const completedLiquidations = useMemo(() =>
-    disbursements.filter((d) => liqStatusFor(d, liquidations) === "Fully Liquidated").length,
-    [disbursements, liquidations]);
 
   /* Records behind the currently opened chart data point — computed lazily
      (only when a drill is open) so the dashboard itself never re-renders the
@@ -1018,73 +1463,31 @@ function Dashboard({ funds, requests, disbursements: allDisb, liquidations, repl
     return null;
   }, [drill, disbursements, allDisb, requests, liquidations, dr.bounds]);
 
-  const nav = (key) => (onNavigate ? () => onNavigate(key) : undefined);
-  const lowBal = dashLowBalance(m.availableBalance, m.totalFund);
-
   return (
     <div>
-      <style>{DASH_CSS}</style>
-      <div className="pcp-flow">
-        <div className="pcp-flow-step pcp-flow-click" onClick={() => onNavigate && onNavigate("masterdata")}>
-          <div className="pcp-flow-label">Total Fund (Beginning Balance)</div>
-          <div className="pcp-flow-value pcp-num">{peso(m.totalFund)}</div>
-          <ChevronRight className="pcp-flow-arrow" size={18} />
+      {locations.length > 1 && (
+        <div className="pcp-dash-head">
+          <label htmlFor="pcp-dash-loc">PCF Location</label>
+          <select id="pcp-dash-loc" className="pcp-select" style={{ width: 200 }} value={loc} onChange={(e) => setLoc(e.target.value)}>
+            <option value="ALL">All Plants</option>
+            {locations.map((p) => <option key={p} value={p}>{plantLabel(p)}</option>)}
+          </select>
+          {loc !== "ALL" && onOpenPlant && (
+            <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => onOpenPlant(loc)}>Open the {plantLabel(loc)} dashboard <ChevronRight size={13} /></button>
+          )}
         </div>
-        <div className="pcp-flow-step pcp-flow-click" onClick={() => onNavigate && onNavigate("disbursements")}>
-          <div className="pcp-flow-label">Total Disbursed</div>
-          <div className="pcp-flow-value pcp-num">{peso(m.totalDisbursed)}</div>
-          <ChevronRight className="pcp-flow-arrow" size={18} />
-        </div>
-        <div className="pcp-flow-step pcp-flow-click" onClick={() => onNavigate && onNavigate("liquidation")}>
-          <div className="pcp-flow-label">Total Liquidated</div>
-          <div className="pcp-flow-value pcp-num">{peso(m.totalLiquidated)}</div>
-          <ChevronRight className="pcp-flow-arrow" size={18} />
-        </div>
-        <div className="pcp-flow-step pcp-flow-click" onClick={() => onNavigate && onNavigate("masterdata")}>
-          <div className="pcp-flow-label">Available Balance</div>
-          <div className="pcp-flow-value pcp-num" style={{ color: m.availableBalance < 0 ? "#ff8080" : "#8fffb0" }}>
-            {peso(m.availableBalance)}
-          </div>
-        </div>
-      </div>
+      )}
 
+      <DashboardCore
+        label={locLabel} funds={funds} requests={requests} disbursements={allDisb} liquidations={liquidations}
+        replenishments={replenishments} reimbursements={reimbursements} role={role} multiPlant={loc === "ALL" && locations.length > 1}
+        onNavigate={onNavigate} onOpenFiltered={onOpenFiltered}
+      />
+
+      <div className="pcp-dash-section-label">Analytics — {locLabel}</div>
       <DashDateFilter r={dr} />
 
-      <DashKpiGroup title="Fund position · as of today">
-        <KpiCard label="Current Petty Cash Balance" value={peso(m.availableBalance)} icon={CircleDollarSign}
-          tint={lowBal ? "#c0392b" : "#15803d"}
-          foot={m.availableBalance < 0 ? "Over committed — replenish soon" : lowBal ? "Below 20% of the fund — replenish soon" : "Cash on hand across custodians"}
-          onClick={nav("masterdata")} />
-        <KpiCard label="Open Advances" value={peso(m.outstanding)} icon={ArrowUpRight} tint="#b9790a" foot="Released, not yet liquidated" onClick={nav("liquidation")} />
-        <KpiCard label="Active Petty Cash Funds" value={funds.length + " Funds"} icon={PiggyBank} tint="#7c3aed" foot={peso(m.totalFund) + " total fund"} onClick={nav("masterdata")} />
-        <KpiCard label="Employees w/ Active Advances" value={m.activeEmployeeCount} icon={Users} tint="#15803d" onClick={nav("history")} />
-      </DashKpiGroup>
-
-      <DashKpiGroup title={"Activity · " + dashRangeText(dr.bounds)}>
-        <KpiCard label="Cash Released" value={peso(periodReleased)} icon={ArrowUpRight} tint="#b9790a" foot={`${pDisb.length} voucher(s)`} onClick={nav("disbursements")} />
-        <KpiCard label="Expenses Liquidated" value={peso(periodLiquidated)} icon={TrendingUp} tint="#4e7d63" foot={`${pLines.length} receipt line(s)`} onClick={nav("history")} />
-        <KpiCard label="Requests Filed" value={pReq.length} icon={ClipboardList} tint="#2054a3" foot={peso(pReq.reduce((s, r) => s + (Number(r.amount) || 0), 0)) + " requested"} onClick={nav("requests")} />
-        <KpiCard label="Completed Liquidations" value={completedLiquidations} icon={Check} tint="#15803d" foot="Released in the period, fully liquidated" onClick={nav("liquidation")} />
-      </DashKpiGroup>
-
-      <DashKpiGroup title="Requests & release · as of today">
-        <KpiCard label="Pending Requests" value={m.pendingRequests} icon={ClipboardList} tint="#b9790a" foot="Awaiting approval" onClick={nav("requests")} />
-        <KpiCard label="Approved Requests" value={m.approvedRequests} icon={Check} tint="#2054a3" foot="Ready for release" onClick={nav("requests")} />
-        <KpiCard label="Pending Replenishments" value={m.pendingReplenishments} icon={RefreshCw} tint="#b9790a" foot="Awaiting completion" onClick={nav("replenishment")} />
-      </DashKpiGroup>
-
-      <DashKpiGroup title="Liquidation · as of today">
-        <KpiCard label="Pending Liquidations" value={m.pendingLiquidationCount} icon={FileSpreadsheet} tint="#2054a3" foot="Vouchers not fully liquidated" onClick={nav("liquidation")} />
-        <KpiCard label="Receipts Waiting for Custodian Approval" value={receiptStats.pending} icon={Receipt} tint="#c0392b" foot="Pending receipt approvals" onClick={nav("liquidation")} />
-        <KpiCard label="Liquidations For Revision" value={receiptStats.forRevision} icon={AlertTriangle} tint="#c0392b" foot="Rejected receipt(s) — needs correction" onClick={nav("liquidation")} />
-        <KpiCard label="Overdue Liquidations" value={overdueLiquidations} icon={AlertTriangle} tint={overdueLiquidations ? "#c0392b" : "#15803d"} foot="Past 5-day liquidation deadline" onClick={nav("aging")} />
-        <KpiCard label="Overdue Cash Settlements" value={overdueSettlements.count} icon={CircleDollarSign}
-          tint={overdueSettlements.count ? "#c0392b" : "#15803d"}
-          foot={overdueSettlements.count ? `${peso(overdueSettlements.amount)} still to be returned / reimbursed` : "No overdue cash returns or reimbursements"}
-          onClick={nav("aging")} />
-      </DashKpiGroup>
-
-      <PlantComparison rows={plantRows} onOpenPlant={onOpenPlant} />
+      {loc === "ALL" && <PlantComparison rows={plantRows} onOpenPlant={onOpenPlant} />}
 
       <div className="pcp-grid-2" style={{ marginBottom: 16 }}>
         <div className="pcp-card pcp-card-pad pcp-chart-click" title="Click to view detailed transactions.">
@@ -1105,7 +1508,7 @@ function Dashboard({ funds, requests, disbursements: allDisb, liquidations, repl
                 <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e3e5ea" }} />
               </PieChart>
             </ResponsiveContainer>
-          ) : <div className="pcp-empty">No vouchers yet</div>}
+          ) : <div className="pcp-empty">No vouchers in this period</div>}
           <div className="pcp-chart-hint">Click a slice or legend to view transactions.</div>
         </div>
       </div>
@@ -1142,50 +1545,28 @@ function Dashboard({ funds, requests, disbursements: allDisb, liquidations, repl
       </div>
 
       <DeptDrilldownPanel funds={funds} requests={requests} disbursements={disbursements} liquidations={liquidations} />
-      {/* Below: the most recent records whatever the period. */}
 
-      <div className="pcp-grid-2">
-        <div className="pcp-card pcp-card-pad">
-          <div className="pcp-section-title">Recent Transactions</div>
-          <div className="pcp-table-wrap">
-            <table className="pcp-table">
-              <thead><tr><th>Voucher</th><th>Employee</th><th>Branch</th><th>Amount</th><th>Status</th></tr></thead>
-              <tbody>
-                {recentDisbursements.length ? recentDisbursements.map((d) => (
-                  <tr key={d.id}>
-                    <td>{d.voucherNo}</td>
-                    <td>{d.employee}</td>
-                    <td>{d.branchCode}</td>
-                    <td className="pcp-num">{peso(d.amount)}</td>
-                    <td><Badge status={liqStatusFor(d, liquidations)} /></td>
+      <div className="pcp-card pcp-card-pad">
+        <div className="pcp-section-title">Recent Liquidations</div>
+        <div className="pcp-table-wrap">
+          <table className="pcp-table">
+            <thead><tr><th>Voucher</th><th>Date</th><th>Liquidated</th><th>Remaining</th></tr></thead>
+            <tbody>
+              {recentLiquidations.length ? recentLiquidations.map((l) => {
+                const disb = allDisb.find((d) => d.id === l.disbursementId);
+                const total = liquidatedTotal(l);
+                const remaining = disb ? disb.amount - total : 0;
+                return (
+                  <tr key={l.id}>
+                    <td>{disb ? disb.voucherNo : "—"}</td>
+                    <td>{fmtDate(l.createdDate)}</td>
+                    <td className="pcp-num">{peso(total)}</td>
+                    <td className="pcp-num" style={{ color: remaining < 0 ? "#c0392b" : "inherit" }}>{peso(remaining)}</td>
                   </tr>
-                )) : <tr><td colSpan={5} className="pcp-empty">No disbursements recorded</td></tr>}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        <div className="pcp-card pcp-card-pad">
-          <div className="pcp-section-title">Recent Liquidations</div>
-          <div className="pcp-table-wrap">
-            <table className="pcp-table">
-              <thead><tr><th>Voucher</th><th>Date</th><th>Liquidated</th><th>Remaining</th></tr></thead>
-              <tbody>
-                {recentLiquidations.length ? recentLiquidations.map((l) => {
-                  const disb = allDisb.find((d) => d.id === l.disbursementId);
-                  const total = liquidatedTotal(l);
-                  const remaining = disb ? disb.amount - total : 0;
-                  return (
-                    <tr key={l.id}>
-                      <td>{disb ? disb.voucherNo : "—"}</td>
-                      <td>{fmtDate(l.createdDate)}</td>
-                      <td className="pcp-num">{peso(total)}</td>
-                      <td className="pcp-num" style={{ color: remaining < 0 ? "#c0392b" : "inherit" }}>{peso(remaining)}</td>
-                    </tr>
-                  );
-                }) : <tr><td colSpan={4} className="pcp-empty">No liquidations recorded</td></tr>}
-              </tbody>
-            </table>
-          </div>
+                );
+              }) : <tr><td colSpan={4} className="pcp-empty">No liquidations recorded</td></tr>}
+            </tbody>
+          </table>
         </div>
       </div>
       {drill && drillData && (
@@ -1201,13 +1582,10 @@ function Dashboard({ funds, requests, disbursements: allDisb, liquidations, repl
   );
 }
 
-/* Single-branch dashboard (Manila / Warner / Disney) — same KPI set as the
-   consolidated view, scoped to one branch's funds, requests, disbursements
-   and liquidations. */
-/* `branchCodes` is the plant's whole family (Disney = D1..D9 + ST), so the
-   per-plant dashboard counts every record that settles against this plant's
-   fund. Filtering on the single plant code used to drop the sub-branches. */
-function BranchDashboard({ label, branchCode, branchCodes, funds, requests, disbursements, liquidations, replenishments, onNavigate }) {
+/* Single-plant dashboard (Manila / Warner / Disney / RG). `branchCodes` is
+   the plant's whole family (Disney = D1..D9 + ST), so it counts every record
+   that settles against this plant's fund. */
+function BranchDashboard({ label, branchCode, branchCodes, funds, requests, disbursements, liquidations, replenishments, reimbursements, role, onNavigate, onOpenFiltered }) {
   const codes = useMemo(
     () => ((branchCodes && branchCodes.length) ? branchCodes : [branchCode]),
     [branchCodes, branchCode]
@@ -1217,128 +1595,17 @@ function BranchDashboard({ label, branchCode, branchCodes, funds, requests, disb
   const requestsForBranch = useMemo(() => requests.filter((r) => inBranch(r.branchCode)), [requests, inBranch]);
   const disbForBranch = useMemo(() => disbursements.filter((d) => inBranch(d.branchCode)), [disbursements, inBranch]);
   const repForBranch = useMemo(() => (replenishments || []).filter((r) => inBranch(r.branchCode)), [replenishments, inBranch]);
+  const reimbForBranch = useMemo(() => (reimbursements || []).filter((r) => inBranch(r.branchCode)), [reimbursements, inBranch]);
   const liqForBranch = useMemo(() => {
     const disbIds = new Set(disbForBranch.map((d) => d.id));
     return liquidations.filter((l) => disbIds.has(l.disbursementId));
   }, [liquidations, disbForBranch]);
 
-  const m = useMemo(
-    () => computeMetrics(fundsForBranch, requestsForBranch, disbForBranch, liqForBranch, repForBranch),
-    [fundsForBranch, requestsForBranch, disbForBranch, liqForBranch, repForBranch]
-  );
-
-  const custodians = fundsForBranch.map((f) => f.custodian).filter(Boolean).join(", ");
-  const recentDisbursements = useMemo(() =>
-    [...disbForBranch].sort((a, b) => (b.date || "").localeCompare(a.date || "")).slice(0, 5),
-    [disbForBranch]);
-
-  /* Same split as the consolidated view: balances and worklists as of
-     today, activity and the trend for the chosen period. */
-  const dr = useDashRange();
-  const { pReq, pDisb, pLines } = useMemo(
-    () => dashPeriodData(requestsForBranch, disbForBranch, liqForBranch, dr.bounds),
-    [requestsForBranch, disbForBranch, liqForBranch, dr.bounds]
-  );
-  const flow = useMemo(() => dashMonthlyFlow(pDisb, pLines), [pDisb, pLines]);
-  const byExpense = useMemo(() => groupSum(pLines, (l) => l.category, (l) => l.amount).sort((a, b) => b.value - a.value).slice(0, 6), [pLines]);
-  const overdue = useMemo(() => {
-    const today = todayISO();
-    return disbForBranch.filter((d) => {
-      const s = liqStatusFor(d, liqForBranch);
-      return s !== "Fully Liquidated" && s !== "Over-Liquidated" && daysBetween(d.date || today, today) > AGING_DUE_DAYS;
-    }).length;
-  }, [disbForBranch, liqForBranch]);
-  const lowBal = dashLowBalance(m.availableBalance, m.totalFund);
-  const nav = (key) => (onNavigate ? () => onNavigate(key) : undefined);
-
   return (
-    <div>
-      <style>{DASH_CSS}</style>
-      <div className="pcp-flow">
-        <div className="pcp-flow-step pcp-flow-click" onClick={() => onNavigate && onNavigate("masterdata")}>
-          <div className="pcp-flow-label">Beginning Balance</div>
-          <div className="pcp-flow-value pcp-num">{peso(m.totalFund)}</div>
-          <ChevronRight className="pcp-flow-arrow" size={18} />
-        </div>
-        <div className="pcp-flow-step pcp-flow-click" onClick={() => onNavigate && onNavigate("disbursements")}>
-          <div className="pcp-flow-label">Total Disbursed</div>
-          <div className="pcp-flow-value pcp-num">{peso(m.totalDisbursed)}</div>
-          <ChevronRight className="pcp-flow-arrow" size={18} />
-        </div>
-        <div className="pcp-flow-step pcp-flow-click" onClick={() => onNavigate && onNavigate("liquidation")}>
-          <div className="pcp-flow-label">Total Liquidated</div>
-          <div className="pcp-flow-value pcp-num">{peso(m.totalLiquidated)}</div>
-          <ChevronRight className="pcp-flow-arrow" size={18} />
-        </div>
-        <div className="pcp-flow-step pcp-flow-click" onClick={() => onNavigate && onNavigate("masterdata")}>
-          <div className="pcp-flow-label">Available Balance</div>
-          <div className="pcp-flow-value pcp-num" style={{ color: m.availableBalance < 0 ? "#ff8080" : "#8fffb0" }}>
-            {peso(m.availableBalance)}
-          </div>
-        </div>
-      </div>
-
-      {(fundsForBranch.length > 0 || custodians) && (
-        <div className="pcp-eyebrow" style={{ marginBottom: 10 }}>
-          {branchCode} · {companyOfBranch(branchCode)}{custodians ? ` · Custodian: ${custodians}` : ""}
-        </div>
-      )}
-
-      <DashDateFilter r={dr} />
-
-      <DashKpiGroup title="Fund position · as of today">
-        <KpiCard label="Available Balance" value={peso(m.availableBalance)} icon={CircleDollarSign}
-          tint={lowBal ? "#c0392b" : "#15803d"}
-          foot={m.availableBalance < 0 ? "Over committed — replenish soon" : lowBal ? "Below 20% of the fund — replenish soon" : "Cash on hand"}
-          onClick={nav("masterdata")} />
-        <KpiCard label="Beginning Balance" value={peso(m.totalFund)} icon={Banknote} tint="#2054a3" onClick={nav("masterdata")} />
-        <KpiCard label="Open Advances" value={peso(m.outstanding)} icon={ArrowUpRight} tint="#b9790a" foot="Released, not yet liquidated" onClick={nav("liquidation")} />
-        <KpiCard label="Employees w/ Active Advances" value={m.activeEmployeeCount} icon={Users} tint="#7c3aed" onClick={nav("history")} />
-      </DashKpiGroup>
-
-      <DashKpiGroup title={"Activity · " + dashRangeText(dr.bounds)}>
-        <KpiCard label="Cash Released" value={peso(pDisb.reduce((s, d) => s + (Number(d.amount) || 0), 0))} icon={ArrowUpRight} tint="#b9790a" foot={`${pDisb.length} voucher(s)`} onClick={nav("disbursements")} />
-        <KpiCard label="Expenses Liquidated" value={peso(pLines.reduce((s, l) => s + (Number(l.amount) || 0), 0))} icon={ArrowDownRight} tint="#15803d" foot={`${pLines.length} receipt line(s)`} onClick={nav("liquidation")} />
-        <KpiCard label="Requests Filed" value={pReq.length} icon={ClipboardList} tint="#2054a3" foot={peso(pReq.reduce((s, r) => s + (Number(r.amount) || 0), 0)) + " requested"} onClick={nav("requests")} />
-        <KpiCard label="Completed & Billed" value={pDisb.filter((d) => d.billed).length} icon={Check} tint="#15803d" foot="Exported to Acumatica" onClick={nav("disbursements")} />
-      </DashKpiGroup>
-
-      <DashKpiGroup title="Worklist · as of today">
-        <KpiCard label="Pending Requests" value={m.pendingRequests} icon={ClipboardList} tint="#b9790a" foot="Awaiting approval" onClick={nav("requests")} />
-        <KpiCard label="Approved Requests" value={m.approvedRequests} icon={Check} tint="#2054a3" foot="Ready for release" onClick={nav("requests")} />
-        <KpiCard label="Pending Liquidation" value={m.pendingLiquidationCount} icon={FileSpreadsheet} tint="#2054a3" foot="Vouchers not fully liquidated" onClick={nav("liquidation")} />
-        <KpiCard label="Overdue Liquidations" value={overdue} icon={AlertTriangle} tint={overdue ? "#c0392b" : "#15803d"} foot={`Past ${AGING_DUE_DAYS}-day liquidation deadline`} onClick={nav("liquidation")} />
-      </DashKpiGroup>
-
-      <div className="pcp-grid-2" style={{ marginBottom: 16 }}>
-        <div className="pcp-card pcp-card-pad">
-          <div className="pcp-section-title"><TrendingUp size={15} color="#4e7d63" /> Released vs Liquidated by Month</div>
-          <DashTrendChart data={flow} />
-        </div>
-        <div className="pcp-card pcp-card-pad">
-          <div className="pcp-section-title">Top Expense Categories (Liquidated)</div>
-          <MiniBarChart data={byExpense} />
-        </div>
-      </div>
-
-      <div className="pcp-card pcp-card-pad">
-        <div className="pcp-section-title">Recent Transactions — {label}</div>
-        <div className="pcp-table-wrap">
-          <table className="pcp-table">
-            <thead><tr><th>Voucher</th><th>Employee</th><th>Amount</th><th>Status</th></tr></thead>
-            <tbody>
-              {recentDisbursements.length ? recentDisbursements.map((d) => (
-                <tr key={d.id}>
-                  <td>{d.voucherNo}</td>
-                  <td>{d.employee}</td>
-                  <td className="pcp-num">{peso(d.amount)}</td>
-                  <td><Badge status={liqStatusFor(d, liqForBranch)} /></td>
-                </tr>
-              )) : <tr><td colSpan={4} className="pcp-empty">No disbursements recorded for {label}</td></tr>}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </div>
+    <DashboardCore
+      label={label} funds={fundsForBranch} requests={requestsForBranch} disbursements={disbForBranch}
+      liquidations={liqForBranch} replenishments={repForBranch} reimbursements={reimbForBranch}
+      role={role} onNavigate={onNavigate} onOpenFiltered={onOpenFiltered}
+    />
   );
 }

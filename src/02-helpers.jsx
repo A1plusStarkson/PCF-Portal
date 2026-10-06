@@ -565,6 +565,8 @@ function migrateState(saved) {
 const SYNC_COLLECTIONS = [
   "funds", "requests", "disbursements", "liquidations",
   "replenishments", "auditLog", "documents", "reimbursements",
+  /* Home page announcements, managed in the portal by Accounting / admins. */
+  "announcements",
 ];
 
 /* Loads every per-record row from the cloud (empty array when unavailable). */

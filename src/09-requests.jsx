@@ -143,7 +143,7 @@ const REQUEST_SORT_FIELDS = {
   status: (r) => r.status,
 };
 
-function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, onDisburse, missingVoucherIds, canEditDisbursed, plantOptions, canApprove, canRelease, plantTitle, canDelete, onDelete }) {
+function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, onDisburse, missingVoucherIds, canEditDisbursed, plantOptions, canApprove, canRelease, plantTitle, canDelete, onDelete, dashFilter, onClearDashFilter }) {
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState(null);
   const [statusFilter, setStatusFilter] = useState("All");
@@ -157,7 +157,9 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
   const filtered = sort.sortRows(
     requests.filter((r) => {
       if (plant !== "ALL" && r.branchCode !== plant) return false;
-      if (statusFilter !== "All" && r.status !== statusFilter) return false;
+      /* Opened from a dashboard count: exactly those requests (DashFilterBanner). */
+      if (dashFilter) { if (!dashFilter.ids.has(r.id)) return false; }
+      else if (statusFilter !== "All" && r.status !== statusFilter) return false;
       /* The legacy number is searchable too. Requests issued before the series
          became per-plant went out on paper under their old portal-wide number,
          so someone holding a signed PCR-2026-0022 must be able to find it by
@@ -189,6 +191,7 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
       />
       <div className="pcp-content">
         <PlantScopeTabs plants={plantOptions} value={plant} onChange={setPlant} />
+        <DashFilterBanner filter={dashFilter} shown={filtered.length} onClear={onClearDashFilter} noun="request" />
         <div className="pcp-card">
           <div style={{ padding: "14px 18px", display: "flex", gap: 10, alignItems: "center", borderBottom: "1px solid var(--line)" }}>
             <div style={{ position: "relative", flex: 1, maxWidth: 280 }}>
