@@ -712,7 +712,6 @@ const CSS = `
     -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 85%); mask-image: linear-gradient(180deg, #000 0%, transparent 85%);
   }
   .pcp-login-brand > * { position: relative; }
-  .pcp-login-kicker { font-size: 11px; font-weight: 700; letter-spacing: 1.6px; text-transform: uppercase; color: #a7d7bd; margin-bottom: 10px; }
   .pcp-login-steps { list-style: none; padding: 0; margin: 0 0 22px; display: flex; flex-wrap: wrap; gap: 6px 4px; }
   .pcp-login-steps li { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; color: #eef6f1; }
   .pcp-login-step-icon {

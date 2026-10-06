@@ -96,7 +96,6 @@ function LoginBrandPanel() {
           instead of under it, so the panel has no empty half. */}
       <div className="pcp-login-brand-mid">
         <div className="pcp-login-brand-text">
-          <div className="pcp-login-kicker">PCF Portal · A1+ Group</div>
           <h1 className="pcp-login-hero">Manage petty cash with confidence.</h1>
           <p className="pcp-login-lead">Request, release, liquidate and replenish — with every approval and receipt on record.</p>
           <ol className="pcp-login-steps" aria-label="How petty cash moves through the portal">
