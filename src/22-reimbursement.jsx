@@ -74,6 +74,50 @@ function reimbIsDraftLike(r) {
     || r.status === REIMB_STATUS.FOR_SUBMISSION);
 }
 
+/* Every revert of this reimbursement (history entries into FOR SUBMISSION),
+   newest first. */
+function reimbRevertHistory(r) {
+  return ((r && r.history) || []).filter((h) => h.newStatus === REIMB_STATUS.FOR_SUBMISSION).slice().reverse();
+}
+
+/* "Reverted to Requestor" notice for a reimbursement in FOR SUBMISSION — the
+   same yellow action-required banner as the Liquidation module, for
+   REVERT_HIGHLIGHT_EMAILS (19-app.jsx). Returns null otherwise. */
+function ReimbRevertNotice({ reimb }) {
+  const on = !!(useContext(AppUI) || {}).revertHighlight;
+  if (!on || !reimb || reimb.status !== REIMB_STATUS.FOR_SUBMISSION) return null;
+  const revs = reimbRevertHistory(reimb);
+  return (
+    <div className="pcp-card pcp-card-pad pcp-revert-hl" role="alert" style={{ marginBottom: 12 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+        <AlertTriangle size={18} color="#8a5a00" />
+        <div className="pcp-section-title" style={{ margin: 0, color: "#5c3d00", fontSize: 15, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.4 }}>
+          Reverted to Requestor
+        </div>
+        {revs.length > 0 && <span style={{ fontSize: 11, color: "#7a5200" }}>({revs.length})</span>}
+        <span className="pcp-revert-hl-tag">Action required</span>
+      </div>
+      <div style={{ fontSize: 13, color: "#5c3d00", fontWeight: 600, marginBottom: revs.length ? 10 : 0 }}>
+        FOR SUBMISSION — the custodian sent this back. Read the reason, edit the details or add the missing attachments, then click Resubmit Request.
+      </div>
+      {revs.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+          {revs.map((h, i) => (
+            <div key={i} style={{ border: "1px solid #f0c54a", borderRadius: 8, padding: "9px 11px", background: "#fffdf2" }}>
+              <div style={{ fontSize: 12.5, fontWeight: 700 }}>Revert #{revs.length - i}</div>
+              <div style={{ fontSize: 12, marginTop: 4 }}><strong>Reason:</strong> {h.comments || "—"}</div>
+              <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 4 }}>
+                Reverted by {h.user || "—"} · {String(h.ts || "").replace("T", " ")}
+                {h.prevStatus ? ` · ${h.prevStatus} → FOR SUBMISSION` : ""}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /* Submitted and still waiting for the custodian — no custodian approval
    stamped yet. The window in which a PCF Requestor may still edit a submitted
    reimbursement (REIMB_REQUESTOR_EDIT_EMAILS in 19-app.jsx). Declared as a
@@ -707,6 +751,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
           <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose}><X size={15} /></button>
         </div>
         <div className="pcp-modal-body">
+          {isEdit && <ReimbRevertNotice reimb={reimb} />}
           <Stepper />
 
           {/* STEP 1 — Expense Information */}
@@ -1216,6 +1261,9 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
     act("final-approve");
   };
 
+  /* REVERT_HIGHLIGHT_EMAILS: the yellow ReimbRevertNotice replaces the plain
+     hint while it is FOR SUBMISSION. */
+  const revertHl = !!(useContext(AppUI) || {}).revertHighlight;
   /* What the viewer is waiting on, in one sentence. */
   const guidance = (() => {
     if (atCheck) return isChecker
@@ -1285,7 +1333,8 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
               {review.final && <div>Final approval by <b>{review.finalBy}</b> · {review.finalAt}{review.finalRemarks ? ` · "${review.finalRemarks}"` : ""}</div>}
             </div>
           )}
-          {guidance && <div className="pcp-hint" style={{ marginBottom: 10 }}>{guidance}</div>}
+          <ReimbRevertNotice reimb={reimb} />
+          {guidance && !(revertHl && st === REIMB_STATUS.FOR_SUBMISSION) && <div className="pcp-hint" style={{ marginBottom: 10 }}>{guidance}</div>}
           {reimbAcctMode(reimb) && (
             <AccountingReviewBox
               kind="reimb" id={reimb.id} refNo={reimb.reimbNo} review={review}
@@ -1509,6 +1558,8 @@ function ReimbursementTab({
   onExportAcumatica, onExportReport, onDelete, plantOptions, plantTitle, currentUser,
   isChecker, isFinalApprover, canFinance, canDelete, canEditOverride, canEditBeforeCustodian, canDeleteDocs, canAuthorizeVariance, canRevert, accounting,
 }) {
+  /* REVERT_HIGHLIGHT_EMAILS: reverted (FOR SUBMISSION) rows in yellow. */
+  const revertHl = !!(useContext(AppUI) || {}).revertHighlight;
   /* Draft / Returned are editable by anyone in scope; any other stage only
      through the checking / verification override (Save Changes keeps the status).
      PCF Requestors (canEditBeforeCustodian) may also edit — details and
@@ -1666,7 +1717,7 @@ function ReimbursementTab({
               <tbody>
                 {filtered.length ? filtered.map((r) => (
                   <tr
-                    key={r.id} className="pcp-row-click" tabIndex={0}
+                    key={r.id} className={"pcp-row-click" + (revertHl && r.status === REIMB_STATUS.FOR_SUBMISSION ? " pcp-revert-hl-row" : "")} tabIndex={0}
                     title={`Open ${r.reimbNo}`}
                     /* The whole row opens the reimbursement, like the eye
                        button. Clicks on the row's own buttons (view / edit /
@@ -1687,7 +1738,11 @@ function ReimbursementTab({
                     <td>{(r.lines || []).length}</td>
                     <td className="pcp-num"><strong>{peso(reimbTotal(r))}</strong></td>
                     <td><CompliancePill level={(r.compliance && r.compliance.level) || "PASS"} /></td>
-                    <td><Badge status={reimbAwaitingAccounting(r) ? REIMB_STAGE.FOR_ACCOUNTING : r.status} /></td>
+                    <td>
+                      {revertHl && r.status === REIMB_STATUS.FOR_SUBMISSION
+                        ? <span className="pcp-revert-hl-tag" title="FOR SUBMISSION — reverted by the custodian">Reverted to Requestor</span>
+                        : <Badge status={reimbAwaitingAccounting(r) ? REIMB_STAGE.FOR_ACCOUNTING : r.status} />}
+                    </td>
                     <td>{reimbAgingBucket(r)}</td>
                     <td>
                       <div style={{ display: "flex", gap: 6 }}>

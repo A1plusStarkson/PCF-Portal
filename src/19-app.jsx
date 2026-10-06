@@ -214,8 +214,9 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   ];
   const showModuleDocTotals = MODULE_DOC_TOTAL_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
-  /* Liquidation module: a reverted liquidation (FOR SUBMISSION) is shown
-     highlighted in YELLOW — the worksheet notice and its list row — so the
+  /* Liquidation and Reimbursement modules: a reverted transaction (FOR
+     SUBMISSION) is shown
+     highlighted in YELLOW — its notice and its list row — so the
      requestor sees at once that it needs correcting and resubmitting
      (owner's instruction, Oct 2026). Display only. */
   const REVERT_HIGHLIGHT_EMAILS = [
