@@ -174,6 +174,16 @@ function reimbApprovalStage(r, replenishedIds) {
   return r.status;
 }
 
+/* Parallel to liqEscalationRevert: the one-step-back revert a reimbursement
+   is currently under (still at the step it was sent back to), or null. */
+function reimbEscalationRevert(r) {
+  const m = r && reimbReview(r).revertedTo;
+  if (!m) return null;
+  if (m.to === "CUSTODIAN" && REIMB_CUSTODIAN_REVIEW_STATUSES.includes(r.status)) return m;
+  if (m.to === "ACCOUNTING" && reimbAwaitingAccounting(r)) return m;
+  return null;
+}
+
 /* The approval stamps on a reimbursement. Parallel to liqReview. */
 function reimbReview(r) {
   const rv = (r && r.review) || {};
@@ -182,6 +192,7 @@ function reimbReview(r) {
     financeChecker: rv.financeChecker || "",
     final: !!rv.finalBy, finalBy: rv.finalBy || "", finalAt: rv.finalAt || "", finalRemarks: rv.finalRemarks || "",
     history: rv.history || [],
+    revertedTo: rv.revertedTo || null,
     ...acctStamps(rv),
   };
 }
@@ -1335,6 +1346,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
           )}
           <ReimbRevertNotice reimb={reimb} />
           {guidance && !(revertHl && st === REIMB_STATUS.FOR_SUBMISSION) && <div className="pcp-hint" style={{ marginBottom: 10 }}>{guidance}</div>}
+          <EscalationRevertNotice marker={reimbEscalationRevert(reimb)} />
           {reimbAcctMode(reimb) && (
             <AccountingReviewBox
               kind="reimb" id={reimb.id} refNo={reimb.reimbNo} review={review}
@@ -1717,7 +1729,7 @@ function ReimbursementTab({
               <tbody>
                 {filtered.length ? filtered.map((r) => (
                   <tr
-                    key={r.id} className={"pcp-row-click" + (revertHl && r.status === REIMB_STATUS.FOR_SUBMISSION ? " pcp-revert-hl-row" : "")} tabIndex={0}
+                    key={r.id} className={"pcp-row-click" + (revertHl && (r.status === REIMB_STATUS.FOR_SUBMISSION || reimbEscalationRevert(r)) ? " pcp-revert-hl-row" : "")} tabIndex={0}
                     title={`Open ${r.reimbNo}`}
                     /* The whole row opens the reimbursement, like the eye
                        button. Clicks on the row's own buttons (view / edit /
@@ -1741,7 +1753,9 @@ function ReimbursementTab({
                     <td>
                       {revertHl && r.status === REIMB_STATUS.FOR_SUBMISSION
                         ? <span className="pcp-revert-hl-tag" title="FOR SUBMISSION — reverted by the custodian">Reverted to Requestor</span>
-                        : <Badge status={reimbAwaitingAccounting(r) ? REIMB_STAGE.FOR_ACCOUNTING : r.status} />}
+                        : revertHl && reimbEscalationRevert(r)
+                          ? <EscalationRevertTag marker={reimbEscalationRevert(r)} />
+                          : <Badge status={reimbAwaitingAccounting(r) ? REIMB_STAGE.FOR_ACCOUNTING : r.status} />}
                     </td>
                     <td>{reimbAgingBucket(r)}</td>
                     <td>

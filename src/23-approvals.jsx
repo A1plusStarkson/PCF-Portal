@@ -407,6 +407,7 @@ function PcaApprovalPanel({
 
       {guidance && <div className="pcp-hint" style={{ marginBottom: 12 }}>{guidance}</div>}
 
+      <EscalationRevertNotice marker={liqEscalationRevert(disb, liq)} />
       {(review.checked || review.legacy) && (
         <AccountingReviewBox
           kind="liq" id={disb.id} refNo={disb.voucherNo} review={review}
@@ -529,6 +530,7 @@ function ApprovalModuleTab({
   viewFinalQueue, viewOnly,
 }) {
   const showDocTotals = !!(useContext(AppUI) || {}).showDocTotals; // Total Docs column — DOC_TOTAL_EMAILS only
+  const revertHighlight = !!(useContext(AppUI) || {}).revertHighlight; // REVERT_HIGHLIGHT_EMAILS
   /* ---- View-only access (APPROVAL_FINAL_VIEW_EMAILS in 11-liquidation.jsx) ----
      viewFinalQueue: the viewer also sees the final approver's queue, but every
      transaction in it opens read-only. viewOnly: the whole module is read-only
@@ -613,6 +615,7 @@ function ApprovalModuleTab({
       stage: r.stage,
       batchNo: r.review.batchNo || "",
       pending: isPendingFor(r.stage, r.review, false),
+      escRevert: liqEscalationRevert(r.disb, r.liq),
       src: r,
     }));
     const reimbRows = reimbAll.map((r) => ({
@@ -629,6 +632,7 @@ function ApprovalModuleTab({
       stage: r.stage,
       batchNo: r.rv.batchNo || "",
       pending: isPendingFor(r.stage, r.rv, [r.createdBy, r.employee].some((n) => (n || "").trim().toLowerCase() === me)),
+      escRevert: reimbEscalationRevert(r),
       src: r,
     }));
     return liqRows.concat(reimbRows);
@@ -963,7 +967,7 @@ function ApprovalModuleTab({
               <tbody>
                 {rows.length ? rows.map((r) => (
                   <tr
-                    key={r.key} className="pcp-liq-row" tabIndex={0}
+                    key={r.key} className={"pcp-liq-row" + (revertHighlight && r.escRevert ? " pcp-revert-hl-row" : "")} tabIndex={0}
                     onClick={() => openRow(r)}
                     onKeyDown={(e) => { if (e.key === "Enter") openRow(r); }}
                     title={`Open ${r.seriesNo || "this transaction"}`}
@@ -982,6 +986,7 @@ function ApprovalModuleTab({
                         </span>
                       )}
                       {r.batchNo && <div style={{ fontSize: 10.5, color: "var(--text-mut)" }}>{r.batchNo}</div>}
+                      {revertHighlight && r.escRevert && <div><EscalationRevertTag marker={r.escRevert} /></div>}
                     </td>
                     <td>
                       {rowPlantLabel(r)}

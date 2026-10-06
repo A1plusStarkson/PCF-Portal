@@ -1129,6 +1129,8 @@ function liqReview(liq) {
     financeChecker: r.financeChecker || "",
     final: !!r.finalBy, finalBy: r.finalBy || "", finalAt: r.finalAt || "", finalRemarks: r.finalRemarks || "",
     legacy: false, history: r.history || [],
+    /* Set by a one-step-back revert (escalationRevert in 19-app.jsx). */
+    revertedTo: r.revertedTo || null,
     ...acctStamps(r),
   };
 }
@@ -1243,6 +1245,20 @@ function liqApprovalStage(disb, liq, replenishedIds) {
   if (!passesAccountingGate(rv)) return LIQ_STAGE.FOR_ACCOUNTING;
   if (!settlementStateFor(disb, liq).settled) return LIQ_STAGE.AWAITING_SETTLEMENT;
   return LIQ_STAGE.FOR_FINAL;
+}
+
+/* The one-step-back revert a liquidation is CURRENTLY under, or null:
+   { to: "ACCOUNTING" | "CUSTODIAN", by, at, reason } while it still sits at
+   the step it was sent back to. Once that step is done again (or the
+   liquidation goes back to the requestor) it no longer applies. */
+function liqEscalationRevert(disb, liq) {
+  const rv = liqReview(liq);
+  const m = rv.revertedTo;
+  if (!m || !disb || !liq) return null;
+  const stage = liqApprovalStage(disb, liq);
+  if (m.to === "CUSTODIAN" && stage === LIQ_STAGE.FOR_CHECK) return m;
+  if (m.to === "ACCOUNTING" && stage === LIQ_STAGE.FOR_ACCOUNTING) return m;
+  return null;
 }
 
 /* Liquidation ids already claimed by a replenishment (pending or completed),

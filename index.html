@@ -113,6 +113,7 @@
      bump PCP_SRC_VERSION below. Leave the list empty ([]) to show the
      built-in reminders instead. `date` is optional. */
   window.PCP_ANNOUNCEMENTS = [
+    { title: "🔔 Reverted Liquidation / Reimbursement transactions", text: "Whenever a transaction is reverted, its status is shown with a 🟨 YELLOW HIGHLIGHT so it is easy to find and act on. (1) CUSTODIAN → REQUESTOR: 🟨 REVERTED TO REQUESTOR — check the Custodian's comment, make the corrections, then save and resubmit for Custodian Review. (2) FINAL APPROVER → ACCOUNTING: 🟨 REVERTED TO ACCOUNTING — check the Final Approver's comment and correct or update what is needed. (3) ACCOUNTING → PCF CUSTODIAN: 🟨 REVERTED TO CUSTODIAN — check Accounting's comment and correct what is needed before the transaction is processed again. 📌 Always check the comments whenever a transaction is reverted and make the corrections before resubmitting." },
     { title: "Important Reminder", text: "After saving your liquidation, please click SUBMIT LIQUIDATION located at the upper-right portion of the screen. A liquidation is not forwarded to the Custodian until SUBMIT LIQUIDATION is clicked." },
     { title: "Welcome to the new Home page", text: "Use Quick Access to jump straight to Petty Cash Requests, Reimbursement, Liquidation, Release Ledger, Replenishment and Approvals.", date: "Sep 28, 2026" },
     { title: "Liquidate on time", text: "Cash advances must be liquidated within 5 days of release. Check Upcoming Liquidation Deadlines on this page." },
@@ -1010,7 +1011,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20261006h";
+  window.PCP_SRC_VERSION = "20261006i";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",

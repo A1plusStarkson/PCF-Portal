@@ -136,6 +136,46 @@ function AccountingCells({ review }) {
   </>);
 }
 
+/* ---- One-step-back revert notice (liqEscalationRevert / reimbEscalationRevert) ----
+   REVERTED TO ACCOUNTING (by the Final Approver) or REVERTED TO CUSTODIAN (by
+   Accounting), with the comment. Yellow for REVERT_HIGHLIGHT_EMAILS, a plain
+   amber card for everyone else. */
+const ESCALATION_REVERT_TEXT = {
+  ACCOUNTING: { title: "Reverted to Accounting", from: "Final Approver's comment",
+    todo: "Check the Final Approver's comment, correct or update what is needed, then mark it checked again." },
+  CUSTODIAN: { title: "Reverted to Custodian", from: "Accounting's comment",
+    todo: "Check Accounting's comment and correct what is needed before the transaction is processed again, then approve it as custodian again." },
+};
+function EscalationRevertNotice({ marker }) {
+  const hlOn = !!(useContext(AppUI) || {}).revertHighlight;
+  if (!marker) return null;
+  const t = ESCALATION_REVERT_TEXT[marker.to];
+  if (!t) return null;
+  return (
+    <div className={"pcp-card pcp-card-pad" + (hlOn ? " pcp-revert-hl" : "")} role="alert" style={{ marginBottom: 12, borderColor: "var(--amber)" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
+        {hlOn ? <AlertTriangle size={18} color="#8a5a00" /> : <ArrowLeftRight size={15} color="var(--amber)" />}
+        <div className="pcp-section-title" style={{ margin: 0, ...(hlOn ? { color: "#5c3d00", fontSize: 15, fontWeight: 800, textTransform: "uppercase", letterSpacing: 0.4 } : {}) }}>
+          {t.title}
+        </div>
+        {hlOn && <span className="pcp-revert-hl-tag">Action required</span>}
+      </div>
+      <div style={{ fontSize: hlOn ? 13 : 12, color: hlOn ? "#5c3d00" : "var(--brand-dark)", fontWeight: hlOn ? 600 : undefined, marginBottom: 10 }}>{t.todo}</div>
+      <div style={{ border: "1px solid " + (hlOn ? "#f0c54a" : "var(--line)"), borderRadius: 8, padding: "9px 11px", background: hlOn ? "#fffdf2" : undefined }}>
+        <div style={{ fontSize: 12 }}><strong>{t.from}:</strong> {marker.reason || "—"}</div>
+        <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 4 }}>
+          Reverted by {marker.by || "—"} · {String(marker.at || "").replace("T", " ")}
+        </div>
+      </div>
+    </div>
+  );
+}
+/* Compact list tag for the same state. */
+function EscalationRevertTag({ marker }) {
+  if (!marker || !ESCALATION_REVERT_TEXT[marker.to]) return null;
+  return <span className="pcp-revert-hl-tag" title={`${ESCALATION_REVERT_TEXT[marker.to].from}: ${marker.reason || ""}`}>{ESCALATION_REVERT_TEXT[marker.to].title}</span>;
+}
+
 /* ---- Accounting Review box ----
    Shows the Accounting stamps and, for Accounting while the transaction sits
    at its stage, the Assign Batch Number / Mark as Checked actions.
@@ -179,6 +219,25 @@ function AccountingReviewBox({ kind, id, refNo, review, mode, accounting }) {
       : `Mark ${refNo} as checked by Accounting${who} under batch ${typed}?\n\nIt then goes to ${FINAL_APPROVER_NAME} for final approval with the rest of ${typed}.`)) return;
     acc.onReview(kind, id, "check", { batchNo: typed, remarks: remarks.trim(), checker });
     setRemarks("");
+  };
+  /* One step back (escalationRevert in 19-app.jsx), only in the live flow
+     and never after final approval: the Final Approver sends a checked
+     transaction back to Accounting; Accounting sends a custodian-approved one
+     back to the custodian. */
+  const live = mode === "flow" && rv.checked && !rv.final && !!acc.onEscalationRevert;
+  const canRevertAcct = live && !!acc.canRevertToAccounting && rv.acctChecked;
+  const canRevertCust = live && !!acc.canRevertToCustodian;
+  const revertStep = (to) => {
+    const toWho = to === "ACCOUNTING" ? "Accounting" : "the PCF Custodian";
+    const reason = window.prompt(
+      `Revert ${refNo} to ${toWho}?\n\n`
+      + (to === "ACCOUNTING"
+        ? "Its Accounting check is cleared and it goes back to For Accounting Check. "
+        : "The custodian approval (and any Accounting check) is cleared and it goes back to For Custodian Review. ")
+      + "It shows as REVERTED TO " + (to === "ACCOUNTING" ? "ACCOUNTING" : "CUSTODIAN") + " with your comment.\n\nComment — what needs to be corrected (required):", "");
+    if (reason == null) return;
+    if (!reason.trim()) { window.alert("A comment is required."); return; }
+    acc.onEscalationRevert(kind, id, to, reason.trim());
   };
   const undo = () => {
     const reason = window.prompt(`Undo the Accounting check on ${refNo}?${retro ? "" : ` It leaves ${FINAL_APPROVER_NAME}'s queue.`}\n\nReason (required):`, "");
@@ -253,6 +312,22 @@ function AccountingReviewBox({ kind, id, refNo, review, mode, accounting }) {
       {canUndo && (
         <div style={{ marginTop: 8 }}>
           <button className="pcp-btn pcp-btn-sm" onClick={undo}><RefreshCw size={12} /> Undo Accounting Check</button>
+        </div>
+      )}
+      {(canRevertCust || canRevertAcct) && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)", display: "flex", gap: 8, flexWrap: "wrap" }}>
+          {canRevertAcct && (
+            <button className="pcp-btn pcp-btn-sm" onClick={() => revertStep("ACCOUNTING")}
+              title="Send back to Accounting with your comment — its Accounting check is cleared">
+              <ArrowLeftRight size={12} /> Revert to Accounting
+            </button>
+          )}
+          {canRevertCust && (
+            <button className="pcp-btn pcp-btn-sm" onClick={() => revertStep("CUSTODIAN")}
+              title="Send back to the PCF Custodian with your comment — the custodian approval is cleared">
+              <ArrowLeftRight size={12} /> Revert to Custodian
+            </button>
+          )}
         </div>
       )}
     </div>
@@ -1559,6 +1634,7 @@ function LiquidationWorksheet({
         )}
       </div>
 
+      <EscalationRevertNotice marker={liqEscalationRevert(disbursement, liquidation)} />
       {liquidation && (review.checked || review.legacy) && (
         <AccountingReviewBox
           kind="liq" id={disbursement.id} refNo={disbursement.voucherNo} review={review}
@@ -2479,6 +2555,7 @@ function LiquidationTab({
     stage: liqApprovalStage(d, liquidationFor(d.id, liquidations)),
     acctMode: liqAcctMode(liquidationFor(d.id, liquidations)),
     reverted: liqIsReverted(liquidationFor(d.id, liquidations)),
+    escRevert: liqEscalationRevert(d, liquidationFor(d.id, liquidations)),
   }));
   /* Accounting filter. Like a status filter it overrides the worklist gate.
      "Old / Approved — Not Checked" is the backlog of already-approved
@@ -2660,11 +2737,12 @@ function LiquidationTab({
                 </thead>
                 <tbody>
                   {list.length ? list.map((d) => (
-                    <tr key={d.id} className={"pcp-liq-row" + (revertHighlight && d.reverted ? " pcp-revert-hl-row" : "")} onClick={() => setSelectedId(d.id)}
+                    <tr key={d.id} className={"pcp-liq-row" + (revertHighlight && (d.reverted || d.escRevert) ? " pcp-revert-hl-row" : "")} onClick={() => setSelectedId(d.id)}
                       title={revertHighlight && d.reverted ? "Reverted to requestor — correct and resubmit" : "Open liquidation"}>
                       <td>
                         <strong>{d.voucherNo}</strong>
                         {revertHighlight && d.reverted && <div><span className="pcp-revert-hl-tag">Reverted — Action Required</span></div>}
+                        {revertHighlight && d.escRevert && <div><EscalationRevertTag marker={d.escRevert} /></div>}
                       </td>
                       {txnDateLabels ? (
                         <td title={d.txn.first ? "Transaction / OR Date of the expense lines" : `No dated expense line yet · voucher released ${fmtDate(d.date)}`}>
@@ -2737,8 +2815,11 @@ function LiquidationTab({
                 </thead>
                 <tbody>
                   {reimbActive.length ? reimbActive.map((r) => (
-                    <tr key={r.id} className="pcp-liq-row" onClick={() => setSelectedReimbId(r.id)} title="Open reimbursement liquidation">
-                      <td><strong>{r.reimbNo}</strong></td>
+                    <tr key={r.id} className={"pcp-liq-row" + (revertHighlight && reimbEscalationRevert(r) ? " pcp-revert-hl-row" : "")} onClick={() => setSelectedReimbId(r.id)} title="Open reimbursement liquidation">
+                      <td>
+                        <strong>{r.reimbNo}</strong>
+                        {revertHighlight && reimbEscalationRevert(r) && <div><EscalationRevertTag marker={reimbEscalationRevert(r)} /></div>}
+                      </td>
                       <td>{fmtDate(r.requestDate)}</td>
                       <td>{r.employee}</td>
                       <td>{r.branchCode}</td>
@@ -2861,6 +2942,7 @@ function LiquidationTab({
               </div>
             </div>
             <div className="pcp-modal-body">
+              <EscalationRevertNotice marker={reimbEscalationRevert(selectedReimb)} />
               <AccountingReviewBox
                 kind="reimb" id={selectedReimb.id} refNo={selectedReimb.reimbNo} review={reimbReview(selectedReimb)}
                 mode={reimbAcctMode(selectedReimb)} accounting={accounting}

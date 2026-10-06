@@ -1043,7 +1043,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     setLiquidations((ls) => ls.map((l) => (l.disbursementId === disbursementId ? {
       ...l, workflow: 2,
       review: {
-        ...(l.review || {}), checkedBy: actor, financeChecker: activeFinanceChecker, checkedAt: ts, checkRemarks: remarks || "", finalBy: "", finalAt: "", finalRemarks: "",
+        ...(l.review || {}), checkedBy: actor, financeChecker: activeFinanceChecker, checkedAt: ts, checkRemarks: remarks || "", finalBy: "", finalAt: "", finalRemarks: "", revertedTo: null,
         acctCheckedBy: "", acctCheckedByName: "", acctChecker: "", acctCheckedAt: "", acctRemarks: "", batchNo: "",
       },
     } : l)));
@@ -1123,7 +1123,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       if (action === "assign-batch") return { ...cur, batchNo };
       if (action === "check") {
         return {
-          ...cur, batchNo, acctCheckedBy: by, acctCheckedByName: byName, acctChecker: checker, acctCheckedAt: ts, acctRemarks: remarks,
+          ...cur, batchNo, acctCheckedBy: by, acctCheckedByName: byName, acctChecker: checker, acctCheckedAt: ts, acctRemarks: remarks, revertedTo: null,
           acctRetro: mode === "retro",
         };
       }
@@ -1188,6 +1188,80 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     }
   }, [isAccountingChecker, userEmail, userName, role, disbursements, liquidations, reimbursements, inScope, logAudit]); // eslint-disable-line
 
+  /* ---- Revert one step back (owner's instruction, Oct 2026) ----
+       Final Approver → Accounting  (to "ACCOUNTING"): custodian-approved and
+         Accounting-checked, not yet final. The Accounting check is cleared
+         (the Batch Number stays) — it is back in For Accounting Check.
+       Accounting → Custodian       (to "CUSTODIAN"): custodian-approved, not
+         yet final. The custodian approval and the Accounting check are
+         cleared — back in For Custodian Review (a reimbursement returns to
+         SUBMITTED).
+     A comment is required. The cleared stamps go to review.history, and
+     review.revertedTo = { to, by, at, reason } marks it — shown in YELLOW
+     (EscalationRevertNotice) until that step is done again (the custodian
+     approval / Accounting check write a fresh review without it). Same
+     record and number; every rule is re-checked here. */
+  const escalationRevert = useCallback((kind, id, to, reason) => {
+    const why = String(reason || "").trim();
+    const toAcct = to === "ACCOUNTING";
+    if (toAcct ? !isFinalApprover : !isAccountingChecker) {
+      window.alert(toAcct ? "Only the final approver can revert a transaction to Accounting." : "Only Accounting can revert a transaction to the custodian.");
+      return;
+    }
+    if (!why) { window.alert("A comment is required — it tells them what to correct."); return; }
+    const ts = new Date().toISOString().slice(0, 19);
+    const actor = userName || role;
+    const marker = { to: toAcct ? "ACCOUNTING" : "CUSTODIAN", by: actor, at: ts, reason: why };
+    const label = toAcct ? "Reverted to Accounting" : "Reverted to Custodian";
+    const nextReview = (cur) => {
+      const r = cur || {};
+      const histEntry = {
+        action: `${label} — ${why}`, user: actor, ts,
+        checkedBy: r.checkedBy || "", financeChecker: r.financeChecker || "", checkedAt: r.checkedAt || "",
+        acctCheckedBy: r.acctCheckedBy || "", acctChecker: r.acctChecker || "", acctCheckedAt: r.acctCheckedAt || "", batchNo: r.batchNo || "",
+      };
+      const clearedAcct = { acctCheckedBy: "", acctCheckedByName: "", acctChecker: "", acctCheckedAt: "", acctRemarks: "", acctRetro: false };
+      return toAcct
+        ? { ...r, ...clearedAcct, revertedTo: marker, history: (r.history || []).concat([histEntry]) }
+        : { ...r, ...clearedAcct, batchNo: "", checkedBy: "", financeChecker: "", checkedAt: "", checkRemarks: "",
+            revertedTo: marker, history: (r.history || []).concat([histEntry]) };
+    };
+    if (kind === "liq") {
+      const d = disbursements.find((x) => x.id === id);
+      const liq = liquidations.find((l) => l.disbursementId === id);
+      const rv = liqReview(liq);
+      const ok = d && liq && inScope(d.branchCode) && liq.workflow && (liq.submissionStatus || "Draft") === "Submitted"
+        && rv.checked && !rv.final && (toAcct ? rv.acctChecked : true);
+      if (!ok) {
+        window.alert(toAcct
+          ? "Only a liquidation checked by Accounting and awaiting final approval can be reverted to Accounting."
+          : "Only a custodian-approved liquidation that is not yet final-approved can be reverted to the custodian.");
+        return;
+      }
+      setLiquidations((ls) => ls.map((l) => (l.disbursementId === id ? { ...l, review: nextReview(l.review) } : l)));
+      logAudit("Liquidation " + label, d.voucherNo, `Comment: ${why}`);
+      return;
+    }
+    if (kind === "reimb") {
+      const r0 = reimbursements.find((x) => x.id === id);
+      const rv = reimbReview(r0);
+      const ok = r0 && inScope(r0.branchCode) && r0.status === REIMB_STATUS.FOR_FINAL && rv.checked && !rv.final
+        && (toAcct ? rv.acctChecked : true);
+      if (!ok) {
+        window.alert(toAcct
+          ? "Only a reimbursement checked by Accounting and awaiting final approval can be reverted to Accounting."
+          : "Only a custodian-approved reimbursement that is not yet final-approved can be reverted to the custodian.");
+        return;
+      }
+      const next = toAcct ? r0.status : REIMB_STATUS.SUBMITTED;
+      setReimbursements((rs) => rs.map((r) => (r.id !== id ? r : {
+        ...r, status: next, review: nextReview(r.review),
+        history: [...(r.history || []), { ts: reimbTs(), user: actor, action: label, prevStatus: r.status, newStatus: next, comments: why }],
+      })));
+      logAudit("Reimbursement " + label, r0.reimbNo, `Comment: ${why}`);
+    }
+  }, [isFinalApprover, isAccountingChecker, userName, role, disbursements, liquidations, reimbursements, inScope, logAudit]); // eslint-disable-line
+
   /* Every Batch Number in use, with how many transactions carry it, and the
      next free one — for the Accounting batch picker. */
   const accountingBatches = useMemo(() => {
@@ -1201,7 +1275,9 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   const accountingProps = useMemo(() => ({
     isChecker: isAccountingChecker, checkerNames: accountingCheckerNamesFor(userEmail), batches: accountingBatches.batches,
     nextBatchNo: accountingBatches.nextBatchNo, onReview: accountingReview,
-  }), [isAccountingChecker, userEmail, accountingBatches, accountingReview]);
+    /* One-step-back reverts (escalationRevert): who may use which. */
+    canRevertToAccounting: isFinalApprover, canRevertToCustodian: isAccountingChecker, onEscalationRevert: escalationRevert,
+  }), [isAccountingChecker, userEmail, accountingBatches, accountingReview, isFinalApprover, escalationRevert]);
 
   /* Record that the refund or reimbursement cash has ACTUALLY changed hands.
      The actual amount is stored so it can be checked against the expected one. */
