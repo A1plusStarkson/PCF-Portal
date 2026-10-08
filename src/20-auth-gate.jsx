@@ -450,10 +450,6 @@ function LoginScreen({ mode, onLocalLogin }) {
               <button type="submit" className="pcp-btn pcp-btn-primary pcp-login-submit" disabled={busy}>
                 {busy ? <><span className="pcp-spinner" aria-hidden="true" /> Signing in…</> : <>Sign In <ChevronRight size={17} aria-hidden="true" /></>}
               </button>
-              <div className="pcp-login-secure">
-                <ShieldCheck size={14} />
-                <span>Secure sign-in · for authorized A1+ Group personnel only</span>
-              </div>
               <div className="pcp-login-help">
                 <KeyRound size={13} />
                 <span>Forgot your password? Contact your administrator to have it reset. Access is provided by your administrator.</span>

@@ -1210,8 +1210,6 @@ const CSS = `
   .pcp-login-submit { gap: 6px; }
   .pcp-login-submit svg { transition: transform 0.15s; }
   .pcp-login-submit:hover:not(:disabled) svg { transform: translateX(3px); }
-  .pcp-login-secure { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 12px; font-size: 11.5px; color: var(--text-mut); }
-  .pcp-login-secure svg { color: var(--brand); flex-shrink: 0; }
   .pcp-login-pane .pcp-brand-logos {
     padding: 6px 12px; border-radius: 10px; background: var(--card); border: 1px solid var(--line);
     box-shadow: 0 4px 12px rgba(15,18,30,0.05); gap: 10px;
