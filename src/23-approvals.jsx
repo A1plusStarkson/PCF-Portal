@@ -523,7 +523,7 @@ function PcaApprovalPanel({
    A yellow notice shown ONCE after a whole batch is approved — never once per
    transaction. Everything it shows comes from `info`, so any batch workflow
    (liquidation, reimbursement, replenishment, …) can use it:
-     info = { greeting, details: [[label, value], …], message }
+     info = { greeting, details: [[label, value], …], message, thanks }
    OK, GOT IT closes it (Escape too); the button takes focus when it opens.
    batchPopupSeen / markBatchPopupSeen keep it to once per batch per session.
    The approvals themselves stay in the audit trail and review history. */
@@ -564,7 +564,7 @@ function BatchApprovalSuccessModal({ info, onClose }) {
         <div className="pcp-batchpop-head" id="pcp-batchpop-title">🟨 Batch Approval Completed</div>
         <div className="pcp-batchpop-body" id="pcp-batchpop-body">
           <div className="pcp-batchpop-greet">{info.greeting}</div>
-          <div className="pcp-batchpop-lead">Batch approval completed successfully.</div>
+          <div className="pcp-batchpop-lead">Batch approval has been completed successfully.</div>
           <dl className="pcp-batchpop-details">
             {(info.details || []).map(([label, value]) => (
               <React.Fragment key={label}><dt>{label}</dt><dd>{value}</dd></React.Fragment>
@@ -572,6 +572,9 @@ function BatchApprovalSuccessModal({ info, onClose }) {
           </dl>
           {info.message && (
             <div className="pcp-batchpop-ok"><CircleCheck size={18} /> <span>{info.message}</span></div>
+          )}
+          {info.thanks && (
+            <div className="pcp-batchpop-thanks"><span aria-hidden="true">💛</span> <span>{info.thanks}</span></div>
           )}
         </div>
         <div className="pcp-batchpop-foot">
@@ -848,8 +851,10 @@ function ApprovalModuleTab({
     const type = okPca.length && okReimb.length ? "Liquidation & Reimbursement" : okPca.length ? "Liquidation" : "Reimbursement";
     const total = okPca.reduce((t, r) => t + r.src.amounts.approvedTotal, 0) + okReimb.reduce((t, r) => t + r.amount, 0);
     const who = String(currentUser || "").trim();
+    const isGrace = /grace/i.test(who);
+    const addressee = isGrace ? "Ma'am Grace" : (who || "");
     setBatchDone({
-      greeting: /grace/i.test(who) ? "Hello, Ma'am Grace! 😊" : `Hello${who ? ", " + who : ""}! 😊`,
+      greeting: `Hello${addressee ? ", " + addressee : ""}! 😊`,
       details: [
         ["Company/Plant", plants.join(", ").toUpperCase()],
         ["Batch", b],
@@ -862,6 +867,7 @@ function ApprovalModuleTab({
       message: done.length === x.count
         ? "All transactions under this batch have been successfully approved."
         : `${done.length} of ${x.count} transactions under this batch were approved; the rest need attention.`,
+      thanks: `Thank you so much${addressee ? ", " + addressee + "," : ""} for your time and assistance in reviewing and approving this batch. We truly appreciate your support! 😊`,
     });
   };
 

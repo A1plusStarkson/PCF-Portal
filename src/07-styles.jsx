@@ -483,6 +483,12 @@ const CSS = `
   .pcp-batchpop-details dd { margin: 0; font-weight: 800; color: #2a2414; overflow-wrap: anywhere; }
   .pcp-batchpop-ok { display: flex; gap: 8px; align-items: flex-start; margin-top: 14px; font-size: 13px; font-weight: 700; color: #1d5c34; }
   .pcp-batchpop-ok svg { color: #1f8f4e; flex-shrink: 0; margin-top: 1px; }
+  /* Thank-you note: a warm gold-accented strip under the result. */
+  .pcp-batchpop-thanks {
+    display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; padding: 10px 12px; border-radius: 10px;
+    background: #fdeaa0; border-left: 4px solid #e0a526; font-size: 13px; font-weight: 700; line-height: 1.5; color: #4a3800;
+  }
+  .pcp-batchpop-thanks > span:first-child { flex-shrink: 0; }
   .pcp-batchpop-foot { display: flex; justify-content: flex-end; padding: 14px 22px 18px; }
   .pcp-batchpop-btn {
     font: inherit; font-size: 14px; font-weight: 800; letter-spacing: 0.8px; padding: 11px 24px; border-radius: 10px; cursor: pointer;
