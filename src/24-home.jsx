@@ -42,22 +42,43 @@ const HOME_CSS = `
   }
   .pcp-home-chip:hover, .pcp-home-chip:focus-visible { background: rgba(255,255,255,0.26); outline: none; }
   .pcp-home-chip.warn { background: rgba(255,120,110,0.28); border-color: rgba(255,170,160,0.6); }
-  /* Light Green theme (light mode only): a soft mint banner with dark-green
-     text instead of the dark green block; dark mode keeps the block. */
+  /* Light Green theme (light mode only). The banner is the page's focal
+     point: a fresh green gradient (darkest behind the text) with soft light
+     spots, white text, and frosted panels darkened enough for white text. */
   :root:not([data-theme="dark"]) .pcp-home-hero {
-    background: radial-gradient(circle at 92% 10%, rgba(95,175,120,0.20), transparent 45%),
-                linear-gradient(120deg, #e8f5ec 0%, #dff2e5 55%, #cdead8 100%);
-    color: #1e2b24; border: 1px solid #d7ebdd; box-shadow: 0 8px 24px rgba(47,107,69,0.08);
+    background: radial-gradient(circle at 88% -10%, rgba(255,255,255,0.22), transparent 42%),
+                radial-gradient(circle at 0% 110%, rgba(167,215,189,0.30), transparent 45%),
+                linear-gradient(120deg, #2a6040 0%, #3a8256 55%, #4c9a66 100%);
+    box-shadow: 0 14px 32px rgba(47,107,69,0.22);
   }
-  :root:not([data-theme="dark"]) .pcp-home-kicker,
-  :root:not([data-theme="dark"]) .pcp-home-title { color: var(--heading); opacity: 1; }
-  :root:not([data-theme="dark"]) .pcp-home-clock,
-  :root:not([data-theme="dark"]) .pcp-home-user { background: rgba(255,255,255,0.8); border-color: #d7ebdd; color: #1e2b24; }
-  :root:not([data-theme="dark"]) .pcp-home-clock-time { color: #2f6b45; }
-  :root:not([data-theme="dark"]) .pcp-home-chip { background: #fff; border-color: #d7ebdd; color: #2f6b45; transition: background 0.18s ease; }
+  :root:not([data-theme="dark"]) .pcp-home-user,
+  :root:not([data-theme="dark"]) .pcp-home-clock { background: rgba(14,48,28,0.26); border-color: rgba(255,255,255,0.28); }
+  :root:not([data-theme="dark"]) .pcp-home-chip { background: rgba(14,48,28,0.22); transition: background 0.18s ease; }
   :root:not([data-theme="dark"]) .pcp-home-chip:hover,
-  :root:not([data-theme="dark"]) .pcp-home-chip:focus-visible { background: #dff2e5; }
-  :root:not([data-theme="dark"]) .pcp-home-chip.warn { background: #fbeaea; border-color: #f1c4c0; color: #962d22; }
+  :root:not([data-theme="dark"]) .pcp-home-chip:focus-visible { background: rgba(14,48,28,0.38); }
+  :root:not([data-theme="dark"]) .pcp-home-section-title { color: var(--heading); }
+  /* Status tiles: each with its own colour accent (decorative). */
+  :root:not([data-theme="dark"]) .pcp-home-status-item {
+    --tile: #5faf78;
+    border-top: 3px solid var(--tile); box-shadow: 0 2px 8px rgba(47,107,69,0.05);
+    transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
+  }
+  :root:not([data-theme="dark"]) .pcp-home-status-item:nth-child(5n+1) { --tile: #e0a526; }
+  :root:not([data-theme="dark"]) .pcp-home-status-item:nth-child(5n+2) { --tile: #4a86c8; }
+  :root:not([data-theme="dark"]) .pcp-home-status-item:nth-child(5n+3) { --tile: #8a6fd1; }
+  :root:not([data-theme="dark"]) .pcp-home-status-item:nth-child(5n+4) { --tile: #e07b3a; }
+  :root:not([data-theme="dark"]) .pcp-home-status-item:hover,
+  :root:not([data-theme="dark"]) .pcp-home-status-item:focus-visible {
+    background: #fff; border-color: var(--tile); transform: translateY(-2px); box-shadow: 0 8px 18px rgba(47,107,69,0.12);
+  }
+  :root:not([data-theme="dark"]) .pcp-home-status-item.warn { --tile: #c0392b; background: var(--red-bg); }
+  /* Announcements: white notes with a green edge instead of mint blocks. */
+  :root:not([data-theme="dark"]) .pcp-home-ann {
+    background: #fff; border: 1px solid #e1efe5; border-left: 3px solid var(--accent); border-radius: 8px;
+    transition: background 0.18s ease;
+  }
+  :root:not([data-theme="dark"]) .pcp-home-ann:hover { background: #f4fbf6; }
+  :root:not([data-theme="dark"]) .pcp-home-ann-title { color: var(--heading); }
   .pcp-home-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
   .pcp-home-link {
     display: flex; gap: 14px; align-items: center; text-align: left; background: var(--dm-surface, #fff); border: 1px solid var(--line);

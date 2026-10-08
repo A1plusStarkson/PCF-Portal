@@ -1303,6 +1303,37 @@ const CSS = `
   :root:not([data-theme="dark"]) .pcp-tab:hover { color: #1a3326; }
   :root:not([data-theme="dark"]) .pcp-tab.active { color: #1f4d33; border-bottom-color: #2f6b45; }
 
+  /* Polish (Oct 2026, "more eye-appealing"): crisp WHITE chrome (sidebar and
+     header) around the light mint page, so the page, cards and accents have
+     contrast instead of one flat mint. Mint is kept for highlights. */
+  :root:not([data-theme="dark"]) .pcp-sidebar {
+    --sb-fg: #1f3a2c; --sb-mut: #3f5a4b;
+    background: #ffffff; border-right: 1px solid #d7ebdd; box-shadow: 2px 0 12px rgba(47,107,69,0.05);
+  }
+  :root:not([data-theme="dark"]) .pcp-nav-item { color: #1f3a2c; font-weight: 600; }
+  :root:not([data-theme="dark"]) .pcp-nav-item svg { color: #3f8a5a; }
+  :root:not([data-theme="dark"]) .pcp-nav-item:hover { background: #eef8f1; color: #14291e; }
+  :root:not([data-theme="dark"]) .pcp-nav-item.active {
+    background: linear-gradient(90deg, #dff2e5, #eef8f1); color: #1f4d33; font-weight: 800;
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+  :root:not([data-theme="dark"]) .pcp-nav-item.active svg { color: #2f6b45; }
+  :root:not([data-theme="dark"]) .pcp-nav-group-label { color: #5b7365; letter-spacing: 1px; }
+  :root:not([data-theme="dark"]) .pcp-user-card,
+  :root:not([data-theme="dark"]) .pcp-user-row,
+  :root:not([data-theme="dark"]) .pcp-theme-toggle { background: #f4fbf6; border-color: #e1efe5; }
+  :root:not([data-theme="dark"]) .pcp-sidebar .pcp-btn-ghost:hover { background: #eef8f1; }
+  :root:not([data-theme="dark"]) .pcp-logos-strip { background: #fff; border-color: #e1efe5; }
+  :root:not([data-theme="dark"]) .pcp-topbar {
+    background: rgba(255,255,255,0.94); border-bottom-color: #d7ebdd; box-shadow: 0 2px 10px rgba(47,107,69,0.05);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  }
+  /* A faint mint wash at the top of the page. */
+  :root:not([data-theme="dark"]) .pcp-main { background: linear-gradient(180deg, #eaf6ee 0px, #f4fbf6 280px); }
+  :root:not([data-theme="dark"]) .pcp-card {
+    border-color: #dcede1; box-shadow: 0 1px 2px rgba(47,107,69,0.04), 0 8px 20px rgba(47,107,69,0.06);
+  }
+
   /* ---- Dark mode ----
      Switched by data-theme="dark" on <html> (set in index.html, toggled by
      <ThemeToggle>). Screen only: printing always uses the light theme above,
