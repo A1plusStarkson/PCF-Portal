@@ -1288,6 +1288,21 @@ const CSS = `
   /* Plant tabs and KPI accents pick up the accent green. */
   :root:not([data-theme="dark"]) .pcp-kpi::before { background: var(--accent); }
 
+  /* Darker module names (owner's request, Oct 2026): sidebar items, icons,
+     group labels and plant tabs in deep green-charcoal so they read clearly
+     on the light green. */
+  :root:not([data-theme="dark"]) .pcp-sidebar { --sb-fg: #14301f; --sb-mut: #2d4537; background: #e2f2e7; border-right-color: #cfe6d6; }
+  :root:not([data-theme="dark"]) .pcp-nav-item { color: #0f2419; font-weight: 700; }
+  :root:not([data-theme="dark"]) .pcp-nav-item svg { color: #1f4d33; }
+  :root:not([data-theme="dark"]) .pcp-nav-item:hover { background: #d3ebdb; color: #14291e; }
+  :root:not([data-theme="dark"]) .pcp-nav-item.active { color: #1f4d33; font-weight: 800; }
+  :root:not([data-theme="dark"]) .pcp-nav-group-label { color: #24382d; font-weight: 800; }
+  :root:not([data-theme="dark"]) .pcp-brand-sub,
+  :root:not([data-theme="dark"]) .pcp-user-email { color: #3f5a4b; }
+  :root:not([data-theme="dark"]) .pcp-tab { color: #16301f; font-weight: 700; }
+  :root:not([data-theme="dark"]) .pcp-tab:hover { color: #1a3326; }
+  :root:not([data-theme="dark"]) .pcp-tab.active { color: #1f4d33; border-bottom-color: #2f6b45; }
+
   /* ---- Dark mode ----
      Switched by data-theme="dark" on <html> (set in index.html, toggled by
      <ThemeToggle>). Screen only: printing always uses the light theme above,
