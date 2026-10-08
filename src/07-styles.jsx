@@ -746,8 +746,8 @@ const CSS = `
   /* ---- Landing splash (PcfSplash in 20-auth-gate.jsx) ----
      Base styles are the FINISHED picture; every intro animation starts from
      its hidden state with fill "both", so reduced motion (animations off)
-     simply shows the end state. Art is 360x360: coin ring r=120 and step
-     badges r=152 around the centre (180,180), clockwise from the top. */
+     simply shows the end state. Art is 360x360: a rounded square 70..290
+     (PCF_LOOP_PATH) with the step badges 32px outside it, clockwise from the top. */
   .pcf-splash {
     flex: 1; width: 100%; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
     padding: 32px 16px 20px; text-align: center; color: #fff; overflow-x: hidden; position: relative;
@@ -772,26 +772,26 @@ const CSS = `
   .pcf-splash.leaving { animation: pcf-leave 0.38s ease-in forwards; }
   @keyframes pcf-leave { to { opacity: 0; transform: scale(1.02); } }
   .pcf-splash-art { position: relative; width: 360px; height: 360px; flex-shrink: 0; margin-bottom: 18px; }
-  .pcf-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
-  .pcf-ring circle { fill: none; }
+  .pcf-ring { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+  .pcf-ring path { fill: none; }
   .pcf-ring-base { stroke: rgba(255,255,255,0.16); stroke-width: 2; stroke-dasharray: 3 7; }
   .pcf-ring-draw {
     stroke: #f5c451; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 0;
     filter: drop-shadow(0 0 4px rgba(245,196,81,0.55));
     animation: pcf-ring-draw 5.4s ease-in-out 1.6s both;
   }
-  /* Direction chevrons on the ring (r=120), midway between steps, pointing clockwise. */
+  /* Direction chevrons on the square, midway between steps, pointing clockwise. */
   .pcf-ring-arrow { position: absolute; width: 0; height: 0; animation: pcf-fade-in 0.6s ease-out 6.6s both; }
   .pcf-ring-arrow::before {
     content: ""; position: absolute; left: -5px; top: -6px; width: 0; height: 0;
     border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-left: 10px solid #f7d983;
     filter: drop-shadow(0 0 3px rgba(0,0,0,0.25));
   }
-  .pcf-ring-arrow.a0 { left: 250.5px; top: 82.9px; transform: rotate(36deg); }
-  .pcf-ring-arrow.a1 { left: 294.1px; top: 217.1px; transform: rotate(108deg); }
-  .pcf-ring-arrow.a2 { left: 180px; top: 300px; transform: rotate(180deg); }
-  .pcf-ring-arrow.a3 { left: 65.9px; top: 217.1px; transform: rotate(252deg); }
-  .pcf-ring-arrow.a4 { left: 109.5px; top: 82.9px; transform: rotate(324deg); }
+  .pcf-ring-arrow.a0 { left: 264.2px; top: 70px; transform: rotate(0deg); }
+  .pcf-ring-arrow.a1 { left: 290px; top: 222.1px; transform: rotate(90deg); }
+  .pcf-ring-arrow.a2 { left: 180px; top: 290px; transform: rotate(180deg); }
+  .pcf-ring-arrow.a3 { left: 70px; top: 222.1px; transform: rotate(270deg); }
+  .pcf-ring-arrow.a4 { left: 95.8px; top: 70px; transform: rotate(0deg); }
   @keyframes pcf-fade-in { from { opacity: 0; } to { opacity: 1; } }
   @keyframes pcf-ring-draw {
     0%, 8% { stroke-dashoffset: 100; } 18.5%, 26.5% { stroke-dashoffset: 80; } 37%, 45% { stroke-dashoffset: 60; }
@@ -799,11 +799,11 @@ const CSS = `
   }
 
   .pcf-step { position: absolute; width: 0; height: 0; animation: pcf-step-in 0.5s ease-out both; }
-  .pcf-step-request { left: 180px; top: 28px; }
-  .pcf-step-approval { left: 324.6px; top: 133px; }
-  .pcf-step-release { left: 269.3px; top: 303px; }
-  .pcf-step-liquidation { left: 90.7px; top: 303px; }
-  .pcf-step-replenishment { left: 35.4px; top: 133px; }
+  .pcf-step-request { left: 180px; top: 38px; }
+  .pcf-step-approval { left: 322px; top: 137.9px; }
+  .pcf-step-release { left: 264.2px; top: 322px; }
+  .pcf-step-liquidation { left: 95.8px; top: 322px; }
+  .pcf-step-replenishment { left: 38px; top: 137.9px; }
   .pcf-step-icon {
     position: absolute; left: -23px; top: -23px; width: 46px; height: 46px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center; color: #112d32;
@@ -839,25 +839,27 @@ const CSS = `
   @keyframes pcf-step-in { 0% { opacity: 0; transform: scale(0.6); } 60% { opacity: 1; transform: scale(1.15); } 100% { opacity: 1; transform: scale(1); } }
   @keyframes pcf-turn-once { from { transform: rotate(0); } to { transform: rotate(360deg); } }
 
-  /* The coin that travels the ring, pausing at each step; it counter-turns
-     so the peso sign stays upright, then fades out as it closes the loop. */
-  .pcf-orbit { position: absolute; inset: 0; animation: pcf-orbit 5.4s ease-in-out 1.6s both; }
+  /* The coin that travels the square, pausing at each step (every 20% of the
+     path), then fades out as it closes the loop. It rides a motion path —
+     the same rounded square as PCF_LOOP_PATH in 20-auth-gate.jsx — so the ₱
+     stays upright without counter-turning. */
+  .pcf-orbit { position: absolute; inset: 0; }
   .pcf-orbit-coin {
-    position: absolute; left: 166px; top: 46px; width: 28px; height: 28px; border-radius: 50%; opacity: 0;
+    position: absolute; left: 0; top: 0; width: 28px; height: 28px; border-radius: 50%; opacity: 0;
     display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 900; color: #7a4f02;
     background: radial-gradient(circle at 35% 30%, #fff3c4 0%, #f5c451 40%, #c98f12 85%);
     box-shadow: 0 4px 10px rgba(0,0,0,0.3), inset 0 0 0 2px rgba(255,240,190,0.6);
-    animation: pcf-orbit-counter 5.4s ease-in-out 1.6s both;
+    offset-path: path("M180 70 H268 A22 22 0 0 1 290 92 V268 A22 22 0 0 1 268 290 H92 A22 22 0 0 1 70 268 V92 A22 22 0 0 1 92 70 Z");
+    offset-rotate: 0deg; offset-distance: 0%;
+    animation: pcf-coin-path 5.4s ease-in-out 1.6s both, pcf-coin-fade 5.4s ease-in-out 1.6s both;
   }
-  @keyframes pcf-orbit {
-    0%, 8% { transform: rotate(0deg); } 18.5%, 26.5% { transform: rotate(72deg); } 37%, 45% { transform: rotate(144deg); }
-    55.5%, 63.5% { transform: rotate(216deg); } 74%, 82% { transform: rotate(288deg); } 92.5%, 100% { transform: rotate(360deg); }
+  @keyframes pcf-coin-path {
+    0%, 8% { offset-distance: 0%; } 18.5%, 26.5% { offset-distance: 20%; } 37%, 45% { offset-distance: 40%; }
+    55.5%, 63.5% { offset-distance: 60%; } 74%, 82% { offset-distance: 80%; } 92.5%, 100% { offset-distance: 100%; }
   }
-  @keyframes pcf-orbit-counter {
-    0% { opacity: 0; transform: rotate(0deg) scale(0.5); } 4% { opacity: 1; transform: rotate(0deg) scale(1); } 8% { transform: rotate(0deg); }
-    18.5%, 26.5% { transform: rotate(-72deg); } 37%, 45% { transform: rotate(-144deg); }
-    55.5%, 63.5% { transform: rotate(-216deg); } 74%, 82% { transform: rotate(-288deg); }
-    92.5% { opacity: 1; transform: rotate(-360deg) scale(1); } 100% { opacity: 0; transform: rotate(-360deg) scale(0.4); }
+  @keyframes pcf-coin-fade {
+    0% { opacity: 0; transform: scale(0.5); } 4% { opacity: 1; transform: scale(1); }
+    92.5% { opacity: 1; transform: scale(1); } 100% { opacity: 0; transform: scale(0.4); }
   }
 
   /* Centre: the peso coin, the wallet behind it, and three small coins. */

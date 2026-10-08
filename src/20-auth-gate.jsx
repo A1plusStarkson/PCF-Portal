@@ -170,6 +170,12 @@ const markSplashSeen = () => { try { sessionStorage.setItem(SPLASH_SEEN_KEY, "1"
 const prefersReducedMotion = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
 
 /* The cycle, clockwise from the top; `at` is when the coin reaches it (ms). */
+/* The cycle's rounded square (360x360 art): 220 wide, corners r=22, drawn
+   clockwise from the middle of the top edge. The ring stroke and the coin's
+   motion path (offset-path in 07-styles.jsx) both follow it; the five steps
+   sit at every 20% of its length. Keep the two copies identical. */
+const PCF_LOOP_PATH = "M180 70 H268 A22 22 0 0 1 290 92 V268 A22 22 0 0 1 268 290 H92 A22 22 0 0 1 70 268 V92 A22 22 0 0 1 92 70 Z";
+
 const PCF_CYCLE = [
   { key: "request", label: "Request", icon: ClipboardList, at: 1600 },
   { key: "approval", label: "Approval", icon: CircleCheck, at: 2600 },
@@ -203,8 +209,8 @@ function PcfSplash({ onEnter }) {
       <div className="pcf-splash-art" aria-hidden="true">
         <div className="pcf-halo" />
         <svg className="pcf-ring" viewBox="0 0 360 360">
-          <circle className="pcf-ring-base" cx="180" cy="180" r="120" />
-          <circle className="pcf-ring-draw" cx="180" cy="180" r="120" pathLength="100" />
+          <path className="pcf-ring-base" d={PCF_LOOP_PATH} />
+          <path className="pcf-ring-draw" d={PCF_LOOP_PATH} pathLength="100" />
         </svg>
         {/* Clockwise arrows midway between the steps, once the ring is drawn. */}
         {[0, 1, 2, 3, 4].map((i) => <span key={i} className={"pcf-ring-arrow a" + i} />)}
