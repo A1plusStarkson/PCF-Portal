@@ -174,6 +174,8 @@ const prefersReducedMotion = () => !!(window.matchMedia && window.matchMedia("(p
    clockwise from the middle of the top edge. The ring stroke and the coin's
    motion path (offset-path in 07-styles.jsx) both follow it; the five steps
    sit at every 20% of its length. Keep the two copies identical. */
+/* How long the title and ENTER button pop up before the cycle animation starts. */
+const PCF_INTRO_LEAD_MS = 900;
 const PCF_LOOP_PATH = "M180 70 H268 A22 22 0 0 1 290 92 V268 A22 22 0 0 1 268 290 H92 A22 22 0 0 1 70 268 V92 A22 22 0 0 1 92 70 Z";
 
 const PCF_CYCLE = [
@@ -188,12 +190,21 @@ function PcfSplash({ onEnter }) {
   const [leaving, setLeaving] = useState(false);
   const enterRef = useRef(null);
   useEffect(() => { if (enterRef.current) enterRef.current.focus({ preventScroll: true }); }, []);
+  /* The title, subtitle and ENTER button pop up first; the cycle artwork's
+     animations stay paused (.pcf-splash-art without .go) until they have,
+     then play. Reduced motion: no wait. */
+  const [artGo, setArtGo] = useState(() => prefersReducedMotion());
+  useEffect(() => {
+    if (artGo) return undefined;
+    const t = setTimeout(() => setArtGo(true), PCF_INTRO_LEAD_MS);
+    return () => clearTimeout(t);
+  }, []); // eslint-disable-line
   /* Sound cues in step with the intro — silent unless the visitor has
      already interacted (browsers would block them anyway). */
   useEffect(() => {
     if (prefersReducedMotion()) return undefined;
     const active = () => !!(navigator.userActivation && navigator.userActivation.hasBeenActive);
-    const cues = [[0, "chime"], [1600, "coin"], [2600, "confirm"], [6600, "chime"]];
+    const cues = [[0, "chime"], [1600, "coin"], [2600, "confirm"], [6600, "chime"]].map(([ms, k]) => [ms + PCF_INTRO_LEAD_MS, k]);
     const ids = cues.map(([ms, kind]) => setTimeout(() => { if (active()) playSound(kind); }, ms));
     return () => ids.forEach(clearTimeout);
   }, []);
@@ -206,7 +217,7 @@ function PcfSplash({ onEnter }) {
   };
   return (
     <section className={"pcf-splash" + (leaving ? " leaving" : "")} aria-labelledby="pcf-splash-title">
-      <div className="pcf-splash-art" aria-hidden="true">
+      <div className={"pcf-splash-art" + (artGo ? " go" : "")} aria-hidden="true">
         <div className="pcf-halo" />
         <svg className="pcf-ring" viewBox="0 0 360 360">
           <path className="pcf-ring-base" d={PCF_LOOP_PATH} />

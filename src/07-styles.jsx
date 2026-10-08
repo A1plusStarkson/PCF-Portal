@@ -920,26 +920,35 @@ const CSS = `
 
   .pcf-splash-title {
     display: inline-flex; align-items: center; gap: 12px;
-    font-size: clamp(28px, 4vw, 40px); font-weight: 800; letter-spacing: -0.6px; margin: 0 0 6px; animation: pcf-text-in 0.6s ease-out 0.2s both;
+    font-size: clamp(28px, 4vw, 40px); font-weight: 800; letter-spacing: -0.6px; margin: 0 0 6px; animation: pcf-pop-in 0.5s cubic-bezier(.2,.9,.3,1.25) 0.05s both;
   }
   .pcf-splash-logo {
     width: 46px; height: 46px; flex-shrink: 0; border-radius: 12px; background: #fff;
     display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 6px 16px rgba(0,0,0,0.25);
   }
   .pcf-splash-logo img { max-width: 32px; max-height: 38px; object-fit: contain; }
-  .pcf-splash-sub { font-size: 15px; color: #b9d6d5; margin: 0 0 24px; animation: pcf-text-in 0.6s ease-out 0.35s both; }
+  .pcf-splash-sub { font-size: 15px; color: #b9d6d5; margin: 0 0 24px; animation: pcf-pop-in 0.5s cubic-bezier(.2,.9,.3,1.25) 0.18s both; }
   @keyframes pcf-text-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
   .pcf-splash-enter {
     display: inline-flex; align-items: center; gap: 8px; padding: 14px 30px; border: 0; border-radius: 999px; cursor: pointer;
     font: inherit; font-size: 15px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; color: #3b2a00;
     background: linear-gradient(180deg, #f7d983, #e0a526); box-shadow: 0 10px 24px rgba(0,0,0,0.28);
     transition: transform 0.15s, box-shadow 0.15s;
+    /* "backwards": after popping in, the hover lift (transform) works again. */
+    animation: pcf-pop-in 0.5s cubic-bezier(.2,.9,.3,1.25) 0.3s backwards;
   }
   .pcf-splash-enter:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(0,0,0,0.32); }
   .pcf-splash-enter:focus-visible { outline: 2px solid rgba(255,255,255,0.7); outline-offset: 4px; }
   .pcf-splash-enter svg { transition: transform 0.15s; }
   .pcf-splash-enter:hover svg { transform: translateX(3px); }
-  .pcf-splash-sound { margin-top: 18px; }
+  .pcf-splash-sound { margin-top: 18px; animation: pcf-pop-in 0.45s ease-out 0.45s both; }
+  /* The title, subtitle and ENTER button pop up FIRST (PCF_INTRO_LEAD_MS in
+     20-auth-gate.jsx); until then every animation in the cycle artwork waits
+     paused at its start, and the faint square is hidden. */
+  @keyframes pcf-pop-in { from { opacity: 0; transform: translateY(10px) scale(0.92); } to { opacity: 1; transform: none; } }
+  .pcf-splash-art:not(.go) *, .pcf-splash-art:not(.go) *::before, .pcf-splash-art:not(.go) *::after { animation-play-state: paused !important; }
+  .pcf-splash-art .pcf-ring-base { transition: opacity 0.4s ease-out; }
+  .pcf-splash-art:not(.go) .pcf-ring-base { opacity: 0; }
   .pcf-splash-sound .pcp-login-sound { position: static; background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.3); color: #fff; }
   .pcf-splash-sound .pcp-login-sound[aria-pressed="false"] { color: rgba(255,255,255,0.6); }
   .pcf-splash-sound .pcp-login-sound:hover { background: rgba(255,255,255,0.2); }
