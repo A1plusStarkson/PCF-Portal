@@ -1110,7 +1110,8 @@ const CSS = `
   .pcp-login-pane .pcp-brand-logos .bl-hamfi { height: 19px; }
   .pcp-login-pane .pcp-brand-logos .bl-rg { height: 22px; border-radius: 4px; }
   .pcp-login-pane .pcp-brand-logos .bl-sep { margin: 2px 0; }
-  .pcp-login-copy { max-width: 420px; line-height: 1.5; }
+  /* Kept small, like the logo strip above it (owner's request). */
+  .pcp-login-copy { max-width: 400px; font-size: 9.5px; line-height: 1.45; }
   .pcp-login-pane { min-width: 0; }
   @media (max-width: 860px) {
     .pcp-login-brand-foot, .pcp-login-brand::before { display: none; }
