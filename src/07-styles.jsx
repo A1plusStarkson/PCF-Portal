@@ -620,11 +620,25 @@ const CSS = `
      badges r=152 around the centre (180,180), clockwise from the top. */
   .pcf-splash {
     flex: 1; width: 100%; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 32px 16px; text-align: center; color: #fff; overflow: hidden;
+    padding: 32px 16px 20px; text-align: center; color: #fff; overflow-x: hidden; position: relative;
     background: radial-gradient(circle at 80% 12%, rgba(167,215,189,0.32), transparent 55%),
                 radial-gradient(circle at 12% 92%, rgba(127,184,154,0.28), transparent 50%),
                 linear-gradient(160deg, #2c4a3c 0%, #3d654f 100%);
   }
+  /* The same faint dot grid as the sign-in brand panel. */
+  .pcf-splash::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0.55;
+    background-image: radial-gradient(rgba(255,255,255,0.10) 1px, transparent 1px); background-size: 22px 22px;
+    -webkit-mask-image: radial-gradient(circle at 50% 35%, #000 0%, transparent 70%); mask-image: radial-gradient(circle at 50% 35%, #000 0%, transparent 70%);
+  }
+  .pcf-splash > * { position: relative; }
+  /* Soft gold light behind the wallet; breathes slowly once the intro is done. */
+  .pcf-halo {
+    position: absolute; left: 50px; top: 50px; width: 260px; height: 260px; border-radius: 50%;
+    background: radial-gradient(circle, rgba(245,196,81,0.30) 0%, rgba(245,196,81,0.10) 45%, transparent 70%);
+    animation: pcf-mini-in 1.2s ease-out both, pcf-breathe 6s ease-in-out 7s infinite;
+  }
+  @keyframes pcf-breathe { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
   .pcf-splash.leaving { animation: pcf-leave 0.38s ease-in forwards; }
   @keyframes pcf-leave { to { opacity: 0; transform: scale(1.02); } }
   .pcf-splash-art { position: relative; width: 360px; height: 360px; flex-shrink: 0; margin-bottom: 18px; }
@@ -633,8 +647,22 @@ const CSS = `
   .pcf-ring-base { stroke: rgba(255,255,255,0.16); stroke-width: 2; stroke-dasharray: 3 7; }
   .pcf-ring-draw {
     stroke: #f5c451; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 0;
+    filter: drop-shadow(0 0 4px rgba(245,196,81,0.55));
     animation: pcf-ring-draw 5.4s ease-in-out 1.6s both;
   }
+  /* Direction chevrons on the ring (r=120), midway between steps, pointing clockwise. */
+  .pcf-ring-arrow { position: absolute; width: 0; height: 0; animation: pcf-fade-in 0.6s ease-out 6.6s both; }
+  .pcf-ring-arrow::before {
+    content: ""; position: absolute; left: -5px; top: -6px; width: 0; height: 0;
+    border-top: 6px solid transparent; border-bottom: 6px solid transparent; border-left: 10px solid #f7d983;
+    filter: drop-shadow(0 0 3px rgba(0,0,0,0.25));
+  }
+  .pcf-ring-arrow.a0 { left: 250.5px; top: 82.9px; transform: rotate(36deg); }
+  .pcf-ring-arrow.a1 { left: 294.1px; top: 217.1px; transform: rotate(108deg); }
+  .pcf-ring-arrow.a2 { left: 180px; top: 300px; transform: rotate(180deg); }
+  .pcf-ring-arrow.a3 { left: 65.9px; top: 217.1px; transform: rotate(252deg); }
+  .pcf-ring-arrow.a4 { left: 109.5px; top: 82.9px; transform: rotate(324deg); }
+  @keyframes pcf-fade-in { from { opacity: 0; } to { opacity: 1; } }
   @keyframes pcf-ring-draw {
     0%, 8% { stroke-dashoffset: 100; } 18.5%, 26.5% { stroke-dashoffset: 80; } 37%, 45% { stroke-dashoffset: 60; }
     55.5%, 63.5% { stroke-dashoffset: 40; } 74%, 82% { stroke-dashoffset: 20; } 92.5%, 100% { stroke-dashoffset: 0; }
@@ -647,16 +675,35 @@ const CSS = `
   .pcf-step-liquidation { left: 90.7px; top: 303px; }
   .pcf-step-replenishment { left: 35.4px; top: 133px; }
   .pcf-step-icon {
-    position: absolute; left: -21px; top: -21px; width: 42px; height: 42px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; color: #f5d27a;
-    background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.32); box-shadow: 0 6px 16px rgba(0,0,0,0.22);
+    position: absolute; left: -23px; top: -23px; width: 46px; height: 46px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; color: #2c4a3c;
+    background: radial-gradient(circle at 35% 30%, #ffffff 0%, #f6f1e1 70%, #e9dfc0 100%);
+    border: 2px solid #f5c451; box-shadow: 0 8px 18px rgba(0,0,0,0.28), inset 0 -2px 0 rgba(0,0,0,0.06);
   }
-  .pcf-step-approval .pcf-step-icon { color: #a7f3c0; }
+  .pcf-step-approval .pcf-step-icon { color: #15803d; }
+  /* Step number chip on each badge. */
+  .pcf-step-no {
+    position: absolute; right: -5px; top: -5px; width: 18px; height: 18px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 900; color: #3b2a00;
+    background: linear-gradient(180deg, #f7d983, #e0a526); box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+  }
+  /* Idle: a soft gold ring passes from step to step, one at a time, every 10 s. */
+  .pcf-step-icon::after {
+    content: ""; position: absolute; inset: -6px; border-radius: 50%; border: 2px solid rgba(247,217,131,0.9);
+    opacity: 0; animation: pcf-step-glow 10s ease-out infinite;
+  }
+  .pcf-step-request .pcf-step-icon::after { animation-delay: 8s; }
+  .pcf-step-approval .pcf-step-icon::after { animation-delay: 10s; }
+  .pcf-step-release .pcf-step-icon::after { animation-delay: 12s; }
+  .pcf-step-liquidation .pcf-step-icon::after { animation-delay: 14s; }
+  .pcf-step-replenishment .pcf-step-icon::after { animation-delay: 16s; }
+  @keyframes pcf-step-glow { 0% { opacity: 0; transform: scale(0.85); } 6% { opacity: 1; } 18% { opacity: 0; transform: scale(1.35); } 100% { opacity: 0; transform: scale(1.35); } }
   .pcf-step-label {
-    position: absolute; left: 0; top: 26px; transform: translateX(-50%); white-space: nowrap;
-    font-size: 11px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: #eef6f1;
+    position: absolute; left: 0; top: 30px; transform: translateX(-50%); white-space: nowrap;
+    padding: 3px 9px; border-radius: 99px; background: rgba(16,34,25,0.55); border: 1px solid rgba(255,255,255,0.14);
+    font-size: 10.5px; font-weight: 800; letter-spacing: 0.7px; text-transform: uppercase; color: #f4faf6;
   }
-  .pcf-step-request .pcf-step-label { top: -42px; }
+  .pcf-step-request .pcf-step-label { top: -52px; }
   /* The Replenishment arrow turns once as the coin closes the loop. */
   .pcf-step-replenishment .pcf-step-icon svg { animation: pcf-turn-once 0.9s ease-in-out 6.6s both; }
   @keyframes pcf-step-in { 0% { opacity: 0; transform: scale(0.6); } 60% { opacity: 1; transform: scale(1.15); } 100% { opacity: 1; transform: scale(1); } }
@@ -693,19 +740,36 @@ const CSS = `
   }
   .pcf-peso span { font-size: 48px; font-weight: 900; color: #7a4f02; line-height: 1; }
   .pcf-wallet {
-    position: absolute; left: 115px; top: 160px; width: 130px; height: 82px; border-radius: 14px; z-index: 2;
-    background: linear-gradient(160deg, #1f3a2c, #2f5442); border: 1px solid rgba(255,255,255,0.22);
-    box-shadow: 0 14px 28px rgba(0,0,0,0.35), inset 0 0 0 5px rgba(0,0,0,0.12), inset 0 0 0 6px rgba(245,210,122,0.35);
+    position: absolute; left: 112px; top: 160px; width: 136px; height: 86px; border-radius: 16px; z-index: 2;
+    background:
+      linear-gradient(180deg, rgba(255,255,255,0.10), transparent 40%),
+      linear-gradient(160deg, #24473a 0%, #183126 100%);
+    border: 1px solid rgba(255,255,255,0.20);
+    box-shadow: 0 16px 30px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.18);
     animation: pcf-wallet-in 0.55s ease-out 0.6s both, pcf-float 4s ease-in-out 7.3s infinite;
   }
+  /* Gold stitching just inside the edge. */
+  .pcf-wallet::before {
+    content: ""; position: absolute; inset: 6px; border-radius: 11px; border: 1.5px dashed rgba(245,210,122,0.55);
+  }
   .pcf-wallet-flap {
-    position: absolute; right: -1px; top: 26px; width: 44px; height: 30px; border-radius: 10px 0 0 10px;
-    background: linear-gradient(160deg, #2c4a3c, #3d654f); border: 1px solid rgba(255,255,255,0.22); border-right: 0;
+    position: absolute; right: -1px; top: 26px; width: 50px; height: 34px; border-radius: 12px 0 0 12px;
+    background: linear-gradient(160deg, #2f5a47, #1e3c2f); border: 1px solid rgba(255,255,255,0.22); border-right: 0;
+    box-shadow: -3px 3px 8px rgba(0,0,0,0.25);
   }
   .pcf-wallet-clasp {
-    position: absolute; right: 10px; top: 35px; width: 12px; height: 12px; border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #fff3c4, #f5c451 50%, #c98f12);
+    position: absolute; right: 12px; top: 36px; width: 14px; height: 14px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fff3c4, #f5c451 50%, #c98f12); box-shadow: 0 1px 3px rgba(0,0,0,0.4);
   }
+  /* Peso bills peeking out of the wallet, behind it. */
+  .pcf-wallet-bills { position: absolute; left: 124px; top: 138px; width: 112px; height: 40px; z-index: 1; animation: pcf-wallet-in 0.55s ease-out 0.75s both, pcf-float 4s ease-in-out 7.3s infinite; }
+  .pcf-wallet-bills i {
+    position: absolute; left: 0; top: 0; width: 100%; height: 40px; border-radius: 4px;
+    background: linear-gradient(135deg, #b5e3c2, #6dbb88 60%, #3f8c5d); border: 1.5px solid #2f6e48;
+    box-shadow: inset 0 0 0 3px rgba(255,255,255,0.25);
+  }
+  .pcf-wallet-bills i:first-child { transform: rotate(-7deg) translate(-6px, 2px); }
+  .pcf-wallet-bills i:last-child { transform: rotate(5deg) translate(8px, -2px); background: linear-gradient(135deg, #f3e3c0, #e2c98f 60%, #cfae67); border-color: #9c7a2c; }
   .pcf-mini-coin {
     position: absolute; width: 24px; height: 24px; border-radius: 50%; z-index: 4;
     display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; color: #7a4f02;
@@ -722,7 +786,15 @@ const CSS = `
   /* Idle: a slow float (the translate property, so it never fights the intro transforms). */
   @keyframes pcf-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -6px; } }
 
-  .pcf-splash-title { font-size: clamp(28px, 4vw, 40px); font-weight: 800; letter-spacing: -0.6px; margin: 0 0 6px; animation: pcf-text-in 0.6s ease-out 0.2s both; }
+  .pcf-splash-title {
+    display: inline-flex; align-items: center; gap: 12px;
+    font-size: clamp(28px, 4vw, 40px); font-weight: 800; letter-spacing: -0.6px; margin: 0 0 6px; animation: pcf-text-in 0.6s ease-out 0.2s both;
+  }
+  .pcf-splash-logo {
+    width: 46px; height: 46px; flex-shrink: 0; border-radius: 12px; background: #fff;
+    display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 6px 16px rgba(0,0,0,0.25);
+  }
+  .pcf-splash-logo img { max-width: 32px; max-height: 38px; object-fit: contain; }
   .pcf-splash-sub { font-size: 15px; color: #c5dacd; margin: 0 0 24px; animation: pcf-text-in 0.6s ease-out 0.35s both; }
   @keyframes pcf-text-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
   .pcf-splash-enter {
@@ -732,13 +804,20 @@ const CSS = `
     transition: transform 0.15s, box-shadow 0.15s;
   }
   .pcf-splash-enter:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(0,0,0,0.32); }
-  .pcf-splash-enter:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+  .pcf-splash-enter:focus-visible { outline: 2px solid rgba(255,255,255,0.7); outline-offset: 4px; }
   .pcf-splash-enter svg { transition: transform 0.15s; }
   .pcf-splash-enter:hover svg { transform: translateX(3px); }
   .pcf-splash-sound { margin-top: 18px; }
   .pcf-splash-sound .pcp-login-sound { position: static; background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.3); color: #fff; }
   .pcf-splash-sound .pcp-login-sound[aria-pressed="false"] { color: rgba(255,255,255,0.6); }
   .pcf-splash-sound .pcp-login-sound:hover { background: rgba(255,255,255,0.2); }
+  /* Company logos and copyright, as on the sign-in page. */
+  .pcf-splash-foot { margin-top: 28px; display: flex; flex-direction: column; align-items: center; gap: 8px; animation: pcf-fade-in 0.8s ease-out 0.6s both; }
+  .pcf-splash-foot .pcp-brand-logos {
+    padding: 8px 16px; border-radius: 12px; background: #f4faf6; box-shadow: 0 6px 18px rgba(0,0,0,0.18);
+    max-width: 100%; flex-wrap: wrap; justify-content: center;
+  }
+  .pcf-splash-copy { max-width: 440px; font-size: 10.5px; line-height: 1.5; color: #b9d0c2; }
   /* Short or narrow screens: draw the artwork smaller (the negative margin
      gives back the space the scale frees). */
   @media (max-width: 420px), (max-height: 760px) { .pcf-splash-art { transform: scale(0.8); margin: -36px 0 -18px; } }

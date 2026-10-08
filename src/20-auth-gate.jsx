@@ -201,30 +201,40 @@ function PcfSplash({ onEnter }) {
   return (
     <section className={"pcf-splash" + (leaving ? " leaving" : "")} aria-labelledby="pcf-splash-title">
       <div className="pcf-splash-art" aria-hidden="true">
-        <svg className="pcf-ring" viewBox="0 0 320 320">
-          <circle className="pcf-ring-base" cx="160" cy="160" r="130" />
-          <circle className="pcf-ring-draw" cx="160" cy="160" r="130" pathLength="100" />
+        <div className="pcf-halo" />
+        <svg className="pcf-ring" viewBox="0 0 360 360">
+          <circle className="pcf-ring-base" cx="180" cy="180" r="120" />
+          <circle className="pcf-ring-draw" cx="180" cy="180" r="120" pathLength="100" />
         </svg>
+        {/* Clockwise arrows midway between the steps, once the ring is drawn. */}
+        {[0, 1, 2, 3, 4].map((i) => <span key={i} className={"pcf-ring-arrow a" + i} />)}
         {PCF_CYCLE.map((s, i) => {
           const Icon = s.icon;
           return (
             <div key={s.key} className={"pcf-step pcf-step-" + s.key} style={{ animationDelay: s.at + "ms" }}>
-              <span className="pcf-step-icon"><Icon size={18} strokeWidth={2.2} /></span>
-              <span className="pcf-step-label">{i === 1 ? "✓ Approval" : s.label}</span>
+              <span className="pcf-step-icon"><Icon size={19} strokeWidth={2.3} /><b className="pcf-step-no">{i + 1}</b></span>
+              <span className="pcf-step-label">{s.label}</span>
             </div>
           );
         })}
         <div className="pcf-orbit"><div className="pcf-orbit-coin"><span>₱</span></div></div>
+        <div className="pcf-wallet-bills"><i /><i /></div>
         <div className="pcf-wallet"><span className="pcf-wallet-flap" /><span className="pcf-wallet-clasp" /></div>
         <div className="pcf-peso"><span>₱</span></div>
         {["c1", "c2", "c3"].map((c) => <div key={c} className={"pcf-mini-coin " + c}>₱</div>)}
       </div>
-      <h1 id="pcf-splash-title" className="pcf-splash-title">PCF Portal</h1>
+      <h1 id="pcf-splash-title" className="pcf-splash-title">
+        <span className="pcf-splash-logo"><img src={LOGO_PORTAL} alt="" /></span>PCF Portal
+      </h1>
       <p className="pcf-splash-sub">Petty Cash Fund Management System</p>
       <button ref={enterRef} type="button" className="pcf-splash-enter" onClick={enter}>
         Enter PCF Portal <ChevronRight size={18} />
       </button>
       <div className="pcf-splash-sound"><LoginSoundToggle /></div>
+      <div className="pcf-splash-foot">
+        <BrandLogos all />
+        <div className="pcf-splash-copy">{LOGIN_COPYRIGHT}</div>
+      </div>
     </section>
   );
 }
