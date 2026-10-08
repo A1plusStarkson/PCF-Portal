@@ -62,6 +62,11 @@
 <link rel="modulepreload" href="https://esm.sh/recharts@2.13.3?bundle&deps=react@18.3.1,react-dom@18.3.1" crossorigin />
 <link rel="modulepreload" href="https://esm.sh/lucide-react@0.454.0?deps=react@18.3.1" crossorigin />
 <link rel="modulepreload" href="https://esm.sh/@supabase/supabase-js@2.117.2?bundle" crossorigin />
+<!-- Portal fonts: Inter (body, tables, numbers) + Plus Jakarta Sans (headings).
+     display=swap: text shows at once in the fallback font, then swaps in. -->
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" />
 </head>
 <body>
 <!-- Shown until React replaces it, so the page is never a blank screen. -->
@@ -1019,7 +1024,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20261008h";
+  window.PCP_SRC_VERSION = "20261008i";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",

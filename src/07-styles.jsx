@@ -46,7 +46,7 @@ const CSS = `
   }
   * { box-sizing: border-box; }
   .pcp-root {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background: var(--paper);
     color: var(--text);
     min-height: 100vh;
@@ -55,6 +55,13 @@ const CSS = `
     line-height: 1.45;
   }
   .pcp-root * { font-variant-numeric: tabular-nums; }
+  /* Headings in Plus Jakarta Sans (loaded in index.html); body, tables and
+     numbers stay in Inter. */
+  .pcp-topbar h1, .pcp-section-title, .pcp-brand-title, .pcp-modal-head h3,
+  .pcp-home-title, .pcp-home-section-title, .pcp-home-kicker,
+  .pcp-login-hero, .pcp-login-title, .pcp-login-brand-name, .pcf-splash-title {
+    font-family: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
   .pcp-num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
 
   /* ---- Sidebar ---- */
@@ -369,7 +376,7 @@ const CSS = `
      the root's font, colour and bold weight itself, and sits above modals. */
   .pcp-ss-pop.pcp-ss-pop-fixed {
     z-index: 1200; color: var(--text); font-variant-numeric: tabular-nums;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
   }
   .pcp-ss-pop-fixed, .pcp-ss-pop-fixed *, .pcp-ss-pop-fixed input::placeholder { font-weight: 700; }
   .pcp-purpose-group, .pcp-ss-group {
