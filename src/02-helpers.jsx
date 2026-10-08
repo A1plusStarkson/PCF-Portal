@@ -450,6 +450,8 @@ function storagePathFor(attId, fileName) {
                sign-in failed).
      welcome — three soft rising notes on the login page, at the visitor's
                first click or key press (browsers allow no sound before it).
+     coin / confirm — the landing splash's cash-movement tick and approval
+               tone (PcfSplash in 20-auth-gate.jsx).
    Sounds that fire together (a batch approval, an upload that also logs) play
    once. Each user can switch them off from the sidebar (SoundToggle); the
    choice is kept in this browser only. */
@@ -503,6 +505,14 @@ function playSound(kind) {
     } else if (kind === "welcome") {
       /* Login page greeting: a soft rising C-E-G arpeggio, under a second. */
       [1046.5, 1318.5, 1568].forEach((f, i) => soundTone(ctx, out, f, t + i * 0.09, 0.5 - i * 0.05, 0.32));
+    } else if (kind === "coin") {
+      /* Cash moving: two tiny, quiet metallic ticks — never a cash register. */
+      soundTone(ctx, out, 2637, t, 0.07, 0.12);
+      soundTone(ctx, out, 3951, t + 0.06, 0.08, 0.08);
+    } else if (kind === "confirm") {
+      /* Soft confirmation: a gentle rising fifth. */
+      soundTone(ctx, out, 659.25, t, 0.22, 0.3);
+      soundTone(ctx, out, 987.77, t + 0.07, 0.3, 0.3);
     } else if (kind === "attention") {
       soundTone(ctx, out, 784, t, 0.14, 0.45, "triangle");
       soundTone(ctx, out, 1046.5, t + 0.13, 0.2, 0.45, "triangle");

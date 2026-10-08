@@ -153,6 +153,82 @@ const writeRememberedEmail = (v) => {
   try { if (v) localStorage.setItem(LOGIN_REMEMBER_KEY, v); else localStorage.removeItem(LOGIN_REMEMBER_KEY); } catch (e) { /* storage unavailable */ }
 };
 
+/* ---- Landing splash (once per browser session) ----
+   Shown in front of the sign-in the first time the portal is opened in a tab
+   session; ENTER PCF PORTAL hides it until the tab is closed. The intro plays
+   once (≈7 s): the ₱ appears, the wallet rises behind it, coins settle, then a
+   ₱ coin travels the petty cash cycle — Request → Approval → Release →
+   Liquidation → Replenishment — drawing the ring as it goes. After that only
+   a slow idle float remains. Pure CSS (transform / opacity, one SVG stroke);
+   reduced motion shows the finished picture with no movement.
+   Sound: never forced. The cues below play only once the visitor has
+   interacted with the page (e.g. turned sound on mid-intro); ENTER itself plays
+   the welcome chime. All of it obeys the shared Sounds on/off setting. */
+const SPLASH_SEEN_KEY = "pcp.splashSeen";
+const splashSeen = () => { try { return sessionStorage.getItem(SPLASH_SEEN_KEY) === "1"; } catch (e) { return true; } };
+const markSplashSeen = () => { try { sessionStorage.setItem(SPLASH_SEEN_KEY, "1"); } catch (e) { /* storage unavailable */ } };
+const prefersReducedMotion = () => !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+
+/* The cycle, clockwise from the top; `at` is when the coin reaches it (ms). */
+const PCF_CYCLE = [
+  { key: "request", label: "Request", icon: ClipboardList, at: 1600 },
+  { key: "approval", label: "Approval", icon: CircleCheck, at: 2600 },
+  { key: "release", label: "Release", icon: Banknote, at: 3600 },
+  { key: "liquidation", label: "Liquidation", icon: Receipt, at: 4600 },
+  { key: "replenishment", label: "Replenishment", icon: RefreshCw, at: 5600 },
+];
+
+function PcfSplash({ onEnter }) {
+  const [leaving, setLeaving] = useState(false);
+  const enterRef = useRef(null);
+  useEffect(() => { if (enterRef.current) enterRef.current.focus({ preventScroll: true }); }, []);
+  /* Sound cues in step with the intro — silent unless the visitor has
+     already interacted (browsers would block them anyway). */
+  useEffect(() => {
+    if (prefersReducedMotion()) return undefined;
+    const active = () => !!(navigator.userActivation && navigator.userActivation.hasBeenActive);
+    const cues = [[0, "chime"], [1600, "coin"], [2600, "confirm"], [6600, "chime"]];
+    const ids = cues.map(([ms, kind]) => setTimeout(() => { if (active()) playSound(kind); }, ms));
+    return () => ids.forEach(clearTimeout);
+  }, []);
+  const enter = () => {
+    if (leaving) return;
+    playSound("welcome");
+    markSplashSeen();
+    setLeaving(true);
+    setTimeout(onEnter, prefersReducedMotion() ? 0 : 380);
+  };
+  return (
+    <section className={"pcf-splash" + (leaving ? " leaving" : "")} aria-labelledby="pcf-splash-title">
+      <div className="pcf-splash-art" aria-hidden="true">
+        <svg className="pcf-ring" viewBox="0 0 320 320">
+          <circle className="pcf-ring-base" cx="160" cy="160" r="130" />
+          <circle className="pcf-ring-draw" cx="160" cy="160" r="130" pathLength="100" />
+        </svg>
+        {PCF_CYCLE.map((s, i) => {
+          const Icon = s.icon;
+          return (
+            <div key={s.key} className={"pcf-step pcf-step-" + s.key} style={{ animationDelay: s.at + "ms" }}>
+              <span className="pcf-step-icon"><Icon size={18} strokeWidth={2.2} /></span>
+              <span className="pcf-step-label">{i === 1 ? "✓ Approval" : s.label}</span>
+            </div>
+          );
+        })}
+        <div className="pcf-orbit"><div className="pcf-orbit-coin"><span>₱</span></div></div>
+        <div className="pcf-wallet"><span className="pcf-wallet-flap" /><span className="pcf-wallet-clasp" /></div>
+        <div className="pcf-peso"><span>₱</span></div>
+        {["c1", "c2", "c3"].map((c) => <div key={c} className={"pcf-mini-coin " + c}>₱</div>)}
+      </div>
+      <h1 id="pcf-splash-title" className="pcf-splash-title">PCF Portal</h1>
+      <p className="pcf-splash-sub">Petty Cash Fund Management System</p>
+      <button ref={enterRef} type="button" className="pcf-splash-enter" onClick={enter}>
+        Enter PCF Portal <ChevronRight size={18} />
+      </button>
+      <div className="pcf-splash-sound"><LoginSoundToggle /></div>
+    </section>
+  );
+}
+
 /* Speaker button in the sign-in card's corner: the same switch as the
    sidebar's SoundToggle, so a visitor can mute before signing in. */
 function LoginSoundToggle() {
@@ -184,6 +260,8 @@ function LoginScreen({ mode, onLocalLogin }) {
   const [capsOn, setCapsOn] = useState(false);
   /* Changes made before the session expired, still held by this tab. */
   const blockedSaves = useBlockedSaves();
+  /* The landing splash, once per tab session (PcfSplash). */
+  const [splash, setSplash] = useState(() => !splashSeen());
 
   /* Welcome sound. Browsers allow no sound until the visitor interacts, so it
      plays on the first click, tap or key press on the page — once. */
@@ -191,8 +269,9 @@ function LoginScreen({ mode, onLocalLogin }) {
     const evts = ["pointerdown", "keydown"];
     const once = (e) => {
       evts.forEach((ev) => window.removeEventListener(ev, once, true));
-      /* A first click on the speaker button is the visitor choosing; skip the greeting. */
-      if (!(e.target && e.target.closest && e.target.closest(".pcp-login-sound"))) playSound("welcome");
+      /* A first click on the speaker button is the visitor choosing, and the
+         splash plays its own sounds; skip the greeting for both. */
+      if (!(e.target && e.target.closest && e.target.closest(".pcp-login-sound, .pcf-splash"))) playSound("welcome");
     };
     evts.forEach((ev) => window.addEventListener(ev, once, true));
     return () => evts.forEach((ev) => window.removeEventListener(ev, once, true));
@@ -247,6 +326,15 @@ function LoginScreen({ mode, onLocalLogin }) {
 
   /* Display only: reveals the typed password on request. */
   const [showPw, setShowPw] = useState(false);
+
+  if (splash) {
+    return (
+      <div className="pcp-root">
+        <style>{CSS}</style>
+        <PcfSplash onEnter={() => setSplash(false)} />
+      </div>
+    );
+  }
 
   return (
     <div className="pcp-root">

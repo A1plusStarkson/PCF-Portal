@@ -612,6 +612,140 @@ const CSS = `
   }
   .pcp-login-sound:hover { background: rgba(78,125,99,0.10); }
   .pcp-login-sound[aria-pressed="false"] { color: var(--text-mut); }
+
+  /* ---- Landing splash (PcfSplash in 20-auth-gate.jsx) ----
+     Base styles are the FINISHED picture; every intro animation starts from
+     its hidden state with fill "both", so reduced motion (animations off)
+     simply shows the end state. Art is 360x360: coin ring r=120 and step
+     badges r=152 around the centre (180,180), clockwise from the top. */
+  .pcf-splash {
+    flex: 1; width: 100%; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 32px 16px; text-align: center; color: #fff; overflow: hidden;
+    background: radial-gradient(circle at 80% 12%, rgba(167,215,189,0.32), transparent 55%),
+                radial-gradient(circle at 12% 92%, rgba(127,184,154,0.28), transparent 50%),
+                linear-gradient(160deg, #2c4a3c 0%, #3d654f 100%);
+  }
+  .pcf-splash.leaving { animation: pcf-leave 0.38s ease-in forwards; }
+  @keyframes pcf-leave { to { opacity: 0; transform: scale(1.02); } }
+  .pcf-splash-art { position: relative; width: 360px; height: 360px; flex-shrink: 0; margin-bottom: 18px; }
+  .pcf-ring { position: absolute; inset: 0; width: 100%; height: 100%; transform: rotate(-90deg); overflow: visible; }
+  .pcf-ring circle { fill: none; }
+  .pcf-ring-base { stroke: rgba(255,255,255,0.16); stroke-width: 2; stroke-dasharray: 3 7; }
+  .pcf-ring-draw {
+    stroke: #f5c451; stroke-width: 3; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: 0;
+    animation: pcf-ring-draw 5.4s ease-in-out 1.6s both;
+  }
+  @keyframes pcf-ring-draw {
+    0%, 8% { stroke-dashoffset: 100; } 18.5%, 26.5% { stroke-dashoffset: 80; } 37%, 45% { stroke-dashoffset: 60; }
+    55.5%, 63.5% { stroke-dashoffset: 40; } 74%, 82% { stroke-dashoffset: 20; } 92.5%, 100% { stroke-dashoffset: 0; }
+  }
+
+  .pcf-step { position: absolute; width: 0; height: 0; animation: pcf-step-in 0.5s ease-out both; }
+  .pcf-step-request { left: 180px; top: 28px; }
+  .pcf-step-approval { left: 324.6px; top: 133px; }
+  .pcf-step-release { left: 269.3px; top: 303px; }
+  .pcf-step-liquidation { left: 90.7px; top: 303px; }
+  .pcf-step-replenishment { left: 35.4px; top: 133px; }
+  .pcf-step-icon {
+    position: absolute; left: -21px; top: -21px; width: 42px; height: 42px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; color: #f5d27a;
+    background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.32); box-shadow: 0 6px 16px rgba(0,0,0,0.22);
+  }
+  .pcf-step-approval .pcf-step-icon { color: #a7f3c0; }
+  .pcf-step-label {
+    position: absolute; left: 0; top: 26px; transform: translateX(-50%); white-space: nowrap;
+    font-size: 11px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase; color: #eef6f1;
+  }
+  .pcf-step-request .pcf-step-label { top: -42px; }
+  /* The Replenishment arrow turns once as the coin closes the loop. */
+  .pcf-step-replenishment .pcf-step-icon svg { animation: pcf-turn-once 0.9s ease-in-out 6.6s both; }
+  @keyframes pcf-step-in { 0% { opacity: 0; transform: scale(0.6); } 60% { opacity: 1; transform: scale(1.15); } 100% { opacity: 1; transform: scale(1); } }
+  @keyframes pcf-turn-once { from { transform: rotate(0); } to { transform: rotate(360deg); } }
+
+  /* The coin that travels the ring, pausing at each step; it counter-turns
+     so the peso sign stays upright, then fades out as it closes the loop. */
+  .pcf-orbit { position: absolute; inset: 0; animation: pcf-orbit 5.4s ease-in-out 1.6s both; }
+  .pcf-orbit-coin {
+    position: absolute; left: 166px; top: 46px; width: 28px; height: 28px; border-radius: 50%; opacity: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 15px; font-weight: 900; color: #7a4f02;
+    background: radial-gradient(circle at 35% 30%, #fff3c4 0%, #f5c451 40%, #c98f12 85%);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3), inset 0 0 0 2px rgba(255,240,190,0.6);
+    animation: pcf-orbit-counter 5.4s ease-in-out 1.6s both;
+  }
+  @keyframes pcf-orbit {
+    0%, 8% { transform: rotate(0deg); } 18.5%, 26.5% { transform: rotate(72deg); } 37%, 45% { transform: rotate(144deg); }
+    55.5%, 63.5% { transform: rotate(216deg); } 74%, 82% { transform: rotate(288deg); } 92.5%, 100% { transform: rotate(360deg); }
+  }
+  @keyframes pcf-orbit-counter {
+    0% { opacity: 0; transform: rotate(0deg) scale(0.5); } 4% { opacity: 1; transform: rotate(0deg) scale(1); } 8% { transform: rotate(0deg); }
+    18.5%, 26.5% { transform: rotate(-72deg); } 37%, 45% { transform: rotate(-144deg); }
+    55.5%, 63.5% { transform: rotate(-216deg); } 74%, 82% { transform: rotate(-288deg); }
+    92.5% { opacity: 1; transform: rotate(-360deg) scale(1); } 100% { opacity: 0; transform: rotate(-360deg) scale(0.4); }
+  }
+
+  /* Centre: the peso coin, the wallet behind it, and three small coins. */
+  .pcf-peso {
+    position: absolute; left: 138px; top: 104px; width: 84px; height: 84px; border-radius: 50%; z-index: 3;
+    display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(circle at 35% 30%, #fff3c4 0%, #f5c451 38%, #c98f12 78%, #9c6b06 100%);
+    box-shadow: 0 12px 26px rgba(0,0,0,0.35), inset 0 0 0 4px rgba(255,240,190,0.6);
+    animation: pcf-peso-in 0.6s ease-out both, pcf-float 4s ease-in-out 7s infinite;
+  }
+  .pcf-peso span { font-size: 48px; font-weight: 900; color: #7a4f02; line-height: 1; }
+  .pcf-wallet {
+    position: absolute; left: 115px; top: 160px; width: 130px; height: 82px; border-radius: 14px; z-index: 2;
+    background: linear-gradient(160deg, #1f3a2c, #2f5442); border: 1px solid rgba(255,255,255,0.22);
+    box-shadow: 0 14px 28px rgba(0,0,0,0.35), inset 0 0 0 5px rgba(0,0,0,0.12), inset 0 0 0 6px rgba(245,210,122,0.35);
+    animation: pcf-wallet-in 0.55s ease-out 0.6s both, pcf-float 4s ease-in-out 7.3s infinite;
+  }
+  .pcf-wallet-flap {
+    position: absolute; right: -1px; top: 26px; width: 44px; height: 30px; border-radius: 10px 0 0 10px;
+    background: linear-gradient(160deg, #2c4a3c, #3d654f); border: 1px solid rgba(255,255,255,0.22); border-right: 0;
+  }
+  .pcf-wallet-clasp {
+    position: absolute; right: 10px; top: 35px; width: 12px; height: 12px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #fff3c4, #f5c451 50%, #c98f12);
+  }
+  .pcf-mini-coin {
+    position: absolute; width: 24px; height: 24px; border-radius: 50%; z-index: 4;
+    display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 900; color: #7a4f02;
+    background: radial-gradient(circle at 35% 30%, #fff3c4 0%, #f5c451 40%, #c98f12 85%);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    animation: pcf-mini-in 0.45s ease-out both, pcf-float 3.6s ease-in-out infinite;
+  }
+  .pcf-mini-coin.c1 { left: 84px; top: 214px; animation-delay: 1.1s, 7.1s; }
+  .pcf-mini-coin.c2 { left: 256px; top: 222px; animation-delay: 1.25s, 7.6s; }
+  .pcf-mini-coin.c3 { left: 168px; top: 252px; animation-delay: 1.4s, 8.1s; }
+  @keyframes pcf-peso-in { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }
+  @keyframes pcf-wallet-in { from { opacity: 0; transform: translateY(26px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes pcf-mini-in { from { opacity: 0; transform: scale(0.3); } to { opacity: 1; transform: scale(1); } }
+  /* Idle: a slow float (the translate property, so it never fights the intro transforms). */
+  @keyframes pcf-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -6px; } }
+
+  .pcf-splash-title { font-size: clamp(28px, 4vw, 40px); font-weight: 800; letter-spacing: -0.6px; margin: 0 0 6px; animation: pcf-text-in 0.6s ease-out 0.2s both; }
+  .pcf-splash-sub { font-size: 15px; color: #c5dacd; margin: 0 0 24px; animation: pcf-text-in 0.6s ease-out 0.35s both; }
+  @keyframes pcf-text-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .pcf-splash-enter {
+    display: inline-flex; align-items: center; gap: 8px; padding: 14px 30px; border: 0; border-radius: 999px; cursor: pointer;
+    font: inherit; font-size: 15px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; color: #3b2a00;
+    background: linear-gradient(180deg, #f7d983, #e0a526); box-shadow: 0 10px 24px rgba(0,0,0,0.28);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .pcf-splash-enter:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(0,0,0,0.32); }
+  .pcf-splash-enter:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+  .pcf-splash-enter svg { transition: transform 0.15s; }
+  .pcf-splash-enter:hover svg { transform: translateX(3px); }
+  .pcf-splash-sound { margin-top: 18px; }
+  .pcf-splash-sound .pcp-login-sound { position: static; background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.3); color: #fff; }
+  .pcf-splash-sound .pcp-login-sound[aria-pressed="false"] { color: rgba(255,255,255,0.6); }
+  .pcf-splash-sound .pcp-login-sound:hover { background: rgba(255,255,255,0.2); }
+  /* Short or narrow screens: draw the artwork smaller (the negative margin
+     gives back the space the scale frees). */
+  @media (max-width: 420px), (max-height: 760px) { .pcf-splash-art { transform: scale(0.8); margin: -36px 0 -18px; } }
+  @media (max-height: 620px) { .pcf-splash-art { transform: scale(0.62); margin: -68px 0 -50px; } }
+  @media (prefers-reduced-motion: reduce) {
+    .pcf-splash *, .pcf-splash { animation: none !important; transition: none !important; }
+  }
   .pcp-login-split .pcp-login-title { font-size: 22px; font-weight: 800; margin: 0; letter-spacing: -0.3px; color: var(--text); }
   .pcp-login-split .pcp-login-sub { font-size: 12.5px; color: var(--text-mut); margin-top: 6px; }
   .pcp-login-split .pcp-login-body { padding: 22px 28px 26px; }
