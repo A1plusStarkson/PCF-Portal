@@ -1100,10 +1100,16 @@ const CSS = `
   .pcp-login-secure { display: flex; align-items: center; justify-content: center; gap: 6px; margin-top: 12px; font-size: 11.5px; color: var(--text-mut); }
   .pcp-login-secure svg { color: var(--brand); flex-shrink: 0; }
   .pcp-login-pane .pcp-brand-logos {
-    padding: 10px 18px; border-radius: 14px; background: var(--card); border: 1px solid var(--line);
-    box-shadow: 0 6px 18px rgba(15,18,30,0.05);
+    padding: 6px 12px; border-radius: 10px; background: var(--card); border: 1px solid var(--line);
+    box-shadow: 0 4px 12px rgba(15,18,30,0.05); gap: 10px;
     max-width: 100%; flex-wrap: wrap; justify-content: center;
   }
+  /* Kept small under the sign-in box (owner's request): about two-thirds size. */
+  .pcp-login-pane .pcp-brand-logos .bl-a1 { height: 24px; }
+  .pcp-login-pane .pcp-brand-logos .bl-spi { height: 14px; }
+  .pcp-login-pane .pcp-brand-logos .bl-hamfi { height: 19px; }
+  .pcp-login-pane .pcp-brand-logos .bl-rg { height: 22px; border-radius: 4px; }
+  .pcp-login-pane .pcp-brand-logos .bl-sep { margin: 2px 0; }
   .pcp-login-copy { max-width: 420px; line-height: 1.5; }
   .pcp-login-pane { min-width: 0; }
   @media (max-width: 860px) {
@@ -1452,7 +1458,7 @@ const CSS = `
     [data-theme="dark"] .pcp-receipt .fileicon { background: #172a2e; }
     [data-theme="dark"] .pcp-login-caps { color: var(--amber); }
     /* The logos are black and red; give them the same light plate the sidebar uses. */
-    [data-theme="dark"] .pcp-login-pane .pcp-brand-logos { background: #f2f8f8; padding: 8px 16px; border-radius: 10px; }
+    [data-theme="dark"] .pcp-login-pane .pcp-brand-logos { background: #f2f8f8; padding: 6px 12px; border-radius: 10px; }
     [data-theme="dark"] .pcp-dropzone { background: #101e21; border-color: #2f5a60; }
     [data-theme="dark"] .pcp-progress { background: #22383d; }
     [data-theme="dark"] .pcp-iconbtn:hover { background: #22383d; }
