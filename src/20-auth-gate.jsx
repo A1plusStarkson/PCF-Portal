@@ -231,10 +231,6 @@ function PcfSplash({ onEnter }) {
         Enter PCF Portal <ChevronRight size={18} />
       </button>
       <div className="pcf-splash-sound"><LoginSoundToggle /></div>
-      <div className="pcf-splash-foot">
-        <BrandLogos all />
-        <div className="pcf-splash-copy">{LOGIN_COPYRIGHT}</div>
-      </div>
     </section>
   );
 }

@@ -811,13 +811,6 @@ const CSS = `
   .pcf-splash-sound .pcp-login-sound { position: static; background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.3); color: #fff; }
   .pcf-splash-sound .pcp-login-sound[aria-pressed="false"] { color: rgba(255,255,255,0.6); }
   .pcf-splash-sound .pcp-login-sound:hover { background: rgba(255,255,255,0.2); }
-  /* Company logos and copyright, as on the sign-in page. */
-  .pcf-splash-foot { margin-top: 28px; display: flex; flex-direction: column; align-items: center; gap: 8px; animation: pcf-fade-in 0.8s ease-out 0.6s both; }
-  .pcf-splash-foot .pcp-brand-logos {
-    padding: 8px 16px; border-radius: 12px; background: #f4faf6; box-shadow: 0 6px 18px rgba(0,0,0,0.18);
-    max-width: 100%; flex-wrap: wrap; justify-content: center;
-  }
-  .pcf-splash-copy { max-width: 440px; font-size: 10.5px; line-height: 1.5; color: #b9d0c2; }
   /* Short or narrow screens: draw the artwork smaller (the negative margin
      gives back the space the scale frees). */
   @media (max-width: 420px), (max-height: 760px) { .pcf-splash-art { transform: scale(0.8); margin: -36px 0 -18px; } }
