@@ -771,7 +771,9 @@ const CSS = `
   @keyframes pcf-breathe { 0%, 100% { opacity: 0.75; } 50% { opacity: 1; } }
   .pcf-splash.leaving { animation: pcf-leave 0.38s ease-in forwards; }
   @keyframes pcf-leave { to { opacity: 0; transform: scale(1.02); } }
-  .pcf-splash-art { position: relative; width: 360px; height: 360px; flex-shrink: 0; margin-bottom: 18px; }
+  .pcf-splash-art { position: relative; width: 360px; height: 360px; flex-shrink: 0; margin-bottom: 48px; }
+  /* (48px: the bottom step labels hang ~10px below the art, so this leaves a
+     clear ~38px gap above the title — owner's request.) */
   .pcf-ring { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
   .pcf-ring path { fill: none; }
   .pcf-ring-base { stroke: rgba(255,255,255,0.16); stroke-width: 2; stroke-dasharray: 3 7; }
@@ -954,8 +956,8 @@ const CSS = `
   .pcf-splash-sound .pcp-login-sound:hover { background: rgba(255,255,255,0.2); }
   /* Short or narrow screens: draw the artwork smaller (the negative margin
      gives back the space the scale frees). */
-  @media (max-width: 420px), (max-height: 760px) { .pcf-splash-art { transform: scale(0.8); margin: -36px 0 -18px; } }
-  @media (max-height: 620px) { .pcf-splash-art { transform: scale(0.62); margin: -68px 0 -50px; } }
+  @media (max-width: 420px), (max-height: 760px) { .pcf-splash-art { transform: scale(0.8); margin: -36px 0 6px; } }
+  @media (max-height: 620px) { .pcf-splash-art { transform: scale(0.62); margin: -68px 0 -30px; } }
   @media (prefers-reduced-motion: reduce) {
     .pcf-splash *, .pcf-splash { animation: none !important; transition: none !important; }
   }
