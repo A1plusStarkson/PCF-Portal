@@ -88,6 +88,7 @@ const REPORT_TYPES = [
   { code: "LIQ",     label: "Liquidation Report",            orientation: "landscape" },
   { code: "FINALAPP", label: "Approved Liquidation Transactions by Grace Gan", orientation: "landscape" },
   { code: "CUSTAPP",  label: "Approved Liquidation Transactions by Custodian per Plant", orientation: "landscape" },
+  { code: "BATCH",    label: "Transactions per Batch",        orientation: "landscape" },
   { code: "REPL",    label: "Replenishment Report",          orientation: "portrait"  },
   { code: "OUT",     label: "Outstanding Liquidation Report", orientation: "landscape" },
   { code: "EXPSUM",  label: "Expense Summary",               orientation: "portrait"  },
@@ -332,6 +333,63 @@ function buildReport(type, D, F) {
           amount: x.amount,
         }));
         rows.push({ _subtotal: true, approvedAt: `Subtotal — ${group.length} transaction(s)`, amount: group.reduce((s, x) => s + x.amount, 0) });
+      });
+      return fin(columns, rows, kept.length, "GRAND TOTAL");
+    }
+
+    /* Transactions per Batch — every petty cash liquidation and employee
+       reimbursement Accounting has given a Batch Number, grouped by batch
+       (BATCH-001 first). Each batch heading names its plant(s), the period its
+       transactions cover and how many it holds; each row shows the Accounting
+       check, the custodian approval and the final approval (or that it is
+       still awaited); each batch is subtotalled. Dated by the transaction
+       date. Filters: Batch, and Status = the final-approval stage. */
+    case "BATCH": {
+      const columns = [
+        c("date", "Txn Date"), c("ref", "Voucher / Reimb No."), c("kind", "Type", { align: "center" }),
+        c("employee", "Employee"), c("branch", "Branch"), c("acct", "Accounting Checked", { width: "15%" }),
+        c("checkedBy", "Custodian Approved By"), c("finalBy", "Final Approval", { width: "15%" }),
+        c("amount", "Amount", { money: true }),
+      ];
+      const AWAITING = "Awaiting final approval";
+      const stamp = (by, at) => `${by || "—"}${at ? " · " + fmtDate(String(at).slice(0, 10)) : ""}`;
+      const items = [];
+      disbursements.forEach((d) => {
+        if (!okBranch(d.branchCode)) return;
+        const liq = liquidationFor(d.id, liquidations);
+        const rv = liq ? liqReview(liq) : null;
+        if (!rv || !rv.batchNo) return;
+        items.push({ batch: normalizeBatchNo(rv.batchNo), d: d.branchCode, iso: String(d.date || "").slice(0, 10),
+          ref: d.voucherNo, kind: "Liquidation", employee: d.employee, rv, amount: receiptAmountSummary(liq).approvedTotal });
+      });
+      (D.reimbursements || []).forEach((r) => {
+        if (!okBranch(r.branchCode)) return;
+        const rv = reimbReview(r);
+        if (!rv.batchNo) return;
+        items.push({ batch: normalizeBatchNo(rv.batchNo), d: r.branchCode, iso: String(r.requestDate || "").slice(0, 10),
+          ref: r.reimbNo, kind: "Reimbursement", employee: r.employee, rv, amount: reimbTotal(r) });
+      });
+      const stage = (x) => (x.rv.finalBy ? "Final Approved" : "Awaiting Final Approval");
+      const kept = items
+        .filter((x) => okDate(x.iso))
+        .filter((x) => !F.batch || x.batch === F.batch)
+        .filter((x) => !F.status || stage(x) === F.status)
+        .sort((a, b) => a.batch.localeCompare(b.batch) || a.iso.localeCompare(b.iso) || String(a.ref).localeCompare(String(b.ref)));
+      const rows = [];
+      [...new Set(kept.map((x) => x.batch))].forEach((b) => {
+        const group = kept.filter((x) => x.batch === b);
+        const plants = [...new Set(group.map((x) => plantLabel(plantOfBranch(x.d)) || x.d))].join(", ");
+        rows.push({ _group: true, date: `${b} — ${plants} · Period: ${fmtBatchPeriod(group.map((x) => x.iso))} · ${group.length} transaction(s)` });
+        group.forEach((x) => rows.push({
+          date: x.iso ? fmtDate(x.iso) : "—", ref: x.ref, kind: x.kind, employee: x.employee, branch: x.d,
+          acct: stamp(acctCheckerLabel(x.rv), x.rv.acctCheckedAt),
+          checkedBy: custodianCheckerLabel(x.rv) || "—",
+          finalBy: x.rv.finalBy ? stamp(x.rv.finalBy, x.rv.finalAt) : AWAITING,
+          amount: x.amount,
+        }));
+        const finalCount = group.filter((x) => x.rv.finalBy).length;
+        rows.push({ _subtotal: true, date: `Subtotal — ${b} · ${group.length} transaction(s) · ${finalCount} final approved`,
+          amount: group.reduce((s, x) => s + x.amount, 0) });
       });
       return fin(columns, rows, kept.length, "GRAND TOTAL");
     }
