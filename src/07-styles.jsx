@@ -1331,7 +1331,8 @@ const CSS = `
   :root:not([data-theme="dark"]) .pcp-topbar h1,
   :root:not([data-theme="dark"]) .pcp-section-title { color: var(--heading); }
   :root:not([data-theme="dark"]) .pcp-main { background: linear-gradient(180deg, #e6f0f0 0px, #f2f8f8 280px); }
-  :root:not([data-theme="dark"]) .pcp-card { border-color: #d3e3e3; box-shadow: 0 1px 2px rgba(17,45,50,0.05), 0 8px 20px rgba(17,45,50,0.06); }
+  /* Yellow "reverted" highlight cards keep their own border and glow. */
+  :root:not([data-theme="dark"]) .pcp-card:not(.pcp-revert-hl) { border-color: #d3e3e3; box-shadow: 0 1px 2px rgba(17,45,50,0.05), 0 8px 20px rgba(17,45,50,0.06); }
   :root:not([data-theme="dark"]) .pcp-kpi::before { background: var(--accent); }
 
   /* Plant tabs. */
@@ -1347,7 +1348,11 @@ const CSS = `
 
   /* Buttons: slate teal primary with white text (9:1); soft teal hover. */
   :root:not([data-theme="dark"]) .pcp-btn { transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease; }
-  :root:not([data-theme="dark"]) .pcp-btn:hover { background: #e3efef; border-color: #88bdbc; color: #254e58; }
+  /* The coloured buttons — yellow Upload / Add Line and Float Expenses, blue
+     Rotate, green Save File — keep their own colours and hovers. */
+  :root:not([data-theme="dark"]) .pcp-btn:not(.pcp-btn-upload):not(.pcp-btn-float):not(.pcp-btn-rotate):not(.pcp-btn-savefile):hover {
+    background: #e3efef; border-color: #88bdbc; color: #254e58;
+  }
   :root:not([data-theme="dark"]) .pcp-btn-primary { background: #254e58; border-color: #254e58; color: #ffffff; box-shadow: 0 2px 6px rgba(37,78,88,0.30); }
   :root:not([data-theme="dark"]) .pcp-btn-primary:hover { background: #112d32; border-color: #112d32; color: #ffffff; }
   :root:not([data-theme="dark"]) .pcp-btn-ghost:hover { background: #e3efef; }
