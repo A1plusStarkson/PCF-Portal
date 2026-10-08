@@ -2591,10 +2591,6 @@ function LiquidationTab({
   /* Looked up in `enriched`, not `list`, so the open pop-up stays put when an
      action moves the voucher out of the current filter (e.g. it completes). */
   const selected = enriched.find((d) => d.id === selectedId) || null;
-  const exportableCount = disbursements.filter((d) => {
-    const liq = liquidationFor(d.id, liquidations);
-    return liq && liq.lines && liq.lines.length;
-  }).length;
 
   /* Reimbursement liquidations (Section 26) — approved reimbursements handed off
      to the Liquidation Module, carrying their reference back to the request. */
@@ -2606,7 +2602,7 @@ function LiquidationTab({
   const isTwoLevel = (r) => r.status === REIMB_STATUS.FOR_FINAL || r.status === REIMB_STATUS.READY
     || r.status === REIMB_STATUS.APPROVED;
   const reimbLiq = reimbScoped
-    .filter((r) => REIMB_LIQUIDATION_STATUSES.includes(r.status) || isTwoLevel(r))
+    .filter(reimbInLiquidationModule)
     .map((r) => ({ ...r, acct: reimbReview(r), awaitingAcct: reimbAwaitingAccounting(r) }));
   const reimbFiltered = (reimbStatus === LIQ_STATUS_FILTER_ALL
     ? (showAll || q || acctFilterOn ? reimbLiq : reimbLiq.filter((r) => r.status === REIMB_STATUS.FOR_LIQUIDATION
@@ -2632,7 +2628,8 @@ function LiquidationTab({
         title={(plantTitle ? plantTitle + " \u00b7 " : "") + "Liquidation"}
         sub="Liquidate petty cash advances and approved employee reimbursements in one professional workspace"
         right={
-          <button className="pcp-btn pcp-btn-primary" onClick={onExportAll} disabled={!exportableCount}>
+          <button className="pcp-btn pcp-btn-primary" onClick={() => onExportAll(plant)}
+            title={`Export ${plant === "ALL" ? (plantTitle || "this plant") : plantLabel(plant)} only — liquidations and reimbursements`}>
             <Download size={14} /> Export All to Acumatica
           </button>
         }

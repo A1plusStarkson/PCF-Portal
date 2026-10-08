@@ -1850,14 +1850,6 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     downloadWorkbook(wb, `Liquidation_${disbursement.voucherNo}.xlsx`);
   }, []);
 
-  const exportAllToAcumatica = useCallback(() => {
-    const rows = buildAllAcumaticaExportRows(disbursements, liquidations);
-    const ws = XLSX.utils.json_to_sheet(rows, { header: ACUMATICA_HEADERS });
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, ACUMATICA_PO_SHEET_NAME);
-    downloadWorkbook(wb, `Acumatica_PO_Export_All_${todayISO()}.xlsx`);
-  }, [disbursements, liquidations]);
-
   /* ---- Funds ----
      Every mutation here is audit-logged. A fund's beginning balance feeds the
      available-balance figure for its whole plant family, so an unrecorded edit
@@ -2386,6 +2378,34 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     [branchOptions, scopeCodes, activePlant]
   );
   const activePlantLabel = activePlant ? plantLabel(activePlant) : "";
+
+  /* "Export All to Acumatica" (Liquidation tab): ONLY the plant being viewed.
+     Built from the plant-scoped lists (the open plant's family, intersected
+     with what this user may see) — never the full data — and narrowed to the
+     branch tab when one is picked (`branch`, "ALL" = the whole plant). Both
+     petty cash liquidations and the reimbursements listed in the Liquidation
+     Module go into the one Purchase Orders sheet, same columns as before.
+     Every row is checked against the selection before the file is written;
+     with nothing to export the file still carries the header row. */
+  const exportAllToAcumatica = useCallback((branch) => {
+    const oneBranch = branch && branch !== "ALL" ? branch : "";
+    const inSelection = (code) => scopeCodes.includes(code) && (!oneBranch || code === oneBranch);
+    const disbs = scopedDisbursements.filter((d) => inSelection(d.branchCode));
+    const reimbs = scopedReimbursements.filter((r) => inSelection(r.branchCode) && reimbInLiquidationModule(r));
+    const rows = buildAllAcumaticaExportRows(disbs, scopedLiquidations)
+      .concat(...reimbs.map(buildReimbursementAcumaticaRows));
+    const stray = rows.filter((row) => !inSelection(row["Branch"]));
+    if (stray.length) {
+      window.alert(`Export stopped: ${stray.length} line(s) do not belong to ${oneBranch ? plantLabel(oneBranch) : (activePlantLabel || "this plant")}. Nothing was exported.`);
+      return;
+    }
+    const ws = XLSX.utils.json_to_sheet(rows, { header: ACUMATICA_HEADERS });
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, ACUMATICA_PO_SHEET_NAME);
+    const scopeName = String(oneBranch ? plantLabel(oneBranch) || oneBranch : (activePlantLabel || "All Plants"))
+      .replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
+    downloadWorkbook(wb, `Acumatica_PO_Export_${scopeName || "Plant"}_${todayISO()}.xlsx`);
+  }, [scopeCodes, scopedDisbursements, scopedLiquidations, scopedReimbursements, activePlantLabel]);
   /* Resolve the per-plant dashboard header from the canonical list, falling back
      to the funds master data so newly created plants get a working dashboard. */
   const activeBranch = useMemo(() => {

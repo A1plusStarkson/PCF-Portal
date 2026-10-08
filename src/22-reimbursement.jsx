@@ -221,6 +221,13 @@ const REIMB_LIQUIDATION_STATUSES = [
   REIMB_STATUS.FOR_LIQUIDATION, REIMB_STATUS.UNDER_REVIEW, REIMB_STATUS.LIQUIDATION_DONE,
   REIMB_STATUS.FOR_PAYMENT, REIMB_STATUS.PAID, REIMB_STATUS.COMPLETED,
 ];
+/* Is this reimbursement listed in the Liquidation Module? Its liquidation
+   stages, plus the two-level flow from custodian approval on (FOR FINAL
+   APPROVAL, FULLY APPROVED — where Accounting checks and batches them) and
+   old single-level APPROVED ones. The Employee Reimbursement list and
+   "Export All to Acumatica" both use this, so they always agree. */
+const reimbInLiquidationModule = (r) => !!r && (REIMB_LIQUIDATION_STATUSES.includes(r.status)
+  || r.status === REIMB_STATUS.FOR_FINAL || r.status === REIMB_STATUS.READY || r.status === REIMB_STATUS.APPROVED);
 
 /* ---- Categories treated as reimbursement expense buckets on the form.
    These reuse the company chart-of-accounts expense categories so each line

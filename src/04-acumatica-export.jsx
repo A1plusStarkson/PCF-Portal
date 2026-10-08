@@ -68,6 +68,24 @@ function buildLiquidationExportRows(disb, liq) {
   return (liq ? liq.lines : []).map((line) => buildAcumaticaLine(disb, line, refDateISO));
 }
 
+/* A reimbursement's expense lines in the same Purchase Orders Template layout
+   as a liquidation, so "Export All to Acumatica" carries both in one sheet.
+   Same mapping as buildAcumaticaLine; the GL account is the line's own
+   (falling back to its category's, as the single reimbursement export does)
+   and the date is the reimbursement's approval date, else its request date. */
+function buildReimbursementAcumaticaRows(reimb) {
+  const refISO = String(reimb.approvedAt || reimb.requestDate || "").slice(0, 10) || todayISO();
+  return (reimb.lines || []).map((l) => {
+    const row = buildAcumaticaLine(
+      { branchCode: reimb.branchCode },
+      { amount: l.amount, department: l.department, category: l.category, expense: l.description, taxCategory: l.taxCategory },
+      refISO
+    );
+    row["Account"] = l.account || accountForCategory(l.category);
+    return row;
+  });
+}
+
 /* Every voucher that currently has liquidation lines, flattened into one sheet —
    used by "Export All to Acumatica" in the Liquidation tab. */
 function buildAllAcumaticaExportRows(disbursements, liquidations) {
