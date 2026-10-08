@@ -454,7 +454,7 @@ function PcaApprovalPanel({
       )}
       <div className="pcp-card pcp-card-pad">
         <div className="pcp-section-title" style={{ margin: "0 0 10px" }}>
-          <Receipt size={15} color="#4e7d63" /> Supporting Documents
+          <Receipt size={15} color="#3c6e76" /> Supporting Documents
           {showDocTotals
             ? <span className="pcp-doc-total-chip lg" style={{ marginLeft: 8 }}>TOTAL: {(liq.attachments || []).length} · {peso(amounts.allTotal)}</span>
             : ` (${approval.total})`}

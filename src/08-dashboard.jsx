@@ -1,6 +1,6 @@
 /* ============================= DASHBOARD ============================= */
 
-const CHART_COLORS = ["#4e7d63", "#5b8db8", "#c2a15a", "#7fb89a", "#8e7cc3", "#3f9c8f", "#d08a5a", "#8a978f"];
+const CHART_COLORS = ["#3c6e76", "#5b8db8", "#c2a15a", "#88bdbc", "#8e7cc3", "#3f9c8f", "#d08a5a", "#8a978f"];
 
 function KpiCard({ label, value, icon: Icon, tint, foot, onClick, active }) {
   return (
@@ -64,7 +64,7 @@ function MiniBarChart({ data, height = 220, layout = "vertical", onSelect }) {
           </>
         )}
         <Tooltip formatter={(v) => peso(v)} contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e3e5ea" }} />
-        <Bar dataKey="value" fill="#4e7d63" radius={[4, 4, 4, 4]} maxBarSize={22}
+        <Bar dataKey="value" fill="#3c6e76" radius={[4, 4, 4, 4]} maxBarSize={22}
           cursor={onSelect ? "pointer" : undefined}
           onClick={onSelect ? (d) => onSelect(pickName(d)) : undefined} />
       </BarChart>
@@ -518,7 +518,7 @@ function DeptDrilldownPanel({ funds, requests, disbursements, liquidations }) {
   return (
     <div className="pcp-card pcp-card-pad" style={{ marginBottom: 16 }}>
       <div className="pcp-section-title" style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <span><LayoutDashboard size={15} color="#4e7d63" /> Department Analysis &amp; Transaction Drill-Down</span>
+        <span><LayoutDashboard size={15} color="#3c6e76" /> Department Analysis &amp; Transaction Drill-Down</span>
         {anyFilter && <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={clearAll}><X size={13} /> Clear Filters</button>}
       </div>
 
@@ -790,7 +790,7 @@ function DashTrendChart({ data, onMonth }) {
         <Tooltip formatter={(v) => peso(v)} contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e3e5ea" }} />
         <Legend wrapperStyle={{ fontSize: 11 }} />
         <Line type="monotone" name="Released" dataKey="disbursed" stroke="#b9790a" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
-        <Line type="monotone" name="Liquidated" dataKey="liquidated" stroke="#4e7d63" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
+        <Line type="monotone" name="Liquidated" dataKey="liquidated" stroke="#3c6e76" strokeWidth={2.5} dot={{ r: 3 }} activeDot={{ r: 5 }} />
       </LineChart>
     </ResponsiveContainer>
   );
@@ -838,7 +838,7 @@ function PlantComparison({ rows, onOpenPlant }) {
   }), { fund: 0, available: 0, outstanding: 0, open: 0, overdue: 0, pending: 0, released: 0, liquidated: 0 });
   return (
     <div className="pcp-card pcp-card-pad" style={{ marginBottom: 16 }}>
-      <div className="pcp-section-title"><Building2 size={15} color="#4e7d63" /> Plant Comparison</div>
+      <div className="pcp-section-title"><Building2 size={15} color="#3c6e76" /> Plant Comparison</div>
       <div className="pcp-table-wrap">
         <table className="pcp-table">
           <thead>
@@ -858,7 +858,7 @@ function PlantComparison({ rows, onOpenPlant }) {
                   <td className="pcp-num">{peso(r.fund)}</td>
                   <td className="pcp-num">
                     <span className={low ? "pcp-dash-low" : undefined}>{peso(r.available)}</span>
-                    <div className="pcp-dash-bar"><span style={{ width: pct + "%", background: low ? "#c0392b" : "#4e7d63" }} /></div>
+                    <div className="pcp-dash-bar"><span style={{ width: pct + "%", background: low ? "#c0392b" : "#3c6e76" }} /></div>
                   </td>
                   <td className="pcp-num">{peso(r.outstanding)}</td>
                   <td className="pcp-num">{peso(r.released)}</td>
@@ -1304,7 +1304,7 @@ function DashboardCore({ label, funds, requests, disbursements, liquidations, re
         </div>
 
         <div className="pcp-card pcp-card-pad">
-          <div className="pcp-section-title"><PiggyBank size={15} color="#4e7d63" /> PCF Fund Utilization</div>
+          <div className="pcp-section-title"><PiggyBank size={15} color="#3c6e76" /> PCF Fund Utilization</div>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
             <div>
               <div style={{ fontSize: 11, color: "var(--text-mut)", textTransform: "uppercase", letterSpacing: 0.6 }}>Beginning Fund</div>
@@ -1318,12 +1318,12 @@ function DashboardCore({ label, funds, requests, disbursements, liquidations, re
           <div className="pcp-dash-util-bar" role="img" aria-label={`${Math.round(availPct)}% of the fund is available`}>
             <span style={{ width: pct(outPart) + "%", background: "#b9790a" }} title={`Open advances ${peso(outPart)}`} />
             <span style={{ width: pct(spentPart) + "%", background: "#8a978f" }} title={`Spent, awaiting replenishment ${peso(spentPart)}`} />
-            <span style={{ width: availPct + "%", background: low ? "#c0392b" : "#4e7d63" }} title={`Available ${peso(m.availableBalance)}`} />
+            <span style={{ width: availPct + "%", background: low ? "#c0392b" : "#3c6e76" }} title={`Available ${peso(m.availableBalance)}`} />
           </div>
           <div className="pcp-dash-legend">
             <span><span className="pcp-dash-dot" style={{ background: "#b9790a" }} /> Open advances {Math.round(pct(outPart))}%</span>
             <span><span className="pcp-dash-dot" style={{ background: "#8a978f" }} /> Spent, for replenishment {Math.round(pct(spentPart))}%</span>
-            <span><span className="pcp-dash-dot" style={{ background: low ? "#c0392b" : "#4e7d63" }} /> Available {Math.round(availPct)}%</span>
+            <span><span className="pcp-dash-dot" style={{ background: low ? "#c0392b" : "#3c6e76" }} /> Available {Math.round(availPct)}%</span>
           </div>
           <div className="pcp-dash-util-row"><span>Disbursed</span><b>{peso(m.totalDisbursed)}</b></div>
           <div className="pcp-dash-util-row"><span>Liquidated</span><b>{peso(m.totalLiquidated)}</b></div>
@@ -1491,12 +1491,12 @@ function Dashboard({ funds: allFunds, requests: allReq, disbursements: allDisbAl
 
       <div className="pcp-grid-2" style={{ marginBottom: 16 }}>
         <div className="pcp-card pcp-card-pad pcp-chart-click" title="Click to view detailed transactions.">
-          <div className="pcp-section-title"><TrendingUp size={15} color="#4e7d63" /> Released vs Liquidated by Month</div>
+          <div className="pcp-section-title"><TrendingUp size={15} color="#3c6e76" /> Released vs Liquidated by Month</div>
           <DashTrendChart data={flow} onMonth={(month) => openDrill("Monthly Expense Trend", month)} />
           <div className="pcp-chart-hint">Click a month to view its liquidated receipts.</div>
         </div>
         <div className="pcp-card pcp-card-pad pcp-chart-click" title="Click to view detailed transactions.">
-          <div className="pcp-section-title"><FileSpreadsheet size={15} color="#4e7d63" /> Liquidation Status</div>
+          <div className="pcp-section-title"><FileSpreadsheet size={15} color="#3c6e76" /> Liquidation Status</div>
           {liqStatusCounts.length ? (
             <ResponsiveContainer width="100%" height={220}>
               <PieChart>

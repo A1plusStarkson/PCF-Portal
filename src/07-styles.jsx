@@ -1,33 +1,31 @@
 /* ============================= STYLES ============================= */
 
 const CSS = `
-  /* Light Green theme (Oct 2026) — very light mint page (#F4FBF6), light
-     green sections and navigation (#E8F5EC), white cards, mint borders
-     (#D7EBDD), #DFF2E5 hover, #5FAF78 accent (active states, icons, primary
-     buttons) and #2F6B45 dark green for headings and strong text. Two
-     values are adjusted for WCAG AA: primary buttons carry dark text on the
-     #5FAF78 accent (white on it is only 2.7:1), and muted text stays
-     #62736A (#6B7D71 is 4.4:1 on white). Red is kept ONLY as --danger:
-     errors, required marks, delete, overdue. */
+  /* Corporate Teal theme (Oct 2026, owner's choice) — #88BDBC pewter teal
+     (accents, active states), #254E58 dark slate teal (sidebar, headings,
+     primary buttons — white text on it is 9:1), #112D32 deep teal, and warm
+     browns #4F4A41 / #6E6658 (text). Very light teal page (#F2F8F8), white
+     cards. #88BDBC never carries white text (2:1) — dark text on it.
+     Red is kept ONLY as --danger: errors, required marks, delete, overdue. */
   :root {
-    --ink: #2c4a3c;
-    --ink-2: #355a47;
-    --paper: #f4fbf6;
-    --paper-2: #e8f5ec;
+    --ink: #112d32;
+    --ink-2: #1d414a;
+    --paper: #f2f8f8;
+    --paper-2: #e6f0f0;
     --card: #ffffff;
-    --line: #d7ebdd;
-    --line-soft: #e8f5ec;
-    --hover: #dff2e5;
-    --accent: #5faf78;
-    --accent-ink: #0f2e1c;
-    --heading: #2f6b45;
-    --text: #1e2b24;
-    --text-mut: #62736a;
-    --brand: #2f6b45;
-    --brand-dark: #24563a;
-    --brand-soft: #e8f5ec;
-    --mint: #a9d9b8;
-    --mint-bg: #dff2e5;
+    --line: #d3e3e3;
+    --line-soft: #e6f0f0;
+    --hover: #e3efef;
+    --accent: #88bdbc;
+    --accent-ink: #112d32;
+    --heading: #254e58;
+    --text: #3a352d;
+    --text-mut: #6e6658;
+    --brand: #254e58;
+    --brand-dark: #1b3d45;
+    --brand-soft: #e6f0f0;
+    --mint: #88bdbc;
+    --mint-bg: #e3efef;
     --danger: #c0392b;
     --danger-dark: #962d22;
     --amber: #a86b06;
@@ -85,7 +83,7 @@ const CSS = `
   }
   .pcp-brand-mark {
     width: 34px; height: 34px; border-radius: 8px;
-    background: linear-gradient(135deg, #7fb89a, var(--brand));
+    background: linear-gradient(135deg, #88bdbc, var(--brand));
     display: flex; align-items: center; justify-content: center;
     color: white; flex-shrink: 0; box-shadow: 0 2px 8px rgba(0,0,0,0.18);
   }
@@ -153,7 +151,7 @@ const CSS = `
     cursor: pointer; transition: all 0.12s; white-space: nowrap; box-shadow: var(--shadow-sm);
   }
   .pcp-btn:hover { border-color: var(--mint); background: var(--mint-bg); color: var(--brand-dark); }
-  .pcp-btn-primary { background: var(--brand); border-color: var(--brand); color: #fff; box-shadow: 0 2px 6px rgba(78,125,99,0.25); }
+  .pcp-btn-primary { background: var(--brand); border-color: var(--brand); color: #fff; box-shadow: 0 2px 6px rgba(37,78,88,0.25); }
   .pcp-btn-primary:hover { background: var(--brand-dark); border-color: var(--brand-dark); color: #fff; }
   .pcp-btn-ghost { border-color: transparent; background: transparent; box-shadow: none; }
   .pcp-btn-ghost:hover { background: var(--paper); }
@@ -191,7 +189,7 @@ const CSS = `
   table.pcp-table thead th {
     text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.5px;
     color: var(--brand-dark); font-weight: 700; padding: 10px 12px; border-bottom: 1px solid var(--line);
-    background: #eaf4ee; white-space: nowrap; position: sticky; top: 0; z-index: 1;
+    background: #e6f0f0; white-space: nowrap; position: sticky; top: 0; z-index: 1;
   }
   table.pcp-table tbody td { padding: 10px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
   table.pcp-table tbody tr:nth-child(even) td { background: #f9fcfa; }
@@ -216,7 +214,7 @@ const CSS = `
     width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px;
     font-size: 12.5px; background: var(--dm-input, #fff); color: var(--text); font-family: inherit;
   }
-  .pcp-input:focus, .pcp-select:focus, textarea.pcp-input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(78,125,99,0.15); }
+  .pcp-input:focus, .pcp-select:focus, textarea.pcp-input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(37,78,88,0.15); }
   .pcp-field { margin-bottom: 12px; }
   .pcp-field label { display: block; font-size: 11.5px; font-weight: 600; color: var(--text); margin-bottom: 5px; }
   .pcp-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -363,7 +361,7 @@ const CSS = `
     width: 100%; text-align: left; cursor: pointer;
   }
   .pcp-purpose-btn.placeholder, .pcp-ss-btn.placeholder { color: var(--text-mut); }
-  .pcp-ss-btn:disabled { background: #f1f7f3; color: var(--text-mut); cursor: not-allowed; }
+  .pcp-ss-btn:disabled { background: #eef6f6; color: var(--text-mut); cursor: not-allowed; }
   .pcp-purpose-pop, .pcp-ss-pop {
     position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 60;
     background: var(--dm-surface, #fff); border: 1px solid var(--line); border-radius: 10px;
@@ -414,7 +412,7 @@ const CSS = `
     font-size: 11.5px; font-weight: 600; min-width: 0; flex: 1;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
-  .pcp-doc-frame { background: #f1f7f3; display: block; }
+  .pcp-doc-frame { background: #eef6f6; display: block; }
   .pcp-doc-frame img { display: block; width: 100%; max-height: 260px; object-fit: contain; }
   .pcp-doc-frame iframe { display: block; width: 100%; height: 260px; border: none; }
   .pcp-doc-frame a { display: block; cursor: zoom-in; }
@@ -605,7 +603,7 @@ const CSS = `
   .pcp-theme-toggle button.on { background: rgba(255,255,255,0.16); color: #fff; }
   .pcp-user-email { flex: 1; min-width: 0; color: #8fa397; font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pcp-kpi-click { cursor: pointer; transition: border-color 0.12s, box-shadow 0.12s; }
-  .pcp-kpi-click:hover { border-color: var(--brand); box-shadow: 0 4px 14px rgba(78,125,99,0.10); }
+  .pcp-kpi-click:hover { border-color: var(--brand); box-shadow: 0 4px 14px rgba(37,78,88,0.10); }
   .pcp-kpi-click.active { border-color: var(--brand); box-shadow: inset 0 -3px 0 var(--brand); background: var(--brand-soft); }
 
   /* ---- Login ---- */
@@ -652,22 +650,22 @@ const CSS = `
   .pcp-login-brand {
     position: relative; overflow: hidden; color: #fff; padding: 40px 48px;
     display: flex; flex-direction: column; justify-content: space-between; gap: 32px;
-    background: radial-gradient(circle at 85% 15%, rgba(167,215,189,0.35), transparent 55%),
-                radial-gradient(circle at 10% 95%, rgba(127,184,154,0.30), transparent 50%),
-                linear-gradient(160deg, #2c4a3c 0%, #3d654f 100%);
+    background: radial-gradient(circle at 85% 15%, rgba(136,189,188,0.35), transparent 55%),
+                radial-gradient(circle at 10% 95%, rgba(136,189,188,0.30), transparent 50%),
+                linear-gradient(160deg, #112d32 0%, #254e58 100%);
   }
   .pcp-login-brand-top { display: flex; align-items: center; gap: 12px; }
   .pcp-login-logo-tile { width: 52px; height: 52px; flex-shrink: 0; background: #fff; border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 6px 16px rgba(0,0,0,0.25); }
   .pcp-login-logo-tile img { max-width: 38px; max-height: 44px; object-fit: contain; }
   .pcp-login-card-logo { display: block; height: 48px; width: auto; margin-bottom: 14px; }
   .pcp-login-brand-name { font-size: 17px; font-weight: 800; letter-spacing: -0.2px; }
-  .pcp-login-brand-sub { font-size: 11.5px; color: #c5dacd; margin-top: 2px; }
+  .pcp-login-brand-sub { font-size: 11.5px; color: #b9d6d5; margin-top: 2px; }
   /* Centred in the panel, so the space above the headline is used. */
   .pcp-login-brand-mid { max-width: 460px; margin: auto 0; }
   .pcp-login-hero { font-size: clamp(26px, 3.2vw, 38px); line-height: 1.15; font-weight: 800; letter-spacing: -0.6px; margin: 0 0 14px; }
-  .pcp-login-lead { font-size: 14px; line-height: 1.6; color: #dbe9e0; margin: 0 0 22px; }
+  .pcp-login-lead { font-size: 14px; line-height: 1.6; color: #d6e8e8; margin: 0 0 22px; }
   .pcp-login-features { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; }
-  .pcp-login-features li { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #eef6f1; }
+  .pcp-login-features li { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #eaf4f4; }
   .pcp-login-features svg { color: var(--mint); flex-shrink: 0; }
   .pcp-login-pane { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 32px 24px; background: var(--paper); }
   .pcp-login-split .pcp-login-card { max-width: 400px; border-radius: 16px; box-shadow: 0 24px 60px rgba(15,18,30,0.10); }
@@ -678,7 +676,7 @@ const CSS = `
     display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
     border: 1px solid var(--line); background: var(--card); color: var(--brand); transition: background 0.15s;
   }
-  .pcp-login-sound:hover { background: rgba(78,125,99,0.10); }
+  .pcp-login-sound:hover { background: rgba(37,78,88,0.10); }
   .pcp-login-sound[aria-pressed="false"] { color: var(--text-mut); }
 
   /* ---- Landing splash (PcfSplash in 20-auth-gate.jsx) ----
@@ -689,9 +687,9 @@ const CSS = `
   .pcf-splash {
     flex: 1; width: 100%; min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center;
     padding: 32px 16px 20px; text-align: center; color: #fff; overflow-x: hidden; position: relative;
-    background: radial-gradient(circle at 80% 12%, rgba(167,215,189,0.32), transparent 55%),
-                radial-gradient(circle at 12% 92%, rgba(127,184,154,0.28), transparent 50%),
-                linear-gradient(160deg, #2c4a3c 0%, #3d654f 100%);
+    background: radial-gradient(circle at 80% 12%, rgba(136,189,188,0.32), transparent 55%),
+                radial-gradient(circle at 12% 92%, rgba(136,189,188,0.28), transparent 50%),
+                linear-gradient(160deg, #112d32 0%, #254e58 100%);
   }
   /* The same faint dot grid as the sign-in brand panel. */
   .pcf-splash::before {
@@ -744,7 +742,7 @@ const CSS = `
   .pcf-step-replenishment { left: 35.4px; top: 133px; }
   .pcf-step-icon {
     position: absolute; left: -23px; top: -23px; width: 46px; height: 46px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; color: #2c4a3c;
+    display: flex; align-items: center; justify-content: center; color: #112d32;
     background: radial-gradient(circle at 35% 30%, #ffffff 0%, #f6f1e1 70%, #e9dfc0 100%);
     border: 2px solid #f5c451; box-shadow: 0 8px 18px rgba(0,0,0,0.28), inset 0 -2px 0 rgba(0,0,0,0.06);
   }
@@ -811,7 +809,7 @@ const CSS = `
     position: absolute; left: 112px; top: 160px; width: 136px; height: 86px; border-radius: 16px; z-index: 2;
     background:
       linear-gradient(180deg, rgba(255,255,255,0.10), transparent 40%),
-      linear-gradient(160deg, #24473a 0%, #183126 100%);
+      linear-gradient(160deg, #254e58 0%, #112d32 100%);
     border: 1px solid rgba(255,255,255,0.20);
     box-shadow: 0 16px 30px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.18);
     animation: pcf-wallet-in 0.55s ease-out 0.6s both, pcf-float 4s ease-in-out 7.3s infinite;
@@ -822,7 +820,7 @@ const CSS = `
   }
   .pcf-wallet-flap {
     position: absolute; right: -1px; top: 26px; width: 50px; height: 34px; border-radius: 12px 0 0 12px;
-    background: linear-gradient(160deg, #2f5a47, #1e3c2f); border: 1px solid rgba(255,255,255,0.22); border-right: 0;
+    background: linear-gradient(160deg, #2f5f69, #1a3c44); border: 1px solid rgba(255,255,255,0.22); border-right: 0;
     box-shadow: -3px 3px 8px rgba(0,0,0,0.25);
   }
   .pcf-wallet-clasp {
@@ -863,7 +861,7 @@ const CSS = `
     display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 6px 16px rgba(0,0,0,0.25);
   }
   .pcf-splash-logo img { max-width: 32px; max-height: 38px; object-fit: contain; }
-  .pcf-splash-sub { font-size: 15px; color: #c5dacd; margin: 0 0 24px; animation: pcf-text-in 0.6s ease-out 0.35s both; }
+  .pcf-splash-sub { font-size: 15px; color: #b9d6d5; margin: 0 0 24px; animation: pcf-text-in 0.6s ease-out 0.35s both; }
   @keyframes pcf-text-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
   .pcf-splash-enter {
     display: inline-flex; align-items: center; gap: 8px; padding: 14px 30px; border: 0; border-radius: 999px; cursor: pointer;
@@ -893,7 +891,7 @@ const CSS = `
   .pcp-login-input > svg { position: absolute; left: 11px; color: #8fa397; pointer-events: none; }
   .pcp-login-input > svg { left: 13px; }
   .pcp-login-input .pcp-input { padding-left: 40px; height: 48px; font-size: 14.5px; border-radius: 10px; }
-  .pcp-login-input .pcp-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(78,125,99,0.12); outline: none; }
+  .pcp-login-input .pcp-input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px rgba(37,78,88,0.12); outline: none; }
   .pcp-login-input.invalid .pcp-input { border-color: var(--danger); background: #fff8f7; }
   .pcp-login-split .pcp-field label { font-size: 12.5px; font-weight: 600; color: var(--text); }
   .pcp-login-field-err { font-size: 12px; color: var(--danger); margin-top: 5px; }
@@ -904,9 +902,9 @@ const CSS = `
   .pcp-login-caps svg { flex-shrink: 0; }
   .pcp-login-remember { display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text); margin: 2px 0 14px; cursor: pointer; user-select: none; }
   .pcp-login-remember input { width: 15px; height: 15px; accent-color: var(--brand); cursor: pointer; }
-  .pcp-login-about { max-width: 440px; padding-left: 14px; border-left: 3px solid var(--mint, #a7d7bd); }
-  .pcp-login-about-kicker { font-size: 10.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #c5dacd; }
-  .pcp-login-about p { margin: 4px 0 0; font-size: 13.5px; line-height: 1.6; color: #eef6f1; }
+  .pcp-login-about { max-width: 440px; padding-left: 14px; border-left: 3px solid var(--mint, #88bdbc); }
+  .pcp-login-about-kicker { font-size: 10.5px; font-weight: 700; letter-spacing: 1.2px; text-transform: uppercase; color: #b9d6d5; }
+  .pcp-login-about p { margin: 4px 0 0; font-size: 13.5px; line-height: 1.6; color: #eaf4f4; }
   .pcp-login-quote {
     margin-top: 22px; padding: 14px 16px; border-radius: 12px; max-width: 440px;
     background: rgba(255,255,255,0.10); border: 1px solid rgba(255,255,255,0.22); border-left: 4px solid #f5c451;
@@ -918,17 +916,17 @@ const CSS = `
   .pcp-login-input:has(.pcp-login-eye) .pcp-input { padding-right: 44px; }
   .pcp-login-submit {
     width: 100%; justify-content: center; height: 48px; font-size: 15px; font-weight: 700; margin-top: 8px; border-radius: 10px;
-    box-shadow: 0 8px 20px rgba(78,125,99,0.25); transition: transform 0.08s, box-shadow 0.15s, background 0.15s;
+    box-shadow: 0 8px 20px rgba(37,78,88,0.25); transition: transform 0.08s, box-shadow 0.15s, background 0.15s;
   }
-  .pcp-login-submit:hover:not(:disabled) { box-shadow: 0 10px 24px rgba(78,125,99,0.35); transform: translateY(-1px); }
-  .pcp-login-submit:active:not(:disabled) { transform: translateY(0); box-shadow: 0 4px 12px rgba(78,125,99,0.25); }
+  .pcp-login-submit:hover:not(:disabled) { box-shadow: 0 10px 24px rgba(37,78,88,0.35); transform: translateY(-1px); }
+  .pcp-login-submit:active:not(:disabled) { transform: translateY(0); box-shadow: 0 4px 12px rgba(37,78,88,0.25); }
   .pcp-login-submit:disabled { opacity: 0.85; cursor: progress; }
   .pcp-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.45); border-top-color: #fff; border-radius: 50%; display: inline-block; animation: pcp-spin 0.7s linear infinite; }
   @keyframes pcp-spin { to { transform: rotate(360deg); } }
   .pcp-login-alert { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; line-height: 1.45; padding: 11px 13px; border: 1px solid #f1c4c0; }
   .pcp-login-alert svg { flex-shrink: 0; margin-top: 1px; }
   .pcp-login-alert b { display: block; margin-bottom: 2px; }
-  .pcp-login-help { display: flex; gap: 8px; align-items: flex-start; margin-top: 16px; padding: 10px 12px; border-radius: 8px; background: #f1f7f3; font-size: 11.5px; line-height: 1.5; color: var(--text-mut); }
+  .pcp-login-help { display: flex; gap: 8px; align-items: flex-start; margin-top: 16px; padding: 10px 12px; border-radius: 8px; background: #eef6f6; font-size: 11.5px; line-height: 1.5; color: var(--text-mut); }
   .pcp-login-help svg { flex-shrink: 0; margin-top: 2px; }
   .pcp-login-copy { font-size: 11px; color: var(--text-mut); text-align: center; }
   /* ---- Login ₱ visual (PesoVisual in 20-auth-gate.jsx) ---- */
@@ -1059,14 +1057,14 @@ const CSS = `
   }
   .pcp-login-brand > * { position: relative; }
   .pcp-login-steps { list-style: none; padding: 0; margin: 0 0 22px; display: flex; flex-wrap: wrap; gap: 6px 4px; }
-  .pcp-login-steps li { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; color: #eef6f1; }
+  .pcp-login-steps li { display: inline-flex; align-items: center; gap: 7px; font-size: 12.5px; font-weight: 700; color: #eaf4f4; }
   .pcp-login-step-icon {
     width: 28px; height: 28px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
     background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.22); color: #f5d27a;
   }
   .pcp-login-step-arrow { color: rgba(255,255,255,0.45); margin: 0 2px; }
   .pcp-login-brand-foot {
-    display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 12px; color: #c5dacd;
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap; font-size: 12px; color: #b9d6d5;
   }
   .pcp-login-brand-foot .pcp-home-clock {
     display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 99px;
@@ -1087,12 +1085,12 @@ const CSS = `
   @media (min-width: 2000px) { .pcp-login-brand-mid .pcp-peso-scene { transform: scale(1.3); } }
   @media (min-width: 2200px) { .pcp-login-brand-mid .pcp-peso-scene { transform: scale(1.45); } }
   .pcp-login-pane {
-    background: radial-gradient(circle at 80% 0%, rgba(167,215,189,0.22), transparent 45%),
+    background: radial-gradient(circle at 80% 0%, rgba(136,189,188,0.22), transparent 45%),
                 radial-gradient(circle at 0% 100%, rgba(245,196,81,0.10), transparent 40%), var(--paper);
   }
   .pcp-login-split .pcp-login-card { position: relative; border-top: 0; }
   .pcp-login-split .pcp-login-card::before {
-    content: ""; display: block; height: 5px; background: linear-gradient(90deg, #2c4a3c, #4e7d63 45%, #a7d7bd 75%, #f5c451);
+    content: ""; display: block; height: 5px; background: linear-gradient(90deg, #112d32, #3c6e76 45%, #88bdbc 75%, #f5c451);
   }
   .pcp-login-split .pcp-login-card-logo { height: 52px; margin-bottom: 16px; }
   .pcp-login-greet { font-size: 12px; font-weight: 700; color: var(--brand); letter-spacing: 0.3px; margin-bottom: 4px; }
@@ -1136,7 +1134,7 @@ const CSS = `
   .pcp-report-head .pcp-brand-logos img { max-height: none; max-width: 100%; }
   .pcp-report-title { font-size: 17px; font-weight: 800; letter-spacing: -0.2px; }
   .pcp-report-sub { font-size: 11.5px; color: var(--text-mut); }
-  table.pcp-table tfoot td { padding: 9px 10px; border-top: 2px solid var(--line); font-weight: 800; background: #eef6f1; }
+  table.pcp-table tfoot td { padding: 9px 10px; border-top: 2px solid var(--line); font-weight: 800; background: #eaf4f4; }
 
   @media (max-width: 980px) {
     .pcp-kpi-grid { grid-template-columns: repeat(2, 1fr); }
@@ -1156,7 +1154,7 @@ const CSS = `
   .pcp-doc.portrait { max-width: 794px; }
   .pcp-doc.landscape { max-width: 1123px; }
   .pcp-doc-wm { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; pointer-events: none; overflow: hidden; }
-  .pcp-doc-wm span { font-size: 120px; font-weight: 800; color: rgba(78,125,99,0.07); transform: rotate(-30deg); white-space: nowrap; }
+  .pcp-doc-wm span { font-size: 120px; font-weight: 800; color: rgba(37,78,88,0.07); transform: rotate(-30deg); white-space: nowrap; }
   .pcp-doc-head { display: flex; align-items: center; gap: 14px; padding-bottom: 8px; border-bottom: 2.5px solid #111; position: relative; z-index: 1; }
   .pcp-doc-head img { height: 52px; max-width: 150px; object-fit: contain; }
   .pcp-doc-head-c { flex: 1; text-align: center; }
@@ -1171,7 +1169,7 @@ const CSS = `
   table.pcp-doc-table { width: 100%; border-collapse: collapse; position: relative; z-index: 1; }
   table.pcp-doc-table thead th { background: #1f2d3d; color: #fff; font-size: 9.5px; font-weight: 700; padding: 6px 7px; border: 1px solid #1f2d3d; }
   table.pcp-doc-table tbody td { padding: 5px 7px; border: 1px solid #d5d9e0; font-size: 9.5px; vertical-align: top; word-break: break-word; }
-  table.pcp-doc-table tbody tr:nth-child(even) td { background: #f1f7f3; }
+  table.pcp-doc-table tbody tr:nth-child(even) td { background: #eef6f6; }
   .pcp-doc-table .a-right { text-align: right; } .pcp-doc-table .a-center { text-align: center; } .pcp-doc-table .a-left { text-align: left; }
   table.pcp-doc-table tr.grp td { background: #e8edf3; font-weight: 800; font-size: 10px; }
   table.pcp-doc-table tr.sub td { background: #eef1f5; font-weight: 800; }
@@ -1235,7 +1233,7 @@ const CSS = `
   .pcp-receipts { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
   .pcp-receipt { display: inline-flex; flex-direction: column; align-items: center; gap: 4px; width: 92px; text-decoration: none; color: var(--text); }
   .pcp-receipt img { width: 92px; height: 66px; object-fit: cover; border-radius: 6px; border: 1px solid var(--line); }
-  .pcp-receipt .fileicon { width: 92px; height: 66px; border-radius: 6px; border: 1px solid var(--line); background: #f1f7f3; display: flex; align-items: center; justify-content: center; }
+  .pcp-receipt .fileicon { width: 92px; height: 66px; border-radius: 6px; border: 1px solid var(--line); background: #eef6f6; display: flex; align-items: center; justify-content: center; }
   .pcp-receipt span { font-size: 10px; color: var(--text-mut); max-width: 92px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .pcp-receipt-link { color: var(--brand); font-weight: 600; cursor: pointer; }
 
@@ -1248,13 +1246,13 @@ const CSS = `
   .pcp-dropzone.over { border-color: var(--brand); background: var(--brand-soft); }
   .pcp-progress { height: 8px; background: #e9f1eb; border-radius: 99px; overflow: hidden; }
   .pcp-progress-bar { height: 100%; background: var(--brand); border-radius: 99px; transition: width 0.2s ease; }
-  .pcp-hint { font-size: 12px; color: var(--text-mut); background: #f1f7f3; border-radius: 7px; padding: 8px 10px; }
+  .pcp-hint { font-size: 12px; color: var(--text-mut); background: #eef6f6; border-radius: 7px; padding: 8px 10px; }
   .pcp-check { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--text-mut); font-weight: 600; }
   .pcp-iconbtn { background: none; border: none; padding: 4px; margin: 0 1px; border-radius: 6px; cursor: pointer; color: var(--text-mut); vertical-align: middle; }
   .pcp-iconbtn:hover { background: #e9f1eb; color: var(--text); }
 
   /* ---- Interactive department drill-down ---- */
-  .pcp-mini-stat { background: #f1f7f3; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .pcp-mini-stat { background: #eef6f6; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
   .pcp-mini-stat .lbl { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-mut); }
   .pcp-mini-stat .val { font-size: 14px; font-weight: 800; margin-top: 2px; }
   .pcp-filter-chip { display: inline-flex; align-items: center; gap: 7px; font-size: 12px; background: var(--brand-soft); color: var(--brand-dark); border: 1px solid #cfe5d7; border-radius: 99px; padding: 4px 6px 4px 12px; font-weight: 600; }
@@ -1287,110 +1285,75 @@ const CSS = `
     table.pcp-table thead th { background: #f0f0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 
-  /* ---- Light Green theme: light mode only (Oct 2026) ----
-     Scoped to :root:not([data-theme="dark"]) so dark mode keeps its own
-     look untouched. Large areas are very light green; green is the accent.
-     The sidebar reads its text colours from --sb-fg / --sb-mut (also used by
-     its inline styles), which only this block changes. */
+  /* ---- Corporate Teal theme: light mode only (Oct 2026) ----
+     Owner's choice: #88BDBC pewter teal (accents, active item), #254E58 dark
+     slate teal (sidebar, headings, primary buttons), #112D32 deep teal (banner
+     depth, small text accents), #4F4A41 / #6E6658 warm browns (tiles, muted
+     text). Very light teal page, white cards and header. Scoped to
+     :root:not([data-theme="dark"]) so dark mode keeps its own look. The
+     sidebar reads its text colours from --sb-fg / --sb-mut (also used by its
+     inline styles). Status colours (green / amber / red badges) are unchanged. */
   :root:not([data-theme="dark"]) .pcp-sidebar {
-    --sb-fg: #2f6b45; --sb-mut: #62736a;
-    background: #e8f5ec; color: #2f6b45; border-right: 1px solid #d7ebdd;
+    --sb-fg: #e6f0f0; --sb-mut: #88bdbc;
+    background: linear-gradient(180deg, #254e58 0%, #1d414a 100%); color: #e6f0f0;
+    border-right: 0; box-shadow: 2px 0 14px rgba(17,45,50,0.18);
   }
-  :root:not([data-theme="dark"]) .pcp-brand-row { border-bottom-color: #d7ebdd; }
-  :root:not([data-theme="dark"]) .pcp-brand-title { color: var(--heading); }
-  :root:not([data-theme="dark"]) .pcp-brand-sub { color: #62736a; }
-  :root:not([data-theme="dark"]) .pcp-nav::-webkit-scrollbar-thumb { background: rgba(47,107,69,0.22); }
-  :root:not([data-theme="dark"]) .pcp-nav-group-label { color: #62736a; }
-  :root:not([data-theme="dark"]) .pcp-nav-item { color: #24433a; transition: background 0.18s ease, color 0.18s ease; }
-  :root:not([data-theme="dark"]) .pcp-nav-item svg { color: var(--accent); }
-  :root:not([data-theme="dark"]) .pcp-nav-item:hover { background: #dff2e5; color: #2f6b45; }
-  :root:not([data-theme="dark"]) .pcp-nav-item.active {
-    background: #fff; color: #2f6b45; box-shadow: inset 3px 0 0 var(--accent), 0 1px 3px rgba(47,107,69,0.12);
-  }
-  :root:not([data-theme="dark"]) .pcp-nav-item.active svg { color: #2f6b45; }
-  :root:not([data-theme="dark"]) .pcp-sidebar-foot { border-top-color: #d7ebdd; }
-  :root:not([data-theme="dark"]) .pcp-user-card,
-  :root:not([data-theme="dark"]) .pcp-role-badge { background: #fff; border: 1px solid #d7ebdd; color: #2f6b45; }
-  :root:not([data-theme="dark"]) .pcp-user-card .pcp-role-badge { background: #e8f5ec; border-color: #d7ebdd; }
-  :root:not([data-theme="dark"]) .pcp-user-name { color: #1e2b24; }
-  :root:not([data-theme="dark"]) .pcp-user-row { background: rgba(255,255,255,0.7); border: 1px solid #d7ebdd; }
-  :root:not([data-theme="dark"]) .pcp-user-email { color: #62736a; }
-  :root:not([data-theme="dark"]) .pcp-sidebar .pcp-btn-ghost:hover { background: #dff2e5; color: #2f6b45; }
-  :root:not([data-theme="dark"]) .pcp-theme-toggle { background: #fff; border: 1px solid #d7ebdd; }
-  :root:not([data-theme="dark"]) .pcp-theme-toggle button { color: #62736a; transition: background 0.18s ease, color 0.18s ease; }
-  :root:not([data-theme="dark"]) .pcp-theme-toggle button:hover { color: #2f6b45; background: #dff2e5; }
-  :root:not([data-theme="dark"]) .pcp-theme-toggle button.on { background: var(--accent); color: var(--accent-ink); }
-  :root:not([data-theme="dark"]) .pcp-logos-strip { background: #fff; border: 1px solid #d7ebdd; }
-
-  /* Page header: a light green band with dark-green headings. */
-  :root:not([data-theme="dark"]) .pcp-topbar { background: rgba(232,245,236,0.96); border-bottom-color: #d7ebdd; box-shadow: none; }
-  :root:not([data-theme="dark"]) .pcp-topbar h1,
-  :root:not([data-theme="dark"]) .pcp-section-title { color: var(--heading); }
-
-  /* Tables: light green header, mint hover. */
-  :root:not([data-theme="dark"]) table.pcp-table thead th { background: #e8f5ec; color: #2f6b45; border-bottom-color: #d7ebdd; }
-  :root:not([data-theme="dark"]) table.pcp-table tbody td { transition: background 0.15s ease; }
-  :root:not([data-theme="dark"]) table.pcp-table tbody tr:nth-child(even) td { background: #f8fcf9; }
-  :root:not([data-theme="dark"]) table.pcp-table tbody tr:hover td { background: #dff2e5; }
-
-  /* Buttons: soft mint hover; primary is the #5FAF78 accent with dark text. */
-  :root:not([data-theme="dark"]) .pcp-btn { transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease; }
-  :root:not([data-theme="dark"]) .pcp-btn:hover { background: #dff2e5; border-color: #a9d9b8; color: #2f6b45; }
-  :root:not([data-theme="dark"]) .pcp-btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); box-shadow: 0 2px 6px rgba(95,175,120,0.30); }
-  :root:not([data-theme="dark"]) .pcp-btn-primary:hover { background: #52a36c; border-color: #52a36c; color: var(--accent-ink); }
-  :root:not([data-theme="dark"]) .pcp-btn-ghost:hover { background: #dff2e5; }
-  :root:not([data-theme="dark"]) .pcp-btn-danger:hover { background: var(--red-bg); border-color: #f1c4c0; color: var(--danger); }
-  :root:not([data-theme="dark"]) .pcp-input:focus,
-  :root:not([data-theme="dark"]) .pcp-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(95,175,120,0.22); }
-
-  /* Plant tabs and KPI accents pick up the accent green. */
-  :root:not([data-theme="dark"]) .pcp-kpi::before { background: var(--accent); }
-
-  /* Darker module names (owner's request, Oct 2026): sidebar items, icons,
-     group labels and plant tabs in deep green-charcoal so they read clearly
-     on the light green. */
-  :root:not([data-theme="dark"]) .pcp-sidebar { --sb-fg: #14301f; --sb-mut: #2d4537; background: #e2f2e7; border-right-color: #cfe6d6; }
-  :root:not([data-theme="dark"]) .pcp-nav-item { color: #0f2419; font-weight: 700; }
-  :root:not([data-theme="dark"]) .pcp-nav-item svg { color: #1f4d33; }
-  :root:not([data-theme="dark"]) .pcp-nav-item:hover { background: #d3ebdb; color: #14291e; }
-  :root:not([data-theme="dark"]) .pcp-nav-item.active { color: #1f4d33; font-weight: 800; }
-  :root:not([data-theme="dark"]) .pcp-nav-group-label { color: #24382d; font-weight: 800; }
+  :root:not([data-theme="dark"]) .pcp-brand-row { border-bottom-color: rgba(255,255,255,0.12); }
+  :root:not([data-theme="dark"]) .pcp-brand-title { color: #ffffff; }
   :root:not([data-theme="dark"]) .pcp-brand-sub,
-  :root:not([data-theme="dark"]) .pcp-user-email { color: #3f5a4b; }
-  :root:not([data-theme="dark"]) .pcp-tab { color: #16301f; font-weight: 700; }
-  :root:not([data-theme="dark"]) .pcp-tab:hover { color: #1a3326; }
-  :root:not([data-theme="dark"]) .pcp-tab.active { color: #1f4d33; border-bottom-color: #2f6b45; }
-
-  /* Polish (Oct 2026, "more eye-appealing"): crisp WHITE chrome (sidebar and
-     header) around the light mint page, so the page, cards and accents have
-     contrast instead of one flat mint. Mint is kept for highlights. */
-  :root:not([data-theme="dark"]) .pcp-sidebar {
-    --sb-fg: #1f3a2c; --sb-mut: #3f5a4b;
-    background: #ffffff; border-right: 1px solid #d7ebdd; box-shadow: 2px 0 12px rgba(47,107,69,0.05);
-  }
-  :root:not([data-theme="dark"]) .pcp-nav-item { color: #1f3a2c; font-weight: 600; }
-  :root:not([data-theme="dark"]) .pcp-nav-item svg { color: #3f8a5a; }
-  :root:not([data-theme="dark"]) .pcp-nav-item:hover { background: #eef8f1; color: #14291e; }
-  :root:not([data-theme="dark"]) .pcp-nav-item.active {
-    background: linear-gradient(90deg, #dff2e5, #eef8f1); color: #1f4d33; font-weight: 800;
-    box-shadow: inset 3px 0 0 var(--accent);
-  }
-  :root:not([data-theme="dark"]) .pcp-nav-item.active svg { color: #2f6b45; }
-  :root:not([data-theme="dark"]) .pcp-nav-group-label { color: #5b7365; letter-spacing: 1px; }
+  :root:not([data-theme="dark"]) .pcp-nav-group-label { color: #88bdbc; }
+  :root:not([data-theme="dark"]) .pcp-brand-mark { background: linear-gradient(135deg, #88bdbc, #4f8f93); }
+  :root:not([data-theme="dark"]) .pcp-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); }
+  :root:not([data-theme="dark"]) .pcp-nav-item { color: #e6f0f0; font-weight: 600; transition: background 0.18s ease, color 0.18s ease; }
+  :root:not([data-theme="dark"]) .pcp-nav-item svg { color: #88bdbc; }
+  :root:not([data-theme="dark"]) .pcp-nav-item:hover { background: rgba(255,255,255,0.08); color: #ffffff; }
+  :root:not([data-theme="dark"]) .pcp-nav-item.active { background: #88bdbc; color: #112d32; font-weight: 800; box-shadow: inset 3px 0 0 #ffffff; }
+  :root:not([data-theme="dark"]) .pcp-nav-item.active svg { color: #112d32; }
+  :root:not([data-theme="dark"]) .pcp-sidebar-foot { border-top-color: rgba(255,255,255,0.12); }
   :root:not([data-theme="dark"]) .pcp-user-card,
   :root:not([data-theme="dark"]) .pcp-user-row,
-  :root:not([data-theme="dark"]) .pcp-theme-toggle { background: #f4fbf6; border-color: #e1efe5; }
-  :root:not([data-theme="dark"]) .pcp-sidebar .pcp-btn-ghost:hover { background: #eef8f1; }
-  :root:not([data-theme="dark"]) .pcp-logos-strip { background: #fff; border-color: #e1efe5; }
+  :root:not([data-theme="dark"]) .pcp-theme-toggle { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); }
+  :root:not([data-theme="dark"]) .pcp-user-name { color: #ffffff; }
+  :root:not([data-theme="dark"]) .pcp-role-badge,
+  :root:not([data-theme="dark"]) .pcp-user-card .pcp-role-badge { background: rgba(136,189,188,0.18); border: 1px solid rgba(136,189,188,0.35); color: #e6f0f0; }
+  :root:not([data-theme="dark"]) .pcp-user-email { color: #b9d6d5; }
+  :root:not([data-theme="dark"]) .pcp-theme-toggle button { color: #b9d6d5; transition: background 0.18s ease, color 0.18s ease; }
+  :root:not([data-theme="dark"]) .pcp-theme-toggle button:hover { color: #ffffff; background: rgba(255,255,255,0.10); }
+  :root:not([data-theme="dark"]) .pcp-theme-toggle button.on { background: #88bdbc; color: #112d32; }
+  :root:not([data-theme="dark"]) .pcp-sidebar .pcp-btn-ghost:hover { background: rgba(255,255,255,0.08); color: #ffffff; }
+  :root:not([data-theme="dark"]) .pcp-logos-strip { background: #f2f8f8; border: 0; }
+
+  /* Header: white; page: very light teal with a soft wash at the top. */
   :root:not([data-theme="dark"]) .pcp-topbar {
-    background: rgba(255,255,255,0.94); border-bottom-color: #d7ebdd; box-shadow: 0 2px 10px rgba(47,107,69,0.05);
+    background: rgba(255,255,255,0.95); border-bottom-color: #d3e3e3; box-shadow: 0 2px 10px rgba(17,45,50,0.05);
     -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
   }
-  /* A faint mint wash at the top of the page. */
-  :root:not([data-theme="dark"]) .pcp-main { background: linear-gradient(180deg, #eaf6ee 0px, #f4fbf6 280px); }
-  :root:not([data-theme="dark"]) .pcp-card {
-    border-color: #dcede1; box-shadow: 0 1px 2px rgba(47,107,69,0.04), 0 8px 20px rgba(47,107,69,0.06);
-  }
+  :root:not([data-theme="dark"]) .pcp-topbar h1,
+  :root:not([data-theme="dark"]) .pcp-section-title { color: var(--heading); }
+  :root:not([data-theme="dark"]) .pcp-main { background: linear-gradient(180deg, #e6f0f0 0px, #f2f8f8 280px); }
+  :root:not([data-theme="dark"]) .pcp-card { border-color: #d3e3e3; box-shadow: 0 1px 2px rgba(17,45,50,0.05), 0 8px 20px rgba(17,45,50,0.06); }
+  :root:not([data-theme="dark"]) .pcp-kpi::before { background: var(--accent); }
+
+  /* Plant tabs. */
+  :root:not([data-theme="dark"]) .pcp-tab { color: #3a352d; font-weight: 700; }
+  :root:not([data-theme="dark"]) .pcp-tab:hover { color: #112d32; }
+  :root:not([data-theme="dark"]) .pcp-tab.active { color: #254e58; border-bottom-color: #254e58; }
+
+  /* Tables: light teal header, teal hover. */
+  :root:not([data-theme="dark"]) table.pcp-table thead th { background: #e6f0f0; color: #254e58; border-bottom-color: #d3e3e3; }
+  :root:not([data-theme="dark"]) table.pcp-table tbody td { transition: background 0.15s ease; }
+  :root:not([data-theme="dark"]) table.pcp-table tbody tr:nth-child(even) td { background: #f7fbfb; }
+  :root:not([data-theme="dark"]) table.pcp-table tbody tr:hover td { background: #e3efef; }
+
+  /* Buttons: slate teal primary with white text (9:1); soft teal hover. */
+  :root:not([data-theme="dark"]) .pcp-btn { transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease; }
+  :root:not([data-theme="dark"]) .pcp-btn:hover { background: #e3efef; border-color: #88bdbc; color: #254e58; }
+  :root:not([data-theme="dark"]) .pcp-btn-primary { background: #254e58; border-color: #254e58; color: #ffffff; box-shadow: 0 2px 6px rgba(37,78,88,0.30); }
+  :root:not([data-theme="dark"]) .pcp-btn-primary:hover { background: #112d32; border-color: #112d32; color: #ffffff; }
+  :root:not([data-theme="dark"]) .pcp-btn-ghost:hover { background: #e3efef; }
+  :root:not([data-theme="dark"]) .pcp-btn-danger:hover { background: var(--red-bg); border-color: #f1c4c0; color: var(--danger); }
+  :root:not([data-theme="dark"]) .pcp-input:focus,
+  :root:not([data-theme="dark"]) .pcp-select:focus { border-color: #254e58; box-shadow: 0 0 0 3px rgba(136,189,188,0.35); }
 
   /* ---- Dark mode ----
      Switched by data-theme="dark" on <html> (set in index.html, toggled by

@@ -2586,7 +2586,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
      accounts that have them. The Dashboard card opens the consolidated view
      when the account has one, else its first plant's dashboard. */
   const homeQuickLinks = [
-    { key: "requests", label: "Petty Cash Request", desc: "Create and track your PCF request.", icon: ClipboardList, tint: "#4e7d63" },
+    { key: "requests", label: "Petty Cash Request", desc: "Create and track your PCF request.", icon: ClipboardList, tint: "#3c6e76" },
     { key: "disbursements", label: "Release", desc: "View released petty cash transactions.", icon: Receipt, tint: "#2f64a6" },
     { key: "liquidation", label: "Liquidation", desc: "Submit and monitor liquidation.", icon: FileSpreadsheet, tint: "#a86b06" },
     { key: "reimbursement", label: "Reimbursement", desc: "Submit employee-paid expenses for reimbursement.", icon: ArrowLeftRight, tint: "#3f9c8f" },

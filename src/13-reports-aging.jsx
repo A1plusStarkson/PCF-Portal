@@ -570,7 +570,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
 
         {/* ---- Filters ---- */}
         <div className="pcp-card pcp-card-pad pcp-no-print" style={{ marginBottom: 16 }}>
-          <div className="pcp-section-title"><FilterIcon size={15} color="#4e7d63" /> Filters</div>
+          <div className="pcp-section-title"><FilterIcon size={15} color="#3c6e76" /> Filters</div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
             <div className="pcp-field" style={{ margin: 0 }}>
               <label>Transaction Type</label>
@@ -772,11 +772,11 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
 
         <div className="pcp-grid-2" style={{ marginBottom: 16 }}>
           <div className="pcp-card pcp-card-pad">
-            <div className="pcp-section-title"><CircleDollarSign size={15} color="#4e7d63" /> Outstanding Amount by Plant</div>
+            <div className="pcp-section-title"><CircleDollarSign size={15} color="#3c6e76" /> Outstanding Amount by Plant</div>
             <MiniBarChart data={outstandingByPlant} />
           </div>
           <div className="pcp-card pcp-card-pad">
-            <div className="pcp-section-title"><TrendingUp size={15} color="#4e7d63" /> Monthly Liquidation Trend</div>
+            <div className="pcp-section-title"><TrendingUp size={15} color="#3c6e76" /> Monthly Liquidation Trend</div>
             {monthlyTrend.length ? (
               <ResponsiveContainer width="100%" height={220}>
                 <LineChart data={monthlyTrend} margin={{ left: 8, right: 18, top: 4, bottom: 4 }}>
@@ -784,7 +784,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
                   <XAxis dataKey="month" fontSize={10.5} stroke="#8fa397" />
                   <YAxis tickFormatter={shortPeso} fontSize={10.5} stroke="#8fa397" />
                   <Tooltip formatter={(v) => peso(v)} contentStyle={{ fontSize: 12, borderRadius: 8, border: "1px solid #e3e5ea" }} />
-                  <Line type="monotone" dataKey="value" stroke="#4e7d63" strokeWidth={2.5} dot={{ r: 3 }} />
+                  <Line type="monotone" dataKey="value" stroke="#3c6e76" strokeWidth={2.5} dot={{ r: 3 }} />
                 </LineChart>
               </ResponsiveContainer>
             ) : <div className="pcp-empty">No liquidated expenses recorded yet</div>}
@@ -793,11 +793,11 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
 
         <div className="pcp-grid-2" style={{ marginBottom: 16 }}>
           <div className="pcp-card pcp-card-pad">
-            <div className="pcp-section-title"><Building2 size={15} color="#4e7d63" /> Top 10 Plants — Highest Outstanding</div>
+            <div className="pcp-section-title"><Building2 size={15} color="#3c6e76" /> Top 10 Plants — Highest Outstanding</div>
             <MiniBarChart data={topPlantsOutstanding} />
           </div>
           <div className="pcp-card pcp-card-pad">
-            <div className="pcp-section-title"><Users size={15} color="#4e7d63" /> Top 10 Employees — Overdue Liquidations</div>
+            <div className="pcp-section-title"><Users size={15} color="#3c6e76" /> Top 10 Employees — Overdue Liquidations</div>
             <MiniBarChart data={topEmployeesOverdue} />
           </div>
         </div>

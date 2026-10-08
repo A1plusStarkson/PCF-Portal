@@ -2124,7 +2124,7 @@ function LiquidationWorksheet({
       <div style={{ marginTop: 18, borderTop: "1px solid var(--line)", paddingTop: 14 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
           <div className="pcp-section-title" style={{ margin: 0 }}>
-            <Receipt size={15} color="#4e7d63" /> Supporting Documents
+            <Receipt size={15} color="#3c6e76" /> Supporting Documents
             <span style={{ fontSize: 11.5, color: "var(--text-mut)", fontWeight: 500, marginLeft: 6 }}>
               ({attachments.length}) — official receipts, sales invoices, etc. · Total Receipt Amount <strong className="pcp-num">{peso(receiptSummary.approvedTotal)}</strong>
             </span>

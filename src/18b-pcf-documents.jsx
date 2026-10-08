@@ -441,7 +441,7 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
         {/* ---- Upload ---- */}
         {canUpload && (
           <div className="pcp-card pcp-card-pad" style={{ marginBottom: 16 }}>
-            <div className="pcp-section-title"><UploadCloud size={15} color="#4e7d63" /> Upload Documents</div>
+            <div className="pcp-section-title"><UploadCloud size={15} color="#3c6e76" /> Upload Documents</div>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 12 }}>
               <div className="pcp-field" style={{ margin: 0 }}>
                 <label>Category</label>
@@ -501,11 +501,11 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
         {/* ---- Reports charts ---- */}
         <div className="pcp-grid-2" style={{ marginBottom: 16 }}>
           <div className="pcp-card pcp-card-pad">
-            <div className="pcp-section-title"><FolderOpen size={15} color="#4e7d63" /> Documents by Category</div>
+            <div className="pcp-section-title"><FolderOpen size={15} color="#3c6e76" /> Documents by Category</div>
             <MiniBarChart data={byCategory} />
           </div>
           <div className="pcp-card pcp-card-pad">
-            <div className="pcp-section-title"><Building2 size={15} color="#4e7d63" /> Documents by Company</div>
+            <div className="pcp-section-title"><Building2 size={15} color="#3c6e76" /> Documents by Company</div>
             <MiniBarChart data={byCompany} />
           </div>
         </div>

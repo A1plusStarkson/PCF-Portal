@@ -12,9 +12,9 @@ const HOME_CSS = `
   .pcp-home { display: flex; flex-direction: column; gap: 18px; }
   .pcp-home-hero {
     display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); gap: 18px;
-    background: radial-gradient(circle at 92% 10%, rgba(167,215,189,0.35), transparent 45%),
-                linear-gradient(120deg, #2c4a3c 0%, #3d654f 50%, #5a8d70 100%);
-    color: #fff; border-radius: 16px; padding: 24px 26px; box-shadow: 0 10px 30px rgba(78,125,99,0.18);
+    background: radial-gradient(circle at 92% 10%, rgba(136,189,188,0.35), transparent 45%),
+                linear-gradient(120deg, #112d32 0%, #254e58 50%, #5a8d70 100%);
+    color: #fff; border-radius: 16px; padding: 24px 26px; box-shadow: 0 10px 30px rgba(37,78,88,0.18);
   }
   .pcp-home-kicker { font-size: 11px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; opacity: 0.85; }
   .pcp-home-title { margin: 6px 0 4px; font-size: 26px; font-weight: 800; letter-spacing: -0.3px; }
@@ -42,42 +42,42 @@ const HOME_CSS = `
   }
   .pcp-home-chip:hover, .pcp-home-chip:focus-visible { background: rgba(255,255,255,0.26); outline: none; }
   .pcp-home-chip.warn { background: rgba(255,120,110,0.28); border-color: rgba(255,170,160,0.6); }
-  /* Light Green theme (light mode only). The banner is the page's focal
-     point: a fresh green gradient (darkest behind the text) with soft light
-     spots, white text, and frosted panels darkened enough for white text. */
+  /* Corporate Teal theme (light mode only). The banner is the page's focal
+     point: a deep teal gradient (darkest behind the text) with a soft light
+     spot, white text, and frosted panels. */
   :root:not([data-theme="dark"]) .pcp-home-hero {
-    background: radial-gradient(circle at 88% -10%, rgba(255,255,255,0.22), transparent 42%),
-                radial-gradient(circle at 0% 110%, rgba(167,215,189,0.30), transparent 45%),
-                linear-gradient(120deg, #2a6040 0%, #3a8256 55%, #4c9a66 100%);
-    box-shadow: 0 14px 32px rgba(47,107,69,0.22);
+    background: radial-gradient(circle at 88% -10%, rgba(136,189,188,0.35), transparent 45%),
+                radial-gradient(circle at 0% 110%, rgba(136,189,188,0.18), transparent 45%),
+                linear-gradient(120deg, #112d32 0%, #254e58 55%, #3c6e76 100%);
+    box-shadow: 0 14px 32px rgba(17,45,50,0.28);
   }
   :root:not([data-theme="dark"]) .pcp-home-user,
-  :root:not([data-theme="dark"]) .pcp-home-clock { background: rgba(14,48,28,0.26); border-color: rgba(255,255,255,0.28); }
-  :root:not([data-theme="dark"]) .pcp-home-chip { background: rgba(14,48,28,0.22); transition: background 0.18s ease; }
+  :root:not([data-theme="dark"]) .pcp-home-clock { background: rgba(255,255,255,0.10); border-color: rgba(136,189,188,0.45); }
+  :root:not([data-theme="dark"]) .pcp-home-chip { background: rgba(255,255,255,0.12); transition: background 0.18s ease; }
   :root:not([data-theme="dark"]) .pcp-home-chip:hover,
-  :root:not([data-theme="dark"]) .pcp-home-chip:focus-visible { background: rgba(14,48,28,0.38); }
+  :root:not([data-theme="dark"]) .pcp-home-chip:focus-visible { background: rgba(255,255,255,0.22); }
   :root:not([data-theme="dark"]) .pcp-home-section-title { color: var(--heading); }
-  /* Status tiles: each with its own colour accent (decorative). */
+  /* Status tiles: the palette's five colours as accents (decorative). */
   :root:not([data-theme="dark"]) .pcp-home-status-item {
-    --tile: #5faf78;
-    border-top: 3px solid var(--tile); box-shadow: 0 2px 8px rgba(47,107,69,0.05);
+    --tile: #112d32;
+    border-top: 3px solid var(--tile); box-shadow: 0 2px 8px rgba(17,45,50,0.05);
     transition: background 0.18s ease, border-color 0.18s ease, transform 0.18s ease, box-shadow 0.18s ease;
   }
-  :root:not([data-theme="dark"]) .pcp-home-status-item:nth-child(5n+1) { --tile: #e0a526; }
-  :root:not([data-theme="dark"]) .pcp-home-status-item:nth-child(5n+2) { --tile: #4a86c8; }
-  :root:not([data-theme="dark"]) .pcp-home-status-item:nth-child(5n+3) { --tile: #8a6fd1; }
-  :root:not([data-theme="dark"]) .pcp-home-status-item:nth-child(5n+4) { --tile: #e07b3a; }
+  :root:not([data-theme="dark"]) .pcp-home-status-item:nth-child(5n+1) { --tile: #88bdbc; }
+  :root:not([data-theme="dark"]) .pcp-home-status-item:nth-child(5n+2) { --tile: #254e58; }
+  :root:not([data-theme="dark"]) .pcp-home-status-item:nth-child(5n+3) { --tile: #6e6658; }
+  :root:not([data-theme="dark"]) .pcp-home-status-item:nth-child(5n+4) { --tile: #4f4a41; }
   :root:not([data-theme="dark"]) .pcp-home-status-item:hover,
   :root:not([data-theme="dark"]) .pcp-home-status-item:focus-visible {
-    background: #fff; border-color: var(--tile); transform: translateY(-2px); box-shadow: 0 8px 18px rgba(47,107,69,0.12);
+    background: #fff; border-color: var(--tile); transform: translateY(-2px); box-shadow: 0 8px 18px rgba(17,45,50,0.12);
   }
   :root:not([data-theme="dark"]) .pcp-home-status-item.warn { --tile: #c0392b; background: var(--red-bg); }
-  /* Announcements: white notes with a green edge instead of mint blocks. */
+  /* Announcements: white notes with a teal edge. */
   :root:not([data-theme="dark"]) .pcp-home-ann {
-    background: #fff; border: 1px solid #e1efe5; border-left: 3px solid var(--accent); border-radius: 8px;
+    background: #fff; border: 1px solid #d3e3e3; border-left: 3px solid var(--accent); border-radius: 8px;
     transition: background 0.18s ease;
   }
-  :root:not([data-theme="dark"]) .pcp-home-ann:hover { background: #f4fbf6; }
+  :root:not([data-theme="dark"]) .pcp-home-ann:hover { background: #f2f8f8; }
   :root:not([data-theme="dark"]) .pcp-home-ann-title { color: var(--heading); }
   .pcp-home-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
   .pcp-home-link {
@@ -85,7 +85,7 @@ const HOME_CSS = `
     border-radius: 14px; padding: 16px; cursor: pointer; font: inherit; color: inherit; min-height: 78px;
     transition: border-color 0.12s, box-shadow 0.12s, transform 0.12s;
   }
-  .pcp-home-link:hover, .pcp-home-link:focus-visible { border-color: var(--brand); box-shadow: 0 8px 22px rgba(78,125,99,0.14); transform: translateY(-2px); outline: none; }
+  .pcp-home-link:hover, .pcp-home-link:focus-visible { border-color: var(--brand); box-shadow: 0 8px 22px rgba(37,78,88,0.14); transform: translateY(-2px); outline: none; }
   .pcp-home-link-icon { flex-shrink: 0; width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; }
   .pcp-home-link-label { font-size: 14px; font-weight: 700; }
   .pcp-home-top { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
@@ -493,14 +493,14 @@ function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, funds, a
           {funds && (
             <div className="pcp-card pcp-card-pad" style={{ minWidth: 0 }}>
               <div className="pcp-home-section-title">
-                <Wallet size={16} color="#4e7d63" /> Fund Balances
+                <Wallet size={16} color="#3c6e76" /> Fund Balances
                 <span className="pcp-home-count" title="Total available across your plants">{peso(fundTotal)}</span>
               </div>
               {funds.length ? (
                 <div className="pcp-home-list">
                   {funds.map((f) => {
                     const pct = f.fund > 0 ? Math.max(0, Math.min(100, (f.available / f.fund) * 100)) : 0;
-                    const color = f.low ? "#c0392b" : pct < 50 ? "#b9790a" : "#4e7d63";
+                    const color = f.low ? "#c0392b" : pct < 50 ? "#b9790a" : "#3c6e76";
                     return (
                       <button key={f.code} type="button" className="pcp-home-fund" onClick={f.onClick} title={`Open the ${f.label} dashboard`}>
                         <div className="pcp-home-fund-row">
@@ -523,7 +523,7 @@ function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, funds, a
 
       {/* How PCF works — the workflow, for new requestors */}
       <div className="pcp-card pcp-card-pad">
-        <div className="pcp-home-section-title"><RefreshCw size={16} color="#4e7d63" /> How PCF Works</div>
+        <div className="pcp-home-section-title"><RefreshCw size={16} color="#3c6e76" /> How PCF Works</div>
         <ol className="pcp-home-flow">
           {HOME_WORKFLOW.map((s, i) => (
             <li key={s.title} className="pcp-home-flow-step">
