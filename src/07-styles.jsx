@@ -1213,6 +1213,28 @@ function ThemeToggle() {
   );
 }
 
+/* Sidebar switch for the UI sounds (playSound in 02-helpers.jsx). Turning them
+   on plays the chime once, so the user hears what they enabled. */
+function SoundToggle() {
+  const [on, setOn] = useState(soundsEnabled);
+  useEffect(() => {
+    const h = () => setOn(soundsEnabled());
+    window.addEventListener(SOUND_EVENT, h);
+    return () => window.removeEventListener(SOUND_EVENT, h);
+  }, []);
+  const toggle = () => {
+    setSoundsEnabled(!on);
+    if (!on) playSound("chime");
+  };
+  return (
+    <button type="button" className="pcp-btn pcp-btn-sm pcp-btn-ghost" aria-pressed={on}
+      style={{ color: "#d9e8df", width: "100%", justifyContent: "flex-start", marginTop: 2 }}
+      onClick={toggle} title={on ? "Turn off notification sounds" : "Turn on notification sounds"}>
+      {on ? <Volume2 size={13} /> : <VolumeX size={13} />} Sounds: {on ? "On" : "Off"}
+    </button>
+  );
+}
+
 function Sidebar({ tab, setTab, role, roleLabel, navGroups, userEmail, userName, financeCheckerNames, financeChecker, onFinanceChecker, onSignOut, onChangePassword, onManageMfa }) {
   const groups = navGroups || [];
   return (
@@ -1285,6 +1307,7 @@ function Sidebar({ tab, setTab, role, roleLabel, navGroups, userEmail, userName,
           </button>
         )}
         <ThemeToggle />
+        <SoundToggle />
         <div className="pcp-logos-strip">
           <BrandLogos compact />
         </div>

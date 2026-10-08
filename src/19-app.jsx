@@ -413,6 +413,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
 
   /* Append an entry to the immutable audit trail, tagged with the signed-in user. */
   const logAudit = useCallback((action, entity, remarks) => {
+    playSound(soundForAction(action));
     setAuditLog((log) => [...log, {
       id: uid("aud"), ts: new Date().toISOString().slice(0, 19), user: userName || role, action, entity, remarks: remarks || "",
     }]);

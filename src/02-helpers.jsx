@@ -438,8 +438,87 @@ function storagePathFor(attId, fileName) {
    sees it wherever they are scrolled. storeFile reports success / failure for
    every upload in the portal; the pick handlers report files refused before
    uploading (too large, wrong type, page out of date). */
+/* ---- UI sounds (Web Audio, no sound files) ----
+   Three short bells, each under half a second, synthesised in the browser so
+   nothing is downloaded:
+     chime   — "Micro-Chime": one crisp glass tap. A receipt uploaded, an
+               expense approved, a record submitted.
+     desk    — "Desk Bell": a soft service bell. A reimbursement paid /
+               completed.
+     attention — "Double-Tone": two quick rising notes. Something needs the
+               user's attention (rejected, returned, upload failed, new alarm).
+   Sounds that fire together (a batch approval, an upload that also logs) play
+   once. Each user can switch them off from the sidebar (SoundToggle); the
+   choice is kept in this browser only. */
+const SOUND_PREF_KEY = "pcp.sounds";
+const SOUND_EVENT = "pcp-sounds";
+let soundCtx = null;
+let soundLastAt = 0;
+function soundsEnabled() {
+  try { return localStorage.getItem(SOUND_PREF_KEY) !== "off"; } catch (e) { return true; }
+}
+function setSoundsEnabled(on) {
+  try { localStorage.setItem(SOUND_PREF_KEY, on ? "on" : "off"); } catch (e) { /* storage unavailable */ }
+  try { window.dispatchEvent(new CustomEvent(SOUND_EVENT)); } catch (e) { /* no window */ }
+}
+/* One bell partial: a sine that strikes fast and dies away exponentially. */
+function soundTone(ctx, out, freq, start, dur, gain, type) {
+  const osc = ctx.createOscillator();
+  const g = ctx.createGain();
+  osc.type = type || "sine";
+  osc.frequency.setValueAtTime(freq, start);
+  g.gain.setValueAtTime(0.0001, start);
+  g.gain.exponentialRampToValueAtTime(gain, start + 0.006);
+  g.gain.exponentialRampToValueAtTime(0.0001, start + dur);
+  osc.connect(g); g.connect(out);
+  osc.start(start); osc.stop(start + dur + 0.02);
+}
+function playSound(kind) {
+  if (!kind || !soundsEnabled()) return;
+  const now = Date.now();
+  if (now - soundLastAt < 600) return;
+  soundLastAt = now;
+  try {
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    if (!soundCtx) soundCtx = new AC();
+    const ctx = soundCtx;
+    if (ctx.state === "suspended") ctx.resume();
+    const t = ctx.currentTime + 0.01;
+    const out = ctx.createGain();
+    out.gain.value = 0.22;
+    out.connect(ctx.destination);
+    if (kind === "desk") {
+      /* Service bell: inharmonic partials, softened by a low-pass. */
+      const lp = ctx.createBiquadFilter();
+      lp.type = "lowpass"; lp.frequency.value = 3200;
+      lp.connect(out);
+      soundTone(ctx, lp, 1318.5, t, 0.48, 0.55);
+      soundTone(ctx, lp, 1318.5 * 2.32, t, 0.28, 0.16);
+      soundTone(ctx, lp, 1318.5 * 4.25, t, 0.12, 0.06);
+      soundTone(ctx, lp, 659.25, t, 0.4, 0.12);
+    } else if (kind === "attention") {
+      soundTone(ctx, out, 784, t, 0.14, 0.45, "triangle");
+      soundTone(ctx, out, 1046.5, t + 0.13, 0.2, 0.45, "triangle");
+    } else {
+      /* Glass tap: a bright fundamental with a faint inharmonic shimmer. */
+      soundTone(ctx, out, 1760, t, 0.35, 0.5);
+      soundTone(ctx, out, 1760 * 2.76, t, 0.12, 0.08);
+    }
+  } catch (e) { /* audio unavailable: stay silent */ }
+}
+/* Which sound an audit-trail action earns, if any. */
+function soundForAction(action) {
+  const a = String(action || "");
+  if (/^Reimbursement (Paid|Completed)$/.test(a)) return "desk";
+  if (/Reject|Returned|Reverted|Voided/.test(a)) return "attention";
+  if (/Approved|Submitted|Released|Liquidated|Request Created|Accounting Checked|Uploaded|Replenished|Settlement Recorded/.test(a)) return "chime";
+  return "";
+}
+
 const TOAST_EVENT = "pcp-toast";
 function showToast(type, title, detail) {
+  playSound(type === "success" ? "chime" : type === "error" || type === "warning" ? "attention" : "");
   try { window.dispatchEvent(new CustomEvent(TOAST_EVENT, { detail: { type, title, detail: detail || "" } })); } catch (e) { /* no window */ }
 }
 const toastUploadOk = (name) => showToast("success", "File uploaded successfully.", name ? `"${name}" was accepted and stored by the PCF Portal.` : "");

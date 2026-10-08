@@ -206,6 +206,11 @@ function LiqAlarmCard({ a, read, firstSeen, onOpen, onToggleRead }) {
   );
 }
 
+/* Unread alarms already announced with the Double-Tone. Kept outside the bell
+   because every TopBar mounts its own bell — switching pages must not replay
+   the sound for alarms the user has already heard. */
+let alarmBellHeard = 0;
+
 /* The bell (every TopBar). Reads the alarm state from the AppUI context. */
 function LiquidationAlarmBell() {
   const ui = useContext(AppUI);
@@ -218,6 +223,11 @@ function LiquidationAlarmBell() {
     return () => document.removeEventListener("mousedown", h);
   }, []);
   const al = ui && ui.liqAlarms;
+  const unreadNow = (al && al.enabled && al.unreadCount) || 0;
+  useEffect(() => {
+    if (unreadNow > alarmBellHeard) playSound("attention");
+    alarmBellHeard = unreadNow;
+  }, [unreadNow]);
   if (!al || !al.enabled) return null;
   const { alarms, upcoming, history, unreadCount, unreadOverdue } = al;
   const worst = alarms.some((a) => a.stage === "overdue") ? LIQ_ALARM_STAGE.overdue.tint
