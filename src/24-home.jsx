@@ -42,6 +42,22 @@ const HOME_CSS = `
   }
   .pcp-home-chip:hover, .pcp-home-chip:focus-visible { background: rgba(255,255,255,0.26); outline: none; }
   .pcp-home-chip.warn { background: rgba(255,120,110,0.28); border-color: rgba(255,170,160,0.6); }
+  /* Light Green theme (light mode only): a soft mint banner with dark-green
+     text instead of the dark green block; dark mode keeps the block. */
+  :root:not([data-theme="dark"]) .pcp-home-hero {
+    background: radial-gradient(circle at 92% 10%, rgba(95,175,120,0.20), transparent 45%),
+                linear-gradient(120deg, #e8f5ec 0%, #dff2e5 55%, #cdead8 100%);
+    color: #1e2b24; border: 1px solid #d7ebdd; box-shadow: 0 8px 24px rgba(47,107,69,0.08);
+  }
+  :root:not([data-theme="dark"]) .pcp-home-kicker,
+  :root:not([data-theme="dark"]) .pcp-home-title { color: var(--heading); opacity: 1; }
+  :root:not([data-theme="dark"]) .pcp-home-clock,
+  :root:not([data-theme="dark"]) .pcp-home-user { background: rgba(255,255,255,0.8); border-color: #d7ebdd; color: #1e2b24; }
+  :root:not([data-theme="dark"]) .pcp-home-clock-time { color: #2f6b45; }
+  :root:not([data-theme="dark"]) .pcp-home-chip { background: #fff; border-color: #d7ebdd; color: #2f6b45; transition: background 0.18s ease; }
+  :root:not([data-theme="dark"]) .pcp-home-chip:hover,
+  :root:not([data-theme="dark"]) .pcp-home-chip:focus-visible { background: #dff2e5; }
+  :root:not([data-theme="dark"]) .pcp-home-chip.warn { background: #fbeaea; border-color: #f1c4c0; color: #962d22; }
   .pcp-home-links { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
   .pcp-home-link {
     display: flex; gap: 14px; align-items: center; text-align: left; background: var(--dm-surface, #fff); border: 1px solid var(--line);

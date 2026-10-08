@@ -1,23 +1,33 @@
 /* ============================= STYLES ============================= */
 
 const CSS = `
-  /* Soft Green theme — sage (brand, navigation), mint (highlights), very
-     light green (page), white (cards), dark green-charcoal (text). Red is
-     kept ONLY as --danger: errors, required marks, delete, overdue. */
+  /* Light Green theme (Oct 2026) — very light mint page (#F4FBF6), light
+     green sections and navigation (#E8F5EC), white cards, mint borders
+     (#D7EBDD), #DFF2E5 hover, #5FAF78 accent (active states, icons, primary
+     buttons) and #2F6B45 dark green for headings and strong text. Two
+     values are adjusted for WCAG AA: primary buttons carry dark text on the
+     #5FAF78 accent (white on it is only 2.7:1), and muted text stays
+     #62736A (#6B7D71 is 4.4:1 on white). Red is kept ONLY as --danger:
+     errors, required marks, delete, overdue. */
   :root {
     --ink: #2c4a3c;
     --ink-2: #355a47;
-    --paper: #f2f7f3;
+    --paper: #f4fbf6;
+    --paper-2: #e8f5ec;
     --card: #ffffff;
-    --line: #dce7df;
-    --line-soft: #e9f1eb;
+    --line: #d7ebdd;
+    --line-soft: #e8f5ec;
+    --hover: #dff2e5;
+    --accent: #5faf78;
+    --accent-ink: #0f2e1c;
+    --heading: #2f6b45;
     --text: #1e2b24;
     --text-mut: #62736a;
-    --brand: #4e7d63;
-    --brand-dark: #3d654f;
-    --brand-soft: #eaf4ee;
-    --mint: #a7d7bd;
-    --mint-bg: #e3f4ea;
+    --brand: #2f6b45;
+    --brand-dark: #24563a;
+    --brand-soft: #e8f5ec;
+    --mint: #a9d9b8;
+    --mint-bg: #dff2e5;
     --danger: #c0392b;
     --danger-dark: #962d22;
     --amber: #a86b06;
@@ -1219,6 +1229,65 @@ const CSS = `
     table.pcp-table thead th { background: #f0f0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   }
 
+  /* ---- Light Green theme: light mode only (Oct 2026) ----
+     Scoped to :root:not([data-theme="dark"]) so dark mode keeps its own
+     look untouched. Large areas are very light green; green is the accent.
+     The sidebar reads its text colours from --sb-fg / --sb-mut (also used by
+     its inline styles), which only this block changes. */
+  :root:not([data-theme="dark"]) .pcp-sidebar {
+    --sb-fg: #2f6b45; --sb-mut: #62736a;
+    background: #e8f5ec; color: #2f6b45; border-right: 1px solid #d7ebdd;
+  }
+  :root:not([data-theme="dark"]) .pcp-brand-row { border-bottom-color: #d7ebdd; }
+  :root:not([data-theme="dark"]) .pcp-brand-title { color: var(--heading); }
+  :root:not([data-theme="dark"]) .pcp-brand-sub { color: #62736a; }
+  :root:not([data-theme="dark"]) .pcp-nav::-webkit-scrollbar-thumb { background: rgba(47,107,69,0.22); }
+  :root:not([data-theme="dark"]) .pcp-nav-group-label { color: #62736a; }
+  :root:not([data-theme="dark"]) .pcp-nav-item { color: #24433a; transition: background 0.18s ease, color 0.18s ease; }
+  :root:not([data-theme="dark"]) .pcp-nav-item svg { color: var(--accent); }
+  :root:not([data-theme="dark"]) .pcp-nav-item:hover { background: #dff2e5; color: #2f6b45; }
+  :root:not([data-theme="dark"]) .pcp-nav-item.active {
+    background: #fff; color: #2f6b45; box-shadow: inset 3px 0 0 var(--accent), 0 1px 3px rgba(47,107,69,0.12);
+  }
+  :root:not([data-theme="dark"]) .pcp-nav-item.active svg { color: #2f6b45; }
+  :root:not([data-theme="dark"]) .pcp-sidebar-foot { border-top-color: #d7ebdd; }
+  :root:not([data-theme="dark"]) .pcp-user-card,
+  :root:not([data-theme="dark"]) .pcp-role-badge { background: #fff; border: 1px solid #d7ebdd; color: #2f6b45; }
+  :root:not([data-theme="dark"]) .pcp-user-card .pcp-role-badge { background: #e8f5ec; border-color: #d7ebdd; }
+  :root:not([data-theme="dark"]) .pcp-user-name { color: #1e2b24; }
+  :root:not([data-theme="dark"]) .pcp-user-row { background: rgba(255,255,255,0.7); border: 1px solid #d7ebdd; }
+  :root:not([data-theme="dark"]) .pcp-user-email { color: #62736a; }
+  :root:not([data-theme="dark"]) .pcp-sidebar .pcp-btn-ghost:hover { background: #dff2e5; color: #2f6b45; }
+  :root:not([data-theme="dark"]) .pcp-theme-toggle { background: #fff; border: 1px solid #d7ebdd; }
+  :root:not([data-theme="dark"]) .pcp-theme-toggle button { color: #62736a; transition: background 0.18s ease, color 0.18s ease; }
+  :root:not([data-theme="dark"]) .pcp-theme-toggle button:hover { color: #2f6b45; background: #dff2e5; }
+  :root:not([data-theme="dark"]) .pcp-theme-toggle button.on { background: var(--accent); color: var(--accent-ink); }
+  :root:not([data-theme="dark"]) .pcp-logos-strip { background: #fff; border: 1px solid #d7ebdd; }
+
+  /* Page header: a light green band with dark-green headings. */
+  :root:not([data-theme="dark"]) .pcp-topbar { background: rgba(232,245,236,0.96); border-bottom-color: #d7ebdd; box-shadow: none; }
+  :root:not([data-theme="dark"]) .pcp-topbar h1,
+  :root:not([data-theme="dark"]) .pcp-section-title { color: var(--heading); }
+
+  /* Tables: light green header, mint hover. */
+  :root:not([data-theme="dark"]) table.pcp-table thead th { background: #e8f5ec; color: #2f6b45; border-bottom-color: #d7ebdd; }
+  :root:not([data-theme="dark"]) table.pcp-table tbody td { transition: background 0.15s ease; }
+  :root:not([data-theme="dark"]) table.pcp-table tbody tr:nth-child(even) td { background: #f8fcf9; }
+  :root:not([data-theme="dark"]) table.pcp-table tbody tr:hover td { background: #dff2e5; }
+
+  /* Buttons: soft mint hover; primary is the #5FAF78 accent with dark text. */
+  :root:not([data-theme="dark"]) .pcp-btn { transition: background 0.18s ease, border-color 0.18s ease, color 0.18s ease, box-shadow 0.18s ease; }
+  :root:not([data-theme="dark"]) .pcp-btn:hover { background: #dff2e5; border-color: #a9d9b8; color: #2f6b45; }
+  :root:not([data-theme="dark"]) .pcp-btn-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); box-shadow: 0 2px 6px rgba(95,175,120,0.30); }
+  :root:not([data-theme="dark"]) .pcp-btn-primary:hover { background: #52a36c; border-color: #52a36c; color: var(--accent-ink); }
+  :root:not([data-theme="dark"]) .pcp-btn-ghost:hover { background: #dff2e5; }
+  :root:not([data-theme="dark"]) .pcp-btn-danger:hover { background: var(--red-bg); border-color: #f1c4c0; color: var(--danger); }
+  :root:not([data-theme="dark"]) .pcp-input:focus,
+  :root:not([data-theme="dark"]) .pcp-select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(95,175,120,0.22); }
+
+  /* Plant tabs and KPI accents pick up the accent green. */
+  :root:not([data-theme="dark"]) .pcp-kpi::before { background: var(--accent); }
+
   /* ---- Dark mode ----
      Switched by data-theme="dark" on <html> (set in index.html, toggled by
      <ThemeToggle>). Screen only: printing always uses the light theme above,
@@ -1233,6 +1302,11 @@ const CSS = `
       --ink: #14211a;
       --ink-2: #1a2b22;
       --paper: #0f1713;
+      --paper-2: #131d18;
+      --hover: #1f3329;
+      --accent: #4f8a6b;
+      --accent-ink: #ffffff;
+      --heading: #9fd0b4;
       --card: #17221c;
       --line: #2a3a31;
       --line-soft: #213029;
@@ -1442,7 +1516,7 @@ function SoundToggle() {
   };
   return (
     <button type="button" className="pcp-btn pcp-btn-sm pcp-btn-ghost" aria-pressed={on}
-      style={{ color: "#d9e8df", width: "100%", justifyContent: "flex-start", marginTop: 2 }}
+      style={{ color: "var(--sb-fg, #d9e8df)", width: "100%", justifyContent: "flex-start", marginTop: 2 }}
       onClick={toggle} title={on ? "Turn off notification sounds" : "Turn on notification sounds"}>
       {on ? <Volume2 size={13} /> : <VolumeX size={13} />} Sounds: {on ? "On" : "Off"}
     </button>
@@ -1488,7 +1562,7 @@ function Sidebar({ tab, setTab, role, roleLabel, navGroups, userEmail, userName,
                 (FINANCE_CHECKER_NAMES); stamped on every transaction they approve. */}
             {financeCheckerNames && financeCheckerNames.length > 0 && onFinanceChecker && (
               <label style={{ display: "block", marginTop: 6 }}>
-                <span style={{ display: "block", fontSize: 10.5, color: "#9fbcab", marginBottom: 2 }}>Finance Checker:</span>
+                <span style={{ display: "block", fontSize: 10.5, color: "var(--sb-mut, #9fbcab)", marginBottom: 2 }}>Finance Checker:</span>
                 <select value={financeChecker || ""} onChange={(e) => onFinanceChecker(e.target.value)}
                   title="Select your name before checking transactions"
                   style={{ width: "100%", fontSize: 12, padding: "4px 6px", borderRadius: 6,
@@ -1505,18 +1579,18 @@ function Sidebar({ tab, setTab, role, roleLabel, navGroups, userEmail, userName,
         {userEmail && (
           <div className="pcp-user-row">
             <span className="pcp-user-email" title={userEmail}>{userEmail}</span>
-            <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" style={{ color: "#d9e8df" }} onClick={onSignOut} title="Sign out">
+            <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" style={{ color: "var(--sb-fg, #d9e8df)" }} onClick={onSignOut} title="Sign out">
               <LogOut size={13} />
             </button>
           </div>
         )}
         {onChangePassword && (
-          <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" style={{ color: "#d9e8df", width: "100%", justifyContent: "flex-start", marginTop: 2 }} onClick={onChangePassword} title="Change your password">
+          <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" style={{ color: "var(--sb-fg, #d9e8df)", width: "100%", justifyContent: "flex-start", marginTop: 2 }} onClick={onChangePassword} title="Change your password">
             <KeyRound size={13} /> Change Password
           </button>
         )}
         {onManageMfa && (
-          <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" style={{ color: "#d9e8df", width: "100%", justifyContent: "flex-start", marginTop: 2 }} onClick={onManageMfa} title="Add or remove authenticator devices">
+          <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" style={{ color: "var(--sb-fg, #d9e8df)", width: "100%", justifyContent: "flex-start", marginTop: 2 }} onClick={onManageMfa} title="Add or remove authenticator devices">
             <ShieldCheck size={13} /> Authenticator Devices
           </button>
         )}
@@ -1525,7 +1599,7 @@ function Sidebar({ tab, setTab, role, roleLabel, navGroups, userEmail, userName,
         <div className="pcp-logos-strip">
           <BrandLogos compact />
         </div>
-        <div style={{ fontSize: 10.5, color: "#9fbcab", padding: "2px 6px" }}>
+        <div style={{ fontSize: 10.5, color: "var(--sb-mut, #9fbcab)", padding: "2px 6px" }}>
           A1+ Multinational Packaging, Inc · Starkson Packaging, Inc.
         </div>
       </div>
