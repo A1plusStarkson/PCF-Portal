@@ -13,7 +13,7 @@ const HOME_CSS = `
   .pcp-home-hero {
     display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 340px); gap: 18px;
     background: radial-gradient(circle at 92% 10%, rgba(136,189,188,0.35), transparent 45%),
-                linear-gradient(120deg, #112d32 0%, #254e58 50%, #5a8d70 100%);
+                linear-gradient(120deg, #112d32 0%, #254e58 50%, #3c6e76 100%);
     color: #fff; border-radius: 16px; padding: 24px 26px; box-shadow: 0 10px 30px rgba(37,78,88,0.18);
   }
   .pcp-home-kicker { font-size: 11px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; opacity: 0.85; }
