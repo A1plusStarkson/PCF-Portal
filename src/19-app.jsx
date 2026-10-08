@@ -1085,6 +1085,8 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     } : l)));
     logAudit("Liquidation Final Approved", d.voucherNo,
       `${peso(receiptAmountSummary(liq).approvedTotal)} · batch ${liqReview(liq).batchNo} · ready for replenishment${remarks ? ` · ${remarks}` : ""}`);
+    /* true only when the approval went through (a batch approval counts these). */
+    return true;
   }, [isFinalApprover, liquidations, disbursements, logAudit, userName, role]);
 
   /* ---- Accounting review: Assign Batch Number / Mark as Checked / Undo ----
@@ -2235,6 +2237,8 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       return { ...r, ...patch };
     }));
     logAudit("Reimbursement " + label, r0.reimbNo, logged);
+    /* true only when the action went through (a batch approval counts these). */
+    return true;
   }, [logAudit, reimbursements, userName, role, inScope, isLiquidationChecker, isFinalApprover, isAccountingChecker, canRevert, activeFinanceChecker]); // eslint-disable-line
 
   const recordReimbursementPayment = useCallback((id, payment) => {

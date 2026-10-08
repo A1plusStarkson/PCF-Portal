@@ -519,6 +519,69 @@ function PcaApprovalPanel({
   );
 }
 
+/* ---- Batch Approval Success pop-up (reusable) ----
+   A yellow notice shown ONCE after a whole batch is approved — never once per
+   transaction. Everything it shows comes from `info`, so any batch workflow
+   (liquidation, reimbursement, replenishment, …) can use it:
+     info = { greeting, details: [[label, value], …], message }
+   OK, GOT IT closes it (Escape too); the button takes focus when it opens.
+   batchPopupSeen / markBatchPopupSeen keep it to once per batch per session.
+   The approvals themselves stay in the audit trail and review history. */
+const BATCH_POPUP_KEY = "pcp.batchPopupsSeen";
+function batchPopupSeen(key) {
+  try { return JSON.parse(sessionStorage.getItem(BATCH_POPUP_KEY) || "[]").includes(key); } catch (e) { return false; }
+}
+function markBatchPopupSeen(key) {
+  try {
+    const seen = JSON.parse(sessionStorage.getItem(BATCH_POPUP_KEY) || "[]");
+    if (!seen.includes(key)) sessionStorage.setItem(BATCH_POPUP_KEY, JSON.stringify(seen.concat([key])));
+  } catch (e) { /* storage unavailable: the pop-up may show again */ }
+}
+/* "September 1–15, 2026", "September 28 – October 8, 2026", or one date. */
+function fmtBatchPeriod(isoDates) {
+  const ds = (isoDates || []).filter(Boolean).map((s) => String(s).slice(0, 10)).sort();
+  if (!ds.length) return "—";
+  const a = new Date(ds[0] + "T00:00:00"), b = new Date(ds[ds.length - 1] + "T00:00:00");
+  const month = (d) => d.toLocaleDateString("en-US", { month: "long" });
+  if (ds[0] === ds[ds.length - 1]) return `${month(a)} ${a.getDate()}, ${a.getFullYear()}`;
+  if (a.getFullYear() !== b.getFullYear()) return `${month(a)} ${a.getDate()}, ${a.getFullYear()} – ${month(b)} ${b.getDate()}, ${b.getFullYear()}`;
+  if (a.getMonth() === b.getMonth()) return `${month(a)} ${a.getDate()}–${b.getDate()}, ${a.getFullYear()}`;
+  return `${month(a)} ${a.getDate()} – ${month(b)} ${b.getDate()}, ${a.getFullYear()}`;
+}
+function BatchApprovalSuccessModal({ info, onClose }) {
+  const okRef = useRef(null);
+  useEffect(() => {
+    if (okRef.current) okRef.current.focus();
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  if (!info) return null;
+  return (
+    <div className="pcp-batchpop-backdrop" onClick={onClose}>
+      <div className="pcp-batchpop" role="alertdialog" aria-modal="true" aria-labelledby="pcp-batchpop-title"
+        aria-describedby="pcp-batchpop-body" onClick={(e) => e.stopPropagation()}>
+        <div className="pcp-batchpop-head" id="pcp-batchpop-title">🟨 Batch Approval Completed</div>
+        <div className="pcp-batchpop-body" id="pcp-batchpop-body">
+          <div className="pcp-batchpop-greet">{info.greeting}</div>
+          <div className="pcp-batchpop-lead">Batch approval completed successfully.</div>
+          <dl className="pcp-batchpop-details">
+            {(info.details || []).map(([label, value]) => (
+              <React.Fragment key={label}><dt>{label}</dt><dd>{value}</dd></React.Fragment>
+            ))}
+          </dl>
+          {info.message && (
+            <div className="pcp-batchpop-ok"><CircleCheck size={18} /> <span>{info.message}</span></div>
+          )}
+        </div>
+        <div className="pcp-batchpop-foot">
+          <button ref={okRef} type="button" className="pcp-batchpop-btn" onClick={onClose}>OK, GOT IT</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ApprovalModuleTab({
   disbursements, liquidations, replenishments, reimbursements,
   onDecideReceipt, onRejectLiquidation, onReopenLiquidation, onCheckLiquidation, onFinalApprove,
@@ -765,6 +828,9 @@ function ApprovalModuleTab({
   };
   const batchesAwaiting = seesFinalQueue
     ? batchNos.map((b) => ({ batchNo: b, ...batchPending(b) })).filter((x) => x.count > 0) : [];
+  /* The yellow pop-up after a batch approval (BatchApprovalSuccessModal). */
+  const [batchDone, setBatchDone] = useState(null);
+  const closeBatchDone = useCallback(() => setBatchDone(null), []);
   const approveBatch = (b) => {
     const x = batchPending(b);
     if (!isFinalApprover || !x.count) return;
@@ -772,8 +838,31 @@ function ApprovalModuleTab({
       + x.pca.map((r) => `  ${r.seriesNo} · Liquidation · ${peso(r.src.amounts.approvedTotal)}`)
         .concat(x.reimb.map((r) => `  ${r.seriesNo} · Reimbursement · ${peso(r.amount)}`)).join("\n")
       + `\n\n${x.count} transaction(s) · ${peso(x.total)}. Each becomes Fully Approved / Ready for Replenishment.`)) return;
-    x.pca.forEach((r) => onFinalApprove(r.id, `Batch ${b} final approval`));
-    x.reimb.forEach((r) => onReimbursementAction(r.id, "final-approve", { comments: `Batch ${b} final approval` }));
+    const okPca = x.pca.filter((r) => onFinalApprove(r.id, `Batch ${b} final approval`) === true);
+    const okReimb = x.reimb.filter((r) => onReimbursementAction(r.id, "final-approve", { comments: `Batch ${b} final approval` }) === true);
+    /* One pop-up for the whole batch, counting only what was approved. */
+    const done = okPca.concat(okReimb);
+    if (!done.length || batchPopupSeen(b)) return;
+    markBatchPopupSeen(b);
+    const plants = Array.from(new Set(done.map((r) => plantLabel(plantOfBranch(r.plantCode)) || r.plantCode)));
+    const type = okPca.length && okReimb.length ? "Liquidation & Reimbursement" : okPca.length ? "Liquidation" : "Reimbursement";
+    const total = okPca.reduce((t, r) => t + r.src.amounts.approvedTotal, 0) + okReimb.reduce((t, r) => t + r.amount, 0);
+    const who = String(currentUser || "").trim();
+    setBatchDone({
+      greeting: /grace/i.test(who) ? "Hello, Ma'am Grace! 😊" : `Hello${who ? ", " + who : ""}! 😊`,
+      details: [
+        ["Company/Plant", plants.join(", ").toUpperCase()],
+        ["Batch", b],
+        ["Period", fmtBatchPeriod(done.map((r) => r.date))],
+        ["Transaction Type", type],
+        ["Transactions Approved", String(done.length)],
+        ["Total Amount", peso(total)],
+        ["Approved By", who || FINAL_APPROVER_NAME],
+      ],
+      message: done.length === x.count
+        ? "All transactions under this batch have been successfully approved."
+        : `${done.length} of ${x.count} transactions under this batch were approved; the rest need attention.`,
+    });
   };
 
   const openRow = (r) => {
@@ -819,6 +908,7 @@ function ApprovalModuleTab({
 
   return (
     <div className="pcp-liq-full pcp-approval-page">
+      {batchDone && <BatchApprovalSuccessModal info={batchDone} onClose={closeBatchDone} />}
       <TopBar
         title="Approval Module"
         sub={viewOnly

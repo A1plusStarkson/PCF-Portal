@@ -455,6 +455,51 @@ const CSS = `
   .pcp-doc-total-chip.lg { font-size: 12.5px; padding: 2px 10px; letter-spacing: 0.3px; }
   [data-theme="dark"] .pcp-liq-metric.pcp-doc-total, [data-theme="dark"] .pcp-doc-total-chip { background: #4a3a10; border-color: #c9930f; }
   [data-theme="dark"] .pcp-doc-total .pcp-kpi-label, [data-theme="dark"] .pcp-doc-total-num, [data-theme="dark"] .pcp-doc-total-chip { color: #ffe08a; }
+  /* Batch Approval Success pop-up (BatchApprovalSuccessModal, 23-approvals.jsx):
+     pale yellow card, medium-yellow border, dark text, green check; centred,
+     scrolls inside itself on short screens. */
+  .pcp-batchpop-backdrop {
+    position: fixed; inset: 0; z-index: 1600; display: flex; align-items: center; justify-content: center;
+    padding: 16px; background: rgba(20,28,22,0.38); animation: pcp-batchpop-fade 0.2s ease-out both;
+  }
+  .pcp-batchpop {
+    width: min(460px, 100%); max-height: calc(100vh - 32px); overflow-y: auto; border-radius: 16px;
+    background: #fff8d6; border: 2px solid #e8c547; color: #2a2414;
+    box-shadow: 0 22px 50px rgba(60,45,0,0.28), 0 2px 0 rgba(255,255,255,0.6) inset;
+    animation: pcp-batchpop-in 0.32s cubic-bezier(.2,.9,.3,1.15) both;
+  }
+  .pcp-batchpop-head {
+    padding: 16px 22px; border-bottom: 1px solid #f0d978; background: #fdeea4; border-radius: 14px 14px 0 0;
+    font-family: "Plus Jakarta Sans", "Inter", sans-serif; font-size: 16px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; color: #3d2f00;
+  }
+  .pcp-batchpop-body { padding: 18px 22px 6px; }
+  .pcp-batchpop-greet { font-size: 17px; font-weight: 800; color: #2a2414; }
+  .pcp-batchpop-lead { font-size: 13.5px; font-weight: 700; margin: 4px 0 14px; color: #3d3418; }
+  .pcp-batchpop-details {
+    display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 7px 18px; margin: 0;
+    padding: 12px 14px; border-radius: 10px; background: rgba(255,255,255,0.65); border: 1px solid #f0d978; font-size: 13px;
+  }
+  .pcp-batchpop-details dt { color: #6b5a1e; font-weight: 600; }
+  .pcp-batchpop-details dd { margin: 0; font-weight: 800; color: #2a2414; overflow-wrap: anywhere; }
+  .pcp-batchpop-ok { display: flex; gap: 8px; align-items: flex-start; margin-top: 14px; font-size: 13px; font-weight: 700; color: #1d5c34; }
+  .pcp-batchpop-ok svg { color: #1f8f4e; flex-shrink: 0; margin-top: 1px; }
+  .pcp-batchpop-foot { display: flex; justify-content: flex-end; padding: 14px 22px 18px; }
+  .pcp-batchpop-btn {
+    font: inherit; font-size: 14px; font-weight: 800; letter-spacing: 0.8px; padding: 11px 24px; border-radius: 10px; cursor: pointer;
+    color: #3b2a00; background: linear-gradient(180deg, #f7d983, #e0a526); border: 1px solid #c9930f;
+    box-shadow: 0 6px 14px rgba(160,110,0,0.28); transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .pcp-batchpop-btn:hover { transform: translateY(-1px); box-shadow: 0 9px 18px rgba(160,110,0,0.32); }
+  .pcp-batchpop-btn:focus-visible { outline: 3px solid #2a2414; outline-offset: 3px; }
+  @keyframes pcp-batchpop-fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes pcp-batchpop-in { from { opacity: 0; transform: translateY(14px) scale(0.96); } to { opacity: 1; transform: none; } }
+  @media (max-width: 480px) {
+    .pcp-batchpop-details { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+    .pcp-batchpop-details dd { margin-bottom: 6px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pcp-batchpop-backdrop, .pcp-batchpop { animation: none; }
+  }
   /* Upload status pop-ups (ToastHost). */
   .pcp-toasts { position: fixed; top: 16px; left: 50%; transform: translateX(-50%); z-index: 2000; display: flex; flex-direction: column; gap: 8px; width: min(520px, calc(100vw - 32px)); pointer-events: none; }
   .pcp-toast { pointer-events: auto; display: flex; align-items: flex-start; gap: 10px; padding: 12px 12px 12px 14px; border-radius: 10px; border: 2px solid; background: #fff; box-shadow: 0 12px 32px rgba(15,18,30,0.28); animation: pcpToastIn 0.18s ease; }
