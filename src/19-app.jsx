@@ -73,6 +73,32 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
        rest of it visible only to somebody else. */
     return keep(Array.from(new Set(expandPlantFamilies(userPlants))));
   }, [userPlants, excludedPlantKey, funds]); // eslint-disable-line
+
+  /* ---- Login Successful greeting ----
+     Right after a real sign-in (takeJustSignedIn — set by the sign-in screen),
+     once: a teal ring with a check pulses on the user card for ~3 s
+     (loginFx) and the LoginSuccessModal shows the account's own name, email
+     and plants. Module changes and page reloads never show it again. */
+  const [loginNotice, setLoginNotice] = useState(null);
+  const [loginFx, setLoginFx] = useState(false);
+  useEffect(() => {
+    if (!loaded || !takeJustSignedIn()) return undefined;
+    const plantNames = Array.from(new Set(allowedPlants.map((c) => plantOfBranch(c))))
+      .map((p) => plantLabel(p) || p).filter(Boolean);
+    setLoginNotice({
+      name: accountName || userEmail || "",
+      email: userEmail || "",
+      plants: plantNames.join(", ").toUpperCase() || "—",
+    });
+    setLoginFx(true);
+    playSound("confirm");
+    return undefined;
+  }, [loaded]); // eslint-disable-line
+  useEffect(() => {
+    if (!loginFx) return undefined;
+    const t = setTimeout(() => setLoginFx(false), 3200);
+    return () => clearTimeout(t);
+  }, [loginFx]);
   /* ---- Branch-level options ----
      Every branch the user may file a record against, in canonical order: the
      plants first, then any additional master-data plant so new plants surface
@@ -2810,9 +2836,10 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
 
   return (
     <AppUI.Provider value={uiValue}>
-    <div className="pcp-root">
+    <div className={"pcp-root" + (loginFx ? " pcp-login-fx" : "")}>
       <style>{CSS}</style>
       <ToastHost />
+      {loginNotice && <LoginSuccessModal info={loginNotice} onClose={() => setLoginNotice(null)} />}
       {/* Shared Finance account: pick who is working before anything else, so
           every action is recorded under that person's own name (userName
           above) — never the account's combined name. Can be changed any time

@@ -532,6 +532,23 @@ function soundForAction(action) {
   return "";
 }
 
+/* ---- "Just signed in" marker ----
+   The sign-in screen sets it when a sign-in succeeds; the app takes it once
+   (and clears it) to show the login ring and the Login Successful pop-up.
+   So the greeting follows a real sign-in only — never a module change or a
+   page reload with a session that was already open. */
+const JUST_SIGNED_IN_KEY = "pcp.justSignedIn";
+function markJustSignedIn() {
+  try { sessionStorage.setItem(JUST_SIGNED_IN_KEY, "1"); } catch (e) { /* storage unavailable */ }
+}
+function takeJustSignedIn() {
+  try {
+    const v = sessionStorage.getItem(JUST_SIGNED_IN_KEY) === "1";
+    sessionStorage.removeItem(JUST_SIGNED_IN_KEY);
+    return v;
+  } catch (e) { return false; }
+}
+
 const TOAST_EVENT = "pcp-toast";
 function showToast(type, title, detail) {
   playSound(type === "success" ? "chime" : type === "error" || type === "warning" ? "attention" : "");

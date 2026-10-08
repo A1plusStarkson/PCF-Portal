@@ -453,6 +453,70 @@ const CSS = `
   .pcp-doc-total-chip.lg { font-size: 12.5px; padding: 2px 10px; letter-spacing: 0.3px; }
   [data-theme="dark"] .pcp-liq-metric.pcp-doc-total, [data-theme="dark"] .pcp-doc-total-chip { background: #4a3a10; border-color: #c9930f; }
   [data-theme="dark"] .pcp-doc-total .pcp-kpi-label, [data-theme="dark"] .pcp-doc-total-num, [data-theme="dark"] .pcp-doc-total-chip { color: #ffe08a; }
+  /* Login Successful pop-up (LoginSuccessModal) — Corporate Teal. A light
+     backdrop that never locks the portal; a bar runs down the 4 s auto-close. */
+  .pcp-loginpop-backdrop {
+    position: fixed; inset: 0; z-index: 1700; display: flex; align-items: center; justify-content: center;
+    padding: 16px; background: rgba(12,24,27,0.30); animation: pcp-batchpop-fade 0.2s ease-out both;
+  }
+  .pcp-loginpop {
+    position: relative; overflow: hidden; width: min(400px, 100%); text-align: center; border-radius: 18px;
+    padding: 26px 24px 22px; background: #ffffff; color: #3a352d; border: 1px solid #d3e3e3;
+    box-shadow: 0 24px 54px rgba(17,45,50,0.30); animation: pcp-batchpop-in 0.32s cubic-bezier(.2,.9,.3,1.15) both;
+  }
+  .pcp-loginpop-check {
+    width: 56px; height: 56px; margin: 0 auto 10px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    color: #fff; background: radial-gradient(circle at 35% 30%, #4f8f93, #254e58 70%); box-shadow: 0 0 0 6px rgba(136,189,188,0.30);
+    animation: pcp-loginpop-check 0.5s 0.15s cubic-bezier(.2,.9,.3,1.3) both;
+  }
+  .pcp-loginpop-kicker { font-family: "Plus Jakarta Sans", "Inter", sans-serif; font-size: 13px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; color: #1f7a4a; }
+  .pcp-loginpop-hello { font-family: "Plus Jakarta Sans", "Inter", sans-serif; font-size: 20px; font-weight: 800; color: #254e58; margin-top: 6px; overflow-wrap: anywhere; }
+  .pcp-loginpop-lead { font-size: 13px; color: #6e6658; margin-top: 2px; }
+  .pcp-loginpop-details {
+    display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 16px 0 0; text-align: left;
+    padding: 12px 14px; border-radius: 10px; background: #f2f8f8; border: 1px solid #d3e3e3; font-size: 12.5px;
+  }
+  .pcp-loginpop-details dt { color: #6e6658; font-weight: 600; }
+  .pcp-loginpop-details dd { margin: 0; font-weight: 800; color: #254e58; overflow-wrap: anywhere; }
+  .pcp-loginpop-wish { margin-top: 14px; font-size: 13.5px; font-weight: 700; color: #3a352d; }
+  .pcp-loginpop-btn {
+    margin-top: 16px; display: inline-flex; align-items: center; gap: 6px; padding: 10px 26px; border-radius: 10px; cursor: pointer;
+    font: inherit; font-size: 13.5px; font-weight: 800; letter-spacing: 0.6px; text-transform: uppercase;
+    color: #fff; background: #254e58; border: 1px solid #254e58; box-shadow: 0 6px 14px rgba(37,78,88,0.30); transition: background 0.15s;
+  }
+  .pcp-loginpop-btn:hover { background: #112d32; }
+  .pcp-loginpop-btn:focus-visible { outline: 3px solid #88bdbc; outline-offset: 3px; }
+  .pcp-loginpop-timer {
+    position: absolute; left: 0; bottom: 0; height: 4px; width: 100%; background: #88bdbc; transform-origin: left;
+    animation: pcp-loginpop-timer 4s linear both;
+  }
+  @keyframes pcp-loginpop-check { from { opacity: 0; transform: scale(0.3) rotate(-25deg); } to { opacity: 1; transform: none; } }
+  @keyframes pcp-loginpop-timer { from { transform: scaleX(1); } to { transform: scaleX(0); } }
+  [data-theme="dark"] .pcp-loginpop { background: #132327; color: #e2ecec; border-color: #273f44; }
+  [data-theme="dark"] .pcp-loginpop-hello, [data-theme="dark"] .pcp-loginpop-details dd { color: #a9d4d3; }
+  [data-theme="dark"] .pcp-loginpop-kicker { color: #62c68b; }
+  [data-theme="dark"] .pcp-loginpop-lead, [data-theme="dark"] .pcp-loginpop-details dt { color: #9db4b5; }
+  [data-theme="dark"] .pcp-loginpop-details { background: #0c181b; border-color: #273f44; }
+  [data-theme="dark"] .pcp-loginpop-wish { color: #e2ecec; }
+  [data-theme="dark"] .pcp-loginpop-btn { background: #357a80; border-color: #357a80; }
+  /* Login ring: the user card in the sidebar pulses a teal ring for ~3 s and
+     shows a check badge (App adds .pcp-login-fx right after sign-in). */
+  .pcp-login-fx .pcp-user-card { position: relative; animation: pcp-login-ring 1.05s ease-out 3; }
+  .pcp-login-fx .pcp-user-card::after {
+    content: "\\2713"; position: absolute; top: -7px; right: -7px; width: 20px; height: 20px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 900;
+    color: #112d32; background: #88bdbc; box-shadow: 0 0 0 2px #ffffff; animation: pcp-loginpop-check 0.45s ease-out both;
+  }
+  @keyframes pcp-login-ring {
+    0% { box-shadow: 0 0 0 0 rgba(136,189,188,0.85); }
+    100% { box-shadow: 0 0 0 12px rgba(136,189,188,0); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pcp-loginpop-backdrop, .pcp-loginpop, .pcp-loginpop-check, .pcp-loginpop-timer { animation: none; }
+    .pcp-loginpop-timer { display: none; }
+    .pcp-login-fx .pcp-user-card { animation: none; box-shadow: 0 0 0 3px #88bdbc; }
+    .pcp-login-fx .pcp-user-card::after { animation: none; }
+  }
   /* Batch Approval Success pop-up (BatchApprovalSuccessModal, 23-approvals.jsx):
      pale yellow card, medium-yellow border, dark text, green check; centred,
      scrolls inside itself on short screens. */
@@ -1576,6 +1640,43 @@ function ThemeToggle() {
           </button>
         );
       })}
+    </div>
+  );
+}
+
+/* Login Successful pop-up (App, right after a real sign-in). Everything shown
+   comes from `info` = { name, email, plants }. Closes by itself after 4 s, or
+   on Continue / Escape / a click outside; Continue takes focus on open. */
+function LoginSuccessModal({ info, onClose }) {
+  const btnRef = useRef(null);
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
+  useEffect(() => {
+    if (btnRef.current) btnRef.current.focus();
+    const t = setTimeout(() => closeRef.current(), 4000);
+    const onKey = (e) => { if (e.key === "Escape") closeRef.current(); };
+    window.addEventListener("keydown", onKey);
+    return () => { clearTimeout(t); window.removeEventListener("keydown", onKey); };
+  }, []);
+  if (!info) return null;
+  return (
+    <div className="pcp-loginpop-backdrop" onClick={() => closeRef.current()}>
+      <div className="pcp-loginpop" role="alertdialog" aria-modal="true" aria-labelledby="pcp-loginpop-title"
+        onClick={(e) => e.stopPropagation()}>
+        <div className="pcp-loginpop-check" aria-hidden="true"><Check size={26} strokeWidth={3} /></div>
+        <div className="pcp-loginpop-kicker" id="pcp-loginpop-title">✓ Login Successful</div>
+        <div className="pcp-loginpop-hello">Welcome back, {info.name}!</div>
+        <div className="pcp-loginpop-lead">You are now logged in to the PCF Portal.</div>
+        <dl className="pcp-loginpop-details">
+          <dt>Account</dt><dd>{info.email || "—"}</dd>
+          <dt>Plant</dt><dd>{info.plants || "—"}</dd>
+        </dl>
+        <div className="pcp-loginpop-wish">Have a productive day! 😊</div>
+        <button ref={btnRef} type="button" className="pcp-loginpop-btn" onClick={() => closeRef.current()}>
+          <Check size={15} strokeWidth={3} /> Continue
+        </button>
+        <span className="pcp-loginpop-timer" aria-hidden="true" />
+      </div>
     </div>
   );
 }

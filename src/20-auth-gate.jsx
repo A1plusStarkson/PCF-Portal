@@ -309,10 +309,13 @@ function LoginScreen({ mode, onLocalLogin }) {
       if (cloud) {
         const res = await window.PCP_AUTH.signIn(resolveLoginId(identifier), password);
         if (res && res.error) setError(friendlyLoginError(res.error, true));
-        /* On success, onAuthStateChange in <Root/> swaps in the app. */
+        /* On success, onAuthStateChange in <Root/> swaps in the app — which
+           then shows the Login Successful pop-up once (markJustSignedIn). */
+        else markJustSignedIn();
       } else {
+        markJustSignedIn();
         const res = onLocalLogin(identifier, password);
-        if (res && res.error) setError(friendlyLoginError(res.error, false));
+        if (res && res.error) { takeJustSignedIn(); setError(friendlyLoginError(res.error, false)); }
       }
     } catch (err) {
       setError(friendlyLoginError(cloud ? { status: 0, message: "network" } : err, cloud));
