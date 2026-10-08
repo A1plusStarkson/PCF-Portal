@@ -446,7 +446,10 @@ function storagePathFor(attId, fileName) {
      desk    — "Desk Bell": a soft service bell. A reimbursement paid /
                completed.
      attention — "Double-Tone": two quick rising notes. Something needs the
-               user's attention (rejected, returned, upload failed, new alarm).
+               user's attention (rejected, returned, upload failed, new alarm,
+               sign-in failed).
+     welcome — three soft rising notes on the login page, at the visitor's
+               first click or key press (browsers allow no sound before it).
    Sounds that fire together (a batch approval, an upload that also logs) play
    once. Each user can switch them off from the sidebar (SoundToggle); the
    choice is kept in this browser only. */
@@ -497,6 +500,9 @@ function playSound(kind) {
       soundTone(ctx, lp, 1318.5 * 2.32, t, 0.28, 0.16);
       soundTone(ctx, lp, 1318.5 * 4.25, t, 0.12, 0.06);
       soundTone(ctx, lp, 659.25, t, 0.4, 0.12);
+    } else if (kind === "welcome") {
+      /* Login page greeting: a soft rising C-E-G arpeggio, under a second. */
+      [1046.5, 1318.5, 1568].forEach((f, i) => soundTone(ctx, out, f, t + i * 0.09, 0.5 - i * 0.05, 0.32));
     } else if (kind === "attention") {
       soundTone(ctx, out, 784, t, 0.14, 0.45, "triangle");
       soundTone(ctx, out, 1046.5, t + 0.13, 0.2, 0.45, "triangle");

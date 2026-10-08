@@ -153,6 +153,25 @@ const writeRememberedEmail = (v) => {
   try { if (v) localStorage.setItem(LOGIN_REMEMBER_KEY, v); else localStorage.removeItem(LOGIN_REMEMBER_KEY); } catch (e) { /* storage unavailable */ }
 };
 
+/* Speaker button in the sign-in card's corner: the same switch as the
+   sidebar's SoundToggle, so a visitor can mute before signing in. */
+function LoginSoundToggle() {
+  const [on, setOn] = useState(soundsEnabled);
+  useEffect(() => {
+    const h = () => setOn(soundsEnabled());
+    window.addEventListener(SOUND_EVENT, h);
+    return () => window.removeEventListener(SOUND_EVENT, h);
+  }, []);
+  return (
+    <button type="button" className="pcp-login-sound" aria-pressed={on}
+      title={on ? "Sounds on — click to mute" : "Sounds off — click to turn on"}
+      aria-label={on ? "Mute sounds" : "Turn sounds on"}
+      onClick={() => { setSoundsEnabled(!on); if (!on) playSound("chime"); }}>
+      {on ? <Volume2 size={16} /> : <VolumeX size={16} />}
+    </button>
+  );
+}
+
 function LoginScreen({ mode, onLocalLogin }) {
   const cloud = mode === "cloud";
   const [identifier, setIdentifier] = useState(() => readRememberedEmail());
@@ -165,6 +184,21 @@ function LoginScreen({ mode, onLocalLogin }) {
   const [capsOn, setCapsOn] = useState(false);
   /* Changes made before the session expired, still held by this tab. */
   const blockedSaves = useBlockedSaves();
+
+  /* Welcome sound. Browsers allow no sound until the visitor interacts, so it
+     plays on the first click, tap or key press on the page — once. */
+  useEffect(() => {
+    const evts = ["pointerdown", "keydown"];
+    const once = (e) => {
+      evts.forEach((ev) => window.removeEventListener(ev, once, true));
+      /* A first click on the speaker button is the visitor choosing; skip the greeting. */
+      if (!(e.target && e.target.closest && e.target.closest(".pcp-login-sound"))) playSound("welcome");
+    };
+    evts.forEach((ev) => window.addEventListener(ev, once, true));
+    return () => evts.forEach((ev) => window.removeEventListener(ev, once, true));
+  }, []);
+  /* A failed sign-in gets the Double-Tone. */
+  useEffect(() => { if (error) playSound("attention"); }, [error]);
 
   /* Checked here first so the user gets a clear hint next to the field
      instead of the browser's own pop-up. */
@@ -224,6 +258,7 @@ function LoginScreen({ mode, onLocalLogin }) {
         <main className="pcp-login-pane">
           <div className="pcp-login-card">
             <div className="pcp-login-card-head">
+              <LoginSoundToggle />
               <img className="pcp-login-card-logo" src={LOGO_PORTAL} alt="" aria-hidden="true" />
               <div className="pcp-login-greet">{homeGreeting(new Date())} 👋</div>
               <h2 className="pcp-login-title">Welcome back</h2>

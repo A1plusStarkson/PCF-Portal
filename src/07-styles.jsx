@@ -604,6 +604,14 @@ const CSS = `
   .pcp-login-pane { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 32px 24px; background: var(--paper); }
   .pcp-login-split .pcp-login-card { max-width: 400px; border-radius: 16px; box-shadow: 0 24px 60px rgba(15,18,30,0.10); }
   .pcp-login-card-head { padding: 28px 28px 0; }
+  .pcp-login-card { position: relative; }
+  .pcp-login-sound {
+    position: absolute; top: 18px; right: 18px; width: 34px; height: 34px; border-radius: 50%;
+    display: inline-flex; align-items: center; justify-content: center; cursor: pointer;
+    border: 1px solid var(--line); background: var(--card); color: var(--brand); transition: background 0.15s;
+  }
+  .pcp-login-sound:hover { background: rgba(78,125,99,0.10); }
+  .pcp-login-sound[aria-pressed="false"] { color: var(--text-mut); }
   .pcp-login-split .pcp-login-title { font-size: 22px; font-weight: 800; margin: 0; letter-spacing: -0.3px; color: var(--text); }
   .pcp-login-split .pcp-login-sub { font-size: 12.5px; color: var(--text-mut); margin-top: 6px; }
   .pcp-login-split .pcp-login-body { padding: 22px 28px 26px; }
