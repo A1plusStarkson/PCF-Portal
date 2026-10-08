@@ -43,32 +43,36 @@ function friendlyLoginError(err, cloud) {
   return { title: "Sign-in failed", text: e.message || "Please try again. If it keeps happening, contact your administrator." };
 }
 
-/* Decorative ₱ animation for the login brand panel: a stack of peso bills
-   floating gently with gold coins rising past them. Pure CSS (transform and
-   opacity only, no images or libraries), so it costs nothing to load; it
-   stands still for users who ask their system for reduced motion. */
+/* Decorative ₱ animation for the login brand panel: stacks of gold ₱ coins
+   behind banded bundles of peso bills, with a ₱ coin turning above them. The
+   bundles float gently, a light sheen sweeps across the bills and the glow
+   breathes. Pure CSS (transform and opacity only, no images or libraries), so
+   it costs nothing to load; it stands still for users who ask their system
+   for reduced motion. */
 function PesoVisual() {
-  const bills = [
-    { cls: "b3", value: "1000" },
-    { cls: "b2", value: "500" },
-    { cls: "b1", value: "1000" },
+  const stacks = ["s1", "s2", "s3", "s4"];
+  const bundles = [
+    { cls: "u1", value: "1000" },
+    { cls: "u2", value: "1000" },
+    { cls: "u3", value: "500" },
   ];
   return (
     <div className="pcp-peso-scene" aria-hidden="true">
       <div className="pcp-peso-glow" />
-      <div className="pcp-peso-bills">
-        {bills.map((b) => (
-          <div key={b.cls} className={"pcp-peso-bill " + b.cls}>
-            <span className="pcp-peso-bill-val tl">₱{b.value}</span>
-            <span className="pcp-peso-bill-seal">₱</span>
-            <span className="pcp-peso-bill-lines"><i /><i /><i /></span>
-            <span className="pcp-peso-bill-val br">{b.value}</span>
-          </div>
-        ))}
-      </div>
-      {["c1", "c2", "c3", "c4", "c5"].map((c) => (
-        <div key={c} className={"pcp-peso-coin " + c}><span>₱</span></div>
+      {stacks.map((s) => (
+        <div key={s} className={"pcp-cash-stack " + s}><div className="pcp-cash-stack-top"><span>₱</span></div></div>
       ))}
+      {bundles.map((b) => (
+        <div key={b.cls} className={"pcp-cash-bundle " + b.cls}>
+          <div className="pcp-cash-bill">
+            <span className="pcp-cash-seal">₱</span>
+            <span className="pcp-cash-val">₱{b.value}</span>
+          </div>
+          <span className="pcp-cash-band" />
+        </div>
+      ))}
+      <div className="pcp-cash-coin"><span>₱</span></div>
+      <i className="pcp-cash-spark k1" /><i className="pcp-cash-spark k2" />
     </div>
   );
 }
@@ -91,6 +95,8 @@ function LoginBrandPanel() {
           <div className="pcp-login-brand-name">Petty Cash Portal</div>
           <div className="pcp-login-brand-sub">Imprest Fund Management System</div>
         </div>
+        {/* Small screens only: the ₱ coin, since the full artwork is hidden there. */}
+        <div className="pcp-cash-coin pcp-cash-coin-mini" aria-hidden="true"><span>₱</span></div>
       </div>
       {/* Text on the left; on wide screens the ₱ artwork sits beside it
           instead of under it, so the panel has no empty half. */}

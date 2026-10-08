@@ -651,58 +651,104 @@ const CSS = `
   .pcp-login-copy { font-size: 11px; color: var(--text-mut); text-align: center; }
   /* ---- Login ₱ visual (PesoVisual in 20-auth-gate.jsx) ---- */
   /* Drawn at 130%: the scale leaves the layout box alone, so the margin makes room. */
-  .pcp-peso-scene { position: relative; height: 200px; max-width: 420px; margin: 70px 0 0; transform: scale(1.3); transform-origin: left bottom; }
-  .pcp-peso-glow { position: absolute; left: 30%; top: 20%; width: 60%; height: 70%; border-radius: 50%; background: radial-gradient(circle, rgba(245,196,81,0.28), transparent 70%); filter: blur(6px); }
-  .pcp-peso-bills { position: absolute; left: 10px; top: 36px; width: 230px; height: 118px; }
-  .pcp-peso-bill {
-    position: absolute; inset: 0; border-radius: 10px; overflow: hidden;
-    background: linear-gradient(135deg, #f7ecd0 0%, #e9d6a4 55%, #d9bf7e 100%);
-    border: 2px solid rgba(146,96,10,0.55); box-shadow: 0 12px 26px rgba(0,0,0,0.35), inset 0 0 0 5px rgba(255,255,255,0.35);
-    animation: pcp-bill-float 6s ease-in-out infinite;
+  .pcp-peso-scene { position: relative; height: 200px; max-width: 330px; margin: 70px 0 0 20px; transform: scale(1.3); transform-origin: left bottom; }
+  .pcp-peso-glow {
+    position: absolute; left: 22%; top: 8%; width: 70%; height: 85%; border-radius: 50%;
+    background: radial-gradient(circle, rgba(245,196,81,0.30), transparent 70%); filter: blur(8px);
+    animation: pcp-cash-breathe 6s ease-in-out infinite;
   }
-  .pcp-peso-bill.b3 { transform: translate(34px, -26px) rotate(8deg); opacity: 0.55; animation-delay: -2s; }
-  .pcp-peso-bill.b2 { transform: translate(17px, -13px) rotate(4deg); opacity: 0.8; animation-delay: -1s; background: linear-gradient(135deg, #f3e3c0, #e2c98f 60%, #cfae67); }
-  .pcp-peso-bill.b1 { transform: rotate(-2deg); }
-  .pcp-peso-bill-val { position: absolute; font-weight: 800; color: #6b4a07; letter-spacing: -0.3px; }
-  .pcp-peso-bill-val.tl { left: 12px; top: 8px; font-size: 15px; }
-  .pcp-peso-bill-val.br { right: 12px; bottom: 7px; font-size: 13px; opacity: 0.75; }
-  .pcp-peso-bill-seal {
-    position: absolute; left: 50%; top: 50%; width: 48px; height: 48px; margin: -24px 0 0 -24px; border-radius: 50%;
-    display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: 800; color: #6b4a07;
-    border: 2px solid rgba(107,74,7,0.45); background: radial-gradient(circle, rgba(255,255,255,0.6), rgba(255,255,255,0.1));
-  }
-  .pcp-peso-bill-lines { position: absolute; left: 12px; bottom: 12px; display: flex; flex-direction: column; gap: 4px; }
-  .pcp-peso-bill-lines i { display: block; height: 3px; width: 46px; border-radius: 2px; background: rgba(107,74,7,0.3); }
-  .pcp-peso-bill-lines i:nth-child(2) { width: 34px; }
-  .pcp-peso-bill-lines i:nth-child(3) { width: 40px; }
-  @keyframes pcp-bill-float { 0%, 100% { translate: 0 0; } 50% { translate: 0 -7px; } }
+  @keyframes pcp-cash-breathe { 0%, 100% { opacity: 0.65; transform: scale(0.96); } 50% { opacity: 1; transform: scale(1.04); } }
 
-  .pcp-peso-coin {
-    position: absolute; width: 38px; height: 38px; border-radius: 50%; opacity: 0;
-    background: radial-gradient(circle at 35% 30%, #fff3c4 0%, #f5c451 35%, #c98f12 75%, #9c6b06 100%);
-    box-shadow: 0 6px 14px rgba(0,0,0,0.35), inset 0 0 0 3px rgba(255,240,190,0.55);
+  /* Gold ₱ coin stacks: a ridged cylinder with an elliptical ₱ face on top. */
+  .pcp-cash-stack {
+    position: absolute; width: 54px; z-index: 1;
+    border-radius: 0 0 27px 27px / 0 0 8px 8px;
+    background:
+      linear-gradient(90deg, rgba(255,246,210,0.45), transparent 35%, transparent 65%, rgba(90,55,0,0.35)),
+      repeating-linear-gradient(180deg, #f2bf3c 0 6px, #c4890b 6px 8px);
+    box-shadow: 0 10px 18px rgba(0,0,0,0.28);
+  }
+  .pcp-cash-stack.s1 { left: 70px; bottom: 58px; height: 70px; }
+  .pcp-cash-stack.s2 { left: 128px; bottom: 58px; height: 102px; }
+  .pcp-cash-stack.s3 { left: 186px; bottom: 58px; height: 86px; }
+  .pcp-cash-stack.s4 { left: 242px; bottom: 50px; height: 56px; }
+  .pcp-cash-stack-top {
+    position: absolute; left: 0; top: -8px; width: 54px; height: 16px; border-radius: 50%; overflow: hidden;
+    background: radial-gradient(ellipse at 40% 35%, #fff3c4 0%, #f5c451 45%, #d39b16 100%);
+    box-shadow: inset 0 0 0 2px rgba(255,240,190,0.65), 0 1px 0 #b07a08;
     display: flex; align-items: center; justify-content: center;
-    animation: pcp-coin-rise 7s ease-in-out infinite;
   }
-  .pcp-peso-coin span { font-size: 19px; font-weight: 800; color: #7a4f02; animation: pcp-coin-turn 3.5s ease-in-out infinite; display: block; }
-  .pcp-peso-coin.c1 { left: 262px; bottom: 6px; animation-delay: 0s; }
-  .pcp-peso-coin.c2 { left: 310px; bottom: 30px; width: 30px; height: 30px; animation-delay: -1.4s; }
-  .pcp-peso-coin.c2 span { font-size: 15px; }
-  .pcp-peso-coin.c3 { left: 356px; bottom: 0; animation-delay: -2.8s; }
-  .pcp-peso-coin.c4 { left: 290px; bottom: 60px; width: 26px; height: 26px; animation-delay: -4.2s; }
-  .pcp-peso-coin.c4 span { font-size: 13px; }
-  .pcp-peso-coin.c5 { left: 222px; bottom: -4px; width: 32px; height: 32px; animation-delay: -5.6s; }
-  .pcp-peso-coin.c5 span { font-size: 16px; }
-  @keyframes pcp-coin-rise {
-    0% { opacity: 0; transform: translateY(18px) scale(0.9); }
-    15% { opacity: 0.95; }
-    70% { opacity: 0.9; }
-    100% { opacity: 0; transform: translateY(-120px) scale(1); }
+  .pcp-cash-stack-top span { font-size: 12px; font-weight: 900; color: #7a4f02; line-height: 1; transform: scaleY(0.75); }
+  /* A soft light glint runs over each coin face in turn. */
+  .pcp-cash-stack-top::after {
+    content: ""; position: absolute; top: 0; bottom: 0; left: -60%; width: 40%;
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,0.75), transparent);
+    animation: pcp-cash-shine 6s ease-in-out infinite;
   }
-  @keyframes pcp-coin-turn { 0%, 100% { transform: scaleX(1); } 50% { transform: scaleX(0.35); } }
+  .pcp-cash-stack.s2 .pcp-cash-stack-top::after { animation-delay: 0.5s; }
+  .pcp-cash-stack.s3 .pcp-cash-stack-top::after { animation-delay: 1s; }
+  .pcp-cash-stack.s4 .pcp-cash-stack-top::after { animation-delay: 1.5s; }
+
+  /* Banded bundles of peso bills: the top bill, the stacked edges beneath it,
+     and a gold band round the middle. */
+  .pcp-cash-bundle { position: absolute; width: 150px; height: 82px; z-index: 3; animation: pcp-cash-float 6s ease-in-out infinite; }
+  .pcp-cash-bundle.u1 { left: 0; bottom: 4px; }
+  .pcp-cash-bundle.u2 { left: 152px; bottom: 0; animation-delay: -2s; }
+  .pcp-cash-bundle.u3 { left: 76px; bottom: 44px; z-index: 2; animation-delay: -4s; }
+  .pcp-cash-bundle::after {
+    content: ""; position: absolute; left: 2px; right: 2px; top: 56px; height: 24px; border-radius: 0 0 6px 6px;
+    background:
+      linear-gradient(90deg, rgba(0,0,0,0.12), transparent 30%, transparent 70%, rgba(0,0,0,0.18)),
+      repeating-linear-gradient(180deg, #e3f4e7 0 2px, #4f9a6b 2px 4px);
+    box-shadow: 0 12px 20px rgba(0,0,0,0.32);
+  }
+  .pcp-cash-bill {
+    position: absolute; left: 0; right: 0; top: 0; height: 60px; z-index: 1; border-radius: 6px; overflow: hidden;
+    background: linear-gradient(135deg, #b5e3c2 0%, #6dbb88 55%, #3f8c5d 100%);
+    border: 2px solid #2f6e48; box-shadow: inset 0 0 0 4px rgba(255,255,255,0.28);
+  }
+  .pcp-cash-bill::after {
+    content: ""; position: absolute; top: 0; bottom: 0; left: -60%; width: 45%;
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,0.5), transparent);
+    animation: pcp-cash-shine 6s ease-in-out infinite;
+  }
+  .pcp-cash-bundle.u2 .pcp-cash-bill::after { animation-delay: 0.8s; }
+  .pcp-cash-bundle.u3 .pcp-cash-bill::after { animation-delay: 1.6s; }
+  .pcp-cash-seal {
+    position: absolute; left: 12px; top: 50%; width: 34px; height: 34px; margin-top: -17px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center; font-size: 19px; font-weight: 900; color: #1f5537;
+    border: 2px solid rgba(31,85,55,0.55); background: radial-gradient(circle, rgba(255,255,255,0.65), rgba(255,255,255,0.12));
+  }
+  .pcp-cash-val { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); font-size: 13px; font-weight: 800; color: #1f5537; letter-spacing: -0.3px; }
+  .pcp-cash-band {
+    position: absolute; left: 58px; width: 30px; top: -1px; bottom: 1px; z-index: 2; border-radius: 2px;
+    background: linear-gradient(90deg, #c99416, #f7d983 50%, #c99416);
+    box-shadow: 0 0 0 1px rgba(122,79,2,0.35);
+  }
+
+  /* The ₱ coin above the stacks: floats and turns slowly. */
+  .pcp-cash-coin {
+    position: absolute; left: 262px; top: -6px; width: 46px; height: 46px; border-radius: 50%; z-index: 4;
+    background: radial-gradient(circle at 35% 30%, #fff3c4 0%, #f5c451 35%, #c98f12 75%, #9c6b06 100%);
+    box-shadow: 0 8px 16px rgba(0,0,0,0.32), inset 0 0 0 3px rgba(255,240,190,0.6);
+    display: flex; align-items: center; justify-content: center;
+    animation: pcp-cash-bob 4s ease-in-out infinite, pcp-cash-turn 8s ease-in-out infinite;
+  }
+  .pcp-cash-coin span { font-size: 23px; font-weight: 900; color: #7a4f02; line-height: 1; }
+  .pcp-cash-coin-mini { display: none; }
+  .pcp-cash-spark { position: absolute; width: 10px; height: 10px; z-index: 4; background: #fff6d6; clip-path: polygon(50% 0, 62% 38%, 100% 50%, 62% 62%, 50% 100%, 38% 62%, 0 50%, 38% 38%); animation: pcp-cash-twinkle 3.2s ease-in-out infinite; }
+  .pcp-cash-spark.k1 { left: 44px; top: 34px; }
+  .pcp-cash-spark.k2 { left: 318px; top: 70px; animation-delay: -1.6s; }
+
+  @keyframes pcp-cash-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-5px); } }
+  @keyframes pcp-cash-bob { 0%, 100% { translate: 0 0; } 50% { translate: 0 -8px; } }
+  /* Mostly still, with one slow turn per cycle. */
+  @keyframes pcp-cash-turn { 0%, 70%, 100% { transform: scaleX(1); } 80% { transform: scaleX(0.15); } 90% { transform: scaleX(1); } }
+  @keyframes pcp-cash-shine { 0%, 55% { transform: translateX(0); } 85%, 100% { transform: translateX(480%); } }
+  @keyframes pcp-cash-twinkle { 0%, 100% { opacity: 0; transform: scale(0.5); } 50% { opacity: 0.9; transform: scale(1); } }
   @media (prefers-reduced-motion: reduce) {
-    .pcp-peso-bill, .pcp-peso-coin span { animation: none; }
-    .pcp-peso-coin { animation: none; opacity: 0.9; }
+    .pcp-peso-glow, .pcp-cash-bundle, .pcp-cash-coin, .pcp-cash-stack-top::after, .pcp-cash-bill::after { animation: none; }
+    .pcp-cash-spark { animation: none; opacity: 0.6; }
   }
 
   /* ---- Reverted to Requestor highlight (REVERT_HIGHLIGHT_EMAILS) ---- */
@@ -749,8 +795,15 @@ const CSS = `
   /* Wide screens: text and ₱ artwork side by side. */
   @media (min-width: 1500px) {
     .pcp-login-brand-mid { max-width: none; display: grid; grid-template-columns: minmax(0, 460px) minmax(0, 1fr); align-items: center; gap: 24px; }
-    .pcp-login-brand-mid .pcp-peso-scene { margin: 0 0 0 10px; transform: scale(1.45); transform-origin: left center; }
+    .pcp-login-brand-mid .pcp-peso-scene { margin: 0 0 0 10px; transform: scale(0.62); transform-origin: left center; }
   }
+  /* Beside the text the artwork only has the second grid column (about 52vw - 580px),
+     so it grows in steps with the screen instead of spilling out of the panel. */
+  @media (min-width: 1580px) { .pcp-login-brand-mid .pcp-peso-scene { transform: scale(0.75); } }
+  @media (min-width: 1650px) { .pcp-login-brand-mid .pcp-peso-scene { transform: scale(0.85); } }
+  @media (min-width: 1800px) { .pcp-login-brand-mid .pcp-peso-scene { transform: scale(1.05); } }
+  @media (min-width: 2000px) { .pcp-login-brand-mid .pcp-peso-scene { transform: scale(1.3); } }
+  @media (min-width: 2200px) { .pcp-login-brand-mid .pcp-peso-scene { transform: scale(1.45); } }
   .pcp-login-pane {
     background: radial-gradient(circle at 80% 0%, rgba(167,215,189,0.22), transparent 45%),
                 radial-gradient(circle at 0% 100%, rgba(245,196,81,0.10), transparent 40%), var(--paper);
@@ -786,6 +839,8 @@ const CSS = `
     .pcp-login-logo-tile { width: 40px; height: 40px; border-radius: 10px; }
     .pcp-login-logo-tile img { max-width: 28px; max-height: 32px; }
     .pcp-login-brand-name { font-size: 15px; }
+    .pcp-cash-coin-mini { display: flex; position: static; margin-left: auto; width: 34px; height: 34px; flex-shrink: 0; }
+    .pcp-cash-coin-mini span { font-size: 17px; }
     .pcp-login-pane { justify-content: flex-start; padding: 24px 16px; }
   }
   @media (max-width: 480px) {
