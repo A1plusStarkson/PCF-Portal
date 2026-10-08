@@ -932,14 +932,27 @@ const CSS = `
   .pcf-splash-sub { font-size: 15px; color: #b9d6d5; margin: 0 0 24px; animation: pcf-pop-in 0.5s cubic-bezier(.2,.9,.3,1.25) 0.18s both; }
   @keyframes pcf-text-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
   .pcf-splash-enter {
-    display: inline-flex; align-items: center; gap: 8px; padding: 14px 30px; border: 0; border-radius: 999px; cursor: pointer;
-    font: inherit; font-size: 15px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; color: #3b2a00;
-    background: linear-gradient(180deg, #f7d983, #e0a526); box-shadow: 0 10px 24px rgba(0,0,0,0.28);
+    position: relative; overflow: hidden;
+    display: inline-flex; align-items: center; gap: 7px; padding: 11px 24px; border: 0; border-radius: 999px; cursor: pointer;
+    font: inherit; font-size: 13.5px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; color: #3b2a00;
+    background: linear-gradient(180deg, #f7d983, #e0a526); box-shadow: 0 8px 20px rgba(0,0,0,0.28);
     transition: transform 0.15s, box-shadow 0.15s;
     /* "backwards": after popping in, the hover lift (transform) works again. */
     animation: pcf-pop-in 0.5s cubic-bezier(.2,.9,.3,1.25) 0.3s backwards;
   }
-  .pcf-splash-enter:hover { transform: translateY(-2px); box-shadow: 0 14px 30px rgba(0,0,0,0.32); }
+  /* Shimmer: a soft light sweeps across the button every few seconds, so the
+     visitor sees this is the way in to the sign-in (owner's request). */
+  .pcf-splash-enter::after {
+    content: ""; position: absolute; top: 0; bottom: 0; left: -40%; width: 35%; pointer-events: none;
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,0.75), transparent);
+    transform: skewX(-18deg) translateX(0); animation: pcf-enter-shimmer 3.2s ease-in-out 1s infinite;
+  }
+  .pcf-splash-enter > * { position: relative; z-index: 1; }
+  @keyframes pcf-enter-shimmer {
+    0% { transform: skewX(-18deg) translateX(0); }
+    45%, 100% { transform: skewX(-18deg) translateX(480%); }
+  }
+  .pcf-splash-enter:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(0,0,0,0.32); }
   .pcf-splash-enter:focus-visible { outline: 2px solid rgba(255,255,255,0.7); outline-offset: 4px; }
   .pcf-splash-enter svg { transition: transform 0.15s; }
   .pcf-splash-enter:hover svg { transform: translateX(3px); }
@@ -960,6 +973,7 @@ const CSS = `
   @media (max-height: 620px) { .pcf-splash-art { transform: scale(0.62); margin: -68px 0 -30px; } }
   @media (prefers-reduced-motion: reduce) {
     .pcf-splash *, .pcf-splash { animation: none !important; transition: none !important; }
+    .pcf-splash-enter::after { display: none; }
   }
   .pcp-login-split .pcp-login-title { font-size: 22px; font-weight: 800; margin: 0; letter-spacing: -0.3px; color: var(--text); }
   .pcp-login-split .pcp-login-sub { font-size: 12.5px; color: var(--text-mut); margin-top: 6px; }

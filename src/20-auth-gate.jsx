@@ -245,7 +245,7 @@ function PcfSplash({ onEnter }) {
       </h1>
       <p className="pcf-splash-sub">Petty Cash Fund Management System</p>
       <button ref={enterRef} type="button" className="pcf-splash-enter" onClick={enter}>
-        Enter PCF Portal <ChevronRight size={18} />
+        <span>Enter PCF Portal</span> <ChevronRight size={16} />
       </button>
       <div className="pcf-splash-sound"><LoginSoundToggle /></div>
     </section>
