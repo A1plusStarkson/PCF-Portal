@@ -133,6 +133,14 @@ function LoginBrandPanel() {
 
 /* "Remember me on this computer": the EMAIL only, never the password, in this
    browser's storage. Wrapped so a blocked storage just means no remembering. */
+/* Turns a login username (PCP_LOGIN_USERNAMES in index.html) into its email;
+   anything else is returned trimmed, as typed. */
+const resolveLoginId = (id) => {
+  const v = String(id || "").trim();
+  const map = window.PCP_LOGIN_USERNAMES || {};
+  return map[v.replace(/\s+/g, " ").toLowerCase()] || v;
+};
+
 const LOGIN_REMEMBER_KEY = "pcp.rememberEmail";
 const readRememberedEmail = () => { try { return localStorage.getItem(LOGIN_REMEMBER_KEY) || ""; } catch (e) { return ""; } };
 const writeRememberedEmail = (v) => {
@@ -156,8 +164,8 @@ function LoginScreen({ mode, onLocalLogin }) {
      instead of the browser's own pop-up. */
   const validate = () => {
     const f = {};
-    const id = identifier.trim();
-    if (!id) f.id = cloud ? "Enter your email address." : "Enter your username.";
+    const id = resolveLoginId(identifier);
+    if (!id) f.id = cloud ? "Enter your email address or username." : "Enter your username.";
     else if (cloud && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id)) f.id = "Enter a valid email address, e.g. name@a1plus.com.";
     if (!password) f.pw = "Enter your password.";
     return f;
@@ -174,7 +182,7 @@ function LoginScreen({ mode, onLocalLogin }) {
     writeRememberedEmail(remember ? identifier.trim() : "");
     try {
       if (cloud) {
-        const res = await window.PCP_AUTH.signIn(identifier.trim(), password);
+        const res = await window.PCP_AUTH.signIn(resolveLoginId(identifier), password);
         if (res && res.error) setError(friendlyLoginError(res.error, true));
         /* On success, onAuthStateChange in <Root/> swaps in the app. */
       } else {
@@ -232,12 +240,12 @@ function LoginScreen({ mode, onLocalLogin }) {
                 </div>
               )}
               <div className="pcp-field">
-                <label htmlFor="pcp-login-id">{cloud ? "Email" : "Username"}</label>
+                <label htmlFor="pcp-login-id">{cloud ? "Email or username" : "Username"}</label>
                 <div className={"pcp-login-input" + (fieldErr.id ? " invalid" : "")}>
                   <Mail size={17} />
                   <input
                     id="pcp-login-id"
-                    type={cloud ? "email" : "text"}
+                    type="text"
                     className="pcp-input"
                     autoComplete="username"
                     autoFocus={!identifier}

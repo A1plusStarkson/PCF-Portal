@@ -207,6 +207,14 @@
     "pcfrequestorrgandco@a1plus.com": { name: "PCF REQUESTOR - RG and Co.",  role: "Requestor", plants: ["RG"] },
   };
 
+  /* Login usernames. Each name below can be typed on the sign-in screen in
+     place of the email (case and extra spaces ignored); it signs in to the
+     SAME Supabase account, so the email, password and access are unchanged.
+     The email itself still works too. */
+  window.PCP_LOGIN_USERNAMES = {
+    "grace gan": "a1plusadmin@a1plus.com",
+  };
+
   /* ---- Built-in login (fallback only) ----
      Not used while Supabase is configured above — login/logout is handled by
      Supabase email accounts. Kept empty on purpose so no passwords live in the
