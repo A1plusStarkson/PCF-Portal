@@ -1010,6 +1010,28 @@ const CSS = `
     box-shadow: 0 8px 20px rgba(37,78,88,0.25); transition: transform 0.08s, box-shadow 0.15s, background 0.15s;
   }
   .pcp-login-submit:hover:not(:disabled) { box-shadow: 0 10px 24px rgba(37,78,88,0.35); transform: translateY(-1px); }
+  /* Shimmer (owner's request): a soft light sweeps across Sign In every few
+     seconds, and a slower, warmer one across the Today's Cheer-Up card. Not
+     while signing in (disabled); off with reduced motion. */
+  .pcp-login-submit { position: relative; overflow: hidden; }
+  .pcp-login-submit::after, .pcp-login-quote::after {
+    content: ""; position: absolute; top: 0; bottom: 0; left: -40%; width: 30%; pointer-events: none;
+    background: linear-gradient(100deg, transparent, rgba(255,255,255,0.32), transparent);
+    transform: skewX(-18deg); animation: pcp-login-shimmer 3.2s ease-in-out 1.2s infinite;
+  }
+  .pcp-login-submit:disabled::after { display: none; }
+  .pcp-login-quote { position: relative; overflow: hidden; }
+  .pcp-login-quote::after {
+    width: 40%; background: linear-gradient(100deg, transparent, rgba(255,231,160,0.22), transparent);
+    animation-duration: 5s; animation-delay: 2.4s;
+  }
+  @keyframes pcp-login-shimmer {
+    0% { transform: skewX(-18deg) translateX(0); }
+    45%, 100% { transform: skewX(-18deg) translateX(520%); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .pcp-login-submit::after, .pcp-login-quote::after { display: none; }
+  }
   .pcp-login-submit:active:not(:disabled) { transform: translateY(0); box-shadow: 0 4px 12px rgba(37,78,88,0.25); }
   .pcp-login-submit:disabled { opacity: 0.85; cursor: progress; }
   .pcp-spinner { width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.45); border-top-color: #fff; border-radius: 50%; display: inline-block; animation: pcp-spin 0.7s linear infinite; }
