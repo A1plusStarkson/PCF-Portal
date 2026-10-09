@@ -330,9 +330,13 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   ];
   const canRequestorEdit = LIQ_REQUESTOR_EDIT_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
-  /* Approval Module: row Select + Export Excel (owner's instruction, Sep 2026).
-     Read-only — exporting never changes a record. */
-  const APPROVAL_EXPORT_EMAILS = ["a1plusadmin@a1plus.com", "superuser@a1plus.com"];
+  /* Approval Module: row Select + Export Excel + Print / PDF — these accounts
+     only, view-only ones included (owner's instruction, Oct 2026).
+     Read-only — exporting or printing never changes a record. */
+  const APPROVAL_EXPORT_EMAILS = [
+    "superuser@a1plus.com", "accounting@a1plus.com", "finance@a1plus.com",
+    "puradr@a1plus.com", "lita@a1plus.com",
+  ];
   const canApprovalExport = APPROVAL_EXPORT_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
   /* Replenishments: edit, mark completed and revert — these accounts only
