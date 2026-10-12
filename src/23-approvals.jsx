@@ -978,11 +978,11 @@ function ApprovalModuleTab({
           <select className="pcp-select" style={{ width: 200 }} value={stageFilter} onChange={(e) => { setStageFilter(e.target.value); setCardFilter(null); }}>
             {statusOptions.map((o) => <option key={o}>{o}</option>)}
           </select>
-          <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mut)" }}>Batch</span>
+          <span className="pcp-filter-label">Batch</span>
           <select className="pcp-select" style={{ width: 150 }} value={batch} onChange={(e) => setBatch(e.target.value)}>
             {[ALL_BATCHES].concat(batchNos).map((b) => <option key={b}>{b}</option>)}
           </select>
-          <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mut)" }}>Date</span>
+          <span className="pcp-filter-label">Date</span>
           <input type="date" className="pcp-input" style={{ width: 140 }} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From" />
           <span style={{ fontSize: 11.5, color: "var(--text-mut)" }}>to</span>
           <input type="date" className="pcp-input" style={{ width: 140 }} value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To" />

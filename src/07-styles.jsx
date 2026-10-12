@@ -227,6 +227,13 @@ const CSS = `
     border-radius: 10px; padding: 10px 12px;
   }
   @media print { .pcp-filterbar { background: none; box-shadow: none; } }
+  /* Filter titles in blue-teal, every module (owner's instruction, Oct 2026):
+     field labels inside a filter bar, and the inline .pcp-filter-label ones.
+     --dm-filter-title is defined only for the dark theme. */
+  .pcp-filterbar label, .pcp-filterbar .pcp-field label, .pcp-filter-label {
+    color: var(--dm-filter-title, #0e7490); font-weight: 800;
+  }
+  .pcp-filter-label { font-size: 11.5px; }
 
   .pcp-modal-backdrop {
     position: fixed; inset: 0; background: rgba(15,18,30,0.55); display: flex;
@@ -1272,7 +1279,9 @@ const CSS = `
 
   /* ---- Report Center (on-screen professional preview) ---- */
   .pcp-rc-filters { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
-  .pcp-rc-field label { display: block; font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--text-mut); margin-bottom: 4px; }
+  /* Filter titles in blue-teal (owner's instruction, Oct 2026); a lighter
+     shade on the dark theme, which does not define --dm-filter-title in light. */
+  .pcp-rc-field label { display: block; font-size: 10.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.4px; color: var(--dm-filter-title, #0e7490); margin-bottom: 4px; }
   .pcp-doc-scroll { overflow: auto; background: #e9f1eb; border: 1px solid var(--line); border-radius: 12px; padding: 22px; }
   .pcp-doc {
     background: #fff; margin: 0 auto; box-shadow: 0 6px 24px rgba(15,18,30,0.14);
@@ -1348,7 +1357,7 @@ const CSS = `
   .pcp-drill-search svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--text-mut); }
   .pcp-drill-search input { width: 100%; padding: 8px 10px 8px 32px; border: 1px solid var(--line); border-radius: 7px; font-size: 12.5px; }
   .pcp-drill-filters { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 12px; }
-  .pcp-drill-filters .pcp-rc-field label { display: block; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.3px; color: var(--text-mut); margin-bottom: 3px; }
+  .pcp-drill-filters .pcp-rc-field label { display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.3px; color: var(--dm-filter-title, #0e7490); margin-bottom: 3px; }
   @media (max-width: 980px) { .pcp-drill-filters { grid-template-columns: repeat(2, 1fr); } }
 
   .pcp-sortable { cursor: pointer; user-select: none; white-space: nowrap; }
@@ -1536,6 +1545,7 @@ const CSS = `
       --dm-surface: #132327;
       --dm-input: #0e1a1d;
       --dm-subtle: #101e21;
+      --dm-filter-title: #5cc8d8;
       --dm-ok-bg: #173424; --dm-ok-line: #2c5a3e; --dm-ok-text: #62c68b;
       --dm-bad-bg: #3a1f1d; --dm-bad-line: #6b3530; --dm-bad-text: #f29a91;
       --dm-alarm-read: #132327;

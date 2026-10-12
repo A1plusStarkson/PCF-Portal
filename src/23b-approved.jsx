@@ -303,7 +303,7 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
             <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search transaction no., requestor, purpose or batch"
               value={search} onChange={(e) => setSearch(e.target.value)} />
           </div>
-          <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mut)" }}>Batch</span>
+          <span className="pcp-filter-label">Batch</span>
           <input className="pcp-input" style={{ width: 120 }} placeholder="Find batch…" value={batchQuery}
             onChange={(e) => setBatchQuery(e.target.value)} title="Type to narrow the batch list" />
           <select className="pcp-select" style={{ width: 190 }} value={batch} onChange={(e) => setBatch(e.target.value)}
@@ -311,11 +311,11 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
             <option value={APPROVED_ALL_BATCHES}>{APPROVED_ALL_BATCHES} ({plantBatches.length})</option>
             {batchChoices.map((b) => <option key={b.batchNo} value={b.batchNo}>{b.batchNo} · {b.count} txn</option>)}
           </select>
-          <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mut)" }}>Approved By</span>
+          <span className="pcp-filter-label">Approved By</span>
           <select className="pcp-select" style={{ width: 170 }} value={approver} onChange={(e) => setApprover(e.target.value)}>
             {[APPROVED_ALL_APPROVERS].concat(approvers).map((a) => <option key={a}>{a}</option>)}
           </select>
-          <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mut)" }}>Approval Date</span>
+          <span className="pcp-filter-label">Approval Date</span>
           <input type="date" className="pcp-input" style={{ width: 140 }} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From" />
           <span style={{ fontSize: 11.5, color: "var(--text-mut)" }}>to</span>
           <input type="date" className="pcp-input" style={{ width: 140 }} value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To" />

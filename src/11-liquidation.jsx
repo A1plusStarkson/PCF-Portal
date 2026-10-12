@@ -2811,7 +2811,7 @@ function LiquidationTab({
             />
           </div>
           <FilterIcon size={14} color="var(--text-mut)" />
-          <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mut)" }}>Status</span>
+          <span className="pcp-filter-label">Status</span>
           <SearchSelect
             value={source === "pettycash" ? pettyStatus : reimbStatus}
             onChange={(v) => {
@@ -2826,24 +2826,24 @@ function LiquidationTab({
           />
           {source === "pettycash" && (
             <>
-              <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mut)" }}>Settlement</span>
+              <span className="pcp-filter-label">Settlement</span>
               <select className="pcp-select" style={{ width: 210 }} value={settleFilter} onChange={(e) => setSettleFilter(e.target.value)}>
                 {SETTLEMENT_FILTERS.map((f) => <option key={f}>{f}</option>)}
               </select>
             </>
           )}
-          <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mut)" }}>Accounting</span>
+          <span className="pcp-filter-label">Accounting</span>
           <select className="pcp-select" style={{ width: 190 }} value={acctFilter} onChange={(e) => setAcctFilter(e.target.value)}>
             {ACCT_FILTERS.map((f) => <option key={f}>{f}</option>)}
           </select>
           {canBatchFilter && (
             <>
-              <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mut)" }}>Batch</span>
+              <span className="pcp-filter-label">Batch</span>
               <select className="pcp-select" style={{ width: 260 }} value={batchFilter} onChange={(e) => setBatchFilter(e.target.value)}>
                 <option value={LIQ_ALL_BATCHES}>{LIQ_ALL_BATCHES}</option>
                 {batchOptions.map((b) => <option key={b} value={b}>{b} — {batchPeriods[b]}</option>)}
               </select>
-              <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-mut)" }}>Final Approval</span>
+              <span className="pcp-filter-label">Final Approval</span>
               <select className="pcp-select" style={{ width: 230 }} value={finalFilter} onChange={(e) => setFinalFilter(e.target.value)}
                 title={`Grace Gan's final approval (${FINAL_APPROVER_NAME})`}>
                 {FINAL_FILTERS.map((f) => <option key={f}>{f}</option>)}
