@@ -1358,6 +1358,14 @@ const CSS = `
   .pcp-drill-search input { width: 100%; padding: 8px 10px 8px 32px; border: 1px solid var(--line); border-radius: 7px; font-size: 12.5px; }
   .pcp-drill-filters { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin-bottom: 12px; }
   .pcp-drill-filters .pcp-rc-field label { display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.3px; color: var(--dm-filter-title, #0e7490); margin-bottom: 3px; }
+  /* Every filter title highlighted: pale teal behind blue-teal text
+     (owner's choice, Oct 2026). After the label rules above so it wins;
+     --dm-filter-title(-bg) are defined only for the dark theme. */
+  .pcp-rc-field label, .pcp-drill-filters .pcp-rc-field label,
+  .pcp-filterbar label, .pcp-filterbar .pcp-field label, .pcp-filter-label {
+    display: inline-block; padding: 2px 7px; border-radius: 5px;
+    background: var(--dm-filter-title-bg, #d9f1f5); color: var(--dm-filter-title, #0e7490); font-weight: 800;
+  }
   @media (max-width: 980px) { .pcp-drill-filters { grid-template-columns: repeat(2, 1fr); } }
 
   .pcp-sortable { cursor: pointer; user-select: none; white-space: nowrap; }
@@ -1546,6 +1554,7 @@ const CSS = `
       --dm-input: #0e1a1d;
       --dm-subtle: #101e21;
       --dm-filter-title: #5cc8d8;
+      --dm-filter-title-bg: #123a42;
       --dm-ok-bg: #173424; --dm-ok-line: #2c5a3e; --dm-ok-text: #62c68b;
       --dm-bad-bg: #3a1f1d; --dm-bad-line: #6b3530; --dm-bad-text: #f29a91;
       --dm-alarm-read: #132327;
