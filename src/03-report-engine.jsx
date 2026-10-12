@@ -102,6 +102,27 @@ const REPORT_TYPES = [
   { code: "BEGBAL",  label: "Beginning Balance Report",      orientation: "portrait"  },
   { code: "FUNDMOV", label: "Fund Movement Report",          orientation: "landscape" },
 ];
+/* Report signature block (owner's instruction, Oct 2026) — names only, no
+   position lines: Prepared by the custodian, Reviewed by the Accounting
+   Department, Approved by Grace Gan. Used by the Report Center preview and
+   by every printed report (reportPrintHTML). */
+const REPORT_SIGN_REVIEWER = "Accounting Department";
+/* A literal, not DEFAULT_APPROVER: that is declared in 05-master-data.jsx,
+   after this file, and reading it here at load time would throw. */
+const REPORT_SIGN_APPROVER = "Grace P. Gan";
+/* The custodian with the plant — "Maureen Felix (Manila)": doc.preparedBy
+   when the caller worked it out, else the meta block's Custodian (unless only
+   a placeholder: "All Custodians", "Multiple — see each plant", "—") with
+   its Plant when that names one plant. */
+function reportPreparer(doc) {
+  if (doc && doc.preparedBy) return doc.preparedBy;
+  const m = (doc && doc.meta) || {};
+  const c = String(m.Custodian || "").trim();
+  if (!c || c === "—" || c === "All Custodians" || /^Multiple/i.test(c)) return "";
+  const p = String(m.Plant || "").trim().replace(/\s*\([^)]*\)$/, "");
+  return p && p !== "All Plants" && !/,/.test(p) ? `${c} (${p})` : c;
+}
+
 /* Reports built from liquidations / reimbursements, where Accounting's
    Batch Number applies — the Batch filter is offered on these only. */
 const BATCH_FILTER_REPORTS = ["LIQ", "FINALAPP", "CUSTAPP", "BATCH", "EXPCAT", "EXPACC"];
@@ -746,9 +767,9 @@ function reportPrintHTML(doc) {
     </tbody>
   </table>
   <div class="sign">
-    <div class="box"><div class="who">Prepared by:</div><div class="line">${esc((doc.meta && doc.meta.Custodian) || "")}</div><div class="role">Custodian</div></div>
-    <div class="box"><div class="who">Reviewed by:</div><div class="line">&nbsp;</div><div class="role">${esc(doc.reviewer || "Manager")}</div></div>
-    <div class="box"><div class="who">Approved by:</div><div class="line">${esc(doc.approver || "Grace P. Gan")}</div><div class="role">${esc(doc.approverRole || "Finance Director")}</div></div>
+    <div class="box"><div class="who">Prepared by:</div><div class="line">${esc(reportPreparer(doc)) || "&nbsp;"}</div></div>
+    <div class="box"><div class="who">Reviewed by:</div><div class="line">${esc(REPORT_SIGN_REVIEWER)}</div></div>
+    <div class="box"><div class="who">Approved by:</div><div class="line">${esc(REPORT_SIGN_APPROVER)}</div></div>
   </div>
   <script>window.onload=function(){setTimeout(function(){window.print();},350);};window.onafterprint=function(){setTimeout(function(){window.close();},100);};</script>
 </body></html>`;

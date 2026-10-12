@@ -66,6 +66,17 @@ function ManagementReportTab({ funds, requests, disbursements, liquidations, rep
 
   const reference = useMemo(() => makeReportRef(def.code), [def.code, F, type]);
 
+  /* "Prepared by": the custodian of each fund in scope with its plant —
+     "Maureen Felix (Manila)". Scope: the plant (or branch's plant) filter,
+     the company filter and the Custodian filter. */
+  const preparer = useMemo(() => {
+    const code = F.branch ? plantOfBranch(F.branch) : F.plant;
+    const inScope = funds.filter((f) => f.custodian && (!code || f.branchCode === code)
+      && (!F.company || companyOfBranch(f.branchCode) === F.company)
+      && (!F.custodian || f.custodian === F.custodian));
+    return [...new Set(inScope.map((f) => `${f.custodian} (${plantLabel(f.branchCode) || f.label || f.branchCode})`))].join(", ");
+  }, [F.custodian, F.branch, F.plant, F.company, funds]);
+
   const doc = useMemo(() => {
     const profile = companyProfile(scopeCompany);
     return {
@@ -75,8 +86,9 @@ function ManagementReportTab({ funds, requests, disbursements, liquidations, rep
       reviewer: (profile && profile.reviewer) || DEFAULT_REVIEWER,
       approver: (profile && profile.approver) || DEFAULT_APPROVER,
       approverRole: (profile && profile.approverRole) || DEFAULT_APPROVER_ROLE,
+      preparedBy: preparer,
     };
-  }, [def.label, ort, built, meta, reference, watermark, scopeCompany]);
+  }, [def.label, ort, built, meta, reference, watermark, scopeCompany, preparer]);
 
   const resetFilters = () => setF({ from: "", to: "", company: "", plant: "", branch: "", custodian: "", status: "", category: "", account: "" });
 
@@ -237,9 +249,9 @@ function ManagementReportTab({ funds, requests, disbursements, liquidations, rep
               <span>Printed on: {nowStamp()} · Page 1 of 1</span>
             </div>
             <div className="pcp-doc-sign">
-              <div className="box"><div className="who">Prepared by:</div><div className="line">{meta.Custodian}</div><div className="role">Custodian</div></div>
-              <div className="box"><div className="who">Reviewed by:</div><div className="line">&nbsp;</div><div className="role">{doc.reviewer}</div></div>
-              <div className="box"><div className="who">Approved by:</div><div className="line">{doc.approver}</div><div className="role">{doc.approverRole}</div></div>
+              <div className="box"><div className="who">Prepared by:</div><div className="line">{reportPreparer(doc) || " "}</div></div>
+              <div className="box"><div className="who">Reviewed by:</div><div className="line">{REPORT_SIGN_REVIEWER}</div></div>
+              <div className="box"><div className="who">Approved by:</div><div className="line">{REPORT_SIGN_APPROVER}</div></div>
             </div>
           </div>
         </div>
