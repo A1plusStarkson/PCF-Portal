@@ -1686,7 +1686,7 @@ function ReimbursementTab({
         </div>
 
         <div className="pcp-card" ref={tableRef} style={{ scrollMarginTop: 80 }}>
-          <div style={{ padding: "14px 18px", display: "flex", gap: 10, alignItems: "center", borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
+          <div className="pcp-filterbar" style={{ padding: "14px 18px", display: "flex", gap: 10, alignItems: "center", borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
             <div style={{ position: "relative", flex: 1, maxWidth: 280 }}>
               <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
               <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search employee or reimbursement no." value={search} onChange={(e) => setSearch(e.target.value)} />

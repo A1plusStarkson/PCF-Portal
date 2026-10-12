@@ -59,7 +59,7 @@ function ReferenceTable({ title, columns, rows }) {
       </div>
       {open && (
         <div style={{ borderTop: "1px solid var(--line)" }}>
-          <div style={{ padding: "10px 18px" }}>
+          <div className="pcp-filterbar" style={{ padding: "10px 18px" }}>
             <input className="pcp-input" placeholder={`Search ${title.toLowerCase()}...`} value={q} onChange={(e) => setQ(e.target.value)} style={{ maxWidth: 280 }} />
           </div>
           <div className="pcp-table-wrap" style={{ maxHeight: 340, overflowY: "auto" }}>

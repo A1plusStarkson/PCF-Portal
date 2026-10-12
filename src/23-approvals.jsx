@@ -965,7 +965,7 @@ function ApprovalModuleTab({
           </button>
         </div>
 
-        <div style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
+        <div className="pcp-filterbar" style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
           <div style={{ position: "relative", flex: 1, minWidth: 200, maxWidth: 300 }}>
             <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
             <input

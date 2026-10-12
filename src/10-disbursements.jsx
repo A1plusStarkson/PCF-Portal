@@ -212,7 +212,7 @@ function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemar
       <div className="pcp-content">
         <PlantScopeTabs plants={plantOptions} value={branchFilter === "All" ? "ALL" : branchFilter} onChange={(v) => setBranchFilter(v === "ALL" ? "All" : v)} />
         <div className="pcp-card">
-          <div style={{ padding: "14px 18px", display: "flex", gap: 10, alignItems: "center", borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
+          <div className="pcp-filterbar" style={{ padding: "14px 18px", display: "flex", gap: 10, alignItems: "center", borderBottom: "1px solid var(--line)", flexWrap: "wrap" }}>
             <div style={{ position: "relative", flex: 1, minWidth: 200, maxWidth: 280 }}>
               <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
               <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search voucher or employee" value={search} onChange={(e) => setSearch(e.target.value)} />

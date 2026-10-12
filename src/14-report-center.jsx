@@ -103,7 +103,7 @@ function ManagementReportTab({ funds, requests, disbursements, liquidations, rep
       <div className="pcp-content">
         {/* ---- Controls: report type, filters, options ---- */}
         <div className="pcp-card pcp-card-pad pcp-no-print" style={{ marginBottom: 16 }}>
-          <div className="pcp-rc-filters" style={{ marginBottom: 12 }}>
+          <div className="pcp-rc-filters pcp-filterbar" style={{ marginBottom: 12 }}>
             <div className="pcp-rc-field" style={{ gridColumn: "span 2" }}>
               <label>Report</label>
               <select className="pcp-select" value={type} onChange={(e) => setType(e.target.value)}>

@@ -102,7 +102,7 @@ function TransactionHistoryTab({ requests, disbursements, liquidations, replenis
       <div className="pcp-content">
         <PlantScopeTabs plants={plantOptions} value={plant} onChange={setPlant} />
         <div className="pcp-card" style={{ marginBottom: 16 }}>
-          <div style={{ padding: "14px 18px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
+          <div className="pcp-filterbar" style={{ padding: "14px 18px", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 10 }}>
             <div className="pcp-field" style={{ margin: 0 }}>
               <label>Type</label>
               <select className="pcp-select" value={type} onChange={(e) => setType(e.target.value)}>

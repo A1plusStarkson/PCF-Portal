@@ -218,6 +218,15 @@ const CSS = `
   .pcp-field { margin-bottom: 12px; }
   .pcp-field label { display: block; font-size: 11.5px; font-weight: 600; color: var(--text); margin-bottom: 5px; }
   .pcp-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  /* Filter area highlight — every module's search / filter bar
+     (owner's instruction, Oct 2026). A ring rather than a border, so a bar
+     with its own inline borderBottom keeps it; an inline padding wins over
+     this default. --blue / --blue-bg are re-pointed for dark mode. */
+  .pcp-filterbar {
+    background: var(--blue-bg); box-shadow: inset 0 0 0 2px var(--blue);
+    border-radius: 10px; padding: 10px 12px;
+  }
+  @media print { .pcp-filterbar { background: none; box-shadow: none; } }
 
   .pcp-modal-backdrop {
     position: fixed; inset: 0; background: rgba(15,18,30,0.55); display: flex;

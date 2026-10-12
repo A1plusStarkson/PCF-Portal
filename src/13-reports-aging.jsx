@@ -571,7 +571,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
         {/* ---- Filters ---- */}
         <div className="pcp-card pcp-card-pad pcp-no-print" style={{ marginBottom: 16 }}>
           <div className="pcp-section-title"><FilterIcon size={15} color="#3c6e76" /> Filters</div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+          <div className="pcp-filterbar" style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
             <div className="pcp-field" style={{ margin: 0 }}>
               <label>Transaction Type</label>
               <select className="pcp-select" value={filters.txnType} onChange={(e) => setF("txnType", e.target.value)}>

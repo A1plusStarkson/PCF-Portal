@@ -512,7 +512,7 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
 
         {/* ---- Filters ---- */}
         <div className="pcp-card pcp-card-pad pcp-no-print" style={{ marginBottom: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "2fr repeat(5, 1fr) auto", gap: 10, alignItems: "end" }}>
+          <div className="pcp-filterbar" style={{ display: "grid", gridTemplateColumns: "2fr repeat(5, 1fr) auto", gap: 10, alignItems: "end" }}>
             <div className="pcp-field" style={{ margin: 0 }}>
               <label>Search</label>
               <div className="pcp-drill-search" style={{ minWidth: 0 }}>

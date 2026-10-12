@@ -2764,7 +2764,7 @@ function LiquidationTab({
         </div>
 
         {/* Search + status filter — the status options follow the selected source's workflow. */}
-        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
+        <div className="pcp-filterbar" style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14, flexWrap: "wrap" }}>
           <div style={{ position: "relative", flex: 1, minWidth: 220, maxWidth: 340 }}>
             <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
             <input
