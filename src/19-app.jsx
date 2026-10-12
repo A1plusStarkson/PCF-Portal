@@ -347,6 +347,15 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   ];
   const canManageReplen = REPLEN_MANAGE_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
+  /* Replenishments: click a record to see its transactions and generate the
+     PDF report — these accounts only (owner's instruction, Oct 2026).
+     Read-only — viewing or reporting never changes a record. */
+  const REPLEN_DETAIL_EMAILS = [
+    "superuser@a1plus.com", "accounting@a1plus.com", "finance@a1plus.com",
+    "puradr@a1plus.com", "lita@a1plus.com", "mauwi@a1plus.com",
+  ];
+  const canViewReplenDetails = REPLEN_DETAIL_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
 
   /* ---- Closing a cash shortage ----
      When a requestor returns less than they owe, the balance is a receivable
@@ -3033,6 +3042,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
             onCreate={addReplenishment} onEdit={editReplenishment}
             onComplete={completeReplenishment} onDelete={deleteReplenishment}
             onRevert={revertReplenishment} onRevertReady={revertReadyItem} canManage={canManageReplen}
+            canViewDetails={canViewReplenDetails}
             canDelete={canDeleteTxn}
             generatedBy={userName || userEmail}
             plantOptions={scopedPlantOptions} canEdit={canEdit}

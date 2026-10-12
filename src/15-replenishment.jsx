@@ -94,6 +94,225 @@ function readyReplenishmentDoc(readyByPlant, funds, plantTitle, generatedBy, sco
 const readyKey = (x) => x.kind + ":" + x.id;
 const readyKindLabel = (x) => (x.kind === "reimb" ? "Reimbursement" : "Liquidation");
 
+/* ---- Replenishment details (owner's instruction, Oct 2026) ----
+   Everything one replenishment claimed — its liquidations (liquidationIds) and
+   reimbursements (reimbursementIds) — read from the records as saved now, with
+   each transaction's expense lines and approval stamps. Only claims of the
+   replenishment's own plant count; a claim that is gone or out of scope is
+   reported, never guessed at. Read-only: nothing here writes a record. */
+function replenishmentDetail(r, disbursements, liquidations, reimbursements) {
+  const plant = plantOfBranch(r.branchCode);
+  const txns = [];
+  let missing = 0;
+  (r.liquidationIds || []).forEach((id) => {
+    const liq = (liquidations || []).find((l) => l.id === id);
+    const disb = liq && (disbursements || []).find((d) => d.id === liq.disbursementId);
+    if (!liq || !disb || plantOfBranch(disb.branchCode) !== plant) { missing++; return; }
+    txns.push({
+      key: "liq:" + id, kind: "Liquidation", ref: disb.voucherNo, employee: disb.employee,
+      branchCode: disb.branchCode, date: String(disb.date || "").slice(0, 10), rv: liqReview(liq),
+      amount: receiptAmountSummary(liq).approvedTotal,
+      lines: (liq.lines || []).map((l) => ({
+        date: l.date, description: (l.expense && l.expense.trim()) || l.category || "", category: l.category || "",
+        account: accountForCategory(l.category), dept: l.department || "", amount: Number(l.amount) || 0,
+      })),
+    });
+  });
+  (r.reimbursementIds || []).forEach((id) => {
+    const rb = (reimbursements || []).find((x) => x.id === id);
+    if (!rb || plantOfBranch(rb.branchCode) !== plant) { missing++; return; }
+    txns.push({
+      key: "reimb:" + id, kind: "Reimbursement", ref: rb.reimbNo, employee: rb.employee,
+      branchCode: rb.branchCode, date: String(rb.requestDate || "").slice(0, 10), rv: reimbReview(rb),
+      amount: round2(reimbTotal(rb)),
+      lines: (rb.lines || []).map((l) => ({
+        date: l.date, description: [l.description, l.vendor].filter(Boolean).join(" · ") || l.category || "", category: l.category || "",
+        account: l.account || accountForCategory(l.category), dept: l.department || "", amount: reimbLineAmount(l),
+      })),
+    });
+  });
+  txns.sort((a, b) => a.date.localeCompare(b.date) || String(a.ref).localeCompare(String(b.ref)));
+  const batches = [...new Set(txns.map((x) => x.rv.batchNo).filter(Boolean).map(normalizeBatchNo))].sort();
+  return {
+    txns, missing, batches,
+    period: fmtBatchPeriod(txns.map((x) => x.date)),
+    total: round2(txns.reduce((s, x) => s + x.amount, 0)),
+  };
+}
+
+const replStamp = (by, at) => (by ? `${by}${at ? " · " + fmtDate(String(at).slice(0, 10)) : ""}` : "—");
+
+/* One replenishment as a Report Center document: letterhead, meta block,
+   each transaction with its expense lines and approvals, a subtotal per
+   transaction and the grand total. Prints to A4 / Save as PDF. */
+function replenishmentDetailDoc(r, detail, funds, generatedBy) {
+  const col = (key, label, opt = {}) => ({ key, label, align: opt.align || (opt.money ? "right" : "left"), money: !!opt.money, width: opt.width });
+  const columns = [
+    col("date", "Date"), col("description", "Description", { width: "26%" }), col("category", "Account Classification", { width: "20%" }),
+    col("account", "GL Account"), col("dept", "Sub-account"), col("amount", "Amount", { money: true }),
+  ];
+  const rows = [];
+  detail.txns.forEach((x) => {
+    rows.push({ _group: true, date: `${x.kind} ${x.ref} — ${x.employee} · ${plantLabel(x.branchCode) || x.branchCode}`
+      + ` · Custodian approved: ${replStamp(custodianCheckerLabel(x.rv), x.rv.checkedAt)}`
+      + ` · Accounting checked: ${replStamp(acctCheckerLabel(x.rv), x.rv.acctCheckedAt)}${x.rv.batchNo ? " (" + normalizeBatchNo(x.rv.batchNo) + ")" : ""}`
+      + ` · Final approval: ${replStamp(x.rv.finalBy, x.rv.finalAt)}` });
+    x.lines.forEach((l) => rows.push({
+      date: l.date ? fmtDate(l.date) : "—", description: l.description, category: l.category || "—",
+      account: l.account || "—", dept: l.dept ? `${l.dept} — ${deptDesc(l.dept)}` : "—", amount: l.amount,
+    }));
+    const linesTotal = round2(x.lines.reduce((s, l) => s + l.amount, 0));
+    rows.push({ _subtotal: true, date: `Subtotal — ${x.ref} (approved amount)`
+      + (linesTotal !== x.amount ? ` · expense lines total ${peso(linesTotal)}` : ""), amount: x.amount });
+  });
+  const totalsRow = { _total: true, date: `GRAND TOTAL — ${detail.txns.length} transaction(s)`, amount: detail.total };
+  const fund = (funds || []).find((f) => f.branchCode === plantOfBranch(r.branchCode));
+  const company = companyOfBranch(r.branchCode);
+  const profile = companyProfile(company);
+  const recorded = round2(Number(r.amount) || 0);
+  return {
+    title: "Replenishment Report", orientation: "landscape", columns, rows, totalsRow, count: detail.txns.length,
+    meta: {
+      "Replenishment No.": r.replenishmentNo,
+      "Plant": `${plantLabel(r.branchCode)} (${r.branchCode})`,
+      "Company": company || "—",
+      "Custodian": (fund && fund.custodian) || "—",
+      "Replenishment Date": r.date ? fmtDate(r.date) : "—",
+      "Covered Period": detail.period,
+      ...(detail.batches.length ? { "Batch": detail.batches.join(", ") } : {}),
+      "Status": r.status || "—",
+      "Prepared By": r.preparedBy || "—",
+      "Replenishment Amount": peso(recorded),
+      ...(recorded !== detail.total ? { "Note": `Recorded amount differs from the transactions' total (${peso(detail.total)})` } : {}),
+      ...(detail.missing ? { "Not Shown": `${detail.missing} claimed item(s) no longer found in this plant's records` } : {}),
+      "Generated By": generatedBy || "System",
+      "Date Generated": nowStamp(),
+    },
+    reference: makeReportRef("REPL"), watermark: false,
+    company, logo: logoForCompany(company),
+    reviewer: (profile && profile.reviewer) || DEFAULT_REVIEWER,
+    approver: (profile && profile.approver) || DEFAULT_APPROVER,
+    approverRole: (profile && profile.approverRole) || DEFAULT_APPROVER_ROLE,
+  };
+}
+
+function ReplenishmentDetailModal({ replenishment: r, funds, disbursements, liquidations, reimbursements, generatedBy, onClose }) {
+  /* Recomputed from the live records on every render, so it always shows the
+     latest saved figures. */
+  const detail = replenishmentDetail(r, disbursements, liquidations, reimbursements);
+  const fund = (funds || []).find((f) => f.branchCode === plantOfBranch(r.branchCode));
+  const recorded = round2(Number(r.amount) || 0);
+  const empty = !detail.txns.length;
+  const generate = () => {
+    if (empty) { window.alert("This replenishment has no linked transactions, so there is nothing to report."); return; }
+    printReportDocument(replenishmentDetailDoc(r, detail, funds, generatedBy));
+  };
+  const field = (label, value) => (
+    <div>
+      <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-mut)", textTransform: "uppercase", letterSpacing: 0.3 }}>{label}</div>
+      <div style={{ fontSize: 13, fontWeight: 600 }}>{value}</div>
+    </div>
+  );
+  return (
+    <div className="pcp-modal-backdrop" onClick={onClose}>
+      <div className="pcp-modal" style={{ maxWidth: 1100 }} onClick={(e) => e.stopPropagation()} role="dialog" aria-label={`Replenishment ${r.replenishmentNo}`}>
+        <div className="pcp-modal-head">
+          <h3>Replenishment {r.replenishmentNo}</h3>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={generate} disabled={empty}
+              title={empty ? "No linked transactions — nothing to report" : "Open the print-ready report; choose Save as PDF in the print dialog"}>
+              <Printer size={12} /> Generate PDF Report
+            </button>
+            <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose}><X size={15} /></button>
+          </div>
+        </div>
+        <div className="pcp-modal-body">
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: 12, marginBottom: 14 }}>
+            {field("Plant / Company", `${plantLabel(r.branchCode)} · ${companyOfBranch(r.branchCode) || "—"}`)}
+            {field("Custodian", (fund && fund.custodian) || "—")}
+            {field("Replenishment Date", r.date ? fmtDate(r.date) : "—")}
+            {field("Covered Period", detail.period)}
+            {field("Batch", detail.batches.length ? detail.batches.join(", ") : "—")}
+            {field("Status", r.status ? <Badge status={r.status} /> : "—")}
+            {field("Prepared By", r.preparedBy || "—")}
+            {field("Replenishment Amount", <span className="pcp-num">{peso(recorded)}</span>)}
+          </div>
+          {recorded !== detail.total && !empty && (
+            <div style={{ fontSize: 12, color: "var(--danger)", marginBottom: 8 }}>
+              The recorded replenishment amount ({peso(recorded)}) differs from the total of its transactions ({peso(detail.total)}).
+            </div>
+          )}
+          {detail.missing > 0 && (
+            <div style={{ fontSize: 12, color: "var(--danger)", marginBottom: 8 }}>
+              {detail.missing} claimed item(s) could not be found in this plant's records and are not shown.
+            </div>
+          )}
+          {empty ? (
+            <div className="pcp-empty" style={{ padding: 20 }}>
+              No transactions are linked to this replenishment, so no report can be generated.
+            </div>
+          ) : (
+            <div className="pcp-table-wrap">
+              <table className="pcp-table">
+                <thead>
+                  <tr>
+                    <th>Date</th><th>Description</th><th>Account Classification</th><th>GL Account</th><th>Sub-account</th>
+                    <th style={{ textAlign: "right" }}>Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {detail.txns.map((x) => {
+                    const linesTotal = round2(x.lines.reduce((s, l) => s + l.amount, 0));
+                    return (
+                      <React.Fragment key={x.key}>
+                        <tr style={{ background: "var(--dm-subtle, #eef4f0)" }}>
+                          <td colSpan={6} style={{ whiteSpace: "normal" }}>
+                            <span className={"pcp-badge " + (x.kind === "Reimbursement" ? "pcp-badge-blue" : "pcp-badge-gray")} style={{ marginRight: 6 }}>{x.kind}</span>
+                            <strong>{x.ref}</strong> · {x.employee} · {plantLabel(x.branchCode) || x.branchCode} · {x.date ? fmtDate(x.date) : "—"}
+                            <div style={{ fontSize: 11, color: "var(--text-mut)", marginTop: 2 }}>
+                              Custodian approved: {replStamp(custodianCheckerLabel(x.rv), x.rv.checkedAt)}
+                              {" · "}Accounting checked: {replStamp(acctCheckerLabel(x.rv), x.rv.acctCheckedAt)}{x.rv.batchNo ? ` (${normalizeBatchNo(x.rv.batchNo)})` : ""}
+                              {" · "}Final approval: {replStamp(x.rv.finalBy, x.rv.finalAt)}
+                            </div>
+                          </td>
+                        </tr>
+                        {x.lines.map((l, i) => (
+                          <tr key={x.key + ":" + i}>
+                            <td>{l.date ? fmtDate(l.date) : "—"}</td>
+                            <td style={{ whiteSpace: "normal" }}>{l.description || "—"}</td>
+                            <td>{l.category || "—"}</td>
+                            <td>{l.account || "—"}</td>
+                            <td>{l.dept ? `${l.dept} — ${deptDesc(l.dept)}` : "—"}</td>
+                            <td className="pcp-num" style={{ textAlign: "right" }}>{peso(l.amount)}</td>
+                          </tr>
+                        ))}
+                        <tr>
+                          <td colSpan={5} style={{ textAlign: "right", fontWeight: 700 }}>
+                            Subtotal — {x.ref} (approved amount)
+                            {linesTotal !== x.amount && <span style={{ fontWeight: 500, color: "var(--text-mut)" }}> · expense lines total {peso(linesTotal)}</span>}
+                          </td>
+                          <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700 }}>{peso(x.amount)}</td>
+                        </tr>
+                      </React.Fragment>
+                    );
+                  })}
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: "right", fontWeight: 800 }}>GRAND TOTAL — {detail.txns.length} transaction(s)</td>
+                    <td className="pcp-num" style={{ textAlign: "right", fontWeight: 800 }}>{peso(detail.total)}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+        <div className="pcp-modal-foot">
+          <button className="pcp-btn" onClick={onClose}>Close</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ReplenishmentFormModal({ onClose, onSave, funds, disbursements, liquidations, reimbursements, replenishments, replenishment, plantOptions, preselect }) {
   const isEdit = !!replenishment;
   const defaultBranch = (preselect && preselect.branchCode)
@@ -259,8 +478,10 @@ const REPLENISH_SORT_FIELDS = {
   remarks: (r) => r.remarks,
 };
 
-function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, reimbursements, onCreate, onEdit, onComplete, onDelete, canDelete, plantOptions, canEdit, plantTitle, generatedBy, canManage, onRevert, onRevertReady }) {
+function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, reimbursements, onCreate, onEdit, onComplete, onDelete, canDelete, plantOptions, canEdit, plantTitle, generatedBy, canManage, onRevert, onRevertReady, canViewDetails }) {
   const [showForm, setShowForm] = useState(false);
+  /* Replenishment whose details modal is open (REPLEN_DETAIL_EMAILS). */
+  const [viewing, setViewing] = useState(null);
   /* Liquidations + amount handed to a new form from the Ready panel. */
   const [preselect, setPreselect] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -524,8 +745,16 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
               </thead>
               <tbody>
                 {filtered.length ? filtered.map((r) => (
-                  <tr key={r.id}>
-                    <td>{r.replenishmentNo}<PrevNo rec={r} /></td>
+                  <tr key={r.id} onClick={canViewDetails ? () => setViewing(r) : undefined}
+                    style={canViewDetails ? { cursor: "pointer" } : undefined}
+                    title={canViewDetails ? "Click to view the transactions in this replenishment" : undefined}>
+                    <td>
+                      {canViewDetails
+                        ? <button style={{ background: "none", border: 0, padding: 0, font: "inherit", fontWeight: 700, color: "inherit", textDecoration: "underline", cursor: "pointer" }}
+                            onClick={(e) => { e.stopPropagation(); setViewing(r); }}>{r.replenishmentNo}</button>
+                        : r.replenishmentNo}
+                      <PrevNo rec={r} />
+                    </td>
                     <td>{fmtDate(r.date)}</td>
                     <td>{plantLabel(r.branchCode)}</td>
                     <td className="pcp-num">{peso(r.amount)}</td>
@@ -545,8 +774,11 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                         </div>
                       )}
                     </td>
-                    <td>
+                    <td onClick={(e) => e.stopPropagation()}>
                       <div style={{ display: "flex", gap: 6 }}>
+                        {canViewDetails && (
+                          <button className="pcp-btn pcp-btn-sm" onClick={() => setViewing(r)} title="View details and generate the PDF report"><Eye size={12} /> View</button>
+                        )}
                         {canManage && isOpenRepl(r) && (
                           <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={() => onComplete(r.id)} title="Mark completed"><Check size={12} /></button>
                         )}
@@ -575,6 +807,13 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
           preselect={preselect}
           onClose={() => { setShowForm(false); setPreselect(null); }}
           onSave={(form) => { onCreate(form); setShowForm(false); setPreselect(null); }}
+        />
+      )}
+      {viewing && canViewDetails && (
+        <ReplenishmentDetailModal
+          replenishment={replenishments.find((x) => x.id === viewing.id) || viewing}
+          funds={funds} disbursements={disbursements} liquidations={liquidations} reimbursements={reimbursements}
+          generatedBy={generatedBy} onClose={() => setViewing(null)}
         />
       )}
       {editing && (
