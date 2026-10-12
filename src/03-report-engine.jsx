@@ -102,6 +102,9 @@ const REPORT_TYPES = [
   { code: "BEGBAL",  label: "Beginning Balance Report",      orientation: "portrait"  },
   { code: "FUNDMOV", label: "Fund Movement Report",          orientation: "landscape" },
 ];
+/* Reports built from liquidations / reimbursements, where Accounting's
+   Batch Number applies — the Batch filter is offered on these only. */
+const BATCH_FILTER_REPORTS = ["LIQ", "FINALAPP", "CUSTAPP", "BATCH", "EXPCAT", "EXPACC"];
 
 /* Build a normalized report descriptor { columns, rows, totalsRow, count } from
    the live data (D), the active filter set (F) and report type. Columns carry
@@ -125,6 +128,9 @@ function buildReport(type, D, F) {
     if (F.to && iso > F.to) return false;
     return true;
   };
+
+  /* Batch filter (BATCH_FILTER_REPORTS): the transaction's Accounting batch. */
+  const okBatch = (rv) => !F.batch || (!!rv && !!rv.batchNo && normalizeBatchNo(rv.batchNo) === F.batch);
 
   const fFunds = funds.filter((f) => okBranch(f.branchCode));
   const fDisb = disbursements.filter((d) => okBranch(d.branchCode) && okDate(d.date));
@@ -212,6 +218,7 @@ function buildReport(type, D, F) {
         if (!okBranch(d.branchCode)) return;
         const liq = liquidationFor(d.id, liquidations);
         if (!liq || !liq.lines) return;
+        if (!okBatch(liqReview(liq))) return;
         liq.lines.forEach((l) => {
           if (!okDate(l.date)) return;
           if (F.category && l.category !== F.category) return;
@@ -281,6 +288,7 @@ function buildReport(type, D, F) {
         const liq = liquidationFor(d.id, liquidations);
         if (!liq) return;
         const rv = liqReview(liq);
+        if (!okBatch(rv)) return;
         const base = { d: d.branchCode, ref: d.voucherNo, kind: "Liquidation", employee: d.employee,
           rp: replFor("liquidationIds", liq.id), amount: receiptAmountSummary(liq).approvedTotal };
         if (rv.legacy) {
@@ -298,6 +306,7 @@ function buildReport(type, D, F) {
       (D.reimbursements || []).forEach((r) => {
         if (!okBranch(r.branchCode)) return;
         const rv = reimbReview(r);
+        if (!okBatch(rv)) return;
         const base = { d: r.branchCode, ref: r.reimbNo, kind: "Reimbursement", employee: r.employee,
           rp: replFor("reimbursementIds", r.id), amount: reimbTotal(r) };
         if (rv.checkedBy || rv.finalBy) {
@@ -457,6 +466,7 @@ function buildReport(type, D, F) {
         if (!okBranch(d.branchCode)) return;
         const liq = liquidationFor(d.id, liquidations);
         if (!liq || !liq.lines) return;
+        if (!okBatch(liqReview(liq))) return;
         liq.lines.forEach((l) => {
           if (!okDate(l.date)) return;
           const cat = l.category || "(Uncategorized)";
