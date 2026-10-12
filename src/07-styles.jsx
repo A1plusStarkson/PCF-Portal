@@ -1298,9 +1298,11 @@ const CSS = `
   table.pcp-doc-table tbody td { padding: 5px 7px; border: 1px solid #d5d9e0; font-size: 9.5px; vertical-align: top; word-break: break-word; }
   table.pcp-doc-table tbody tr:nth-child(even) td { background: #eef6f6; }
   .pcp-doc-table .a-right { text-align: right; } .pcp-doc-table .a-center { text-align: center; } .pcp-doc-table .a-left { text-align: left; }
-  table.pcp-doc-table tr.grp td { background: #e8edf3; font-weight: 800; font-size: 10px; }
-  table.pcp-doc-table tr.sub td { background: #eef1f5; font-weight: 800; }
-  table.pcp-doc-table tr.tot td { background: #1f2d3d; color: #fff; font-weight: 800; font-size: 10.5px; border-color: #1f2d3d; }
+  /* "tbody" makes these as specific as the zebra rule (and later, so they
+     win) — a GRAND TOTAL on an even row used to vanish, white on light. */
+  table.pcp-doc-table tbody tr.grp td { background: #e8edf3; font-weight: 800; font-size: 10px; }
+  table.pcp-doc-table tbody tr.sub td { background: #eef1f5; font-weight: 800; }
+  table.pcp-doc-table tbody tr.tot td { background: #1f2d3d; color: #fff; font-weight: 800; font-size: 10.5px; border-color: #1f2d3d; }
   table.pcp-doc-table tr.nf td { text-align: center; font-style: italic; color: #666; letter-spacing: 2px; }
   .pcp-doc-foot { border-top: 1.5px solid #111; margin-top: 6px; padding-top: 5px; font-size: 8.5px; color: #444; display: flex; justify-content: space-between; position: relative; z-index: 1; }
   .pcp-doc-sign { display: flex; justify-content: space-between; gap: 24px; margin-top: 34px; position: relative; z-index: 1; }

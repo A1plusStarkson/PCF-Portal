@@ -169,7 +169,7 @@ function buildReport(type, D, F) {
         c("cashIn", "Cash In", { money: true }), c("cashOut", "Cash Out", { money: true }),
         c("balance", "Balance", { money: true }),
       ];
-      const rows = []; let count = 0;
+      const rows = []; let count = 0; let endingTotal = 0;
       scopeCodes.forEach((code) => {
         const fund = funds.find((f) => f.branchCode === code);
         let bal = Number(fund && fund.beginningBalance) || 0;
@@ -183,8 +183,13 @@ function buildReport(type, D, F) {
         rows.push({ date: "", ref: "", particulars: "Beginning Balance", type: "Opening", cashIn: null, cashOut: null, balance: bal, _skipTotal: true });
         evts.forEach((e) => { bal += e.in - e.out; count++; rows.push({ date: fmtDate(e.d), ref: e.ref, particulars: e.particulars, type: e.type, cashIn: e.in || null, cashOut: e.out || null, balance: bal }); });
         rows.push({ _subtotal: true, particulars: `Ending Balance — ${(fund && fund.label) || code}`, cashIn: evts.reduce((s, e) => s + e.in, 0), cashOut: evts.reduce((s, e) => s + e.out, 0), balance: bal, _skipTotal: true });
+        endingTotal += bal;
       });
-      return fin(columns, rows, count, null);
+      /* Grand total: all cash in / out; the balance is the funds' combined
+         ending balance (summing running balances would mean nothing). */
+      const ledger = fin(columns, rows, count, "GRAND TOTAL");
+      ledger.totalsRow.balance = endingTotal;
+      return ledger;
     }
 
     case "DISB": {
@@ -534,7 +539,10 @@ function buildReport(type, D, F) {
         ts: (a.ts || "").replace("T", " "), user: a.user || "—", action: a.action || "—",
         entity: a.entity || "—", remarks: a.remarks || "",
       }));
-      return fin(columns, rows, rows.length, null);
+      /* No amounts here, so the grand total is the entry count. */
+      const audit = fin(columns, rows, rows.length, "GRAND TOTAL");
+      audit.totalsRow.remarks = `${rows.length} audit entr${rows.length === 1 ? "y" : "ies"}`;
+      return audit;
     }
 
     case "HIST": {
@@ -549,7 +557,15 @@ function buildReport(type, D, F) {
       fLiq.forEach((l) => { const d = disbursements.find((x) => x.id === l.disbursementId); if (!d) return; evts.push({ _d: (l.lines[0] && l.lines[0].date) || d.date, date: fmtDate((l.lines[0] && l.lines[0].date) || d.date), type: "Liquidation", ref: d.voucherNo, branch: d.branchCode, description: `${d.employee} — ${l.lines.length} line(s)`, status: "Liquidated", amount: liquidatedTotal(l) }); });
       fRepl.forEach((r) => evts.push({ _d: r.date, date: fmtDate(r.date), type: "Replenishment", ref: r.replenishmentNo, branch: r.branchCode, description: `Replenishment — ${r.preparedBy || ""}`, status: r.status || "—", amount: Number(r.amount) || 0 }));
       evts.sort((a, b) => (b._d || "").localeCompare(a._d || ""));
-      return fin(columns, evts, evts.length, null);
+      /* Requests, releases, liquidations and replenishments of the same cash
+         would double-count if summed into one figure, so the grand total
+         gives each type's own total instead. */
+      const hist = fin(columns, evts, evts.length, "GRAND TOTAL");
+      hist.totalsRow.description = ["Request", "Disbursement", "Liquidation", "Replenishment"]
+        .map((t) => { const g = evts.filter((e) => e.type === t); return g.length ? `${t}s (${g.length}): ${money(g.reduce((s, e) => s + e.amount, 0))}` : ""; })
+        .filter(Boolean).join(" · ") || "—";
+      hist.totalsRow.amount = null;
+      return hist;
     }
 
     case "CASHPOS": {
@@ -678,9 +694,12 @@ function reportPrintHTML(doc) {
   tbody td { padding: 5px 7px; border: 1px solid #d5d9e0; font-size: 9.5px; vertical-align: top; word-break: break-word; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   tbody tr:nth-child(even) td { background: #f4f6f9; }
   .a-right { text-align: right; } .a-center { text-align: center; } .a-left { text-align: left; }
-  tr.grp td { background: #e8edf3; font-weight: 800; font-size: 10px; }
-  tr.sub td { background: #eef1f5; font-weight: 800; }
-  tr.tot td { background: #1f2d3d; color: #fff; font-weight: 800; font-size: 10.5px; border-color: #1f2d3d; }
+  /* "tbody" keeps these as specific as the zebra rule above (and later, so
+     they win): a GRAND TOTAL on an even row used to get the light zebra
+     background under its white text and vanish. */
+  tbody tr.grp td { background: #e8edf3; font-weight: 800; font-size: 10px; }
+  tbody tr.sub td { background: #eef1f5; font-weight: 800; }
+  tbody tr.tot td { background: #1f2d3d; color: #fff; font-weight: 800; font-size: 10.5px; border-color: #1f2d3d; }
   tr.nf td { text-align: center; font-style: italic; color: #666; letter-spacing: 2px; background: #fff; padding: 6px; }
   .foot-inner { border-top: 1.5px solid #111; margin-top: 5px; padding-top: 4px; font-size: 8.5px; color: #444; display: flex; justify-content: space-between; }
   .sign { display: flex; justify-content: space-between; gap: 24px; margin-top: 34px; page-break-inside: avoid; }
@@ -722,8 +741,8 @@ function reportPrintHTML(doc) {
     </tfoot>
     <tbody>
       ${bodyRows}
-      ${nf}
       ${totalRow}
+      ${nf}
     </tbody>
   </table>
   <div class="sign">

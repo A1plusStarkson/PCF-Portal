@@ -228,8 +228,8 @@ function ManagementReportTab({ funds, requests, disbursements, liquidations, rep
                     ? <tr key={i} className="grp"><td colSpan={built.columns.length}>{row.particulars || row[built.columns[0].key]}</td></tr>
                     : <tr key={i} className={row._subtotal ? "sub" : ""}>{built.columns.map((col) => <td key={col.key} className={"a-" + col.align}>{cell(row, col)}</td>)}</tr>
                 ))}
-                <tr className="nf"><td colSpan={built.columns.length}>———  NOTHING FOLLOWS  ———</td></tr>
                 {built.totalsRow && <tr className="tot">{built.columns.map((col) => <td key={col.key} className={"a-" + col.align}>{cell(built.totalsRow, col)}</td>)}</tr>}
+                <tr className="nf"><td colSpan={built.columns.length}>———  NOTHING FOLLOWS  ———</td></tr>
               </tbody>
             </table>
             <div className="pcp-doc-foot">
