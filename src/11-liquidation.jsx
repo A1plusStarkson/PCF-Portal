@@ -2712,9 +2712,10 @@ function LiquidationTab({
   const pettyCount = list.length;
   const reimbCount = reimbActive.length;
 
-  /* Print / PDF and Excel of exactly the rows shown (canBatchFilter). */
+  /* Print / PDF and Excel of exactly the rows shown, or the ticked ones of
+     this tab (canBatchFilter). printRows is defined with the selection below. */
   const listDoc = () => liqListDoc({
-    source, rows: source === "pettycash" ? list : reimbActive, liquidations, batchPeriods,
+    source, rows: printRows(), liquidations, batchPeriods,
     plantTitle: plant === "ALL" ? plantTitle : plantLabel(plant),
     filters: {
       batch: batchOn ? batchFilter : LIQ_ALL_BATCHES, final: finalOn ? finalFilter : "All",
@@ -2728,7 +2729,39 @@ function LiquidationTab({
     },
     generatedBy: currentUser,
   });
-  const shownCount = source === "pettycash" ? pettyCount : reimbCount;
+
+  /* ---- Row selection ----
+     Tick rows to export / print only those; with nothing ticked, everything
+     the filters show (both tabs) is exported. Only rows still shown count, so
+     a filter change can never export a hidden record. Read-only. */
+  const [picked, setPicked] = useState(() => new Set());
+  const pickedPetty = list.filter((d) => picked.has("liq:" + d.id));
+  const pickedReimb = reimbActive.filter((r) => picked.has("reimb:" + r.id));
+  const pickedCount = pickedPetty.length + pickedReimb.length;
+  const togglePick = (keys, on) => setPicked((p) => {
+    const n = new Set(p);
+    keys.forEach((k) => (on ? n.add(k) : n.delete(k)));
+    return n;
+  });
+  const pettyKeys = list.map((d) => "liq:" + d.id);
+  const reimbKeys = reimbActive.map((r) => "reimb:" + r.id);
+  const allPettyPicked = list.length > 0 && pickedPetty.length === list.length;
+  const allReimbPicked = reimbActive.length > 0 && pickedReimb.length === reimbActive.length;
+  const exportScope = pickedCount
+    ? { disbIds: pickedPetty.map((d) => d.id), reimbIds: pickedReimb.map((r) => r.id) }
+    : { disbIds: list.map((d) => d.id), reimbIds: reimbActive.map((r) => r.id) };
+  const exportCount = exportScope.disbIds.length + exportScope.reimbIds.length;
+  const pickedOnTab = source === "pettycash" ? pickedPetty.length : pickedReimb.length;
+  const printRows = () => (source === "pettycash"
+    ? (pickedPetty.length ? pickedPetty : list)
+    : (pickedReimb.length ? pickedReimb : reimbActive));
+  const printCount = pickedOnTab || (source === "pettycash" ? pettyCount : reimbCount);
+  const pickCell = (key) => (
+    <td onClick={(e) => e.stopPropagation()} style={{ width: 30 }}>
+      <input type="checkbox" checked={picked.has(key)} onChange={(e) => togglePick([key], e.target.checked)}
+        title="Select for export / print" />
+    </td>
+  );
 
   return (
     <div className="pcp-liq-full">
@@ -2736,9 +2769,11 @@ function LiquidationTab({
         title={(plantTitle ? plantTitle + " \u00b7 " : "") + "Liquidation"}
         sub="Liquidate petty cash advances and approved employee reimbursements in one professional workspace"
         right={
-          <button className="pcp-btn pcp-btn-primary" onClick={() => onExportAll(plant)}
-            title={`Export ${plant === "ALL" ? (plantTitle || "this plant") : plantLabel(plant)} only — liquidations and reimbursements`}>
-            <Download size={14} /> Export All to Acumatica
+          <button className="pcp-btn pcp-btn-primary" disabled={!exportCount} onClick={() => onExportAll(plant, exportScope)}
+            title={pickedCount
+              ? `Export the ${pickedCount} ticked transaction(s) to Acumatica`
+              : `Export the ${exportCount} transaction(s) matching the current filters (both tabs) — ${plant === "ALL" ? (plantTitle || "this plant") : plantLabel(plant)} only`}>
+            <Download size={14} /> {pickedCount ? `Export ${pickedCount} Selected to Acumatica` : `Export to Acumatica (${exportCount})`}
           </button>
         }
       />
@@ -2825,13 +2860,19 @@ function LiquidationTab({
               }}
             ><X size={12} /> Clear</button>
           )}
+          {pickedCount > 0 && (
+            <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => setPicked(new Set())}
+              title="Untick every row — export goes back to everything the filters show">
+              <X size={12} /> Clear selection ({pickedCount})
+            </button>
+          )}
           {canBatchFilter && (
             <span style={{ display: "flex", gap: 6 }}>
-              <button className="pcp-btn pcp-btn-sm" disabled={!shownCount} onClick={() => printReportDocument(listDoc())}
+              <button className="pcp-btn pcp-btn-sm" disabled={!printCount} onClick={() => printReportDocument(listDoc())}
                 title="Print or save as PDF exactly the transactions shown, grouped by batch">
-                <Printer size={12} /> Print / PDF ({shownCount})
+                <Printer size={12} /> Print / PDF ({printCount}{pickedOnTab ? " selected" : ""})
               </button>
-              <button className="pcp-btn pcp-btn-sm" disabled={!shownCount} onClick={() => exportReportExcel(listDoc())}
+              <button className="pcp-btn pcp-btn-sm" disabled={!printCount} onClick={() => exportReportExcel(listDoc())}
                 title="Export exactly the transactions shown to Excel">
                 <FileSpreadsheet size={12} /> Excel
               </button>
@@ -2850,6 +2891,11 @@ function LiquidationTab({
               <table className="pcp-table">
                 <thead>
                   <tr>
+                    <th style={{ width: 30 }}>
+                      <input type="checkbox" checked={allPettyPicked} disabled={!list.length}
+                        ref={(el) => { if (el) el.indeterminate = pickedPetty.length > 0 && !allPettyPicked; }}
+                        onChange={() => togglePick(pettyKeys, !allPettyPicked)} title="Select all shown" />
+                    </th>
                     <SortTh field="voucherNo" sort={pettySort}>Voucher No.</SortTh>
                     {txnDateLabels
                       ? <SortTh field="txnDate" sort={pettySort}>Transaction / OR Date</SortTh>
@@ -2870,6 +2916,7 @@ function LiquidationTab({
                   {list.length ? list.map((d) => (
                     <tr key={d.id} className={"pcp-liq-row" + (revertHighlight && (d.reverted || d.escRevert) ? " pcp-revert-hl-row" : "")} onClick={() => setSelectedId(d.id)}
                       title={revertHighlight && d.reverted ? "Reverted to requestor — correct and resubmit" : "Open liquidation"}>
+                      {pickCell("liq:" + d.id)}
                       <td>
                         <strong>{d.voucherNo}</strong>
                         {revertHighlight && d.reverted && <div><span className="pcp-revert-hl-tag">Reverted — Action Required</span></div>}
@@ -2918,7 +2965,7 @@ function LiquidationTab({
                       </td>
                     </tr>
                   )) : (
-                    <tr><td colSpan={15} className="pcp-empty">
+                    <tr><td colSpan={16} className="pcp-empty">
                       {q
                         ? "No cash advance matches “" + search.trim() + "”"
                         : statusFilterOn
@@ -2932,6 +2979,11 @@ function LiquidationTab({
               <table className="pcp-table">
                 <thead>
                   <tr>
+                    <th style={{ width: 30 }}>
+                      <input type="checkbox" checked={allReimbPicked} disabled={!reimbActive.length}
+                        ref={(el) => { if (el) el.indeterminate = pickedReimb.length > 0 && !allReimbPicked; }}
+                        onChange={() => togglePick(reimbKeys, !allReimbPicked)} title="Select all shown" />
+                    </th>
                     <SortTh field="reimbNo" sort={reimbSort}>Reimb No.</SortTh>
                     <SortTh field="requestDate" sort={reimbSort}>Req Date</SortTh>
                     <SortTh field="employee" sort={reimbSort}>Employee</SortTh>
@@ -2947,6 +2999,7 @@ function LiquidationTab({
                 <tbody>
                   {reimbActive.length ? reimbActive.map((r) => (
                     <tr key={r.id} className={"pcp-liq-row" + (revertHighlight && reimbEscalationRevert(r) ? " pcp-revert-hl-row" : "")} onClick={() => setSelectedReimbId(r.id)} title="Open reimbursement liquidation">
+                      {pickCell("reimb:" + r.id)}
                       <td>
                         <strong>{r.reimbNo}</strong>
                         {revertHighlight && reimbEscalationRevert(r) && <div><EscalationRevertTag marker={reimbEscalationRevert(r)} /></div>}
@@ -2972,7 +3025,7 @@ function LiquidationTab({
                       </td>
                     </tr>
                   )) : (
-                    <tr><td colSpan={13} className="pcp-empty">
+                    <tr><td colSpan={14} className="pcp-empty">
                       {q
                         ? "No reimbursement matches “" + search.trim() + "”"
                         : statusFilterOn

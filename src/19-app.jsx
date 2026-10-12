@@ -2439,13 +2439,24 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
      Module go into the one Purchase Orders sheet, same columns as before.
      Every row is checked against the selection before the file is written;
      with nothing to export the file still carries the header row. */
-  const exportAllToAcumatica = useCallback((branch) => {
+  /* `only` ({ disbIds, reimbIds }) limits the export to the transactions the
+     Liquidation list currently shows, or the ones ticked in it — so an
+     unrelated batch or an unapproved record outside the filter can never ride
+     along. Without it, the whole plant is exported as before. */
+  const exportAllToAcumatica = useCallback((branch, only) => {
     const oneBranch = branch && branch !== "ALL" ? branch : "";
     const inSelection = (code) => scopeCodes.includes(code) && (!oneBranch || code === oneBranch);
-    const disbs = scopedDisbursements.filter((d) => inSelection(d.branchCode));
-    const reimbs = scopedReimbursements.filter((r) => inSelection(r.branchCode) && reimbInLiquidationModule(r));
+    const disbIds = only ? new Set(only.disbIds || []) : null;
+    const reimbIds = only ? new Set(only.reimbIds || []) : null;
+    const disbs = scopedDisbursements.filter((d) => inSelection(d.branchCode) && (!disbIds || disbIds.has(d.id)));
+    const reimbs = scopedReimbursements.filter((r) => inSelection(r.branchCode) && reimbInLiquidationModule(r)
+      && (!reimbIds || reimbIds.has(r.id)));
     const rows = buildAllAcumaticaExportRows(disbs, scopedLiquidations)
       .concat(...reimbs.map(buildReimbursementAcumaticaRows));
+    if (!rows.length) {
+      window.alert("Nothing to export: none of these transactions has expense lines yet.");
+      return;
+    }
     const stray = rows.filter((row) => !inSelection(row["Branch"]));
     if (stray.length) {
       window.alert(`Export stopped: ${stray.length} line(s) do not belong to ${oneBranch ? plantLabel(oneBranch) : (activePlantLabel || "this plant")}. Nothing was exported.`);
