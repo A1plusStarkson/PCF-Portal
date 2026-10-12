@@ -356,6 +356,15 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   ];
   const canViewReplenDetails = REPLEN_DETAIL_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
+  /* Liquidation: Batch + Grace Gan final-approval filters and the filtered
+     Print / PDF + Excel — these accounts only (owner's instruction, Oct 2026).
+     Read-only — filtering or printing never changes a record. */
+  const LIQ_BATCH_FILTER_EMAILS = [
+    "a1plusadmin@a1plus.com", "superuser@a1plus.com", "accounting@a1plus.com", "finance@a1plus.com",
+    "puradr@a1plus.com", "lita@a1plus.com", "mauwi@a1plus.com",
+  ];
+  const canLiqBatchFilter = LIQ_BATCH_FILTER_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
 
   /* ---- Closing a cash shortage ----
      When a requestor returns less than they owe, the balance is a receivable
@@ -2994,6 +3003,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
         {activeModule === "liquidation" && (
           <LiquidationTab
             key={tab}
+            canBatchFilter={canLiqBatchFilter}
             disbursements={scopedDisbursements} liquidations={scopedLiquidations}
             onSaveLiquidation={saveLiquidation} onExport={exportLiquidation}
             showHeaderUpload={canLiqHeaderUpload}
