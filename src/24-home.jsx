@@ -17,7 +17,7 @@ const HOME_CSS = `
     color: #fff; border-radius: 16px; padding: 24px 26px; box-shadow: 0 10px 30px rgba(37,78,88,0.18);
   }
   .pcp-home-kicker { font-size: 11px; font-weight: 700; letter-spacing: 1.4px; text-transform: uppercase; opacity: 0.85; }
-  .pcp-home-title { margin: 6px 0 4px; font-size: 26px; font-weight: 800; letter-spacing: -0.3px; }
+  .pcp-home-title { margin: 6px 0 4px; font-size: 26px; font-weight: 600; letter-spacing: -0.3px; }
   .pcp-home-greet { font-size: 14px; opacity: 0.95; }
   .pcp-home-date { font-size: 12px; opacity: 0.8; margin-top: 10px; }
   .pcp-home-clock {

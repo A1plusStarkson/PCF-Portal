@@ -942,8 +942,8 @@ function ApprovalModuleTab({
         <div className="pcp-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12, marginBottom: 16 }}>
           {isFinalApprover && (
             <>
-              <KpiCard label="Liquidations Awaiting Your Final Approval" {...cardProps("liq-final", "Liquidation", [LIQ_STAGE.FOR_FINAL])} value={countPending("Liquidation", LIQ_STAGE.FOR_FINAL)} icon={ShieldCheck} tint="#b9790a" />
-              <KpiCard label="Reimbursements Awaiting Your Final Approval" {...cardProps("reimb-final", "Reimbursement", [LIQ_STAGE.FOR_FINAL])} value={countPending("Reimbursement", LIQ_STAGE.FOR_FINAL)} icon={ArrowLeftRight} tint="#b9790a" />
+              <KpiCard label={showGraceQueue ? "Liquidations Awaiting Grace Gan's Final Approval" : "Liquidations Awaiting Your Final Approval"} {...cardProps("liq-final", "Liquidation", [LIQ_STAGE.FOR_FINAL])} value={countPending("Liquidation", LIQ_STAGE.FOR_FINAL)} icon={ShieldCheck} tint="#b9790a" />
+              <KpiCard label={showGraceQueue ? "Reimbursements Awaiting Grace Gan's Final Approval" : "Reimbursements Awaiting Your Final Approval"} {...cardProps("reimb-final", "Reimbursement", [LIQ_STAGE.FOR_FINAL])} value={countPending("Reimbursement", LIQ_STAGE.FOR_FINAL)} icon={ArrowLeftRight} tint="#b9790a" />
             </>
           )}
           {!isFinalApprover && viewFinalQueue && (
@@ -1044,7 +1044,7 @@ function ApprovalModuleTab({
         {batchesAwaiting.length > 0 && (
           <div className="pcp-card pcp-card-pad" style={{ marginBottom: 14 }}>
             <div className="pcp-section-title" style={{ margin: "0 0 8px" }}>
-              <ShieldCheck size={15} /> {isFinalApprover ? "Batches Awaiting Your Final Approval" : "Batches Awaiting Grace Gan's Final Approval (view only)"}
+              <ShieldCheck size={15} /> {isFinalApprover ? (showGraceQueue ? "Batches Awaiting Grace Gan's Final Approval" : "Batches Awaiting Your Final Approval") : "Batches Awaiting Grace Gan's Final Approval (view only)"}
             </div>
             <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
               {batchesAwaiting.map((x) => (
