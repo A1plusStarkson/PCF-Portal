@@ -24,7 +24,7 @@ const HOME_CSS = `
     display: inline-flex; align-items: center; gap: 6px; margin-top: 6px; padding: 4px 10px; border-radius: 99px;
     background: rgba(255,255,255,0.14); border: 1px solid rgba(255,255,255,0.25); font-size: 12px;
   }
-  .pcp-home-clock-time { font-weight: 800; font-size: 14px; font-variant-numeric: tabular-nums; letter-spacing: 0.3px; }
+  .pcp-home-clock-time { font-weight: 600; font-size: 14px; font-variant-numeric: tabular-nums; letter-spacing: 0.3px; }
   .pcp-home-clock-zone { opacity: 0.8; font-size: 11px; }
   .pcp-home-user {
     background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.25); border-radius: 12px;
@@ -103,7 +103,7 @@ const HOME_CSS = `
   .pcp-home-fund:last-child { border-bottom: none; }
   .pcp-home-fund:hover, .pcp-home-fund:focus-visible { background: var(--brand-soft); outline: none; }
   .pcp-home-fund-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
-  .pcp-home-fund-amt { font-size: 15px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .pcp-home-fund-amt { font-size: 15px; font-weight: 600; font-variant-numeric: tabular-nums; }
   .pcp-home-fund-bar { height: 7px; border-radius: 99px; background: var(--line); overflow: hidden; margin: 6px 0 4px; }
   .pcp-home-fund-bar > span { display: block; height: 100%; border-radius: 99px; }
   .pcp-home-act-time { flex-shrink: 0; font-size: 11px; color: var(--text-mut); white-space: nowrap; }
@@ -152,7 +152,7 @@ const HOME_CSS = `
   }
   .pcp-home-status-item:hover, .pcp-home-status-item:focus-visible { border-color: var(--brand); background: var(--brand-soft); outline: none; }
   .pcp-home-status-item.warn { border-color: #e8a3a3; background: var(--red-bg); }
-  .pcp-home-status-n { font-size: 24px; font-weight: 800; line-height: 1.1; font-variant-numeric: tabular-nums; }
+  .pcp-home-status-n { font-size: 24px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
   .pcp-home-status-label { font-size: 12px; font-weight: 700; }
   .pcp-home-ann-card { border-top: 3px solid #c0392b; }
   .pcp-home-flow { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 22px; }
