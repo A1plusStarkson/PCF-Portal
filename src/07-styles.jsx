@@ -105,6 +105,13 @@ const CSS = `
     color: #9fbcab; padding: 12px 8px 4px 8px; margin-top: 2px;
   }
   .pcp-nav-group:first-child .pcp-nav-group-label { margin-top: 0; }
+  /* Plant names (MANILA, WARNER, DISNEY…) clearly larger than the module
+     names under them (12.5px); section headings stay small (owner's
+     instruction, Oct 2026). Same colour as the other headings. */
+  .pcp-nav-group-label.pcp-nav-plant {
+    font-size: 15px; font-weight: 800; letter-spacing: 0.6px; line-height: 1.2;
+    padding: 16px 8px 6px 8px;
+  }
   .pcp-nav-item {
     display: flex; align-items: center; gap: 10px;
     padding: 8px 11px 8px 14px; border-radius: 8px; cursor: pointer;
@@ -1797,7 +1804,11 @@ function Sidebar({ tab, setTab, role, roleLabel, navGroups, userEmail, userName,
       <nav className="pcp-nav">
         {groups.map((group) => (
           <div className="pcp-nav-group" key={group.key}>
-            {group.label && <div className="pcp-nav-group-label">{group.label}</div>}
+            {group.label && (
+              <div className={"pcp-nav-group-label" + (String(group.key || "").startsWith("plant-") ? " pcp-nav-plant" : "")}>
+                {group.label}
+              </div>
+            )}
             {group.items.map((item) => {
               const Icon = item.icon;
               return (
