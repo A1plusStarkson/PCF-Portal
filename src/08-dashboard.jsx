@@ -1173,31 +1173,9 @@ function DashboardCore({ label, funds, requests, disbursements, liquidations, re
     <div>
       <style>{DASH_CSS + DASH_CORE_CSS}</style>
 
-      {/* Financial summary */}
-      <div className="pcp-flow">
-        <div className="pcp-flow-step pcp-flow-click" onClick={nav("masterdata")}>
-          <div className="pcp-flow-label">Beginning Balance</div>
-          <div className="pcp-flow-value pcp-num">{peso(m.totalFund)}</div>
-          <ChevronRight className="pcp-flow-arrow" size={18} />
-        </div>
-        <div className="pcp-flow-step pcp-flow-click" onClick={nav("disbursements")}>
-          <div className="pcp-flow-label">Total Disbursed</div>
-          <div className="pcp-flow-value pcp-num">{peso(m.totalDisbursed)}</div>
-          <ChevronRight className="pcp-flow-arrow" size={18} />
-        </div>
-        <div className="pcp-flow-step pcp-flow-click" onClick={nav("liquidation")}>
-          <div className="pcp-flow-label">Total Liquidated</div>
-          <div className="pcp-flow-value pcp-num">{peso(m.totalLiquidated)}</div>
-          <ChevronRight className="pcp-flow-arrow" size={18} />
-        </div>
-        <div className="pcp-flow-step pcp-flow-click" onClick={nav("masterdata")}>
-          <div className="pcp-flow-label">Available Balance</div>
-          <div className="pcp-flow-value pcp-num" style={{ color: m.availableBalance < 0 ? "#ff8080" : "#8fffb0" }}>
-            {peso(m.availableBalance)}
-          </div>
-        </div>
-      </div>
-
+      {/* The Beginning → Disbursed → Liquidated → Available strip that sat
+          here repeated the first row of KPI cards exactly; removed (owner's
+          choice, Oct 2026). The cards carry the same figures and links. */}
       {(funds.length > 0 || custodians) && (
         <div className="pcp-eyebrow" style={{ marginBottom: 10 }}>
           {label}{custodians ? ` · Custodian: ${custodians}` : ""}
