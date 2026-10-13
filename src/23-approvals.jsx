@@ -1094,7 +1094,7 @@ function ApprovalModuleTab({
                     <td>{r.kind}</td>
                     <td className="pcp-num" style={{ textAlign: "right" }}>{peso(r.amount)}</td>
                     {showDocTotals && <td style={{ textAlign: "right" }}><span className="pcp-doc-total-chip" title={`${r.docs} uploaded document(s)`}><Paperclip size={11} /> {r.docs}</span></td>}
-                    {showDocTotals && <td className="pcp-num" style={{ textAlign: "right", fontWeight: 800 }}>{peso(r.docsAmount)}</td>}
+                    {showDocTotals && <td className="pcp-num" style={{ textAlign: "right", fontWeight: 600 }}>{peso(r.docsAmount)}</td>}
                     <td>{fmtDate(r.date)}</td>
                     <td><Badge status={r.stage} /></td>
                     <td style={{ fontWeight: 600 }}>{actionLabel(r.stage) || "—"}</td>
