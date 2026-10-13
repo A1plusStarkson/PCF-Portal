@@ -8,6 +8,9 @@ const CSS = `
      cards. #88BDBC never carries white text (2:1) — dark text on it.
      Red is kept ONLY as --danger: errors, required marks, delete, overdue. */
   :root {
+    /* The portal's one font: Open Sans (loaded in index.html), everywhere
+       on screen (owner's instruction, Oct 2026). */
+    --font-ui: "Open Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     --ink: #112d32;
     --ink-2: #1d414a;
     --paper: #f2f8f8;
@@ -43,8 +46,11 @@ const CSS = `
     --shadow-md: 0 6px 18px rgba(30,43,36,0.08);
   }
   * { box-sizing: border-box; }
+  /* Anything portalled to <body> (pop-ups, toasts, lists) and every form
+     control gets Open Sans too — controls do not inherit a font by default. */
+  body, button, input, select, textarea { font-family: var(--font-ui); }
   .pcp-root {
-    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: var(--font-ui);
     background: var(--paper);
     color: var(--text);
     min-height: 100vh;
@@ -53,12 +59,12 @@ const CSS = `
     line-height: 1.45;
   }
   .pcp-root * { font-variant-numeric: tabular-nums; }
-  /* Headings in Plus Jakarta Sans (loaded in index.html); body, tables and
-     numbers stay in Inter. */
+  /* Headings in Open Sans too — kept as their own rule so a heading face can
+     be reintroduced in one place. */
   .pcp-topbar h1, .pcp-section-title, .pcp-brand-title, .pcp-modal-head h3,
   .pcp-home-title, .pcp-home-section-title, .pcp-home-kicker,
   .pcp-login-hero, .pcp-login-title, .pcp-login-brand-name, .pcf-splash-title {
-    font-family: "Plus Jakarta Sans", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: var(--font-ui);
   }
   .pcp-num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
 
@@ -390,7 +396,7 @@ const CSS = `
      the root's font, colour and bold weight itself, and sits above modals. */
   .pcp-ss-pop.pcp-ss-pop-fixed {
     z-index: 1200; color: var(--text); font-variant-numeric: tabular-nums;
-    font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    font-family: var(--font-ui);
   }
   .pcp-ss-pop-fixed, .pcp-ss-pop-fixed *, .pcp-ss-pop-fixed input::placeholder { font-weight: 700; }
   .pcp-purpose-group, .pcp-ss-group {
@@ -485,8 +491,8 @@ const CSS = `
     color: #fff; background: radial-gradient(circle at 35% 30%, #4f8f93, #254e58 70%); box-shadow: 0 0 0 6px rgba(136,189,188,0.30);
     animation: pcp-loginpop-check 0.5s 0.15s cubic-bezier(.2,.9,.3,1.3) both;
   }
-  .pcp-loginpop-kicker { font-family: "Plus Jakarta Sans", "Inter", sans-serif; font-size: 13px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; color: #1f7a4a; }
-  .pcp-loginpop-hello { font-family: "Plus Jakarta Sans", "Inter", sans-serif; font-size: 20px; font-weight: 800; color: #254e58; margin-top: 6px; overflow-wrap: anywhere; }
+  .pcp-loginpop-kicker { font-family: var(--font-ui); font-size: 13px; font-weight: 800; letter-spacing: 1.4px; text-transform: uppercase; color: #1f7a4a; }
+  .pcp-loginpop-hello { font-family: var(--font-ui); font-size: 20px; font-weight: 800; color: #254e58; margin-top: 6px; overflow-wrap: anywhere; }
   .pcp-loginpop-lead { font-size: 13px; color: #6e6658; margin-top: 2px; }
   .pcp-loginpop-details {
     display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 14px; margin: 16px 0 0; text-align: left;
@@ -548,7 +554,7 @@ const CSS = `
   }
   .pcp-batchpop-head {
     padding: 16px 22px; border-bottom: 1px solid #f0d978; background: #fdeea4; border-radius: 14px 14px 0 0;
-    font-family: "Plus Jakarta Sans", "Inter", sans-serif; font-size: 16px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; color: #3d2f00;
+    font-family: var(--font-ui); font-size: 16px; font-weight: 800; letter-spacing: 0.8px; text-transform: uppercase; color: #3d2f00;
   }
   .pcp-batchpop-body { padding: 18px 22px 6px; }
   .pcp-batchpop-greet { font-size: 17px; font-weight: 800; color: #2a2414; }

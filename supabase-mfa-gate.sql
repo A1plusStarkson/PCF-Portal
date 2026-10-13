@@ -35,7 +35,7 @@ language sql
 stable
 as $$
   select not (lower(coalesce(auth.jwt()->>'email', '')) = any (array[
-           'accounting@a1plus.com',
+           -- 'accounting@a1plus.com',  -- removed Oct 2026 (password only); uncomment to require MFA again
            -- 'a1plusadmin@a1plus.com',  -- Grace Gan: uncomment to require MFA again
            'superuser@a1plus.com'
          ]))

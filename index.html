@@ -62,15 +62,16 @@
 <link rel="modulepreload" href="https://esm.sh/recharts@2.13.3?bundle&deps=react@18.3.1,react-dom@18.3.1" crossorigin />
 <link rel="modulepreload" href="https://esm.sh/lucide-react@0.454.0?deps=react@18.3.1" crossorigin />
 <link rel="modulepreload" href="https://esm.sh/@supabase/supabase-js@2.117.2?bundle" crossorigin />
-<!-- Portal fonts: Inter (body, tables, numbers) + Plus Jakarta Sans (headings).
-     display=swap: text shows at once in the fallback font, then swaps in. -->
+<!-- Portal font: Open Sans everywhere on screen (--font-ui in
+     src/07-styles.jsx). display=swap: text shows at once in the fallback
+     font, then swaps in. -->
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Plus+Jakarta+Sans:wght@600;700;800&display=swap" />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Open+Sans:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&display=swap" />
 </head>
 <body>
 <!-- Shown until React replaces it, so the page is never a blank screen. -->
-<div id="root"><div style="min-height:100vh;display:flex;align-items:center;justify-content:center;font:700 14px system-ui,'Segoe UI',Arial,sans-serif;color:#3c6e76">Loading Petty Cash Portal…</div></div>
+<div id="root"><div style="min-height:100vh;display:flex;align-items:center;justify-content:center;font:700 14px 'Open Sans',system-ui,'Segoe UI',Arial,sans-serif;color:#3c6e76">Loading Petty Cash Portal…</div></div>
 
 <!-- ============================================================
      DATA STORAGE + LOGIN
@@ -180,7 +181,9 @@
      password. Keep in step with the list in supabase-mfa-gate.sql. */
   /* Grace Gan (a1plusadmin) is exempt for now. To turn her MFA back on, swap
      the two lines below and re-add her email in supabase-mfa-gate.sql. */
-  window.PCP_MFA_EMAILS = ["accounting@a1plus.com", "superuser@a1plus.com"];
+  /* accounting@ removed (owner's instruction, Oct 2026): password only.
+     Its line in supabase-mfa-gate.sql is commented out to match. */
+  window.PCP_MFA_EMAILS = ["superuser@a1plus.com"];
   // window.PCP_MFA_EMAILS = window.PCP_ADMIN_EMAILS;
   window.PCP_DEFAULT_ROLE = "Custodian";                 // fallback for unlisted signed-in users
   window.PCP_USERS = {
@@ -1024,7 +1027,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20261012i";
+  window.PCP_SRC_VERSION = "20261013a";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",
@@ -1060,7 +1063,7 @@
       console.error("PCF loader:", msg);
       var el = document.getElementById("root");
       if (el) el.innerHTML =
-        '<div style="font:14px/1.5 system-ui,Segoe UI,Arial;max-width:640px;margin:60px auto;padding:24px;'
+        '<div style="font:14px/1.5 Open Sans,system-ui,Segoe UI,Arial;max-width:640px;margin:60px auto;padding:24px;'
         + 'border:1px solid #f0c0c0;border-radius:12px;color:#8a1020;background:#fff5f5">'
         + '<b>The Petty Cash Portal failed to load.</b><br><br>' + msg
         + '<br><br>Check that the whole <code>src/</code> folder was uploaded next to '
