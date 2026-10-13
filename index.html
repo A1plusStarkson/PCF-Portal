@@ -181,9 +181,7 @@
      password. Keep in step with the list in supabase-mfa-gate.sql. */
   /* Grace Gan (a1plusadmin) is exempt for now. To turn her MFA back on, swap
      the two lines below and re-add her email in supabase-mfa-gate.sql. */
-  /* accounting@ removed (owner's instruction, Oct 2026): password only.
-     Its line in supabase-mfa-gate.sql is commented out to match. */
-  window.PCP_MFA_EMAILS = ["superuser@a1plus.com"];
+  window.PCP_MFA_EMAILS = ["accounting@a1plus.com", "superuser@a1plus.com"];
   // window.PCP_MFA_EMAILS = window.PCP_ADMIN_EMAILS;
   window.PCP_DEFAULT_ROLE = "Custodian";                 // fallback for unlisted signed-in users
   window.PCP_USERS = {
@@ -1027,7 +1025,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20261013b";
+  window.PCP_SRC_VERSION = "20261013c";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",
