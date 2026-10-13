@@ -18,6 +18,7 @@ const CSS = `
     --card: #ffffff;
     --line: #d3e3e3;
     --line-soft: #e6f0f0;
+    --row-divider: #b9cfcf;
     --hover: #e3efef;
     --accent: #88bdbc;
     --accent-ink: #112d32;
@@ -197,7 +198,9 @@ const CSS = `
     color: var(--brand-dark); font-weight: 700; padding: 10px 12px; border-bottom: 1px solid var(--line);
     background: #e6f0f0; white-space: nowrap; position: sticky; top: 0; z-index: 1;
   }
-  table.pcp-table tbody td { padding: 10px 12px; border-bottom: 1px solid var(--line-soft); vertical-align: middle; }
+  /* A visible divider between transactions, every list in the portal
+     (owner's instruction, Oct 2026); --row-divider is re-pointed for dark. */
+  table.pcp-table tbody td { padding: 10px 12px; border-bottom: 1px solid var(--row-divider); vertical-align: middle; }
   table.pcp-table tbody tr:nth-child(even) td { background: #f9fcfa; }
   table.pcp-table tbody tr:hover td { background: var(--brand-soft); }
   table.pcp-table tbody tr:last-child td { border-bottom: none; }
@@ -1527,6 +1530,7 @@ const CSS = `
       --card: #132327;
       --line: #273f44;
       --line-soft: #1e3337;
+      --row-divider: #36565d;
       --text: #e2ecec;
       --text-mut: #9db4b5;
       --brand: #357a80;
