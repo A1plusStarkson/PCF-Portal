@@ -593,7 +593,7 @@ function ApprovalModuleTab({
   currentUser, plantOptions, accounting: accountingIn, onOpenReplenishment,
   canEditReimb: canEditReimbIn, canDeleteReimbDocs, canAuthorizeReimbVariance, onUpdateReimbursement, reimbPlantOptions,
   canRevert: canRevertIn, onRevertLiquidation, canSelectExport,
-  viewFinalQueue, viewOnly,
+  viewFinalQueue, viewOnly, showGraceQueue,
 }) {
   const showDocTotals = !!(useContext(AppUI) || {}).showDocTotals; // Total Docs column — DOC_TOTAL_EMAILS only
   const revertHighlight = !!(useContext(AppUI) || {}).revertHighlight; // REVERT_HIGHLIGHT_EMAILS
@@ -680,6 +680,7 @@ function ApprovalModuleTab({
       date: String(r.liq.submittedAt || r.disb.date || "").slice(0, 10),
       stage: r.stage,
       batchNo: r.review.batchNo || "",
+      review: r.review,
       pending: isPendingFor(r.stage, r.review, false),
       escRevert: liqEscalationRevert(r.disb, r.liq),
       src: r,
@@ -697,6 +698,7 @@ function ApprovalModuleTab({
       date: String(r.submittedAt || r.requestDate || "").slice(0, 10),
       stage: r.stage,
       batchNo: r.rv.batchNo || "",
+      review: r.rv,
       pending: isPendingFor(r.stage, r.rv, [r.createdBy, r.employee].some((n) => (n || "").trim().toLowerCase() === me)),
       escRevert: reimbEscalationRevert(r),
       src: r,
@@ -725,16 +727,31 @@ function ApprovalModuleTab({
   const inPlant = (r) => plant === "ALL" || plantOfBranch(r.plantCode) === plantOfBranch(plant);
   const rowPlantLabel = (r) => plantLabel(plantOfBranch(r.plantCode));
   const s = search.trim().toLowerCase();
-  const baseRows = pendingAll.filter((r) => inPlant(r)
+  /* Plant, search, batch and date — shared by the queue and the Grace Gan tab. */
+  const passesCommon = (r) => inPlant(r)
     && (!s || [r.seriesNo, r.requestor, plantLabel(r.plantCode), rowPlantLabel(r), r.batchNo].some((f) => String(f || "").toLowerCase().includes(s)))
-    && (stageFilter === APPROVAL_ALL_PENDING || approvalStageKey(r.stage) === approvalStageKey(stageFilter))
-    && (!cardFilter || cardFilter.stages.some((st) => approvalStageKey(r.stage) === approvalStageKey(st)))
     && (batch === ALL_BATCHES || r.batchNo === batch)
     && (!dateFrom || r.date >= dateFrom)
-    && (!dateTo || r.date <= dateTo));
+    && (!dateTo || r.date <= dateTo);
+  const baseRows = pendingAll.filter((r) => passesCommon(r)
+    && (stageFilter === APPROVAL_ALL_PENDING || approvalStageKey(r.stage) === approvalStageKey(stageFilter))
+    && (!cardFilter || cardFilter.stages.some((st) => approvalStageKey(r.stage) === approvalStageKey(st))));
+  /* ---- For Approval by Grace Gan (showGraceQueue — superuser@ only) ----
+     Every transaction, all plants, that is waiting for Grace Gan's final
+     approval: at that stage and past the Accounting check, exactly as her
+     own queue gates it. Built from every row, not this viewer's pending list,
+     so nothing the System Superuser could not act on personally is hidden.
+     Approved, rejected or reverted transactions have left that stage. View
+     and track only: opening a row keeps this viewer's usual permissions. */
+  const GRACE = "grace";
+  const gracePending = useMemo(() => (showGraceQueue
+    ? allRows.filter((r) => approvalStageKey(r.stage) === approvalStageKey(LIQ_STAGE.FOR_FINAL) && passesAccountingGate(r.review))
+    : []), [allRows, showGraceQueue]);
+  const graceRows = gracePending.filter(passesCommon);
+  const onGraceTab = showGraceQueue && kind === GRACE;
   const countKind = (k) => baseRows.filter((r) => r.kind === k).length;
   const rows = sort.sortRows(
-    baseRows.filter((r) => kind === "all" || r.kind === kind),
+    onGraceTab ? graceRows : baseRows.filter((r) => kind === "all" || r.kind === kind),
     {
       seriesNo: (r) => r.seriesNo,
       plant: (r) => rowPlantLabel(r) + " " + plantLabel(r.plantCode),
@@ -790,7 +807,7 @@ function ApprovalModuleTab({
     const list = selectedRows.length ? selectedRows : rows;
     if (!list.length) { window.alert("There is nothing to print."); return; }
     const scopeLabel = plant === "ALL" ? "All Plants" : plantLabel(plantOfBranch(plant));
-    const kindLabel = kind === "all" ? "all transaction types" : kind === "Liquidation" ? "Petty Cash Advance liquidations" : "Employee reimbursements";
+    const kindLabel = onGraceTab ? "transactions for approval by Grace Gan" : kind === "all" ? "all transaction types" : kind === "Liquidation" ? "Petty Cash Advance liquidations" : "Employee reimbursements";
     const scopeNote = (selectedRows.length ? `${list.length} selected transaction(s)` : `All ${list.length} shown`)
       + ` · ${kindLabel} · ${stageFilter}` + (batch !== ALL_BATCHES ? ` · ${batch}` : "")
       + (dateFrom || dateTo ? ` · ${dateFrom ? fmtDate(dateFrom) : "…"} to ${dateTo ? fmtDate(dateTo) : "…"}` : "");
@@ -963,7 +980,20 @@ function ApprovalModuleTab({
           <button className={"pcp-tab" + (kind === "Reimbursement" ? " active" : "")} onClick={() => setKind("Reimbursement")}>
             Employee Reimbursements ({countKind("Reimbursement")})
           </button>
+          {showGraceQueue && (
+            <button className={"pcp-tab" + (onGraceTab ? " active" : "")} onClick={() => { setKind(GRACE); setCardFilter(null); }}
+              title="Every transaction, all plants, waiting for Grace Gan's final approval">
+              <ShieldCheck size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />For Approval by Grace Gan ({graceRows.length})
+            </button>
+          )}
         </div>
+        {onGraceTab && (
+          <div style={{ fontSize: 12, color: "var(--text-mut)", margin: "-6px 0 12px" }}>
+            Every transaction across all plants waiting for <b>Grace Gan's final approval</b> — custodian-approved and
+            Accounting-checked. Approved, rejected and reverted transactions drop off automatically. Use the plant tabs,
+            search, batch and date filters to narrow it; click a row to view it.
+          </div>
+        )}
 
         <div className="pcp-filterbar" style={{ display: "flex", gap: 10, alignItems: "center", marginBottom: 14, flexWrap: "wrap" }}>
           <div style={{ position: "relative", flex: 1, minWidth: 200, maxWidth: 300 }}>
@@ -975,7 +1005,7 @@ function ApprovalModuleTab({
             />
           </div>
           <FilterIcon size={14} color="var(--text-mut)" />
-          <select className="pcp-select" style={{ width: 200 }} value={stageFilter} onChange={(e) => { setStageFilter(e.target.value); setCardFilter(null); }}>
+          <select className="pcp-select" style={{ width: 200 }} value={onGraceTab ? LIQ_STAGE.FOR_FINAL : stageFilter} onChange={(e) => { setStageFilter(e.target.value); setCardFilter(null); }} disabled={onGraceTab}>
             {statusOptions.map((o) => <option key={o}>{o}</option>)}
           </select>
           <span className="pcp-filter-label">Batch</span>

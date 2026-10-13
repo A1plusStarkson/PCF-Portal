@@ -365,6 +365,12 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   ];
   const canLiqBatchFilter = LIQ_BATCH_FILTER_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
+  /* Approval Module: the "For Approval by Grace Gan" tab — every transaction,
+     all plants, awaiting her final approval. These accounts only (owner's
+     instruction, Oct 2026). View and track; permissions are unchanged. */
+  const GRACE_QUEUE_EMAILS = ["superuser@a1plus.com"];
+  const canSeeGraceQueue = GRACE_QUEUE_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
 
   /* ---- Closing a cash shortage ----
      When a requestor returns less than they owe, the balance is a receivable
@@ -3120,6 +3126,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
           <ApprovalModuleTab
             canSelectExport={canApprovalExport}
             viewFinalQueue={canViewFinalQueue}
+            showGraceQueue={canSeeGraceQueue}
             viewOnly={approvalViewOnly}
             disbursements={visibleDisbursements} liquidations={visibleLiquidations}
             reimbursements={visibleReimbursements}
