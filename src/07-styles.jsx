@@ -182,7 +182,8 @@ const CSS = `
   }
   .pcp-kpi::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--mint); opacity: 0.9; }
   .pcp-kpi-label { font-size: 11px; color: var(--text-mut); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
-  .pcp-kpi-value { font-size: 22px; font-weight: 800; color: var(--text); margin-top: 6px; letter-spacing: -0.3px; }
+  /* Figures in semibold, not extra-bold (owner's instruction, Oct 2026). */
+  .pcp-kpi-value { font-size: 22px; font-weight: 600; color: var(--text); margin-top: 6px; letter-spacing: -0.3px; }
   .pcp-kpi-icon {
     position: absolute; right: 14px; top: 14px; width: 30px; height: 30px; border-radius: 8px;
     display: flex; align-items: center; justify-content: center;
@@ -301,7 +302,7 @@ const CSS = `
   .pcp-flow-click { cursor: pointer; transition: background 0.12s; }
   .pcp-flow-click:hover { background: rgba(255,255,255,0.08); }
   .pcp-flow-label { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.6px; color: #8fa397; font-weight: 700; }
-  .pcp-flow-value { font-size: 19px; font-weight: 700; margin-top: 6px; }
+  .pcp-flow-value { font-size: 19px; font-weight: 600; margin-top: 6px; }
   .pcp-flow-arrow { position: absolute; right: -11px; top: 50%; transform: translateY(-50%); z-index: 2; color: #676f8c; }
 
   .pcp-liq-line { display: grid; grid-template-columns: 100px 1fr 1.1fr 1fr 0.85fr 100px 32px; gap: 8px; align-items: center; margin-bottom: 8px; }
