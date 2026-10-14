@@ -122,7 +122,9 @@ function fmtAcctStamp(ts) {
 /* The four Accounting columns, shared by every list that shows them. */
 function AccountingHeadCells() {
   return (<>
-    <th>Accounting Checked</th><th>Accounting Checked By</th><th>Accounting Checked Date</th><th>Batch Number</th>
+    {/* Accounting Checked Date column removed (owner's instruction, Oct
+        2026) — the date is in the opened transaction's Accounting review. */}
+    <th>Accounting Checked</th><th>Accounting Checked By</th><th>Batch Number</th>
   </>);
 }
 function AccountingCells({ review }) {
@@ -131,7 +133,6 @@ function AccountingCells({ review }) {
   return (<>
     <td>{rv.acctChecked ? <Badge status="YES" /> : <span style={mut}>NO</span>}</td>
     <td>{acctCheckerLabel(rv) || <span style={mut}>—</span>}</td>
-    <td style={{ whiteSpace: "nowrap" }}>{rv.acctChecked ? fmtAcctStamp(rv.acctCheckedAt) : <span style={mut}>—</span>}</td>
     <td>{rv.batchNo ? <strong>{rv.batchNo}</strong> : <span style={mut}>—</span>}</td>
   </>);
 }
@@ -464,6 +465,7 @@ const LIQ_PETTY_SORT_FIELDS = {
   department: (d) => subaccountLabel(d.department),
   expense: (d) => disbExpense(d),
   amount: (d) => Number(d.amount) || 0,
+  liqAmount: (d) => d.liqAmount,
   liqStatus: (d) => d.liqStatus,
   finalStatus: (d) => d.finalStatus,
   /* Overdue balances sort above everything else, then by amount owed. */
@@ -2614,6 +2616,9 @@ function LiquidationTab({
   const enriched = scoped.map((d) => ({
     ...d,
     liqStatus: liqStatusFor(d, liquidations),
+    /* Liquidated Amount column: the voucher's encoded expense lines — the
+       same figure as the dashboard's Total Liquidated. */
+    liqAmount: liquidatedTotal(liquidationFor(d.id, liquidations)),
     finalStatus: liqFinalStatus(d, liquidationFor(d.id, liquidations)),
     stl: settlementInfo(d, liquidationFor(d.id, liquidations)),
     txn: liqTxnDates(liquidationFor(d.id, liquidations)),
@@ -2905,6 +2910,7 @@ function LiquidationTab({
                     <SortTh field="department" sort={pettySort}>Department</SortTh>
                     <SortTh field="expense" sort={pettySort}>Expense</SortTh>
                     <SortTh field="amount" sort={pettySort} align="right">PCF Released</SortTh>
+                    <SortTh field="liqAmount" sort={pettySort} align="right">Liquidated Amount</SortTh>
                     <SortTh field="liqStatus" sort={pettySort}>Liquidation</SortTh>
                     <SortTh field="finalStatus" sort={pettySort}>Settlement</SortTh>
                     <SortTh field="balance" sort={pettySort}>Balance Due</SortTh>
@@ -2914,7 +2920,8 @@ function LiquidationTab({
                 </thead>
                 <tbody>
                   {list.length ? list.map((d) => (
-                    <tr key={d.id} className={"pcp-liq-row" + (revertHighlight && (d.reverted || d.escRevert) ? " pcp-revert-hl-row" : "")} onClick={() => setSelectedId(d.id)}
+                    <tr key={d.id} className={"pcp-liq-row" + (revertHighlight && (d.reverted || d.escRevert) ? " pcp-revert-hl-row"
+                      : d.liqStatus === "Fully Liquidated" || d.liqStatus === "Over-Liquidated" ? " pcp-liq-done" : " pcp-liq-unliq")} onClick={() => setSelectedId(d.id)}
                       title={revertHighlight && d.reverted ? "Reverted to requestor — correct and resubmit" : "Open liquidation"}>
                       {pickCell("liq:" + d.id)}
                       <td>
@@ -2932,6 +2939,9 @@ function LiquidationTab({
                       <td title={subaccountLabel(d.department)} style={LIQ_CLIP_CELL}>{subaccountLabel(d.department)}</td>
                       <td title={disbExpense(d)} style={LIQ_CLIP_CELL}>{disbExpense(d) || "—"}</td>
                       <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700 }}>{peso(d.amount)}</td>
+                      <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700 }}>
+                        {liquidationFor(d.id, liquidations) ? peso(d.liqAmount) : <span style={{ color: "var(--text-mut)", fontWeight: 400 }}>—</span>}
+                      </td>
                       <td><Badge status={d.liqStatus} /></td>
                       <td><Badge status={d.finalStatus} /></td>
                       <td>
@@ -3025,7 +3035,7 @@ function LiquidationTab({
                       </td>
                     </tr>
                   )) : (
-                    <tr><td colSpan={14} className="pcp-empty">
+                    <tr><td colSpan={13} className="pcp-empty">
                       {q
                         ? "No reimbursement matches “" + search.trim() + "”"
                         : statusFilterOn

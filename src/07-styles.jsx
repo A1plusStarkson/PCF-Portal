@@ -1189,6 +1189,19 @@ const CSS = `
   [data-theme="dark"] .pcp-card.pcp-revert-hl div { color: #ffe08a !important; }
   [data-theme="dark"] .pcp-card.pcp-revert-hl div[style*="border"] { background: transparent !important; }
   [data-theme="dark"] tr.pcp-revert-hl-row td { background: #3a3114 !important; }
+  /* Liquidation status colours, Petty Cash Advance list (owner's
+     instruction, Oct 2026): yellow until a release is fully liquidated,
+     light blue once it is. Recomputed from the live status on every render.
+     !important to beat the zebra stripes; a reverted row keeps its own
+     highlight (the class is not added to it). */
+  tr.pcp-liq-unliq td { background: #fff7cc !important; }
+  tr.pcp-liq-unliq:hover td { background: #fdeeb0 !important; }
+  tr.pcp-liq-done td { background: #e2f0fd !important; }
+  tr.pcp-liq-done:hover td { background: #cfe5fb !important; }
+  [data-theme="dark"] tr.pcp-liq-unliq td { background: #3a3317 !important; }
+  [data-theme="dark"] tr.pcp-liq-unliq:hover td { background: #463d1b !important; }
+  [data-theme="dark"] tr.pcp-liq-done td { background: #15304a !important; }
+  [data-theme="dark"] tr.pcp-liq-done:hover td { background: #1a3a58 !important; }
 
   /* ---- Sign-in page polish (Oct 2026) ---- */
   .pcp-login-brand::before {
