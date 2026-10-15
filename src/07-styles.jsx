@@ -1401,9 +1401,12 @@ const CSS = `
   .pcp-colf-btn {
     display: inline-flex; align-items: center; justify-content: center; vertical-align: middle;
     width: 18px; height: 18px; margin-left: 5px; padding: 0; border-radius: 4px; cursor: pointer;
-    border: 1px solid transparent; background: transparent; color: var(--text-mut); opacity: 0.75;
+    /* Yellow so the filters are easy to spot (owner's instruction, Oct 2026):
+       a yellow chip with a dark funnel reads on light and dark headers alike.
+       A filtered column turns teal (.on). */
+    border: 1px solid #e0a800; background: #ffd43b; color: #4a3200;
   }
-  .pcp-colf-btn:hover { opacity: 1; border-color: var(--line); background: var(--dm-surface, #fff); }
+  .pcp-colf-btn:hover { background: #ffe066; border-color: #c99700; }
   .pcp-colf-btn.on { opacity: 1; color: #fff; background: var(--dm-filter-title, #0e7490); border-color: var(--dm-filter-title, #0e7490); }
   .pcp-colf-pop {
     position: fixed; z-index: 1300; width: 260px; padding: 10px; border-radius: 10px;
