@@ -209,8 +209,17 @@ function UserManagementTab({ currentEmail, onChangePassword }) {
   };
   /* No sort key on open, so the roster keeps its configured order. */
   const sort = useTableSort(null);
+  const userPool = Object.keys(users).map((email) => ({ email, ...users[email] }));
+  /* Column header filters: the text each cell shows. */
+  const cf = useTableColumnFilters(userPool, {
+    name: (u) => cfText(u.name),
+    email: (u) => cfText(u.email),
+    role: (u) => cfText(ROLES[u.role] ? ROLES[u.role].label : (u.role || "Custodian")),
+    plants: (u) => cfText(plantsLabel(u.plants, u.excludePlants)),
+    admin: (u) => (u.role === "Accounting" ? "Approved" : "—"),
+  });
   const rows = sort.sortRows(
-    Object.keys(users).map((email) => ({ email, ...users[email] })),
+    cf.rows,
     {
       name: (u) => u.name,
       email: (u) => u.email,
@@ -231,11 +240,11 @@ function UserManagementTab({ currentEmail, onChangePassword }) {
           <div className="pcp-table-wrap">
             <table className="pcp-table">
               <thead><tr>
-                <SortTh field="name" sort={sort}>Name</SortTh>
-                <SortTh field="email" sort={sort}>Login (email)</SortTh>
-                <SortTh field="role" sort={sort}>Role</SortTh>
-                <SortTh field="plants" sort={sort}>Plant Access</SortTh>
-                <SortTh field="admin" sort={sort}>Admin</SortTh>
+                <SortTh field="name" sort={sort} cf={cf}>Name</SortTh>
+                <SortTh field="email" sort={sort} cf={cf}>Login (email)</SortTh>
+                <SortTh field="role" sort={sort} cf={cf}>Role</SortTh>
+                <SortTh field="plants" sort={sort} cf={cf}>Plant Access</SortTh>
+                <SortTh field="admin" sort={sort} cf={cf}>Admin</SortTh>
               </tr></thead>
               <tbody>
                 {rows.length ? rows.map((u) => (

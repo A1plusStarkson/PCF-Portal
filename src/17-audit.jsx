@@ -9,6 +9,14 @@ const AUDIT_SORT_FIELDS = {
   entity: (a) => a.entity,
   remarks: (a) => a.remarks,
 };
+/* Column header filters: the text each cell shows (Date by day, not to the second). */
+const AUDIT_COL_TEXT = {
+  ts: (a) => (a.ts ? fmtDate(String(a.ts).slice(0, 10)) : "—"),
+  user: (a) => cfText(a.user),
+  action: (a) => cfText(a.action),
+  entity: (a) => cfText(a.entity),
+  remarks: (a) => cfText(a.remarks),
+};
 
 function AuditTrailTab({ auditLog, canDelete, onDelete }) {
   const [search, setSearch] = useState("");
@@ -19,14 +27,16 @@ function AuditTrailTab({ auditLog, canDelete, onDelete }) {
   const sort = useTableSort("ts", "desc");
 
   const rows = useMemo(() => [...auditLog].sort((a, b) => (b.ts || "").localeCompare(a.ts || "")), [auditLog]);
-  const filtered = sort.sortRows(rows.filter((a) => {
+  const pool = rows.filter((a) => {
     if (action !== "All" && a.action !== action) return false;
     if (search) {
       const q = search.toLowerCase();
       if (!((a.entity || "").toLowerCase().includes(q) || (a.user || "").toLowerCase().includes(q) || (a.remarks || "").toLowerCase().includes(q) || (a.action || "").toLowerCase().includes(q))) return false;
     }
     return true;
-  }), AUDIT_SORT_FIELDS);
+  });
+  const cf = useTableColumnFilters(pool, AUDIT_COL_TEXT);
+  const filtered = sort.sortRows(cf.rows, AUDIT_SORT_FIELDS);
 
   const fmtTs = (ts) => {
     if (!ts) return "—";
@@ -94,6 +104,7 @@ function AuditTrailTab({ auditLog, canDelete, onDelete }) {
             <select className="pcp-select" style={{ width: 180 }} value={action} onChange={(e) => setAction(e.target.value)}>
               {["All", ...AUDIT_ACTIONS].map((s) => <option key={s}>{s}</option>)}
             </select>
+            <ColFiltersClear cf={cf} />
             <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-mut)" }}>{filtered.length} of {auditLog.length} entries</div>
           </div>
           <div className="pcp-table-wrap">
@@ -109,11 +120,11 @@ function AuditTrailTab({ auditLog, canDelete, onDelete }) {
                     />
                   </th>
                 )}
-                <SortTh field="ts" sort={sort}>Date &amp; Time</SortTh>
-                <SortTh field="user" sort={sort}>User</SortTh>
-                <SortTh field="action" sort={sort}>Action</SortTh>
-                <SortTh field="entity" sort={sort}>Reference</SortTh>
-                <SortTh field="remarks" sort={sort}>Remarks</SortTh>
+                <SortTh field="ts" sort={sort} cf={cf}>Date &amp; Time</SortTh>
+                <SortTh field="user" sort={sort} cf={cf}>User</SortTh>
+                <SortTh field="action" sort={sort} cf={cf}>Action</SortTh>
+                <SortTh field="entity" sort={sort} cf={cf}>Reference</SortTh>
+                <SortTh field="remarks" sort={sort} cf={cf}>Remarks</SortTh>
                 {canDelete && <th style={{ width: 44 }}></th>}
               </tr></thead>
               <tbody>

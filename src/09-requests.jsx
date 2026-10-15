@@ -142,6 +142,18 @@ const REQUEST_SORT_FIELDS = {
   approver: (r) => r.approver,
   status: (r) => r.status,
 };
+/* Column header filters: the text each cell shows. */
+const REQUEST_COL_TEXT = {
+  requestNo: (r) => cfText(r.requestNo),
+  date: (r) => (r.date ? fmtDate(r.date) : "—"),
+  employee: (r) => cfText(r.employee),
+  department: (r) => cfText(subaccountLabel(r.department)),
+  branchCode: (r) => cfText(plantLabel(r.branchCode)),
+  purpose: (r) => cfText(r.purpose === OTHERS_PURPOSE && r.purposeJustification ? `${OTHERS_PURPOSE}: ${r.purposeJustification}` : r.purpose),
+  amount: (r) => peso(r.amount),
+  approver: (r) => cfText(r.approver),
+  status: (r) => cfText(r.status),
+};
 
 function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, onDisburse, missingVoucherIds, canEditDisbursed, plantOptions, canApprove, canRelease, plantTitle, canDelete, onDelete, dashFilter, onClearDashFilter }) {
   const [showForm, setShowForm] = useState(false);
@@ -154,7 +166,7 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
 
   /* Sort on what the column actually shows, not the raw field, so Department
      and Plant order the way the reader sees them. */
-  const filtered = sort.sortRows(
+  const pool = (
     requests.filter((r) => {
       if (plant !== "ALL" && r.branchCode !== plant) return false;
       /* Opened from a dashboard count: exactly those requests (DashFilterBanner). */
@@ -174,9 +186,10 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
         if (!hit) return false;
       }
       return true;
-    }),
-    REQUEST_SORT_FIELDS
+    })
   );
+  const cf = useTableColumnFilters(pool, REQUEST_COL_TEXT);
+  const filtered = sort.sortRows(cf.rows, REQUEST_SORT_FIELDS);
 
   const formPlantOptions = (plantOptions && plantOptions.length)
     ? (plant !== "ALL" ? plantOptions.filter((p) => p.code === plant) : plantOptions)
@@ -201,21 +214,22 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
             <select className="pcp-select" style={{ width: 170 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               {["All", "Pending", "Approved", "Rejected", "Disbursed"].map((s) => <option key={s}>{s}</option>)}
             </select>
+            <ColFiltersClear cf={cf} />
             <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-mut)" }}>{filtered.length} of {requests.length} requests</div>
           </div>
           <div className="pcp-table-wrap">
             <table className="pcp-table">
               <thead>
                 <tr>
-                  <SortTh field="requestNo" sort={sort}>Request No.</SortTh>
-                  <SortTh field="date" sort={sort}>Date</SortTh>
-                  <SortTh field="employee" sort={sort}>Employee</SortTh>
-                  <SortTh field="department" sort={sort}>Department</SortTh>
-                  <SortTh field="branchCode" sort={sort}>Plant</SortTh>
-                  <SortTh field="purpose" sort={sort}>Purpose</SortTh>
-                  <SortTh field="amount" sort={sort}>Amount</SortTh>
-                  <SortTh field="approver" sort={sort}>Approver</SortTh>
-                  <SortTh field="status" sort={sort}>Status</SortTh>
+                  <SortTh field="requestNo" sort={sort} cf={cf}>Request No.</SortTh>
+                  <SortTh field="date" sort={sort} cf={cf}>Date</SortTh>
+                  <SortTh field="employee" sort={sort} cf={cf}>Employee</SortTh>
+                  <SortTh field="department" sort={sort} cf={cf}>Department</SortTh>
+                  <SortTh field="branchCode" sort={sort} cf={cf}>Plant</SortTh>
+                  <SortTh field="purpose" sort={sort} cf={cf}>Purpose</SortTh>
+                  <SortTh field="amount" sort={sort} cf={cf}>Amount</SortTh>
+                  <SortTh field="approver" sort={sort} cf={cf}>Approver</SortTh>
+                  <SortTh field="status" sort={sort} cf={cf}>Status</SortTh>
                   <th></th>
                 </tr>
               </thead>

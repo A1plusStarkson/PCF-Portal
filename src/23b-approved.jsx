@@ -168,8 +168,20 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
     && (!dateFrom || approvalDay(r) >= dateFrom)
     && (!dateTo || approvalDay(r) <= dateTo));
   const countKind = (k) => baseRows.filter((r) => r.kind === k).length;
+  /* Column header filters: the text each cell shows (approval by day). */
+  const cf = useTableColumnFilters(baseRows.filter((r) => kind === "all" || r.kind === kind), {
+    txnNo: (r) => cfText(r.txnNo),
+    plant: (r) => cfText(rowPlantLabel(r)),
+    requestor: (r) => cfText(r.requestor),
+    kind: (r) => cfText(r.kind),
+    amount: (r) => peso(r.amount),
+    txnDate: (r) => (r.txnDate ? fmtDate(r.txnDate) : "—"),
+    approvedAt: (r) => (r.approvedAt ? fmtDate(String(r.approvedAt).slice(0, 10)) : "—"),
+    approvedBy: (r) => cfText(r.approvedBy),
+    status: (r) => cfText(r.status),
+  });
   const rows = sort.sortRows(
-    baseRows.filter((r) => kind === "all" || r.kind === kind),
+    cf.rows,
     {
       txnNo: (r) => r.txnNo,
       plant: (r) => rowPlantLabel(r) + " " + plantLabel(r.plantCode),
@@ -184,10 +196,10 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
   );
   const total = rows.reduce((t, r) => t + r.amount, 0);
   const filtersOn = plant !== "ALL" || kind !== "all" || !!s || approver !== APPROVED_ALL_APPROVERS || !!dateFrom || !!dateTo
-    || batch !== APPROVED_ALL_BATCHES || !!batchQuery;
+    || batch !== APPROVED_ALL_BATCHES || !!batchQuery || cf.active;
   const clearFilters = () => {
     setPlant("ALL"); setKind("all"); setSearch(""); setApprover(APPROVED_ALL_APPROVERS); setDateFrom(""); setDateTo("");
-    setBatch(APPROVED_ALL_BATCHES); setBatchQuery("");
+    setBatch(APPROVED_ALL_BATCHES); setBatchQuery(""); cf.clear();
   };
 
   /* ---- Select ---- */
@@ -350,15 +362,15 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
                     <input type="checkbox" checked={allTicked} onChange={toggleAll} disabled={!rows.length}
                       title="Select all shown" aria-label="Select all shown" />
                   </th>
-                  <SortTh field="txnNo" sort={sort}>Transaction No.</SortTh>
-                  <SortTh field="plant" sort={sort}>Plant</SortTh>
-                  <SortTh field="requestor" sort={sort}>Requestor</SortTh>
-                  <SortTh field="kind" sort={sort}>Type</SortTh>
-                  <SortTh field="amount" sort={sort} align="right">Amount</SortTh>
-                  <SortTh field="txnDate" sort={sort}>Transaction Date</SortTh>
-                  <SortTh field="approvedAt" sort={sort}>Approval Date</SortTh>
-                  <SortTh field="approvedBy" sort={sort}>Approved By</SortTh>
-                  <SortTh field="status" sort={sort}>Current Status</SortTh>
+                  <SortTh field="txnNo" sort={sort} cf={cf}>Transaction No.</SortTh>
+                  <SortTh field="plant" sort={sort} cf={cf}>Plant</SortTh>
+                  <SortTh field="requestor" sort={sort} cf={cf}>Requestor</SortTh>
+                  <SortTh field="kind" sort={sort} cf={cf}>Type</SortTh>
+                  <SortTh field="amount" sort={sort} cf={cf} align="right">Amount</SortTh>
+                  <SortTh field="txnDate" sort={sort} cf={cf}>Transaction Date</SortTh>
+                  <SortTh field="approvedAt" sort={sort} cf={cf}>Approval Date</SortTh>
+                  <SortTh field="approvedBy" sort={sort} cf={cf}>Approved By</SortTh>
+                  <SortTh field="status" sort={sort} cf={cf}>Current Status</SortTh>
                   <th>Checked By</th>
                   <th>Replenishment</th>
                   <th></th>

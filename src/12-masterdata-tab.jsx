@@ -96,10 +96,17 @@ function MasterDataTab({ funds, disbursements, liquidations, replenishments, onA
 
   /* Available balance is derived, so it is resolved once per fund here rather
      than inside the row — that way the column can be sorted on it too. */
-  const fundRows = sort.sortRows(
-    funds.map((f) => ({ ...f, available: monitoringForFund(f, disbursements, liquidations, replenishments).available })),
-    FUND_SORT_FIELDS
-  );
+  const fundPool = funds.map((f) => ({ ...f, available: monitoringForFund(f, disbursements, liquidations, replenishments).available }));
+  /* Column header filters: the text each cell shows. */
+  const cf = useTableColumnFilters(fundPool, {
+    label: (f) => cfText(f.label),
+    branchCode: (f) => cfText(f.branchCode),
+    company: (f) => cfText(companyOfBranch(f.branchCode)),
+    custodian: (f) => cfText(f.custodian),
+    beginningBalance: (f) => peso(f.beginningBalance),
+    available: (f) => peso(f.available),
+  });
+  const fundRows = sort.sortRows(cf.rows, FUND_SORT_FIELDS);
 
   return (
     <div>
@@ -116,12 +123,12 @@ function MasterDataTab({ funds, disbursements, liquidations, replenishments, onA
           <div className="pcp-table-wrap">
             <table className="pcp-table">
               <thead><tr>
-                <SortTh field="label" sort={sort}>Plant</SortTh>
-                <SortTh field="branchCode" sort={sort}>Branch</SortTh>
-                <SortTh field="company" sort={sort}>Company</SortTh>
-                <SortTh field="custodian" sort={sort}>Custodian</SortTh>
-                <SortTh field="beginningBalance" sort={sort}>Beginning Balance</SortTh>
-                <SortTh field="available" sort={sort}>Available Balance</SortTh>
+                <SortTh field="label" sort={sort} cf={cf}>Plant</SortTh>
+                <SortTh field="branchCode" sort={sort} cf={cf}>Branch</SortTh>
+                <SortTh field="company" sort={sort} cf={cf}>Company</SortTh>
+                <SortTh field="custodian" sort={sort} cf={cf}>Custodian</SortTh>
+                <SortTh field="beginningBalance" sort={sort} cf={cf}>Beginning Balance</SortTh>
+                <SortTh field="available" sort={sort} cf={cf}>Available Balance</SortTh>
                 <th></th>
               </tr></thead>
               <tbody>

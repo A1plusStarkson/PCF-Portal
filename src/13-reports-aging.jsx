@@ -330,6 +330,22 @@ const AGING_DETAIL_SORT_FIELDS = {
   status: (r) => r.status,
   agingBucket: (r) => Number(r.overdueDays) || 0,
 };
+/* Column header filters for the detail list: the text each cell shows. */
+const AGING_DETAIL_COL_TEXT = {
+  transactionType: (r) => cfText(r.transactionType),
+  requestNo: (r) => cfText(r.requestNo),
+  requestor: (r) => cfText(r.requestor),
+  plantLabel: (r) => cfText(r.plantLabel),
+  branchCode: (r) => cfText(r.branchCode),
+  company: (r) => cfText(r.company),
+  department: (r) => cfText(deptDesc(r.department)),
+  releaseDate: (r) => (r.releaseDate ? fmtDate(r.releaseDate) : "—"),
+  dueDate: (r) => (r.dueDate ? fmtDate(r.dueDate) : "—"),
+  ageDays: (r) => `${r.ageDays}d`,
+  amount: (r) => peso(r.amount),
+  status: (r) => cfText(r.status),
+  agingBucket: (r) => cfText(r.agingBucket),
+};
 
 function LiquidationAgingTab({ funds, requests, disbursements, liquidations, replenishments, focus }) {
   const today = todayISO();
@@ -424,7 +440,14 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
   const detailSort = useTableSort(null);
 
   const byPlantUnsorted = useMemo(() => summarizeAgingByPlant(records, scopedFunds), [records, scopedFunds]);
-  const byPlant = plantSort.sortRows(byPlantUnsorted, AGING_PLANT_SORT_FIELDS);
+  const plantCF = useTableColumnFilters(byPlantUnsorted, {
+    plantLabel: (p) => cfText(p.plantLabel),
+    beginning: (p) => peso(p.beginning), released: (p) => peso(p.released),
+    liquidated: (p) => peso(p.liquidated), outstanding: (p) => peso(p.outstanding),
+    pending: (p) => String(p.pending || 0), dueToday: (p) => String(p.dueToday || 0), overdue: (p) => String(p.overdue || 0),
+    compliance: (p) => `${(Number(p.compliance) || 0).toFixed(1)}%`,
+  });
+  const byPlant = plantSort.sortRows(plantCF.rows, AGING_PLANT_SORT_FIELDS);
 
   const cards = useMemo(() => {
     let released = 0, outstanding = 0, pending = 0, dueToday = 0, overdue = 0, completed = 0;
@@ -487,7 +510,8 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
     () => [...records].sort((a, b) => (b.overdueDays - a.overdueDays) || (b.outstanding - a.outstanding)),
     [records]
   );
-  const detailRows = detailSort.sortRows(detailRowsDefault, AGING_DETAIL_SORT_FIELDS);
+  const detailCF = useTableColumnFilters(detailRowsDefault, AGING_DETAIL_COL_TEXT);
+  const detailRows = detailSort.sortRows(detailCF.rows, AGING_DETAIL_SORT_FIELDS);
 
   /* ---- Exports ---- */
   const buildExportSheets = useCallback(() => {
@@ -712,15 +736,15 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
             <table className="pcp-table">
               <thead>
                 <tr>
-                  <SortTh field="plantLabel" sort={plantSort}>Plant</SortTh>
-                  <SortTh field="beginning" sort={plantSort}>Beginning</SortTh>
-                  <SortTh field="released" sort={plantSort}>Released</SortTh>
-                  <SortTh field="liquidated" sort={plantSort}>Liquidated</SortTh>
-                  <SortTh field="outstanding" sort={plantSort}>Outstanding</SortTh>
-                  <SortTh field="pending" sort={plantSort}>Pending</SortTh>
-                  <SortTh field="dueToday" sort={plantSort}>Due Today</SortTh>
-                  <SortTh field="overdue" sort={plantSort}>Overdue</SortTh>
-                  <SortTh field="compliance" sort={plantSort}>Compliance</SortTh>
+                  <SortTh field="plantLabel" sort={plantSort} cf={plantCF}>Plant</SortTh>
+                  <SortTh field="beginning" sort={plantSort} cf={plantCF}>Beginning</SortTh>
+                  <SortTh field="released" sort={plantSort} cf={plantCF}>Released</SortTh>
+                  <SortTh field="liquidated" sort={plantSort} cf={plantCF}>Liquidated</SortTh>
+                  <SortTh field="outstanding" sort={plantSort} cf={plantCF}>Outstanding</SortTh>
+                  <SortTh field="pending" sort={plantSort} cf={plantCF}>Pending</SortTh>
+                  <SortTh field="dueToday" sort={plantSort} cf={plantCF}>Due Today</SortTh>
+                  <SortTh field="overdue" sort={plantSort} cf={plantCF}>Overdue</SortTh>
+                  <SortTh field="compliance" sort={plantSort} cf={plantCF}>Compliance</SortTh>
                 </tr>
               </thead>
               <tbody>
@@ -811,19 +835,19 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
             <table className="pcp-table">
               <thead>
                 <tr>
-                  <SortTh field="transactionType" sort={detailSort}>Type</SortTh>
-                  <SortTh field="requestNo" sort={detailSort}>Request No.</SortTh>
-                  <SortTh field="requestor" sort={detailSort}>Requestor</SortTh>
-                  <SortTh field="plantLabel" sort={detailSort}>Plant</SortTh>
-                  <SortTh field="branchCode" sort={detailSort}>Branch</SortTh>
-                  <SortTh field="company" sort={detailSort}>Company</SortTh>
-                  <SortTh field="department" sort={detailSort}>Department</SortTh>
-                  <SortTh field="releaseDate" sort={detailSort}>Release Date</SortTh>
-                  <SortTh field="dueDate" sort={detailSort}>Due Date</SortTh>
-                  <SortTh field="ageDays" sort={detailSort}>Days Out</SortTh>
-                  <SortTh field="amount" sort={detailSort}>Amount</SortTh>
-                  <SortTh field="status" sort={detailSort}>Liquidation Status</SortTh>
-                  <SortTh field="agingBucket" sort={detailSort}>Aging Status</SortTh>
+                  <SortTh field="transactionType" sort={detailSort} cf={detailCF}>Type</SortTh>
+                  <SortTh field="requestNo" sort={detailSort} cf={detailCF}>Request No.</SortTh>
+                  <SortTh field="requestor" sort={detailSort} cf={detailCF}>Requestor</SortTh>
+                  <SortTh field="plantLabel" sort={detailSort} cf={detailCF}>Plant</SortTh>
+                  <SortTh field="branchCode" sort={detailSort} cf={detailCF}>Branch</SortTh>
+                  <SortTh field="company" sort={detailSort} cf={detailCF}>Company</SortTh>
+                  <SortTh field="department" sort={detailSort} cf={detailCF}>Department</SortTh>
+                  <SortTh field="releaseDate" sort={detailSort} cf={detailCF}>Release Date</SortTh>
+                  <SortTh field="dueDate" sort={detailSort} cf={detailCF}>Due Date</SortTh>
+                  <SortTh field="ageDays" sort={detailSort} cf={detailCF}>Days Out</SortTh>
+                  <SortTh field="amount" sort={detailSort} cf={detailCF}>Amount</SortTh>
+                  <SortTh field="status" sort={detailSort} cf={detailCF}>Liquidation Status</SortTh>
+                  <SortTh field="agingBucket" sort={detailSort} cf={detailCF}>Aging Status</SortTh>
                 </tr>
               </thead>
               <tbody>

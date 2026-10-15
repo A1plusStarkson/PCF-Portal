@@ -549,8 +549,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
   const isOpenRepl = (r) => r.status !== "Completed" && r.status !== "Reverted";
   const totalPending = replenishments.filter(isOpenRepl).reduce((s, r) => s + (Number(r.amount) || 0), 0);
 
-  const filtered = sort.sortRows(
-    replenishments.filter((r) => {
+  const replPool = replenishments.filter((r) => {
       if (plant !== "ALL" && r.branchCode !== plant) return false;
       if (statusFilter !== "All" && r.status !== statusFilter) return false;
       if (search) {
@@ -558,9 +557,18 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
         if (!(r.replenishmentNo.toLowerCase().includes(q) || (r.preparedBy || "").toLowerCase().includes(q))) return false;
       }
       return true;
-    }),
-    REPLENISH_SORT_FIELDS
-  );
+    });
+  /* Column header filters: the text each cell shows. */
+  const cf = useTableColumnFilters(replPool, {
+    replenishmentNo: (r) => cfText(r.replenishmentNo),
+    date: (r) => (r.date ? fmtDate(r.date) : "—"),
+    branchCode: (r) => cfText(plantLabel(r.branchCode)),
+    amount: (r) => peso(r.amount),
+    preparedBy: (r) => cfText(r.preparedBy),
+    status: (r) => cfText(r.status),
+    remarks: (r) => cfText(r.remarks),
+  });
+  const filtered = sort.sortRows(cf.rows, REPLENISH_SORT_FIELDS);
 
   const formPlantOptions = (plantOptions && plantOptions.length)
     ? (plant !== "ALL" ? plantOptions.filter((p) => p.code === plant) : plantOptions)
@@ -727,19 +735,20 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
             <select className="pcp-select" style={{ width: 170 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               {["All", ...REPLENISH_STATUSES, "Reverted"].map((s) => <option key={s}>{s}</option>)}
             </select>
+            <ColFiltersClear cf={cf} />
             <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-mut)" }}>{filtered.length} of {replenishments.length} records</div>
           </div>
           <div className="pcp-table-wrap">
             <table className="pcp-table">
               <thead>
                 <tr>
-                  <SortTh field="replenishmentNo" sort={sort}>Replenishment No.</SortTh>
-                  <SortTh field="date" sort={sort}>Date</SortTh>
-                  <SortTh field="branchCode" sort={sort}>Fund / Plant</SortTh>
-                  <SortTh field="amount" sort={sort}>Amount</SortTh>
-                  <SortTh field="preparedBy" sort={sort}>Prepared By</SortTh>
-                  <SortTh field="status" sort={sort}>Status</SortTh>
-                  <SortTh field="remarks" sort={sort}>Remarks</SortTh>
+                  <SortTh field="replenishmentNo" sort={sort} cf={cf}>Replenishment No.</SortTh>
+                  <SortTh field="date" sort={sort} cf={cf}>Date</SortTh>
+                  <SortTh field="branchCode" sort={sort} cf={cf}>Fund / Plant</SortTh>
+                  <SortTh field="amount" sort={sort} cf={cf}>Amount</SortTh>
+                  <SortTh field="preparedBy" sort={sort} cf={cf}>Prepared By</SortTh>
+                  <SortTh field="status" sort={sort} cf={cf}>Status</SortTh>
+                  <SortTh field="remarks" sort={sort} cf={cf}>Remarks</SortTh>
                   <th></th>
                 </tr>
               </thead>

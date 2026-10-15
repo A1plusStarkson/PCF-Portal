@@ -750,8 +750,21 @@ function ApprovalModuleTab({
   const graceRows = gracePending.filter(passesCommon);
   const onGraceTab = showGraceQueue && kind === GRACE;
   const countKind = (k) => baseRows.filter((r) => r.kind === k).length;
+  /* Column header filters: the text each cell shows. */
+  const cf = useTableColumnFilters(onGraceTab ? graceRows : baseRows.filter((r) => kind === "all" || r.kind === kind), {
+    seriesNo: (r) => cfText(r.seriesNo),
+    plant: (r) => cfText(rowPlantLabel(r)),
+    requestor: (r) => cfText(r.requestor),
+    kind: (r) => cfText(r.kind),
+    amount: (r) => peso(r.amount),
+    docs: (r) => String(r.docs),
+    docsAmount: (r) => peso(r.docsAmount),
+    date: (r) => (r.date ? fmtDate(r.date) : "—"),
+    status: (r) => cfText(r.stage),
+    action: (r) => cfText(actionLabel(r.stage)),
+  });
   const rows = sort.sortRows(
-    onGraceTab ? graceRows : baseRows.filter((r) => kind === "all" || r.kind === kind),
+    cf.rows,
     {
       seriesNo: (r) => r.seriesNo,
       plant: (r) => rowPlantLabel(r) + " " + plantLabel(r.plantCode),
@@ -766,10 +779,10 @@ function ApprovalModuleTab({
     }
   );
   const filtersOn = plant !== "ALL" || kind !== "all" || !!s || stageFilter !== APPROVAL_ALL_PENDING
-    || batch !== ALL_BATCHES || !!dateFrom || !!dateTo || !!cardFilter;
+    || batch !== ALL_BATCHES || !!dateFrom || !!dateTo || !!cardFilter || cf.active;
   const clearFilters = () => {
     setPlant("ALL"); setKind("all"); setSearch(""); setStageFilter(APPROVAL_ALL_PENDING);
-    setBatch(ALL_BATCHES); setDateFrom(""); setDateTo(""); setCardFilter(null);
+    setBatch(ALL_BATCHES); setDateFrom(""); setDateTo(""); setCardFilter(null); cf.clear();
   };
   /* ---- Select + Export Excel (APPROVAL_EXPORT_EMAILS in 19-app.jsx) ----
      Tick rows to export just those; with nothing ticked the export takes every
@@ -1077,16 +1090,16 @@ function ApprovalModuleTab({
                       <input type="checkbox" checked={allTicked} onChange={toggleAll} disabled={!rows.length} title="Select all shown" aria-label="Select all shown" />
                     </th>
                   )}
-                  <SortTh field="seriesNo" sort={sort}>Series No.</SortTh>
-                  <SortTh field="plant" sort={sort}>Plant</SortTh>
-                  <SortTh field="requestor" sort={sort}>Requestor</SortTh>
-                  <SortTh field="kind" sort={sort}>Transaction Type</SortTh>
-                  <SortTh field="amount" sort={sort} align="right">Amount</SortTh>
-                  {showDocTotals && <SortTh field="docs" sort={sort} align="right">Total Docs</SortTh>}
-                  {showDocTotals && <SortTh field="docsAmount" sort={sort} align="right">Total Doc Amount</SortTh>}
-                  <SortTh field="date" sort={sort}>Date</SortTh>
-                  <SortTh field="status" sort={sort}>Current Status</SortTh>
-                  <SortTh field="action" sort={sort}>Action</SortTh>
+                  <SortTh field="seriesNo" sort={sort} cf={cf}>Series No.</SortTh>
+                  <SortTh field="plant" sort={sort} cf={cf}>Plant</SortTh>
+                  <SortTh field="requestor" sort={sort} cf={cf}>Requestor</SortTh>
+                  <SortTh field="kind" sort={sort} cf={cf}>Transaction Type</SortTh>
+                  <SortTh field="amount" sort={sort} cf={cf} align="right">Amount</SortTh>
+                  {showDocTotals && <SortTh field="docs" sort={sort} cf={cf} align="right">Total Docs</SortTh>}
+                  {showDocTotals && <SortTh field="docsAmount" sort={sort} cf={cf} align="right">Total Doc Amount</SortTh>}
+                  <SortTh field="date" sort={sort} cf={cf}>Date</SortTh>
+                  <SortTh field="status" sort={sort} cf={cf}>Current Status</SortTh>
+                  <SortTh field="action" sort={sort} cf={cf}>Action</SortTh>
                   <th></th>
                 </tr>
               </thead>

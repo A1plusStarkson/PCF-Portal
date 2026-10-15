@@ -161,6 +161,20 @@ const SORT_FIELDS = {
   billed: (d) => (d.billed ? 0 : 1),
   remarks: (d) => d.remarks,
 };
+/* Column header filters: the text each cell shows. */
+const LEDGER_COL_TEXT = {
+  voucherNo: (d) => cfText(d.voucherNo),
+  date: (d) => (d.date ? fmtDate(d.date) : "—"),
+  employee: (d) => cfText(d.employee),
+  branchCode: (d) => cfText(d.branchCode),
+  company: (d) => cfText(companyOfBranch(d.branchCode)),
+  department: (d) => cfText(subaccountLabel(d.department)),
+  expense: (d) => cfText(disbExpense(d)),
+  amount: (d) => peso(d.amount),
+  liqStatus: (d) => cfText(d.liqStatus),
+  billed: (d) => (d.billed ? "Billed" : "Not billed"),
+  remarks: (d) => cfText(d.remarks),
+};
 
 function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemarks, onToggleBilled, onEditDisbursement, plantOptions, plantTitle, canEdit = true, canDelete, onDelete }) {
   const [search, setSearch] = useState("");
@@ -182,7 +196,8 @@ function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemar
     return list;
   }, [disbursements, liquidations, search, branchFilter, statusFilter]);
 
-  const rows = sort.sortRows(matching, SORT_FIELDS);
+  const cf = useTableColumnFilters(matching, LEDGER_COL_TEXT);
+  const rows = sort.sortRows(cf.rows, SORT_FIELDS);
 
   const exportLedger = () => {
     const data = rows.map((d) => ({
@@ -224,23 +239,24 @@ function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemar
             <select className="pcp-select" style={{ width: 180 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               {["All", "Not Liquidated", "Partially Liquidated", "Fully Liquidated", "Over-Liquidated"].map((s) => <option key={s}>{s}</option>)}
             </select>
+            <ColFiltersClear cf={cf} />
             <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-mut)" }}>{rows.length} of {disbursements.length} vouchers</div>
           </div>
           <div className="pcp-table-wrap">
             <table className="pcp-table">
               <thead>
                 <tr>
-                  <SortTh field="voucherNo" sort={sort}>Voucher No.</SortTh>
-                  <SortTh field="date" sort={sort}>Date</SortTh>
-                  <SortTh field="employee" sort={sort}>Employee</SortTh>
-                  <SortTh field="branchCode" sort={sort}>Branch</SortTh>
-                  <SortTh field="company" sort={sort}>Company</SortTh>
-                  <SortTh field="department" sort={sort}>Department</SortTh>
-                  <SortTh field="expense" sort={sort}>Expense</SortTh>
-                  <SortTh field="amount" sort={sort}>Amount</SortTh>
-                  <SortTh field="liqStatus" sort={sort}>Liquidation Status</SortTh>
-                  <SortTh field="billed" sort={sort}>Billed</SortTh>
-                  <SortTh field="remarks" sort={sort}>Remarks</SortTh>
+                  <SortTh field="voucherNo" sort={sort} cf={cf}>Voucher No.</SortTh>
+                  <SortTh field="date" sort={sort} cf={cf}>Date</SortTh>
+                  <SortTh field="employee" sort={sort} cf={cf}>Employee</SortTh>
+                  <SortTh field="branchCode" sort={sort} cf={cf}>Branch</SortTh>
+                  <SortTh field="company" sort={sort} cf={cf}>Company</SortTh>
+                  <SortTh field="department" sort={sort} cf={cf}>Department</SortTh>
+                  <SortTh field="expense" sort={sort} cf={cf}>Expense</SortTh>
+                  <SortTh field="amount" sort={sort} cf={cf}>Amount</SortTh>
+                  <SortTh field="liqStatus" sort={sort} cf={cf}>Liquidation Status</SortTh>
+                  <SortTh field="billed" sort={sort} cf={cf}>Billed</SortTh>
+                  <SortTh field="remarks" sort={sort} cf={cf}>Remarks</SortTh>
                   <th></th>
                 </tr>
               </thead>

@@ -42,6 +42,18 @@ const HISTORY_SORT_FIELDS = {
   amount: (t) => Number(t.amount) || 0,
   status: (t) => t.status,
 };
+/* Column header filters: the text each cell shows. */
+const HISTORY_COL_TEXT = {
+  date: (t) => (t.date ? fmtDate(t.date) : "—"),
+  type: (t) => cfText(t.type),
+  ref: (t) => cfText(t.ref),
+  party: (t) => cfText(t.party),
+  branchCode: (t) => cfText(t.branchCode),
+  department: (t) => cfText(t.department ? deptDesc(t.department) : ""),
+  category: (t) => cfText(t.category),
+  amount: (t) => peso(t.amount),
+  status: (t) => cfText(t.status),
+};
 
 function TransactionHistoryTab({ requests, disbursements, liquidations, replenishments, initialFilter, plantOptions, plantTitle }) {
   const [type, setType] = useState("All");
@@ -60,7 +72,7 @@ function TransactionHistoryTab({ requests, disbursements, liquidations, replenis
 
   const feed = useMemo(() => buildTransactionFeed(requests, disbursements, liquidations, replenishments), [requests, disbursements, liquidations, replenishments]);
 
-  const filtered = useMemo(() => sort.sortRows(feed.filter((t) => {
+  const pool = useMemo(() => feed.filter((t) => {
     if (plant !== "ALL" && t.branchCode !== plant) return false;
     if (type !== "All" && t.type !== type) return false;
     if (company !== "All" && companyOfBranch(t.branchCode) !== company) return false;
@@ -74,7 +86,9 @@ function TransactionHistoryTab({ requests, disbursements, liquidations, replenis
       if (!((t.ref || "").toLowerCase().includes(q) || (t.party || "").toLowerCase().includes(q) || (t.category || "").toLowerCase().includes(q))) return false;
     }
     return true;
-  }), HISTORY_SORT_FIELDS), [feed, type, company, status, from, to, minAmt, maxAmt, search, plant, sort.sortKey, sort.sortDir]);
+  }), [feed, type, company, status, from, to, minAmt, maxAmt, search, plant]);
+  const cf = useTableColumnFilters(pool, HISTORY_COL_TEXT);
+  const filtered = sort.sortRows(cf.rows, HISTORY_SORT_FIELDS);
 
   const total = filtered.reduce((s, t) => s + t.amount, 0);
 
@@ -90,7 +104,7 @@ function TransactionHistoryTab({ requests, disbursements, liquidations, replenis
     downloadWorkbook(wb, `Transaction_History_${todayISO()}.xlsx`);
   }, [filtered]);
 
-  const reset = () => { setType("All"); setCompany("All"); setStatus("All"); setSearch(""); setFrom(""); setTo(""); setMinAmt(""); setMaxAmt(""); };
+  const reset = () => { setType("All"); setCompany("All"); setStatus("All"); setSearch(""); setFrom(""); setTo(""); setMinAmt(""); setMaxAmt(""); cf.clear(); };
 
   return (
     <div>
@@ -154,15 +168,15 @@ function TransactionHistoryTab({ requests, disbursements, liquidations, replenis
             <table className="pcp-table">
               <thead>
                 <tr>
-                  <SortTh field="date" sort={sort}>Date</SortTh>
-                  <SortTh field="type" sort={sort}>Type</SortTh>
-                  <SortTh field="ref" sort={sort}>Reference</SortTh>
-                  <SortTh field="party" sort={sort}>Party</SortTh>
-                  <SortTh field="branchCode" sort={sort}>Branch</SortTh>
-                  <SortTh field="department" sort={sort}>Department</SortTh>
-                  <SortTh field="category" sort={sort}>Category / Method</SortTh>
-                  <SortTh field="amount" sort={sort}>Amount</SortTh>
-                  <SortTh field="status" sort={sort}>Status</SortTh>
+                  <SortTh field="date" sort={sort} cf={cf}>Date</SortTh>
+                  <SortTh field="type" sort={sort} cf={cf}>Type</SortTh>
+                  <SortTh field="ref" sort={sort} cf={cf}>Reference</SortTh>
+                  <SortTh field="party" sort={sort} cf={cf}>Party</SortTh>
+                  <SortTh field="branchCode" sort={sort} cf={cf}>Branch</SortTh>
+                  <SortTh field="department" sort={sort} cf={cf}>Department</SortTh>
+                  <SortTh field="category" sort={sort} cf={cf}>Category / Method</SortTh>
+                  <SortTh field="amount" sort={sort} cf={cf}>Amount</SortTh>
+                  <SortTh field="status" sort={sort} cf={cf}>Status</SortTh>
                 </tr>
               </thead>
               <tbody>

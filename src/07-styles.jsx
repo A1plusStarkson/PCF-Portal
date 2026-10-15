@@ -2146,8 +2146,11 @@ function useTableSort(defaultKey, defaultDir) {
 
 /* Header cell for a sortable column. The arrow only shows on the active column,
    matching the Release Ledger. */
-function SortTh({ field, sort, align, style, children, filter }) {
+function SortTh({ field, sort, align, style, children, filter, cf }) {
   const active = sort.sortKey === field;
+  /* cf (useTableColumnFilters) adds this column's header filter on its own,
+     labelled with the header text, when the table has text for the field. */
+  if (!filter && cf) filter = cf.col(field, typeof children === "string" ? children : field);
   return (
     <th
       className="pcp-sortable"
@@ -2194,6 +2197,29 @@ function useColumnFilters() {
     clear: () => setSel({}),
   };
 }
+/* One-line wiring for a list: give it the rows the other filters leave
+   (pool) and each column's cell text by sort field; it returns the filtered
+   rows, and <SortTh cf={cf}> picks up each column's filter by itself
+   (owner's instruction, Oct 2026 — column filters in every module). */
+function useTableColumnFilters(pool, text) {
+  const cf = useColumnFilters();
+  return {
+    rows: cf.apply(pool, text),
+    active: cf.active, count: cf.count, clear: cf.clear,
+    col: (key, label) => (text[key] ? cf.props(key, pool, text, label) : undefined),
+  };
+}
+/* "Clear column filters (n)" — only while a column filter is on. */
+function ColFiltersClear({ cf }) {
+  if (!cf || !cf.active) return null;
+  return (
+    <button type="button" className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={cf.clear} title="Clear every column filter">
+      <X size={12} /> Clear column filters ({cf.count})
+    </button>
+  );
+}
+/* Cell text for a column filter: empty becomes "—", as the cells show it. */
+const cfText = (v) => (v == null || String(v).trim() === "" ? "—" : String(v).trim());
 /* Header cell with a filter but no sorting. Plain <th> when no filter. */
 function FilterTh({ filter, align, children }) {
   return <th style={align ? { textAlign: align } : undefined}>{children}{filter && <ColFilterButton filter={filter} />}</th>;

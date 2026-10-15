@@ -371,8 +371,19 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
     });
   }, [documents, q, fCat, fCompany, fPlant, fStatus, fType, showArchived]);
 
+  /* Column header filters: the text each cell shows. */
+  const cf = useTableColumnFilters(filtered, {
+    name: (d) => cfText(d.name),
+    category: (d) => cfText(d.category),
+    company: (d) => cfText(d.company),
+    linkedTxn: (d) => cfText(d.linkedTxn),
+    size: (d) => cfText(formatBytes(d.size)),
+    uploadedBy: (d) => cfText(d.uploadedBy),
+    uploadDate: (d) => (d.uploadDate ? fmtDate(d.uploadDate) : "—"),
+    status: (d) => cfText(d.status),
+  });
   const sorted = useMemo(() => {
-    const arr = [...filtered];
+    const arr = [...cf.rows];
     arr.sort((a, b) => {
       // starred always float to the top
       if (!!a.starred !== !!b.starred) return a.starred ? -1 : 1;
@@ -382,7 +393,7 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
       return sortDir === "asc" ? va.localeCompare(vb) : vb.localeCompare(va);
     });
     return arr;
-  }, [filtered, sortKey, sortDir]);
+  }, [cf.rows, sortKey, sortDir]); // eslint-disable-line
 
   const setSort = (key) => { if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc")); else { setSortKey(key); setSortDir("asc"); } };
 
@@ -411,11 +422,15 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
     downloadWorkbook(wb, `PCF_Documents_${todayISO()}.xlsx`);
   };
 
-  const SortTh = ({ k, children, align }) => (
-    <th className="pcp-sortable" style={{ textAlign: align || "left" }} onClick={() => setSort(k)}>
-      {children}{sortKey === k ? <span className="pcp-sort-ind">{sortDir === "asc" ? "\u25B2" : "\u25BC"}</span> : null}
-    </th>
-  );
+  const SortTh = ({ k, children, align }) => {
+    const filter = cf.col(k, typeof children === "string" ? children : k);
+    return (
+      <th className="pcp-sortable" style={{ textAlign: align || "left" }} onClick={() => setSort(k)}>
+        {children}{sortKey === k ? <span className="pcp-sort-ind">{sortDir === "asc" ? "\u25B2" : "\u25BC"}</span> : null}
+        {filter && <ColFilterButton filter={filter} />}
+      </th>
+    );
+  };
 
   return (
     <div>
