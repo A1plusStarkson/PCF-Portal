@@ -1396,6 +1396,31 @@ const CSS = `
   .pcp-sortable { cursor: pointer; user-select: none; white-space: nowrap; }
   .pcp-sortable:hover { color: var(--brand); }
   .pcp-sort-ind { font-size: 9px; opacity: 0.7; margin-left: 3px; }
+  /* Per-column header filters (ColFilterButton). The pop-up is portalled to
+     <body>, so it sets its own font, colours and stacking. */
+  .pcp-colf-btn {
+    display: inline-flex; align-items: center; justify-content: center; vertical-align: middle;
+    width: 18px; height: 18px; margin-left: 5px; padding: 0; border-radius: 4px; cursor: pointer;
+    border: 1px solid transparent; background: transparent; color: var(--text-mut); opacity: 0.75;
+  }
+  .pcp-colf-btn:hover { opacity: 1; border-color: var(--line); background: var(--dm-surface, #fff); }
+  .pcp-colf-btn.on { opacity: 1; color: #fff; background: var(--dm-filter-title, #0e7490); border-color: var(--dm-filter-title, #0e7490); }
+  .pcp-colf-pop {
+    position: fixed; z-index: 1300; width: 260px; padding: 10px; border-radius: 10px;
+    background: var(--dm-surface, #fff); color: var(--text); border: 1px solid var(--line);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.22); font-family: var(--font-ui); font-size: 12.5px;
+    text-transform: none; letter-spacing: normal; font-weight: 400; text-align: left;
+  }
+  .pcp-colf-title { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; color: var(--dm-filter-title, #0e7490); margin-bottom: 6px; }
+  .pcp-colf-pop .pcp-input { width: 100%; margin-bottom: 6px; }
+  .pcp-colf-list { max-height: 240px; overflow-y: auto; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 4px 0; }
+  .pcp-colf-item { display: flex; align-items: flex-start; gap: 7px; padding: 4px 4px; border-radius: 5px; cursor: pointer; line-height: 1.35; }
+  .pcp-colf-item:hover { background: var(--brand-soft); }
+  .pcp-colf-item input { margin-top: 2px; flex-shrink: 0; }
+  .pcp-colf-item span { overflow-wrap: anywhere; }
+  .pcp-colf-all { font-weight: 600; }
+  .pcp-colf-empty { padding: 8px 4px; color: var(--text-mut); }
+  .pcp-colf-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; }
 
   .pcp-detail-card { background: var(--dm-surface, #fff); border: 1px solid var(--line); border-left: 3px solid var(--brand); border-radius: 8px; padding: 14px 16px; margin: 2px 0 6px; }
   .pcp-detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 20px; font-size: 12px; }
@@ -2121,7 +2146,7 @@ function useTableSort(defaultKey, defaultDir) {
 
 /* Header cell for a sortable column. The arrow only shows on the active column,
    matching the Release Ledger. */
-function SortTh({ field, sort, align, style, children }) {
+function SortTh({ field, sort, align, style, children, filter }) {
   const active = sort.sortKey === field;
   return (
     <th
@@ -2131,7 +2156,141 @@ function SortTh({ field, sort, align, style, children }) {
       title="Click to sort"
     >
       {children}{active ? <span className="pcp-sort-ind">{sort.sortDir === "asc" ? "▲" : "▼"}</span> : null}
+      {filter && <ColFilterButton filter={filter} />}
     </th>
+  );
+}
+
+/* ---- Per-column header filters (Excel-style) ----
+   useColumnFilters keeps, per column key, the list of values ticked (absent =
+   no filter). A column's getter turns a row into the text shown in its cell,
+   so the filter lists exactly what the user sees. A column's value list is
+   built from the rows passing every OTHER column filter, as in Excel.
+   Read-only: filtering never changes a record. */
+function colFilterSort(values) {
+  const num = (v) => Number(String(v).replace(/[₱,\s]/g, ""));
+  const allNum = values.every((v) => v === "—" || /^₱?\s?-?[\d,]+(\.\d+)?$/.test(String(v)));
+  return values.slice().sort((a, b) => {
+    if (a === "—") return -1;
+    if (b === "—") return 1;
+    return allNum ? num(a) - num(b) : String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: "base" });
+  });
+}
+function useColumnFilters() {
+  const [sel, setSel] = useState({});
+  const keys = Object.keys(sel).filter((k) => Array.isArray(sel[k]));
+  const pass = (row, getters, skip) => keys.every((k) => k === skip || !getters[k] || sel[k].includes(getters[k](row)));
+  return {
+    active: keys.length > 0,
+    count: keys.length,
+    apply: (rows, getters) => (keys.length ? rows.filter((r) => pass(r, getters)) : rows),
+    /* Header props for one column; the value list is only built when opened. */
+    props: (key, pool, getters, label) => ({
+      label,
+      selected: Array.isArray(sel[key]) ? sel[key] : null,
+      onChange: (v) => setSel((s) => ({ ...s, [key]: v })),
+      getOptions: () => colFilterSort([...new Set(pool.filter((r) => pass(r, getters, key)).map((r) => getters[key](r)))]),
+    }),
+    clear: () => setSel({}),
+  };
+}
+/* Header cell with a filter but no sorting. Plain <th> when no filter. */
+function FilterTh({ filter, align, children }) {
+  return <th style={align ? { textAlign: align } : undefined}>{children}{filter && <ColFilterButton filter={filter} />}</th>;
+}
+/* The funnel button and its pop-up list. Portalled to <body> so the table's
+   scroll container cannot clip it; closes on outside click, Escape or scroll. */
+function ColFilterButton({ filter }) {
+  const { label, selected, onChange, getOptions } = filter;
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState(null);
+  const [q, setQ] = useState("");
+  const [options, setOptions] = useState([]);
+  const btnRef = useRef(null);
+  const popRef = useRef(null);
+  const on = Array.isArray(selected);
+  useEffect(() => {
+    if (!open) return undefined;
+    const inside = (t) => (popRef.current && popRef.current.contains(t)) || (btnRef.current && btnRef.current.contains(t));
+    const onDown = (e) => { if (!inside(e.target)) setOpen(false); };
+    const onKey = (e) => { if (e.key === "Escape") setOpen(false); };
+    /* Scrolling or resizing (a phone keyboard opening for the search box
+       does both) moves the list with its column instead of closing it. */
+    const follow = (e) => { if (!(e && e.target && popRef.current && popRef.current.contains(e.target))) place(); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    window.addEventListener("scroll", follow, true);
+    window.addEventListener("resize", follow);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+      window.removeEventListener("scroll", follow, true);
+      window.removeEventListener("resize", follow);
+    };
+  }, [open]); // eslint-disable-line
+  const place = () => {
+    if (!btnRef.current) return;
+    const r = btnRef.current.getBoundingClientRect();
+    const w = 260;
+    setPos({ top: Math.min(r.bottom + 4, window.innerHeight - 120), left: Math.max(8, Math.min(window.innerWidth - w - 8, r.left - 8)) });
+  };
+  const toggleOpen = (e) => {
+    e.stopPropagation();
+    if (open) { setOpen(false); return; }
+    place();
+    setOptions(getOptions());
+    setQ("");
+    setOpen(true);
+  };
+  const qq = q.trim().toLowerCase();
+  const shown = options.filter((o) => !qq || String(o).toLowerCase().includes(qq));
+  const isOn = (o) => !on || selected.includes(o);
+  /* Ticking every value is the same as no filter, so it clears itself. */
+  const commit = (set) => {
+    const next = options.filter((o) => set.has(o));
+    onChange(next.length === options.length ? null : next);
+  };
+  const toggle = (o) => {
+    const set = new Set(on ? selected : options);
+    if (set.has(o)) set.delete(o); else set.add(o);
+    commit(set);
+  };
+  const allShownOn = shown.length > 0 && shown.every(isOn);
+  const toggleShown = () => {
+    const set = new Set(on ? selected : options);
+    shown.forEach((o) => (allShownOn ? set.delete(o) : set.add(o)));
+    commit(set);
+  };
+  return (
+    <>
+      <button ref={btnRef} type="button" className={"pcp-colf-btn" + (on ? " on" : "")} onClick={toggleOpen}
+        title={on ? `Filtered — ${selected.length} value(s) shown. Click to change.` : `Filter ${label || "this column"}`}>
+        <FilterIcon size={11} />
+      </button>
+      {open && pos && createPortal(
+        <div ref={popRef} className="pcp-colf-pop" style={{ top: pos.top, left: pos.left }}
+          onClick={(e) => e.stopPropagation()} role="dialog" aria-label={`Filter ${label || ""}`}>
+          <div className="pcp-colf-title">{label}</div>
+          <input className="pcp-input" autoFocus placeholder="Search…" value={q} onChange={(e) => setQ(e.target.value)} />
+          <label className="pcp-colf-item pcp-colf-all">
+            <input type="checkbox" checked={allShownOn} onChange={toggleShown} /> <span>(Select all{qq ? " shown" : ""})</span>
+          </label>
+          <div className="pcp-colf-list">
+            {shown.map((o) => (
+              <label key={o} className="pcp-colf-item">
+                <input type="checkbox" checked={isOn(o)} onChange={() => toggle(o)} /> <span>{o}</span>
+              </label>
+            ))}
+            {!shown.length && <div className="pcp-colf-empty">No matches</div>}
+          </div>
+          <div className="pcp-colf-foot">
+            <button type="button" className="pcp-btn pcp-btn-sm" disabled={!on} onClick={() => { onChange(null); setOpen(false); }}>Clear filter</button>
+            <button type="button" className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={() => setOpen(false)}>Done</button>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
   );
 }
 

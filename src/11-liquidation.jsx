@@ -120,13 +120,24 @@ function fmtAcctStamp(ts) {
 }
 
 /* The four Accounting columns, shared by every list that shows them. */
-function AccountingHeadCells() {
+function AccountingHeadCells({ filterFor }) {
+  const f = filterFor || (() => undefined);
   return (<>
     {/* Accounting Checked Date column removed (owner's instruction, Oct
         2026) — the date is in the opened transaction's Accounting review. */}
-    <th>Accounting Checked</th><th>Accounting Checked By</th><th>Batch Number</th>
+    <FilterTh filter={f("acctChecked", "Accounting Checked")}>Accounting Checked</FilterTh>
+    <FilterTh filter={f("acctBy", "Accounting Checked By")}>Accounting Checked By</FilterTh>
+    <FilterTh filter={f("batch", "Batch Number")}>Batch Number</FilterTh>
   </>);
 }
+/* Text of each Liquidation-list cell, for the per-column header filters —
+   what the filter lists is exactly what the cell shows. */
+const colText = (v) => (v == null || String(v).trim() === "" ? "—" : String(v).trim());
+const LIQ_ACCT_COL_TEXT = {
+  acctChecked: (x) => (x.acct.acctChecked ? "YES" : "NO"),
+  acctBy: (x) => colText(acctCheckerLabel(x.acct)),
+  batch: (x) => colText(x.acct.batchNo),
+};
 function AccountingCells({ review }) {
   const rv = review || {};
   const mut = { color: "var(--text-mut)" };
@@ -2564,6 +2575,9 @@ function LiquidationTab({
   const [acctFilter, setAcctFilter] = useState(accounting && accounting.isChecker ? "For Accounting Check" : "All");
   const [batchFilter, setBatchFilter] = useState(LIQ_ALL_BATCHES);
   const [finalFilter, setFinalFilter] = useState("All");
+  /* Per-column header filters, one set per tab. */
+  const pettyCF = useColumnFilters();
+  const reimbCF = useColumnFilters();
   const [selectedId, setSelectedId] = useState(null);
   const [selectedReimbId, setSelectedReimbId] = useState(null);
   /* Reimbursement open in the edit form (REIMB_EDIT_OVERRIDE_EMAILS only). */
@@ -2671,16 +2685,42 @@ function LiquidationTab({
   const settleFilterOn = settleFilter !== SETTLEMENT_FILTERS[0];
   /* Opened from a dashboard count: exactly those vouchers, complete or not,
      whatever the other filters say (DashFilterBanner shows what it is). */
-  const pettyFiltered = dashFilter ? enriched.filter((d) => dashFilter.ids.has(d.id)) : (pettyStatus === LIQ_STATUS_FILTER_ALL
-    ? (showAll || q || settleFilterOn || acctFilterOn || batchOn || finalOn ? enriched : enriched.filter((d) => !liqIsComplete(d.finalStatus)))
-    : enriched.filter((d) => d.liqStatus === PCA_STATUS_FILTERS[pettyStatus]))
+  /* Per-column header filters (owner's instruction, Oct 2026) — they replace
+     the Status and Settlement dropdowns. Like any filter they lift the
+     worklist gate, and each column's values come from every voucher passing
+     the other filters (completed ones included), so a finished status can
+     be picked straight from its column. */
+  const PETTY_COL_TEXT = {
+    voucherNo: (d) => colText(d.voucherNo),
+    date: (d) => (d.date ? fmtDate(d.date) : "—"),
+    txnDate: (d) => (d.txn.first ? fmtTxnRange(d.txn) : "—"),
+    employee: (d) => colText(d.employee),
+    branchCode: (d) => colText(d.branchCode),
+    department: (d) => colText(subaccountLabel(d.department)),
+    expense: (d) => colText(disbExpense(d)),
+    amount: (d) => peso(d.amount),
+    liqAmount: (d) => (liquidationFor(d.id, liquidations) ? peso(d.liqAmount) : "—"),
+    liqStatus: (d) => colText(d.liqStatus),
+    finalStatus: (d) => colText(d.finalStatus),
+    balance: (d) => (d.stl.owing
+      ? `${d.stl.st.type === "excess" ? "Return" : "Reimburse"} — ${d.stl.overdue ? "Overdue" : "Not yet due"}`
+      : d.stl.category === "Waiting for receipts" ? "Awaiting receipts" : "—"),
+    ...LIQ_ACCT_COL_TEXT,
+  };
+  const pettyPipe = (base) => base
     .filter((d) => hit(d.voucherNo, d.requestNo, d.employee, d.branchCode, plantLabel(d.branchCode),
       subaccountLabel(d.department), disbExpense(d), d.liqStatus, d.finalStatus, d.acct.batchNo))
     .filter((d) => acctMatch(d.acct, d.stage === LIQ_STAGE.FOR_ACCOUNTING, d.acctMode))
     .filter((d) => batchFinalMatch(d.acct))
     .filter((d) => settleFilter === SETTLEMENT_FILTERS[0]
       || (settleFilter === "Overdue settlement" ? d.stl.overdue : d.stl.category === settleFilter));
-  const list = pettySort.sortRows(pettyFiltered, LIQ_PETTY_SORT_FIELDS);
+  const dashRows = dashFilter ? enriched.filter((d) => dashFilter.ids.has(d.id)) : null;
+  const pettyFiltered = dashRows || pettyPipe(pettyStatus === LIQ_STATUS_FILTER_ALL
+    ? (showAll || q || settleFilterOn || acctFilterOn || batchOn || finalOn || pettyCF.active ? enriched : enriched.filter((d) => !liqIsComplete(d.finalStatus)))
+    : enriched.filter((d) => d.liqStatus === PCA_STATUS_FILTERS[pettyStatus]));
+  const pettyPool = dashRows || pettyPipe(enriched);
+  const pettyCol = (key, label) => pettyCF.props(key, pettyPool, PETTY_COL_TEXT, label);
+  const list = pettySort.sortRows(pettyCF.apply(pettyFiltered, PETTY_COL_TEXT), LIQ_PETTY_SORT_FIELDS);
   /* Looked up in `enriched`, not `list`, so the open pop-up stays put when an
      action moves the voucher out of the current filter (e.g. it completes). */
   const selected = enriched.find((d) => d.id === selectedId) || null;
@@ -2697,23 +2737,37 @@ function LiquidationTab({
   const reimbLiq = reimbScoped
     .filter(reimbInLiquidationModule)
     .map((r) => ({ ...r, acct: reimbReview(r), awaitingAcct: reimbAwaitingAccounting(r) }));
-  const reimbFiltered = (reimbStatus === LIQ_STATUS_FILTER_ALL
-    ? (showAll || q || acctFilterOn || batchOn || finalOn ? reimbLiq : reimbLiq.filter((r) => r.status === REIMB_STATUS.FOR_LIQUIDATION
-      || r.status === REIMB_STATUS.UNDER_REVIEW || r.status === REIMB_STATUS.FOR_FINAL))
-    : reimbLiq.filter((r) => (reimbTwoLevelFilter(reimbStatus, r)
-      ? reimbTwoLevelFilter(reimbStatus, r)() : r.status === reimbStatusFilter(reimbStatus))))
+  const REIMB_COL_TEXT = {
+    reimbNo: (r) => colText(r.reimbNo),
+    requestDate: (r) => (r.requestDate ? fmtDate(r.requestDate) : "—"),
+    employee: (r) => colText(r.employee),
+    branchCode: (r) => colText(r.branchCode),
+    department: (r) => colText(subaccountLabel(r.department)),
+    purpose: (r) => colText(r.purpose),
+    amount: (r) => peso(reimbTotal(r)),
+    status: (r) => colText(r.awaitingAcct ? REIMB_STAGE.FOR_ACCOUNTING : r.status),
+    ...LIQ_ACCT_COL_TEXT,
+  };
+  const reimbPipe = (base) => base
     .filter((r) => hit(r.reimbNo, r.employee, r.branchCode, plantLabel(r.branchCode),
       subaccountLabel(r.department), r.purpose, r.status, r.acct.batchNo))
     .filter((r) => acctMatch(r.acct, r.awaitingAcct, reimbAcctMode(r)))
     .filter((r) => batchFinalMatch(r.acct));
-  const reimbActive = reimbSort.sortRows(reimbFiltered, LIQ_REIMB_SORT_FIELDS);
+  const reimbFiltered = reimbPipe(reimbStatus === LIQ_STATUS_FILTER_ALL
+    ? (showAll || q || acctFilterOn || batchOn || finalOn || reimbCF.active ? reimbLiq : reimbLiq.filter((r) => r.status === REIMB_STATUS.FOR_LIQUIDATION
+      || r.status === REIMB_STATUS.UNDER_REVIEW || r.status === REIMB_STATUS.FOR_FINAL))
+    : reimbLiq.filter((r) => (reimbTwoLevelFilter(reimbStatus, r)
+      ? reimbTwoLevelFilter(reimbStatus, r)() : r.status === reimbStatusFilter(reimbStatus))));
+  const reimbPool = reimbPipe(reimbLiq);
+  const reimbCol = (key, label) => reimbCF.props(key, reimbPool, REIMB_COL_TEXT, label);
+  const reimbActive = reimbSort.sortRows(reimbCF.apply(reimbFiltered, REIMB_COL_TEXT), LIQ_REIMB_SORT_FIELDS);
   const selectedReimb = reimbScoped.find((r) => r.id === selectedReimbId) || null;
 
   /* An explicit status filter already decides what the list shows, so the
      completed-vs-open toggle is only meaningful on "All statuses". */
   const activeStatus = source === "pettycash" ? pettyStatus : reimbStatus;
   const statusFilterOn = activeStatus !== LIQ_STATUS_FILTER_ALL || (source === "pettycash" && settleFilterOn) || acctFilterOn
-    || batchOn || finalOn;
+    || batchOn || finalOn || (source === "pettycash" ? pettyCF.active : reimbCF.active);
   const pettyCount = list.length;
   const reimbCount = reimbActive.length;
 
@@ -2728,6 +2782,7 @@ function LiquidationTab({
         activeStatus !== LIQ_STATUS_FILTER_ALL ? `Status: ${activeStatus}` : "",
         source === "pettycash" && settleFilterOn ? `Settlement: ${settleFilter}` : "",
         acctFilterOn ? `Accounting: ${acctFilter}` : "",
+        (source === "pettycash" ? pettyCF.active : reimbCF.active) ? "Column filters applied" : "",
         q ? `Search: "${search.trim()}"` : "",
         !statusFilterOn && !q && !showAll ? "Open items only (completed hidden)" : "",
       ].filter(Boolean).join(" · "),
@@ -2816,27 +2871,8 @@ function LiquidationTab({
             />
           </div>
           <FilterIcon size={14} color="var(--text-mut)" />
-          <span className="pcp-filter-label">Status</span>
-          <SearchSelect
-            value={source === "pettycash" ? pettyStatus : reimbStatus}
-            onChange={(v) => {
-              if (source === "pettycash") setPettyStatus(v || LIQ_STATUS_FILTER_ALL);
-              else setReimbStatus(v || LIQ_STATUS_FILTER_ALL);
-              setSelectedId(null); setSelectedReimbId(null);
-            }}
-            options={(source === "pettycash" ? PCA_STATUS_FILTER_KEYS : REIMB_STATUS_FILTER_KEYS)
-              .map((k) => ({ value: k, label: k }))}
-            searchPlaceholder="Search status…"
-            style={{ width: 240 }}
-          />
-          {source === "pettycash" && (
-            <>
-              <span className="pcp-filter-label">Settlement</span>
-              <select className="pcp-select" style={{ width: 210 }} value={settleFilter} onChange={(e) => setSettleFilter(e.target.value)}>
-                {SETTLEMENT_FILTERS.map((f) => <option key={f}>{f}</option>)}
-              </select>
-            </>
-          )}
+          {/* Status and Settlement dropdowns removed (owner's instruction,
+              Oct 2026): every column header now has its own filter. */}
           <span className="pcp-filter-label">Accounting</span>
           <select className="pcp-select" style={{ width: 190 }} value={acctFilter} onChange={(e) => setAcctFilter(e.target.value)}>
             {ACCT_FILTERS.map((f) => <option key={f}>{f}</option>)}
@@ -2859,8 +2895,8 @@ function LiquidationTab({
             <button
               className="pcp-btn pcp-btn-ghost pcp-btn-sm"
               onClick={() => {
-                if (source === "pettycash") { setPettyStatus(LIQ_STATUS_FILTER_ALL); setSettleFilter(SETTLEMENT_FILTERS[0]); }
-                else setReimbStatus(LIQ_STATUS_FILTER_ALL);
+                if (source === "pettycash") { setPettyStatus(LIQ_STATUS_FILTER_ALL); setSettleFilter(SETTLEMENT_FILTERS[0]); pettyCF.clear(); }
+                else { setReimbStatus(LIQ_STATUS_FILTER_ALL); reimbCF.clear(); }
                 setAcctFilter("All"); setBatchFilter(LIQ_ALL_BATCHES); setFinalFilter("All");
               }}
             ><X size={12} /> Clear</button>
@@ -2901,20 +2937,20 @@ function LiquidationTab({
                         ref={(el) => { if (el) el.indeterminate = pickedPetty.length > 0 && !allPettyPicked; }}
                         onChange={() => togglePick(pettyKeys, !allPettyPicked)} title="Select all shown" />
                     </th>
-                    <SortTh field="voucherNo" sort={pettySort}>Voucher No.</SortTh>
+                    <SortTh field="voucherNo" sort={pettySort} filter={pettyCol("voucherNo", "Voucher No.")}>Voucher No.</SortTh>
                     {txnDateLabels
-                      ? <SortTh field="txnDate" sort={pettySort}>Transaction / OR Date</SortTh>
-                      : <SortTh field="date" sort={pettySort}>Date</SortTh>}
-                    <SortTh field="employee" sort={pettySort}>Employee</SortTh>
-                    <SortTh field="branchCode" sort={pettySort}>Plant</SortTh>
-                    <SortTh field="department" sort={pettySort}>Department</SortTh>
-                    <SortTh field="expense" sort={pettySort}>Expense</SortTh>
-                    <SortTh field="amount" sort={pettySort} align="right">PCF Released</SortTh>
-                    <SortTh field="liqAmount" sort={pettySort} align="right">Liquidated Amount</SortTh>
-                    <SortTh field="liqStatus" sort={pettySort}>Liquidation</SortTh>
-                    <SortTh field="finalStatus" sort={pettySort}>Settlement</SortTh>
-                    <SortTh field="balance" sort={pettySort}>Balance Due</SortTh>
-                    <AccountingHeadCells />
+                      ? <SortTh field="txnDate" sort={pettySort} filter={pettyCol("txnDate", "Transaction / OR Date")}>Transaction / OR Date</SortTh>
+                      : <SortTh field="date" sort={pettySort} filter={pettyCol("date", "Date")}>Date</SortTh>}
+                    <SortTh field="employee" sort={pettySort} filter={pettyCol("employee", "Employee")}>Employee</SortTh>
+                    <SortTh field="branchCode" sort={pettySort} filter={pettyCol("branchCode", "Plant")}>Plant</SortTh>
+                    <SortTh field="department" sort={pettySort} filter={pettyCol("department", "Department")}>Department</SortTh>
+                    <SortTh field="expense" sort={pettySort} filter={pettyCol("expense", "Expense")}>Expense</SortTh>
+                    <SortTh field="amount" sort={pettySort} align="right" filter={pettyCol("amount", "PCF Released")}>PCF Released</SortTh>
+                    <SortTh field="liqAmount" sort={pettySort} align="right" filter={pettyCol("liqAmount", "Liquidated Amount")}>Liquidated Amount</SortTh>
+                    <SortTh field="liqStatus" sort={pettySort} filter={pettyCol("liqStatus", "Liquidation")}>Liquidation</SortTh>
+                    <SortTh field="finalStatus" sort={pettySort} filter={pettyCol("finalStatus", "Settlement")}>Settlement</SortTh>
+                    <SortTh field="balance" sort={pettySort} filter={pettyCol("balance", "Balance Due")}>Balance Due</SortTh>
+                    <AccountingHeadCells filterFor={pettyCol} />
                     <th></th>
                   </tr>
                 </thead>
@@ -2994,15 +3030,15 @@ function LiquidationTab({
                         ref={(el) => { if (el) el.indeterminate = pickedReimb.length > 0 && !allReimbPicked; }}
                         onChange={() => togglePick(reimbKeys, !allReimbPicked)} title="Select all shown" />
                     </th>
-                    <SortTh field="reimbNo" sort={reimbSort}>Reimb No.</SortTh>
-                    <SortTh field="requestDate" sort={reimbSort}>Req Date</SortTh>
-                    <SortTh field="employee" sort={reimbSort}>Employee</SortTh>
-                    <SortTh field="branchCode" sort={reimbSort}>Plant</SortTh>
-                    <SortTh field="department" sort={reimbSort}>Department</SortTh>
-                    <SortTh field="purpose" sort={reimbSort}>Purpose</SortTh>
-                    <SortTh field="amount" sort={reimbSort} align="right">Amount</SortTh>
-                    <SortTh field="status" sort={reimbSort}>Status</SortTh>
-                    <AccountingHeadCells />
+                    <SortTh field="reimbNo" sort={reimbSort} filter={reimbCol("reimbNo", "Reimb No.")}>Reimb No.</SortTh>
+                    <SortTh field="requestDate" sort={reimbSort} filter={reimbCol("requestDate", "Req Date")}>Req Date</SortTh>
+                    <SortTh field="employee" sort={reimbSort} filter={reimbCol("employee", "Employee")}>Employee</SortTh>
+                    <SortTh field="branchCode" sort={reimbSort} filter={reimbCol("branchCode", "Plant")}>Plant</SortTh>
+                    <SortTh field="department" sort={reimbSort} filter={reimbCol("department", "Department")}>Department</SortTh>
+                    <SortTh field="purpose" sort={reimbSort} filter={reimbCol("purpose", "Purpose")}>Purpose</SortTh>
+                    <SortTh field="amount" sort={reimbSort} align="right" filter={reimbCol("amount", "Amount")}>Amount</SortTh>
+                    <SortTh field="status" sort={reimbSort} filter={reimbCol("status", "Status")}>Status</SortTh>
+                    <AccountingHeadCells filterFor={reimbCol} />
                     <th></th>
                   </tr>
                 </thead>
