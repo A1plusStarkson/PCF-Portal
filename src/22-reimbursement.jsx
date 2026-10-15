@@ -1598,6 +1598,7 @@ function ReimbursementTab({
   const [purposeFilter, setPurposeFilter] = useState("All");
   /* Newest reimbursement no. first on open; any header can take over. */
   const sort = useTableSort("reimbNo", "desc");
+  const colFilters = useColumnFilters();
 
   /* Summary cards double as filters: each card's statuses, exactly as counted.
      Clicking one filters the table below (and scrolls to it); clicking it
@@ -1624,20 +1625,36 @@ function ReimbursementTab({
      the rows it shows when clicked. */
   const plantScoped = plant === "ALL" ? reimbursements : reimbursements.filter((r) => r.branchCode === plant);
 
-  const filtered = sort.sortRows(
-    plantScoped.filter((r) => {
-      if (cardFilter && !KPI_CARDS[cardFilter].statuses.includes(r.status)) return false;
-      if (statusFilter !== "All" && r.status !== statusFilter) return false;
-      if (categoryFilter !== "All" && purposeCategory(r.purpose) !== categoryFilter) return false;
-      if (purposeFilter !== "All" && (r.purpose || "") !== purposeFilter) return false;
-      if (search) {
-        const q = search.toLowerCase();
-        if (!(r.employee.toLowerCase().includes(q) || r.reimbNo.toLowerCase().includes(q) || (r.purpose || "").toLowerCase().includes(q))) return false;
-      }
-      return true;
-    }),
-    REIMB_SORT_FIELDS
-  );
+  /* Per-column header filters (owner's instruction, Oct 2026) — they replace
+     the status, category and purpose dropdowns. Each column filters on the
+     text its cell shows; its value list comes from the rows passing the KPI
+     card, the search and the other columns' filters. */
+  const colText = (v) => (v == null || String(v).trim() === "" ? "—" : String(v).trim());
+  const COL_TEXT = {
+    reimbNo: (r) => colText(r.reimbNo),
+    requestDate: (r) => (r.requestDate ? fmtDate(r.requestDate) : "—"),
+    employee: (r) => colText(r.employee),
+    department: (r) => colText(deptDesc(r.department)),
+    branchCode: (r) => colText(plantLabel(r.branchCode)),
+    purpose: (r) => colText(r.purpose),
+    lines: (r) => String((r.lines || []).length),
+    amount: (r) => peso(reimbTotal(r)),
+    compliance: (r) => `Policy Compliance: ${(r.compliance && r.compliance.level) || "PASS"}`,
+    status: (r) => colText(reimbAwaitingAccounting(r) ? REIMB_STAGE.FOR_ACCOUNTING : r.status),
+  };
+  const pool = plantScoped.filter((r) => {
+    if (cardFilter && !KPI_CARDS[cardFilter].statuses.includes(r.status)) return false;
+    if (statusFilter !== "All" && r.status !== statusFilter) return false;
+    if (categoryFilter !== "All" && purposeCategory(r.purpose) !== categoryFilter) return false;
+    if (purposeFilter !== "All" && (r.purpose || "") !== purposeFilter) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!(r.employee.toLowerCase().includes(q) || r.reimbNo.toLowerCase().includes(q) || (r.purpose || "").toLowerCase().includes(q))) return false;
+    }
+    return true;
+  });
+  const col = (key, label) => colFilters.props(key, pool, COL_TEXT, label);
+  const filtered = sort.sortRows(colFilters.apply(pool, COL_TEXT), REIMB_SORT_FIELDS);
 
   const kpiRows = (key) => plantScoped.filter((r) => KPI_CARDS[key].statuses.includes(r.status));
   const sumRows = (arr) => arr.reduce((s, r) => s + reimbTotal(r), 0);
@@ -1696,40 +1713,29 @@ function ReimbursementTab({
                 Showing: {KPI_CARDS[cardFilter].label} <X size={12} />
               </button>
             )}
-            <select className="pcp-select" style={{ width: 200 }} value={statusFilter} onChange={(e) => { setStatusFilter(e.target.value); setCardFilter(null); }}>
-              {["All", ...Object.values(REIMB_STATUS)].map((s) => <option key={s}>{s}</option>)}
-            </select>
-            <select className="pcp-select" style={{ width: 130 }} value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPurposeFilter("All"); }} title="Filter by expense category">
-              <option value="All">All Categories</option>
-              <option value="FOH">FOH</option>
-              <option value="OE">OE</option>
-              <option value="OTHER">Other</option>
-            </select>
-            <select className="pcp-select" style={{ width: 220 }} value={purposeFilter} onChange={(e) => setPurposeFilter(e.target.value)} title="Filter by purpose">
-              <option value="All">All Purposes</option>
-              {REIMB_PURPOSE_GROUPS.filter((g) => categoryFilter === "All" || g.category === categoryFilter).map((g) => (
-                <optgroup key={g.category} label={g.label}>
-                  {g.purposes.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}
-                </optgroup>
-              ))}
-            </select>
+            {/* Status, category and purpose dropdowns removed (owner's
+                instruction, Oct 2026): every column header has its own filter. */}
+            {colFilters.active && (
+              <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={colFilters.clear} title="Clear every column filter">
+                <X size={12} /> Clear column filters ({colFilters.count})
+              </button>
+            )}
             <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-mut)" }}>{filtered.length} of {reimbursements.length}</div>
           </div>
           <div className="pcp-table-wrap">
             <table className="pcp-table">
               <thead>
                 <tr>
-                  <SortTh field="reimbNo" sort={sort}>Reimb No.</SortTh>
-                  <SortTh field="requestDate" sort={sort}>Req Date</SortTh>
-                  <SortTh field="employee" sort={sort}>Employee</SortTh>
-                  <SortTh field="department" sort={sort}>Department</SortTh>
-                  <SortTh field="branchCode" sort={sort}>Plant</SortTh>
-                  <SortTh field="purpose" sort={sort}>Purpose</SortTh>
-                  <SortTh field="lines" sort={sort}>Lines</SortTh>
-                  <SortTh field="amount" sort={sort}>Amount</SortTh>
-                  <SortTh field="compliance" sort={sort}>Compliance</SortTh>
-                  <SortTh field="status" sort={sort}>Status</SortTh>
-                  <SortTh field="aging" sort={sort}>Aging</SortTh>
+                  <SortTh field="reimbNo" sort={sort} filter={col("reimbNo", "Reimb No.")}>Reimb No.</SortTh>
+                  <SortTh field="requestDate" sort={sort} filter={col("requestDate", "Req Date")}>Req Date</SortTh>
+                  <SortTh field="employee" sort={sort} filter={col("employee", "Employee")}>Employee</SortTh>
+                  <SortTh field="department" sort={sort} filter={col("department", "Department")}>Department</SortTh>
+                  <SortTh field="branchCode" sort={sort} filter={col("branchCode", "Plant")}>Plant</SortTh>
+                  <SortTh field="purpose" sort={sort} filter={col("purpose", "Purpose")}>Purpose</SortTh>
+                  <SortTh field="lines" sort={sort} filter={col("lines", "Lines")}>Lines</SortTh>
+                  <SortTh field="amount" sort={sort} filter={col("amount", "Amount")}>Amount</SortTh>
+                  <SortTh field="compliance" sort={sort} filter={col("compliance", "Compliance")}>Compliance</SortTh>
+                  <SortTh field="status" sort={sort} filter={col("status", "Status")}>Status</SortTh>
                   <th></th>
                 </tr>
               </thead>
@@ -1764,7 +1770,6 @@ function ReimbursementTab({
                           ? <EscalationRevertTag marker={reimbEscalationRevert(r)} />
                           : <Badge status={reimbAwaitingAccounting(r) ? REIMB_STAGE.FOR_ACCOUNTING : r.status} />}
                     </td>
-                    <td>{reimbAgingBucket(r)}</td>
                     <td>
                       <div style={{ display: "flex", gap: 6 }}>
                         <button className="pcp-btn pcp-btn-sm" onClick={() => setDetail(r)} title="View / action"><Eye size={12} /></button>
@@ -1780,7 +1785,7 @@ function ReimbursementTab({
                       </div>
                     </td>
                   </tr>
-                )) : <tr><td colSpan={12} className="pcp-empty">No reimbursement requests match your filters</td></tr>}
+                )) : <tr><td colSpan={11} className="pcp-empty">No reimbursement requests match your filters</td></tr>}
               </tbody>
             </table>
           </div>
