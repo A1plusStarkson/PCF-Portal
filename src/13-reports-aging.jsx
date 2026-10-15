@@ -118,7 +118,9 @@ function buildAgingRecords(disbursements, liquidations, funds, requests, today) 
       liqStatus: fullyLiquidated ? "Completed" : (isPastDue ? "Overdue" : (isDueToday ? "Due Today" : "Pending")),
       expenseCategory: disbExpense(d),
     };
-  });
+  /* Reimbursements are not aged (owner's instruction, Oct 2026): their
+     control is the PCF Custodians' approval, not the age of the transaction. */
+  }).filter((r) => r.transactionType !== "Reimbursement");
 }
 
 /* ---- Requestor liquidation reminders ----
@@ -569,8 +571,8 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
   return (
     <div>
       <TopBar
-        title="Liquidation & Reimbursement Aging"
-        sub="Petty cash and employee reimbursements monitored under the shared 5-calendar-day liquidation policy"
+        title="Liquidation Aging"
+        sub="Petty cash advances monitored under the 5-calendar-day liquidation policy (reimbursements are controlled by custodian approval, not aging)"
         right={
           <>
             <button className="pcp-btn" onClick={() => window.print()}><Printer size={14} /> Print / PDF</button>
@@ -584,9 +586,9 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
           <div className="pcp-report-head">
             <BrandLogos />
             <div style={{ marginLeft: "auto", textAlign: "right" }}>
-              <div className="pcp-report-title">Liquidation &amp; Reimbursement Aging Report</div>
+              <div className="pcp-report-title">Liquidation Aging Report</div>
               <div className="pcp-report-sub">
-                Generated {fmtDate(today)} · Petty cash &amp; reimbursements due {AGING_DUE_DAYS} days after release · {opts.plants.length} plant(s) monitored
+                Generated {fmtDate(today)} · Petty cash due {AGING_DUE_DAYS} days after release · {opts.plants.length} plant(s) monitored
               </div>
             </div>
           </div>
@@ -601,7 +603,6 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
               <select className="pcp-select" value={filters.txnType} onChange={(e) => setF("txnType", e.target.value)}>
                 <option value="ALL">All Types</option>
                 <option value="Petty Cash">Petty Cash</option>
-                <option value="Reimbursement">Reimbursement</option>
               </select>
             </div>
             <div className="pcp-field" style={{ margin: 0 }}>

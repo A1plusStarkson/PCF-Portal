@@ -1528,29 +1528,14 @@ function ReimbursementPaymentModal({ reimb, onClose, onConfirm, processedBy }) {
 
 /* ============================= REIMBURSEMENT TAB ============================= */
 
-function reimbAgeDays(reimb) {
-  const base = reimb.requestDate || reimb.createdAt || todayISO();
-  return Math.floor((Date.now() - new Date(base + "T00:00:00").getTime()) / 86400000);
-}
+/* No aging on reimbursements (owner's instruction, Oct 2026): control over a
+   reimbursement rests solely on the PCF Custodians' approval, not on how old
+   it is. The Aging column, its buckets and its sort are removed.
 
-function reimbSettled(reimb) {
-  return reimb.status === REIMB_STATUS.COMPLETED || reimb.status === REIMB_STATUS.PAID;
-}
-
-function reimbAgingBucket(reimb) {
-  const days = reimbAgeDays(reimb);
-  if (reimbSettled(reimb)) return "Settled";
-  if (days <= 3) return "0–3 Days";
-  if (days <= 7) return "4–7 Days";
-  if (days <= 15) return "8–15 Days";
-  if (days <= 30) return "16–30 Days";
-  return "Over 30 Days";
-}
-
-/* Sort values for the reimbursement list tables — this tab and the Approval
+   Sort values for the reimbursement list tables — this tab and the Approval
    Module, which show the same record with one column different (Lines vs Docs).
-   Compliance ranks by severity and Aging by real age in days, so both order the
-   way a reviewer expects rather than alphabetically by their badge text. */
+   Compliance ranks by severity, so it orders the way a reviewer expects rather
+   than alphabetically by its badge text. */
 const REIMB_COMPLIANCE_RANK = { PASS: 0, WARNING: 1, FAIL: 2 };
 
 const REIMB_SORT_FIELDS = {
@@ -1568,8 +1553,6 @@ const REIMB_SORT_FIELDS = {
     return rank === undefined ? 0 : rank;
   },
   status: (r) => r.status,
-  /* Settled rows group ahead of the open ones instead of interleaving by age. */
-  aging: (r) => (reimbSettled(r) ? -1 : reimbAgeDays(r)),
 };
 
 function ReimbursementTab({

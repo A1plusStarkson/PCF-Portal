@@ -208,7 +208,7 @@ const HOME_WORKFLOW = [
   { title: "Approval", text: "Custodian approves it" },
   { title: "Release", text: "Cash is released on a voucher" },
   { title: "Expense", text: "Spend and keep the OR / invoice" },
-  { title: "Liquidation / Reimbursement", text: `Liquidate within ${AGING_DUE_DAYS} days, then SUBMIT` },
+  { title: "Liquidation", text: `Liquidate within ${AGING_DUE_DAYS} days, then SUBMIT` },
   { title: "Accounting Check", text: "Custodian review, Accounting check, final approval" },
   { title: "Replenishment", text: "The fund is restored" },
 ];
