@@ -232,13 +232,6 @@ function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemar
               <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
               <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search voucher or employee" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
-            <select className="pcp-select" style={{ width: 160 }} value={branchFilter} onChange={(e) => setBranchFilter(e.target.value)}>
-              <option>All</option>
-              {(plantOptions || BRANCHES.map((b) => ({ code: b.code, label: b.code }))).map((b) => <option key={b.code} value={b.code}>{b.label}</option>)}
-            </select>
-            <select className="pcp-select" style={{ width: 180 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
-              {["All", "Not Liquidated", "Partially Liquidated", "Fully Liquidated", "Over-Liquidated"].map((s) => <option key={s}>{s}</option>)}
-            </select>
             <ColFiltersClear cf={cf} />
             <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-mut)" }}>{rows.length} of {disbursements.length} vouchers</div>
           </div>
