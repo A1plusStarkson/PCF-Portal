@@ -123,10 +123,10 @@ function fmtAcctStamp(ts) {
 function AccountingHeadCells({ filterFor }) {
   const f = filterFor || (() => undefined);
   return (<>
-    {/* Accounting Checked Date column removed (owner's instruction, Oct
-        2026) — the date is in the opened transaction's Accounting review. */}
-    <FilterTh filter={f("acctChecked", "Accounting Checked")}>Accounting Checked</FilterTh>
-    <FilterTh filter={f("acctBy", "Accounting Checked By")}>Accounting Checked By</FilterTh>
+    {/* Accounting Checked, Checked By and Checked Date columns removed from
+        the list (owner's instruction, Oct 2026) — all still shown in the
+        opened transaction's Accounting review, and the Accounting filter
+        still works. */}
     <FilterTh filter={f("batch", "Batch Number")}>Batch Number</FilterTh>
   </>);
 }
@@ -142,9 +142,7 @@ function AccountingCells({ review }) {
   const rv = review || {};
   const mut = { color: "var(--text-mut)" };
   return (<>
-    <td>{rv.acctChecked ? <Badge status="YES" /> : <span style={mut}>NO</span>}</td>
-    <td>{acctCheckerLabel(rv) || <span style={mut}>—</span>}</td>
-    <td>{rv.batchNo ? <strong>{rv.batchNo}</strong> : <span style={mut}>—</span>}</td>
+    <td>{rv.batchNo ?<strong>{rv.batchNo}</strong> : <span style={mut}>—</span>}</td>
   </>);
 }
 
@@ -2949,7 +2947,6 @@ function LiquidationTab({
                     <SortTh field="liqAmount" sort={pettySort} align="right" filter={pettyCol("liqAmount", "Liquidated Amount")}>Liquidated Amount</SortTh>
                     <SortTh field="liqStatus" sort={pettySort} filter={pettyCol("liqStatus", "Liquidation")}>Liquidation</SortTh>
                     <SortTh field="finalStatus" sort={pettySort} filter={pettyCol("finalStatus", "Settlement")}>Settlement</SortTh>
-                    <SortTh field="balance" sort={pettySort} filter={pettyCol("balance", "Balance Due")}>Balance Due</SortTh>
                     <AccountingHeadCells filterFor={pettyCol} />
                     <th></th>
                   </tr>
@@ -2980,20 +2977,9 @@ function LiquidationTab({
                       </td>
                       <td><Badge status={d.liqStatus} /></td>
                       <td><Badge status={d.finalStatus} /></td>
-                      <td>
-                        {d.stl.owing ? (
-                          <div style={{ lineHeight: 1.3 }}>
-                            <div className="pcp-num" style={{ fontWeight: 700, color: d.stl.overdue ? "var(--danger)" : d.stl.st.type === "excess" ? "var(--amber)" : "var(--blue)" }}>
-                              {d.stl.st.type === "excess" ? "Return " : "Reimburse "}{peso(d.stl.st.remaining)}
-                            </div>
-                            <div style={{ fontSize: 10.5, color: d.stl.overdue ? "var(--danger)" : "var(--text-mut)", fontWeight: d.stl.overdue ? 700 : 400 }}>
-                              {d.stl.overdue ? `Overdue ${-d.stl.daysLeft}d` : d.stl.daysLeft === 0 ? "Due today" : `Due ${fmtDate(d.stl.dueDate)}`}
-                            </div>
-                          </div>
-                        ) : (
-                          <span style={{ fontSize: 11, color: "var(--text-mut)" }}>{d.stl.category === "Waiting for receipts" ? "Awaiting receipts" : "—"}</span>
-                        )}
-                      </td>
+                      {/* Balance Due column removed from the list (owner's
+                          instruction, Oct 2026) — the cash settlement and any
+                          balance due are still in the opened liquidation. */}
                       <AccountingCells review={d.acct} />
                       <td>
                         <div style={{ display: "flex", gap: 6 }}>
@@ -3011,7 +2997,7 @@ function LiquidationTab({
                       </td>
                     </tr>
                   )) : (
-                    <tr><td colSpan={16} className="pcp-empty">
+                    <tr><td colSpan={13} className="pcp-empty">
                       {q
                         ? "No cash advance matches “" + search.trim() + "”"
                         : statusFilterOn
@@ -3071,7 +3057,7 @@ function LiquidationTab({
                       </td>
                     </tr>
                   )) : (
-                    <tr><td colSpan={13} className="pcp-empty">
+                    <tr><td colSpan={11} className="pcp-empty">
                       {q
                         ? "No reimbursement matches “" + search.trim() + "”"
                         : statusFilterOn
