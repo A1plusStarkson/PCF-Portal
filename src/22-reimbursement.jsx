@@ -1725,7 +1725,14 @@ function ReimbursementTab({
               <tbody>
                 {filtered.length ? filtered.map((r) => (
                   <tr
-                    key={r.id} className={"pcp-row-click" + (revertHl && (r.status === REIMB_STATUS.FOR_SUBMISSION || reimbEscalationRevert(r)) ? " pcp-revert-hl-row" : "")} tabIndex={0}
+                    /* Status colours (owner's instruction, Oct 2026): light blue once
+                       Fully Approved / Ready for Replenishment or finished (Paid,
+                       Completed), light red when Rejected, yellow for every other
+                       status — from the live status. A reverted row keeps its own
+                       highlight. Same colours as the Liquidation list. */
+                    key={r.id} className={"pcp-row-click" + (revertHl && (r.status === REIMB_STATUS.FOR_SUBMISSION || reimbEscalationRevert(r)) ? " pcp-revert-hl-row"
+                      : [REIMB_STATUS.READY, REIMB_STATUS.PAID, REIMB_STATUS.COMPLETED].includes(r.status) ? " pcp-liq-done"
+                        : r.status === REIMB_STATUS.REJECTED ? " pcp-row-rejected" : " pcp-liq-unliq")} tabIndex={0}
                     title={`Open ${r.reimbNo}`}
                     /* The whole row opens the reimbursement, like the eye
                        button. Clicks on the row's own buttons (view / edit /
