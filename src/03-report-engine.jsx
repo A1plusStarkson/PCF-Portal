@@ -123,6 +123,27 @@ function reportPreparer(doc) {
   return p && p !== "All Plants" && !/,/.test(p) ? `${c} (${p})` : c;
 }
 
+/* Reports with their own signatories (owner's instruction, Oct 2026), by
+   report code; every other report uses the standard block below. "Checked
+   by" names either the Accounting Manager or the Accounting Director. */
+const REPORT_SIGNATURES = {
+  FINALAPP: [
+    { who: "Prepared by:", name: "Rogielyn Mayor", role: "Accounting Staff" },
+    { who: "Checked by:", name: "Aileen Moreno / Jennilyn Villasin", role: "Accounting Manager / Accounting Director" },
+    { who: "Approved by:", name: REPORT_SIGN_APPROVER, role: "" },
+  ],
+};
+/* The signature boxes for a report document: [{ who, name, role }]. */
+function reportSignatures(doc) {
+  const own = doc && doc.reportCode && REPORT_SIGNATURES[doc.reportCode];
+  if (own) return own;
+  return [
+    { who: "Prepared by:", name: reportPreparer(doc), role: "" },
+    { who: "Reviewed by:", name: REPORT_SIGN_REVIEWER, role: "" },
+    { who: "Approved by:", name: REPORT_SIGN_APPROVER, role: "" },
+  ];
+}
+
 /* Reports built from liquidations / reimbursements, where Accounting's
    Batch Number applies — the Batch filter is offered on these only. */
 const BATCH_FILTER_REPORTS = ["LIQ", "FINALAPP", "CUSTAPP", "BATCH", "EXPCAT", "EXPACC"];
@@ -767,9 +788,7 @@ function reportPrintHTML(doc) {
     </tbody>
   </table>
   <div class="sign">
-    <div class="box"><div class="who">Prepared by:</div><div class="line">${esc(reportPreparer(doc)) || "&nbsp;"}</div></div>
-    <div class="box"><div class="who">Reviewed by:</div><div class="line">${esc(REPORT_SIGN_REVIEWER)}</div></div>
-    <div class="box"><div class="who">Approved by:</div><div class="line">${esc(REPORT_SIGN_APPROVER)}</div></div>
+    ${reportSignatures(doc).map((s) => `<div class="box"><div class="who">${esc(s.who)}</div><div class="line">${esc(s.name) || "&nbsp;"}</div>${s.role ? `<div class="role">${esc(s.role)}</div>` : ""}</div>`).join("")}
   </div>
   <script>window.onload=function(){setTimeout(function(){window.print();},350);};window.onafterprint=function(){setTimeout(function(){window.close();},100);};</script>
 </body></html>`;

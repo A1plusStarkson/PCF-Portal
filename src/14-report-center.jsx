@@ -87,6 +87,7 @@ function ManagementReportTab({ funds, requests, disbursements, liquidations, rep
       approver: (profile && profile.approver) || DEFAULT_APPROVER,
       approverRole: (profile && profile.approverRole) || DEFAULT_APPROVER_ROLE,
       preparedBy: preparer,
+      reportCode: def.code, // picks a report's own signatories (REPORT_SIGNATURES)
     };
   }, [def.label, ort, built, meta, reference, watermark, scopeCompany, preparer]);
 
@@ -249,9 +250,13 @@ function ManagementReportTab({ funds, requests, disbursements, liquidations, rep
               <span>Printed on: {nowStamp()} · Page 1 of 1</span>
             </div>
             <div className="pcp-doc-sign">
-              <div className="box"><div className="who">Prepared by:</div><div className="line">{reportPreparer(doc) || " "}</div></div>
-              <div className="box"><div className="who">Reviewed by:</div><div className="line">{REPORT_SIGN_REVIEWER}</div></div>
-              <div className="box"><div className="who">Approved by:</div><div className="line">{REPORT_SIGN_APPROVER}</div></div>
+              {reportSignatures(doc).map((s, i) => (
+                <div className="box" key={i}>
+                  <div className="who">{s.who}</div>
+                  <div className="line">{s.name || " "}</div>
+                  {s.role && <div className="role">{s.role}</div>}
+                </div>
+              ))}
             </div>
           </div>
         </div>
