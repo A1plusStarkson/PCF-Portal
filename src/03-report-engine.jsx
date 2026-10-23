@@ -125,13 +125,22 @@ function reportPreparer(doc) {
 
 /* Reports with their own signatories (owner's instruction, Oct 2026), by
    report code; every other report uses the standard block below. "Checked
-   by" names either the Accounting Manager or the Accounting Director. */
+   by" names the Accounting Supervisor, Manager or Director (any one signs). */
+const ACCOUNTING_SIGNATORIES = [
+  { who: "Prepared by:", name: "Rogielyn Mayor", role: "Accounting Staff" },
+  { who: "Checked by:", name: "Roselyn Bo / Aileen Moreno / Jennilyn Villasin", role: "Accounting Supervisor / Accounting Manager / Accounting Director" },
+  { who: "Approved by:", name: REPORT_SIGN_APPROVER, role: "" },
+];
 const REPORT_SIGNATURES = {
-  FINALAPP: [
-    { who: "Prepared by:", name: "Rogielyn Mayor", role: "Accounting Staff" },
-    { who: "Checked by:", name: "Aileen Moreno / Jennilyn Villasin", role: "Accounting Manager / Accounting Director" },
-    { who: "Approved by:", name: REPORT_SIGN_APPROVER, role: "" },
-  ],
+  /* Report Center types */
+  FINALAPP: ACCOUNTING_SIGNATORIES,   // Approved Liquidation Transactions by Grace Gan
+  REPL: ACCOUNTING_SIGNATORIES,       // Replenishment Report
+  LIQ: ACCOUNTING_SIGNATORIES,        // Liquidation Report
+  OUT: ACCOUNTING_SIGNATORIES,        // Outstanding Liquidation Report
+  /* Module printouts (their documents carry these codes as reportCode) */
+  REPLDETAIL: ACCOUNTING_SIGNATORIES, // Replenishment → Generate PDF Report
+  READYREPL: ACCOUNTING_SIGNATORIES,  // Replenishment → Ready for Replenishment Print / PDF
+  LIQLIST: ACCOUNTING_SIGNATORIES,    // Liquidation → Print / PDF (both tabs)
 };
 /* The signature boxes for a report document: [{ who, name, role }]. */
 function reportSignatures(doc) {
