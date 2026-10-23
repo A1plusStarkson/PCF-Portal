@@ -150,6 +150,7 @@ function EditDisbursementModal({ disbursement, onClose, onSave }) {
 
 const SORT_FIELDS = {
   voucherNo: (d) => d.voucherNo,
+  requestNo: (d) => d.pcrNo,
   date: (d) => d.date,
   employee: (d) => d.employee,
   branchCode: (d) => d.branchCode,
@@ -164,6 +165,7 @@ const SORT_FIELDS = {
 /* Column header filters: the text each cell shows. */
 const LEDGER_COL_TEXT = {
   voucherNo: (d) => cfText(d.voucherNo),
+  requestNo: (d) => cfText(d.pcrNo),
   date: (d) => (d.date ? fmtDate(d.date) : "—"),
   employee: (d) => cfText(d.employee),
   branchCode: (d) => cfText(d.branchCode),
@@ -176,7 +178,7 @@ const LEDGER_COL_TEXT = {
   remarks: (d) => cfText(d.remarks),
 };
 
-function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemarks, onToggleBilled, onEditDisbursement, plantOptions, plantTitle, canEdit = true, canDelete, onDelete }) {
+function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest, onUpdateRemarks, onToggleBilled, onEditDisbursement, plantOptions, plantTitle, canEdit = true, canDelete, onDelete }) {
   const [search, setSearch] = useState("");
   const [branchFilter, setBranchFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -185,23 +187,25 @@ function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemar
   const [editValue, setEditValue] = useState("");
   const [editDisb, setEditDisb] = useState(null);
 
+  /* Request each voucher was released from (PCF Request No. column). */
+  const reqById = useMemo(() => new Map((requests || []).map((r) => [r.id, r])), [requests]);
   const matching = useMemo(() => {
-    let list = disbursements.map((d) => ({ ...d, liqStatus: liqStatusFor(d, liquidations) }));
+    let list = disbursements.map((d) => ({ ...d, liqStatus: liqStatusFor(d, liquidations), pcrNo: pcrNoOf(d, reqById) }));
     if (search) {
       const s = search.toLowerCase();
-      list = list.filter((d) => d.voucherNo.toLowerCase().includes(s) || d.employee.toLowerCase().includes(s));
+      list = list.filter((d) => d.voucherNo.toLowerCase().includes(s) || d.employee.toLowerCase().includes(s) || String(d.pcrNo || "").toLowerCase().includes(s));
     }
     if (branchFilter !== "All") list = list.filter((d) => d.branchCode === branchFilter);
     if (statusFilter !== "All") list = list.filter((d) => d.liqStatus === statusFilter);
     return list;
-  }, [disbursements, liquidations, search, branchFilter, statusFilter]);
+  }, [disbursements, liquidations, reqById, search, branchFilter, statusFilter]);
 
   const cf = useTableColumnFilters(matching, LEDGER_COL_TEXT);
   const rows = sort.sortRows(cf.rows, SORT_FIELDS);
 
   const exportLedger = () => {
     const data = rows.map((d) => ({
-      "Voucher No.": d.voucherNo, "Date": d.date, "Employee": d.employee,
+      "Voucher No.": d.voucherNo, "PCF Request No.": d.pcrNo || "", "Date": d.date, "Employee": d.employee,
       "Branch": d.branchCode, "Company": companyOfBranch(d.branchCode),
       "Department": subaccountLabel(d.department), "Expense": disbExpense(d),
       "Amount": d.amount, "Status": d.status, "Liquidation Status": d.liqStatus, "Remarks": d.remarks || "",
@@ -240,6 +244,7 @@ function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemar
               <thead>
                 <tr>
                   <SortTh field="voucherNo" sort={sort} cf={cf}>Voucher No.</SortTh>
+                  <SortTh field="requestNo" sort={sort} cf={cf}>PCF Request No.</SortTh>
                   <SortTh field="date" sort={sort} cf={cf}>Date</SortTh>
                   <SortTh field="employee" sort={sort} cf={cf}>Employee</SortTh>
                   <SortTh field="branchCode" sort={sort} cf={cf}>Branch</SortTh>
@@ -257,6 +262,7 @@ function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemar
                 {rows.length ? rows.map((d) => (
                   <tr key={d.id}>
                     <td><strong>{d.voucherNo}</strong><PrevNo rec={d} /></td>
+                    <td><RequestNoLink disb={d} reqById={reqById} onOpen={onOpenRequest} /></td>
                     <td>{fmtDate(d.date)}</td>
                     <td><strong>{d.employee}</strong></td>
                     <td>{d.branchCode}</td>
@@ -304,7 +310,7 @@ function DisbursementsTab({ disbursements, liquidations, requests, onUpdateRemar
                       </div>
                     </td>
                   </tr>
-                )) : <tr><td colSpan={12} className="pcp-empty">No disbursements match your filters</td></tr>}
+                )) : <tr><td colSpan={13} className="pcp-empty">No disbursements match your filters</td></tr>}
               </tbody>
             </table>
           </div>

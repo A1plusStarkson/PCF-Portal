@@ -1429,6 +1429,12 @@ const CSS = `
   .pcp-colf-all { font-weight: 600; }
   .pcp-colf-empty { padding: 8px 4px; color: var(--text-mut); }
   .pcp-colf-foot { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; }
+  /* A record number that opens its source record (RequestNoLink). */
+  .pcp-linkcell {
+    background: none; border: 0; padding: 0; font: inherit; font-weight: 600; cursor: pointer; white-space: nowrap;
+    color: var(--dm-filter-title, #0e7490); text-decoration: underline; text-underline-offset: 2px;
+  }
+  .pcp-linkcell:hover { color: var(--brand); }
 
   .pcp-detail-card { background: var(--dm-surface, #fff); border: 1px solid var(--line); border-left: 3px solid var(--brand); border-radius: 8px; padding: 14px 16px; margin: 2px 0 6px; }
   .pcp-detail-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 20px; font-size: 12px; }
@@ -2223,6 +2229,26 @@ function ColFiltersClear({ cf }) {
   return (
     <button type="button" className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={cf.clear} title="Clear every column filter">
       <X size={12} /> Clear column filters ({cf.count})
+    </button>
+  );
+}
+/* ---- Petty Cash Request No. link (owner's instruction, Oct 2026) ----
+   The request a voucher was released from, clickable in the Release Ledger
+   and Liquidation lists: it opens Petty Cash Requests showing exactly that
+   request (onOpen). Read-only; clicking never changes a record. */
+const pcrNoOf = (disb, reqById) => {
+  const req = disb && reqById ? reqById.get(disb.requestId) : null;
+  return (req && req.requestNo) || (disb && disb.requestNo) || "";
+};
+function RequestNoLink({ disb, reqById, onOpen }) {
+  const req = disb && reqById ? reqById.get(disb.requestId) : null;
+  const no = pcrNoOf(disb, reqById);
+  if (!no) return <span style={{ color: "var(--text-mut)" }}>—</span>;
+  if (!req || !onOpen) return <span>{no}</span>;
+  return (
+    <button type="button" className="pcp-linkcell" title={`Open Petty Cash Request ${no}`}
+      onClick={(e) => { e.stopPropagation(); onOpen(req); }}>
+      {no}
     </button>
   );
 }

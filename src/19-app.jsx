@@ -2631,6 +2631,13 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     setDashFilter({ module, ids: new Set(list.map((r) => r.id)), label, at: Date.now() });
     navigate(target);
   }, [tab, allowedTabs, navigate]);
+  /* PCF Request No. link (Release Ledger, Liquidation): opens Petty Cash
+     Requests showing exactly that request, under the usual clearable banner.
+     Off for an account without the Requests module. */
+  const canOpenRequests = Array.from(allowedTabs || []).some((t) => parseTab(t).module === "requests");
+  const openRequestRecord = useCallback((req) => {
+    if (req) openFiltered("requests", [req], `Petty Cash Request ${req.requestNo}`);
+  }, [openFiltered]);
   useEffect(() => {
     if (dashFilter && parseTab(tab).module !== dashFilter.module) setDashFilter(null);
   }, [tab]); // eslint-disable-line
@@ -3010,6 +3017,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
           <DisbursementsTab
             key={tab}
             disbursements={scopedDisbursements} liquidations={scopedLiquidations} requests={scopedRequests}
+            onOpenRequest={canOpenRequests ? openRequestRecord : undefined}
             onUpdateRemarks={updateRemarks} onToggleBilled={toggleBilled} onEditDisbursement={editDisbursement}
             plantOptions={scopedPlantOptions}
             plantTitle={activePlantLabel}
@@ -3020,6 +3028,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
         {activeModule === "liquidation" && (
           <LiquidationTab
             key={tab}
+            requests={scopedRequests} onOpenRequest={canOpenRequests ? openRequestRecord : undefined}
             canBatchFilter={canLiqBatchFilter}
             disbursements={scopedDisbursements} liquidations={scopedLiquidations}
             onSaveLiquidation={saveLiquidation} onExport={exportLiquidation}

@@ -465,6 +465,7 @@ const fmtTxnRange = (t) => (!t || !t.first ? "" : t.first === t.last ? fmtDate(t
 
 const LIQ_PETTY_SORT_FIELDS = {
   voucherNo: (d) => d.voucherNo,
+  requestNo: (d) => d.pcrNo,
   date: (d) => d.date,
   /* TRANSACTION / OR DATE view (TXN_DATE_EMAILS): the earliest expense-line
      date, falling back to the voucher date while no line is dated. */
@@ -2568,7 +2569,7 @@ function LiquidationTab({
   reimbursements, onReimbursementAction, canFinance, accounting,
   canEditReimb, canDeleteReimbDocs, canAuthorizeReimbVariance, onUpdateReimbursement, allReimbursements,
   canRevert, onRevertLiquidation, canRequestorEdit, onRequestorEdit,
-  openRequest, onOpenHandled, dashFilter, onClearDashFilter, canBatchFilter,
+  openRequest, onOpenHandled, dashFilter, onClearDashFilter, canBatchFilter, requests, onOpenRequest,
 }) {
   const [acctFilter, setAcctFilter] = useState(accounting && accounting.isChecker ? "For Accounting Check" : "All");
   const [batchFilter, setBatchFilter] = useState(LIQ_ALL_BATCHES);
@@ -2625,8 +2626,11 @@ function LiquidationTab({
   }, [dashFilter]);
 
   const scoped = plant === "ALL" ? disbursements : disbursements.filter((d) => d.branchCode === plant);
+  /* Request each voucher was released from (PCF Request No. column). */
+  const reqById = useMemo(() => new Map((requests || []).map((r) => [r.id, r])), [requests]);
   const enriched = scoped.map((d) => ({
     ...d,
+    pcrNo: pcrNoOf(d, reqById),
     liqStatus: liqStatusFor(d, liquidations),
     /* Liquidated Amount column: the voucher's encoded expense lines — the
        same figure as the dashboard's Total Liquidated. */
@@ -2690,6 +2694,7 @@ function LiquidationTab({
      be picked straight from its column. */
   const PETTY_COL_TEXT = {
     voucherNo: (d) => colText(d.voucherNo),
+    requestNo: (d) => colText(d.pcrNo),
     date: (d) => (d.date ? fmtDate(d.date) : "—"),
     txnDate: (d) => (d.txn.first ? fmtTxnRange(d.txn) : "—"),
     employee: (d) => colText(d.employee),
@@ -2706,7 +2711,7 @@ function LiquidationTab({
     ...LIQ_ACCT_COL_TEXT,
   };
   const pettyPipe = (base) => base
-    .filter((d) => hit(d.voucherNo, d.requestNo, d.employee, d.branchCode, plantLabel(d.branchCode),
+    .filter((d) => hit(d.voucherNo, d.requestNo, d.pcrNo, d.employee, d.branchCode, plantLabel(d.branchCode),
       subaccountLabel(d.department), disbExpense(d), d.liqStatus, d.finalStatus, d.acct.batchNo))
     .filter((d) => acctMatch(d.acct, d.stage === LIQ_STAGE.FOR_ACCOUNTING, d.acctMode))
     .filter((d) => batchFinalMatch(d.acct))
@@ -2936,6 +2941,7 @@ function LiquidationTab({
                         onChange={() => togglePick(pettyKeys, !allPettyPicked)} title="Select all shown" />
                     </th>
                     <SortTh field="voucherNo" sort={pettySort} filter={pettyCol("voucherNo", "Voucher No.")}>Voucher No.</SortTh>
+                    <SortTh field="requestNo" sort={pettySort} filter={pettyCol("requestNo", "PCF Request No.")}>PCF Request No.</SortTh>
                     {txnDateLabels
                       ? <SortTh field="txnDate" sort={pettySort} filter={pettyCol("txnDate", "Transaction / OR Date")}>Transaction / OR Date</SortTh>
                       : <SortTh field="date" sort={pettySort} filter={pettyCol("date", "Date")}>Date</SortTh>}
@@ -2962,6 +2968,7 @@ function LiquidationTab({
                         {revertHighlight && d.reverted && <div><span className="pcp-revert-hl-tag">Reverted — Action Required</span></div>}
                         {revertHighlight && d.escRevert && <div><EscalationRevertTag marker={d.escRevert} /></div>}
                       </td>
+                      <td><RequestNoLink disb={d} reqById={reqById} onOpen={onOpenRequest} /></td>
                       {txnDateLabels ? (
                         <td title={d.txn.first ? "Transaction / OR Date of the expense lines" : `No dated expense line yet · voucher released ${fmtDate(d.date)}`}>
                           {d.txn.first ? fmtTxnRange(d.txn) : <span style={{ color: "var(--text-mut)" }}>—</span>}
@@ -2997,7 +3004,7 @@ function LiquidationTab({
                       </td>
                     </tr>
                   )) : (
-                    <tr><td colSpan={13} className="pcp-empty">
+                    <tr><td colSpan={14} className="pcp-empty">
                       {q
                         ? "No cash advance matches “" + search.trim() + "”"
                         : statusFilterOn
