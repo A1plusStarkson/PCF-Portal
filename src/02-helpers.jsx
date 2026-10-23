@@ -1046,6 +1046,7 @@ const RECEIPT_DOC_TYPES = [
   "Delivery Receipt",
   "Provisional Receipt",
   "Billing Statement",
+  "Topsheet",
   "Other Supporting Document",
 ];
 const DEFAULT_DOC_TYPE = "Official Receipt";
@@ -1055,7 +1056,9 @@ const DEFAULT_DOC_TYPE = "Official Receipt";
    Receipt Amount is optional — still counted if one is entered, but never
    required and never a reason to block submission. Add a type here to exempt
    it. */
-const NON_AMOUNT_DOC_TYPES = ["Other Supporting Document"];
+/* Topsheet (Oct 2026): a summary of the receipts uploaded alongside it, so
+   it has no amount of its own — entering its total would count it twice. */
+const NON_AMOUNT_DOC_TYPES = ["Other Supporting Document", "Topsheet"];
 const docRequiresAmount = (a) => !NON_AMOUNT_DOC_TYPES.includes((a && a.docType) || DEFAULT_DOC_TYPE);
 
 /* Peso amounts are held to centavos so comparisons never fail on float dust. */
