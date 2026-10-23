@@ -2571,7 +2571,9 @@ function LiquidationTab({
   canRevert, onRevertLiquidation, canRequestorEdit, onRequestorEdit,
   openRequest, onOpenHandled, dashFilter, onClearDashFilter, canBatchFilter, requests, onOpenRequest,
 }) {
-  const [acctFilter, setAcctFilter] = useState(accounting && accounting.isChecker ? "For Accounting Check" : "All");
+  /* Opens on "All" for everyone, Accounting included (owner's instruction,
+     Oct 2026); "For Accounting Check" is one pick away. */
+  const [acctFilter, setAcctFilter] = useState("All");
   const [batchFilter, setBatchFilter] = useState(LIQ_ALL_BATCHES);
   const [finalFilter, setFinalFilter] = useState("All");
   /* Per-column header filters, one set per tab. */
