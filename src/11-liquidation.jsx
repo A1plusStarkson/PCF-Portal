@@ -696,7 +696,13 @@ function RecordSettlementModal({ disbursement, st, currentUser, onClose, onConfi
                 <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => setAckFile(null)}><X size={12} /></button>
               </div>
             ) : (
-              <input type="file" accept="image/*,application/pdf" onChange={(e) => pickAck(e.target.files && e.target.files[0])} style={{ fontSize: 12 }} />
+              /* One acknowledgment per settlement: a drop takes the first file. */
+              <FileDropZone onFiles={(fl) => pickAck(fl && fl[0])} label="Drop the signed acknowledgment here">
+                <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", padding: "6px 0" }}>
+                  <input type="file" accept="image/*,application/pdf" onChange={(e) => pickAck(e.target.files && e.target.files[0])} style={{ fontSize: 12 }} />
+                  <span className="pcp-drop-hint">or drag &amp; drop it here</span>
+                </div>
+              </FileDropZone>
             )}
             {uploadNote && <div style={{ fontSize: 11, color: "var(--danger)", marginTop: 4 }}>{uploadNote}</div>}
           </div>
@@ -1158,23 +1164,28 @@ function LiquidationWorksheet({
   const onPickFiles = (fileList) => {
     const picked = Array.from(fileList || []);
     if (!picked.length) return;
+    if (!canAddDocs) return;
+    /* Every picked or dropped file gets its own line in the upload status
+       window: uploading → uploaded / failed with the reason. */
+    const batch = startUploadBatch(picked, `Liquidation ${disbursement.voucherNo}`);
     const { ok: files, note: sizeNote } = splitBySizeLimit(picked);
-    if (sizeNote) toastUploadRefused(sizeNote);
+    picked.forEach((f, i) => { if (!files.includes(f)) batch.done(i, false, sizeRefusalFor(f)); });
     setUploadNote(sizeNote);
+    if (files.length && !fileStore()) {
+      picked.forEach((f, i) => { if (files.includes(f)) batch.done(i, false, STALE_PAGE_NOTE); });
+      setUploadNote(STALE_PAGE_NOTE);
+      return;
+    }
     files.forEach((file) => {
       /* The bytes go to the Storage bucket and the record keeps only the
          path. Nothing is added to the worksheet until the upload SUCCEEDS —
          an attachment row pointing at bytes that were never stored is worse
          than no attachment at all, because it looks liquidated. */
-      if (!fileStore()) { setUploadNote(STALE_PAGE_NOTE); toastUploadRefused(STALE_PAGE_NOTE); return; }
+      const idx = picked.indexOf(file);
       const attId = uid("att");
-      setUploadNote(sizeNote || `Uploading "${file.name}"…`);
-      storeFile(attId, file).then((path) => {
-        if (!path) {
-          setUploadNote(`"${file.name}" could not be uploaded. Check your connection and try again.` + (sizeNote ? " " + sizeNote : ""));
-          return;
-        }
-        setUploadNote(sizeNote);
+      storeFile(attId, file, { quiet: true }).then((path) => {
+        if (!path) { batch.done(idx, false, uploadFailReason()); return; }
+        batch.done(idx, true);
         const doc = {
           id: attId, name: file.name, type: file.type || "file",
           size: file.size, path, uploadedAt: todayISO(),
@@ -1540,7 +1551,7 @@ function LiquidationWorksheet({
   };
 
   return (
-    <div>
+    <FileDropZone onFiles={onPickFiles} disabled={!canAddDocs} label="Drop receipts here to attach them to this liquidation">
       {/* Sticky summary + action bar so Finance always sees the key figures and
           primary actions without scrolling (Section 25). */}
       <div className="pcp-liq-sticky">
@@ -2226,6 +2237,7 @@ function LiquidationWorksheet({
                 onChange={(e) => { onPickFiles(e.target.files); e.target.value = ""; }}
               />
             </label>
+            {canAddDocs && <span className="pcp-drop-hint">or drag &amp; drop files here</span>}
           </div>
         </div>
 
@@ -2444,7 +2456,7 @@ function LiquidationWorksheet({
           onConfirm={handleCloseShortage}
         />
       )}
-    </div>
+    </FileDropZone>
   );
 }
 

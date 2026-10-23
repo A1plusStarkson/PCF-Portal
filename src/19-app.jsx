@@ -2885,6 +2885,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     <div className={"pcp-root" + (loginFx ? " pcp-login-fx" : "")}>
       <style>{CSS}</style>
       <ToastHost />
+      <UploadStatusHost />
       {loginNotice && <LoginSuccessModal info={loginNotice} onClose={() => setLoginNotice(null)} />}
       {/* Shared Finance account: pick who is working before anything else, so
           every action is recorded under that person's own name (userName

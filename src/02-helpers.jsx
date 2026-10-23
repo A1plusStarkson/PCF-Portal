@@ -559,6 +559,26 @@ const toastUploadFailed = (name, reason) => showToast("error", "File upload fail
   `${name ? `"${name}" was not uploaded.` : "The file was not uploaded."}${reason ? ` Reason: ${reason}` : ""}`);
 const toastUploadRefused = (reason) => showToast("warning", "File was not uploaded. Please check the file and try again.", reason);
 
+/* ---- Upload status, file by file (owner's instruction, Oct 2026) ----
+   Every upload area reports each picked or dropped file on its own line in
+   the upload status window (<UploadStatusHost /> in 07-styles.jsx): uploading,
+   uploaded, or failed with the reason. The window stays open while anything
+   failed, so the user can see exactly which files to upload again — the
+   four-item toast stack could push an early failure out of sight.
+   startUploadBatch(files, title) opens a batch; call .done(index, ok, reason)
+   once per file, in any order. */
+const UPLOAD_STATUS_EVENT = "pcp-upload-status";
+function startUploadBatch(files, title) {
+  const id = uid("upl");
+  const send = (d) => {
+    try { window.dispatchEvent(new CustomEvent(UPLOAD_STATUS_EVENT, { detail: { id, ...d } })); } catch (e) { /* no window */ }
+  };
+  send({ op: "start", title: title || "", files: (files || []).map((f) => ({ name: (f && f.name) || "file", size: (f && f.size) || 0 })) });
+  return { done: (index, ok, reason) => send({ op: "done", index, ok: !!ok, reason: ok ? "" : String(reason || "") }) };
+}
+/* Why one file was refused before uploading: too large, else not given. */
+const sizeRefusalFor = (file) => (isTooLargeToUpload(file) ? `larger than the ${MAX_UPLOAD_MB} MB limit (${(file.size / 1048576).toFixed(1)} MB).` : "");
+
 /* Plain-language reason for a failed upload. */
 function uploadFailReason() {
   if (typeof navigator !== "undefined" && navigator.onLine === false) return "you appear to be offline. Check your internet connection.";

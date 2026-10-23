@@ -605,6 +605,42 @@ const CSS = `
   .pcp-toast-icon { flex-shrink: 0; margin-top: 1px; }
   .pcp-toast-title { font-weight: 800; font-size: 13.5px; }
   .pcp-toast-detail { font-size: 12px; margin-top: 2px; line-height: 1.4; word-break: break-word; }
+  /* Upload status window (UploadStatusHost) — bottom right, above modals. */
+  .pcp-upl-host { position: fixed; right: 16px; bottom: 16px; z-index: 1400; display: flex; flex-direction: column; gap: 10px; width: min(380px, calc(100vw - 32px)); font-family: var(--font-ui); }
+  .pcp-upl { background: var(--dm-surface, #fff); color: var(--text); border: 2px solid var(--line); border-radius: 12px; box-shadow: 0 12px 32px rgba(0,0,0,0.22); overflow: hidden; }
+  .pcp-upl-busy { border-color: #2f64a6; }
+  .pcp-upl-ok { border-color: #1f8f4e; }
+  .pcp-upl-fail { border-color: #c62828; }
+  .pcp-upl-head { display: flex; align-items: flex-start; gap: 9px; padding: 10px 10px 8px 12px; }
+  .pcp-upl-busy .pcp-upl-head { background: #e8f0fa; color: #1d4677; }
+  .pcp-upl-ok .pcp-upl-head { background: #eaf7ef; color: #11532d; }
+  .pcp-upl-fail .pcp-upl-head { background: #fdecec; color: #7f1414; }
+  .pcp-upl-title { font-weight: 700; font-size: 13px; }
+  .pcp-upl-sub { font-size: 11px; opacity: 0.8; margin-top: 1px; }
+  .pcp-upl-list { max-height: 260px; overflow-y: auto; padding: 4px 6px 6px; }
+  .pcp-upl-row { display: flex; align-items: flex-start; gap: 8px; padding: 6px; border-bottom: 1px solid var(--line-soft); font-size: 12px; }
+  .pcp-upl-row:last-child { border-bottom: none; }
+  .pcp-upl-ico { flex-shrink: 0; margin-top: 2px; }
+  .pcp-upl-row.ok .pcp-upl-ico { color: #1f8f4e; }
+  .pcp-upl-row.fail .pcp-upl-ico { color: #c62828; }
+  .pcp-upl-row.uploading .pcp-upl-ico { color: #2f64a6; }
+  .pcp-upl-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pcp-upl-state { font-size: 11px; color: var(--text-mut); }
+  .pcp-upl-row.fail .pcp-upl-state { color: #c62828; font-weight: 600; }
+  .pcp-spin { animation: pcp-spin 0.9s linear infinite; }
+  @keyframes pcp-spin { to { transform: rotate(360deg); } }
+  [data-theme="dark"] .pcp-upl-busy .pcp-upl-head { background: #182a40; color: #82b2ec; }
+  [data-theme="dark"] .pcp-upl-ok .pcp-upl-head { background: #173424; color: #62c68b; }
+  [data-theme="dark"] .pcp-upl-fail .pcp-upl-head { background: #3a1f1d; color: #f29a91; }
+  /* Drag-and-drop upload area (FileDropZone). */
+  .pcp-dropzone { position: relative; }
+  .pcp-dropzone-veil {
+    position: absolute; inset: 0; z-index: 30; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+    border: 3px dashed #e0a800; border-radius: 12px; background: rgba(255, 244, 196, 0.88); color: #5a3d04;
+    font-weight: 700; font-size: 15px; pointer-events: none; text-align: center; padding: 12px;
+  }
+  [data-theme="dark"] .pcp-dropzone-veil { background: rgba(58, 49, 20, 0.9); color: #ffe08a; }
+  .pcp-drop-hint { font-size: 11px; color: var(--text-mut); }
   .pcp-toast-x { flex-shrink: 0; border: none; background: transparent; color: inherit; cursor: pointer; padding: 2px; opacity: 0.7; }
   .pcp-toast-x:hover { opacity: 1; }
   @keyframes pcpToastIn { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
@@ -1979,6 +2015,128 @@ function ToastHost() {
           </div>
         );
       })}
+    </div>
+  );
+}
+
+/* ---- Upload status window (startUploadBatch in 02-helpers.jsx) ----
+   Bottom-right, above every modal. One card per upload batch, one line per
+   file: uploading → uploaded / failed with the reason. A batch where every
+   file uploaded closes itself after 6 s; a batch with any failure stays until
+   closed, so the files to upload again are never lost from view. Also stops
+   the browser from opening a file dropped outside an upload area (which would
+   navigate away from the portal and lose unsaved work). */
+function UploadStatusHost() {
+  const [batches, setBatches] = useState([]);
+  useEffect(() => {
+    const timers = new Set();
+    const onEvent = (e) => {
+      const d = (e && e.detail) || {};
+      setBatches((bs) => {
+        if (d.op === "start") {
+          const b = { id: d.id, title: d.title, files: (d.files || []).map((f) => ({ ...f, status: "uploading", reason: "" })) };
+          return [...bs.slice(-2), b];
+        }
+        return bs.map((b) => {
+          if (b.id !== d.id) return b;
+          const files = b.files.map((f, i) => (i === d.index ? { ...f, status: d.ok ? "ok" : "fail", reason: d.reason } : f));
+          const finished = files.every((f) => f.status !== "uploading");
+          if (finished && !b.finished) {
+            const allOk = files.every((f) => f.status === "ok");
+            playSound(allOk ? "chime" : "attention");
+            if (allOk) {
+              const h = setTimeout(() => { timers.delete(h); setBatches((xs) => xs.filter((x) => x.id !== b.id)); }, 6000);
+              timers.add(h);
+            }
+          }
+          return { ...b, files, finished };
+        });
+      });
+    };
+    /* A file dropped anywhere that is not an upload area does nothing. */
+    const isFileDrag = (e) => Array.from((e.dataTransfer && e.dataTransfer.types) || []).includes("Files");
+    const guard = (e) => { if (isFileDrag(e)) e.preventDefault(); };
+    window.addEventListener(UPLOAD_STATUS_EVENT, onEvent);
+    window.addEventListener("dragover", guard);
+    window.addEventListener("drop", guard);
+    return () => {
+      window.removeEventListener(UPLOAD_STATUS_EVENT, onEvent);
+      window.removeEventListener("dragover", guard);
+      window.removeEventListener("drop", guard);
+      timers.forEach(clearTimeout);
+    };
+  }, []);
+  if (!batches.length) return null;
+  return (
+    <div className="pcp-upl-host" role="status" aria-live="polite">
+      {batches.map((b) => {
+        const ok = b.files.filter((f) => f.status === "ok").length;
+        const failed = b.files.filter((f) => f.status === "fail").length;
+        const busy = b.files.length - ok - failed;
+        const tone = busy ? "busy" : failed ? "fail" : "ok";
+        return (
+          <div key={b.id} className={"pcp-upl pcp-upl-" + tone}>
+            <div className="pcp-upl-head">
+              <UploadCloud size={16} />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="pcp-upl-title">
+                  {busy ? `Uploading… ${ok + failed} of ${b.files.length} done`
+                    : failed ? `${failed} of ${b.files.length} file${b.files.length === 1 ? "" : "s"} failed — upload ${failed === 1 ? "it" : "them"} again`
+                      : `${ok} file${ok === 1 ? "" : "s"} uploaded successfully`}
+                </div>
+                {b.title && <div className="pcp-upl-sub">{b.title}</div>}
+              </div>
+              <button type="button" className="pcp-toast-x" title="Close" onClick={() => setBatches((xs) => xs.filter((x) => x.id !== b.id))}><X size={15} /></button>
+            </div>
+            <div className="pcp-upl-list">
+              {b.files.map((f, i) => (
+                <div key={i} className={"pcp-upl-row " + f.status}>
+                  <span className="pcp-upl-ico">{f.status === "ok" ? <CircleCheck size={14} /> : f.status === "fail" ? <X size={14} /> : <RefreshCw size={13} className="pcp-spin" />}</span>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div className="pcp-upl-name" title={f.name}>{f.name}</div>
+                    <div className="pcp-upl-state">
+                      {f.status === "ok" ? "Uploaded" : f.status === "fail" ? `Failed${f.reason ? " — " + f.reason : ""}` : "Uploading…"}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ---- Drag-and-drop upload area (owner's instruction, Oct 2026) ----
+   Wraps an upload area: files dragged over it show a "drop here" veil, and
+   dropping hands them to onFiles exactly like the file picker does. Off
+   while `disabled` (same rule as the Upload button it sits with). */
+function FileDropZone({ onFiles, disabled, label, children, style }) {
+  const [over, setOver] = useState(false);
+  const depth = useRef(0);
+  const isFileDrag = (e) => Array.from((e.dataTransfer && e.dataTransfer.types) || []).includes("Files");
+  const on = (e) => !disabled && !!onFiles && isFileDrag(e);
+  const enter = (e) => { if (!on(e)) return; e.preventDefault(); depth.current += 1; setOver(true); };
+  const overIt = (e) => { if (!on(e)) return; e.preventDefault(); e.dataTransfer.dropEffect = "copy"; };
+  const leave = (e) => { if (!on(e)) return; depth.current = Math.max(0, depth.current - 1); if (!depth.current) setOver(false); };
+  const drop = (e) => {
+    if (!on(e)) return;
+    e.preventDefault();
+    depth.current = 0; setOver(false);
+    const files = e.dataTransfer.files;
+    if (files && files.length) onFiles(files);
+  };
+  return (
+    <div className={"pcp-dropzone" + (over ? " over" : "")} style={style}
+      onDragEnter={enter} onDragOver={overIt} onDragLeave={leave} onDrop={drop}>
+      {children}
+      {over && (
+        <div className="pcp-dropzone-veil">
+          <UploadCloud size={30} />
+          <span>{label || "Drop files here to upload"}</span>
+        </div>
+      )}
     </div>
   );
 }

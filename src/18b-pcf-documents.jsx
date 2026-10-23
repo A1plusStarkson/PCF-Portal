@@ -230,35 +230,42 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
     if (!canUpload) { setNotice("You do not have permission to upload documents."); return; }
     const files = Array.from(fileList || []);
     if (!files.length) return;
+    /* Every picked or dropped file gets its own line in the upload status
+       window: refused (type / size), uploading → uploaded / failed. */
+    const tracker = startUploadBatch(files, "PCF Documents");
     const supported = files.filter(isSupportedDoc);
     const rejected = files.length - supported.length;
     const typeNote = `Unsupported file type. Allowed: ${DOC_EXTS.join(", ").toUpperCase()}.`;
-    if (!supported.length) { setNotice(typeNote); toastUploadRefused(typeNote); return; }
-    if (rejected) toastUploadRefused(`${rejected} file(s) skipped — ${typeNote}`);
+    files.forEach((f, i) => { if (!isSupportedDoc(f)) tracker.done(i, false, `unsupported file type. Allowed: ${DOC_EXTS.join(", ").toUpperCase()}.`); });
+    if (!supported.length) { setNotice(typeNote); return; }
     /* Size limit is checked before anything is uploaded. */
     const { ok: valid, note: sizeNote } = splitBySizeLimit(supported);
-    if (sizeNote) toastUploadRefused(sizeNote);
+    supported.forEach((f) => { if (!valid.includes(f)) tracker.done(files.indexOf(f), false, sizeRefusalFor(f)); });
     if (!valid.length) { setNotice(sizeNote); return; }
 
-    if (!fileStore()) { setNotice(STALE_PAGE_NOTE); toastUploadRefused(STALE_PAGE_NOTE); return; }
+    if (!fileStore()) {
+      valid.forEach((f) => tracker.done(files.indexOf(f), false, STALE_PAGE_NOTE));
+      setNotice(STALE_PAGE_NOTE);
+      return;
+    }
     setUploading(true); setProgress(0);
     const built = [];
     let done = 0;
     /* Numbered from the FULL document count — `documents` may be only the
        plants this user can see. */
     const baseSeq = (allDocCount != null ? allDocCount : (documents ? documents.length : 0)) + 1;
-    let failed = 0, failReason = "";
-    /* Several files: one summary pop-up at the end instead of one per file. */
-    const batch = valid.length > 1;
+    let failed = 0;
     valid.forEach((file, idx) => {
       /* Bytes go to the Storage bucket; the record keeps only the path. A
          failed upload adds nothing — a document row with no file behind it
          reads as filed when it is not. */
       const docId = uid("doc");
-      storeFile(docId, file, { quiet: batch }).then((path) => {
+      const at = files.indexOf(file);
+      storeFile(docId, file, { quiet: true }).then((path) => {
         const ts = nowTs();
-        if (!path) { failed++; if (batch && !failReason) failReason = uploadFailReason(); }
-        else built.push({
+        if (!path) { failed++; tracker.done(at, false, uploadFailReason()); }
+        else tracker.done(at, true);
+        if (path) built.push({
           id: docId,
           refNo: makeDocRef(baseSeq + idx),
           name: file.name,
@@ -285,10 +292,7 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
         if (done === valid.length) {
           if (built.length) onAdd(built);
           setUploading(false); setProgress(0);
-          if (batch) {
-            if (!failed) showToast("success", "File uploaded successfully.", `All ${built.length} files were accepted and stored by the PCF Portal.`);
-            else showToast("error", "File upload failed. Please try again.", `${failed} of ${valid.length} files were not uploaded${failReason ? ` — ${failReason}` : "."}${built.length ? ` ${built.length} uploaded successfully.` : ""}`);
-          }
+          /* The outcome of each file is in the upload status window. */
           setNotice(
             `${built.length} document${built.length === 1 ? "" : "s"} uploaded`
             + (rejected ? ` · ${rejected} unsupported file(s) skipped` : "")

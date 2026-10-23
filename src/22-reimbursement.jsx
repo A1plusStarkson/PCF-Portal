@@ -673,24 +673,28 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
   const onPickFiles = (fileList, docType) => {
     const picked = Array.from(fileList || []);
     if (!picked.length) return;
-    /* Oversized files are refused before anything is uploaded; their message
-       stays on screen while the other files finish. */
+    if (!canDeleteDocs) return; // same rule as the Upload button (canManageDocs)
+    /* Every picked or dropped file gets its own line in the upload status
+       window: uploading → uploaded / failed with the reason. Oversized files
+       are refused before anything is uploaded. */
+    const batch = startUploadBatch(picked, reimb && reimb.reimbNo ? `Reimbursement ${reimb.reimbNo}` : "Reimbursement");
     const { ok: files, note: sizeNote } = splitBySizeLimit(picked);
-    if (sizeNote) toastUploadRefused(sizeNote);
+    picked.forEach((f, i) => { if (!files.includes(f)) batch.done(i, false, sizeRefusalFor(f)); });
     setUploadNote(sizeNote);
+    if (files.length && !fileStore()) {
+      picked.forEach((f, i) => { if (files.includes(f)) batch.done(i, false, STALE_PAGE_NOTE); });
+      setUploadNote(STALE_PAGE_NOTE);
+      return;
+    }
     files.forEach((file) => {
       /* Bytes go to the Storage bucket — the record carries only the path.
          The attachment is added only after the upload succeeds, so a form can
          never reference bytes that were never stored. */
-      if (!fileStore()) { setUploadNote(STALE_PAGE_NOTE); toastUploadRefused(STALE_PAGE_NOTE); return; }
+      const idx = picked.indexOf(file);
       const attId = uid("ratt");
-      setUploadNote(sizeNote || `Uploading "${file.name}"…`);
-      storeFile(attId, file).then((path) => {
-        if (!path) {
-          setUploadNote(`"${file.name}" could not be uploaded. Check your connection and try again.` + (sizeNote ? " " + sizeNote : ""));
-          return;
-        }
-        setUploadNote(sizeNote);
+      storeFile(attId, file, { quiet: true }).then((path) => {
+        if (!path) { batch.done(idx, false, uploadFailReason()); return; }
+        batch.done(idx, true);
         const doc = {
           id: attId, name: file.name, type: file.type || "file", size: file.size,
           path, uploadedAt: todayISO(), docType: docType || DEFAULT_DOC_TYPE, receiptNo: "", receiptAmount: "",
@@ -768,6 +772,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
           <h3>{isEdit ? `Edit Reimbursement · ${reimb.reimbNo}` : "New Reimbursement Request"}</h3>
           <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose}><X size={15} /></button>
         </div>
+        <FileDropZone onFiles={onPickFiles} disabled={!canManageDocs} label="Drop receipts or documents here to attach them">
         <div className="pcp-modal-body">
           {isEdit && <ReimbRevertNotice reimb={reimb} />}
           <Stepper />
@@ -988,10 +993,13 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                 <div style={{ fontSize: 13, fontWeight: 600 }}>Uploaded Files ({form.attachments.length})</div>
                 {canManageDocs ? (
-                  <label className="pcp-btn pcp-btn-sm" style={{ cursor: "pointer", margin: 0 }} title="Attach supporting documents (images or PDF)">
-                    <Upload size={13} /> Upload
-                    <input type="file" hidden multiple accept="image/*,application/pdf" onChange={(e) => { onPickFiles(e.target.files); e.target.value = ""; }} />
-                  </label>
+                  <span style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+                    <label className="pcp-btn pcp-btn-sm" style={{ cursor: "pointer", margin: 0 }} title="Attach supporting documents (images or PDF) — several at once, or drag and drop">
+                      <Upload size={13} /> Upload
+                      <input type="file" hidden multiple accept="image/*,application/pdf" onChange={(e) => { onPickFiles(e.target.files); e.target.value = ""; }} />
+                    </label>
+                    <span className="pcp-drop-hint">or drag &amp; drop files here</span>
+                  </span>
                 ) : (
                   <span style={{ fontSize: 11.5, color: "var(--text-mut)" }}>Read-only — your account cannot change the uploaded files.</span>
                 )}
@@ -1172,6 +1180,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
             </div>
           )}
         </div>
+        </FileDropZone>
         <div className="pcp-modal-foot" style={{ justifyContent: "space-between" }}>
           <div style={{ display: "flex", gap: 8 }}>
             <button className="pcp-btn" onClick={() => setStep((s) => Math.max(1, s - 1))} disabled={step === 1}>Back</button>
