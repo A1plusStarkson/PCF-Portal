@@ -31,20 +31,117 @@ function EditBalancesModal({ funds, onClose, onSave }) {
 
 /* ============================= LIQUIDATION AGING ============================= */
 
-/* Calendar days after cash release that a liquidation is due. The aging engine
-   is intentionally data-driven: it derives the plant list from live disbursement
-   and fund (master data) records, so a newly created plant in Funds & Master
-   Data automatically appears in the aging report, dashboard, charts and exports
-   with no code change. */
+/* WORKING days after cash is received that a liquidation is due (owner's
+   instruction, Oct 2026 — was 5 calendar days). Saturdays, Sundays and
+   official holidays are not counted, so the deadline always lands on a
+   working day: cash received on a Monday with no holiday in between is due
+   the following Monday. The aging engine is intentionally data-driven: it
+   derives the plant list from live disbursement and fund (master data)
+   records, so a newly created plant in Funds & Master Data automatically
+   appears in the aging report, dashboard, charts and exports with no code
+   change. */
 const AGING_DUE_DAYS = 5;
 
-/* Ordered aging statuses used for filtering and analytics. Based on the number
-   of CALENDAR DAYS after cash release / reimbursement, per the shared 5-day
-   liquidation policy:
-     0-4 days  -> Not Yet Due
-     5 days    -> Due Today
-     6-10 days -> Overdue
-     >10 days  -> Critically Overdue
+/* ---- Holiday calendar (Philippines) ----
+   Official non-working days that the working-day count skips. 2026 from
+   Proclamation No. 1006 (regular holidays and special non-working days),
+   Proclamation No. 1189 (Eid'l Fitr) and No. 1264 (Eid'l Adha). EDSA Day
+   (Feb 25) is a special WORKING day in 2026, so it is not listed. A holiday
+   with `plants` applies only to those fund plants (plantOfBranch codes) —
+   e.g. a city or region-only holiday; without it, it applies everywhere.
+   Company holidays and next year's dates go in window.PCP_HOLIDAYS in
+   index.html, in the same { date, name, plants? } shape — no code change. */
+const LIQ_HOLIDAYS_BUILTIN = [
+  { date: "2026-01-01", name: "New Year's Day" },
+  { date: "2026-02-17", name: "Chinese New Year" },
+  { date: "2026-03-20", name: "Eid'l Fitr" },
+  { date: "2026-04-02", name: "Maundy Thursday" },
+  { date: "2026-04-03", name: "Good Friday" },
+  { date: "2026-04-04", name: "Black Saturday" },
+  { date: "2026-04-09", name: "Araw ng Kagitingan" },
+  { date: "2026-05-01", name: "Labor Day" },
+  { date: "2026-05-27", name: "Eid'l Adha" },
+  { date: "2026-06-12", name: "Independence Day" },
+  { date: "2026-08-21", name: "Ninoy Aquino Day" },
+  { date: "2026-08-31", name: "National Heroes Day" },
+  { date: "2026-11-01", name: "All Saints' Day" },
+  { date: "2026-11-02", name: "All Souls' Day" },
+  { date: "2026-11-30", name: "Bonifacio Day" },
+  { date: "2026-12-08", name: "Feast of the Immaculate Conception" },
+  { date: "2026-12-24", name: "Christmas Eve" },
+  { date: "2026-12-25", name: "Christmas Day" },
+  { date: "2026-12-30", name: "Rizal Day" },
+  { date: "2026-12-31", name: "Last Day of the Year" },
+  { date: "2027-01-01", name: "New Year's Day" },
+  /* Metro Manila only (Proclamation No. 1447, ASEAN Summit). Applies to the
+     plants listed in LIQ_NCR_PLANTS — fund plants located in Metro Manila. */
+  { date: "2026-11-16", name: "ASEAN Summit (Metro Manila)", ncr: true },
+  { date: "2026-11-17", name: "ASEAN Summit (Metro Manila)", ncr: true },
+  { date: "2026-11-18", name: "ASEAN Summit (Metro Manila)", ncr: true },
+];
+/* Fund plants located in Metro Manila (NCR), for NCR-only holidays. */
+const LIQ_NCR_PLANTS = [];
+let liqHolidayCache = null;
+function liqHolidays() {
+  if (liqHolidayCache) return liqHolidayCache;
+  const extra = Array.isArray(window.PCP_HOLIDAYS) ? window.PCP_HOLIDAYS : [];
+  const byDate = new Map();
+  LIQ_HOLIDAYS_BUILTIN.concat(extra).forEach((h) => {
+    if (!h || !/^\d{4}-\d{2}-\d{2}$/.test(String(h.date || ""))) return;
+    const plants = h.ncr ? LIQ_NCR_PLANTS : (Array.isArray(h.plants) && h.plants.length ? h.plants : null);
+    if (plants && !plants.length) return; // a plant-only holiday with no plants applies nowhere
+    if (!byDate.has(h.date)) byDate.set(h.date, []);
+    byDate.get(h.date).push({ name: h.name || "Holiday", plants: plants ? plants.map(String) : null });
+  });
+  liqHolidayCache = byDate;
+  return byDate;
+}
+/* The holiday on `iso` for this voucher's plant, or null. */
+function liqHolidayOn(iso, branchCode) {
+  const hs = liqHolidays().get(iso);
+  if (!hs) return null;
+  const plant = branchCode ? plantOfBranch(branchCode) : "";
+  return hs.find((h) => !h.plants || (plant && h.plants.includes(plant))) || null;
+}
+function isLiqWorkingDay(iso, branchCode) {
+  const dow = new Date(iso + "T00:00:00Z").getUTCDay();
+  return dow !== 0 && dow !== 6 && !liqHolidayOn(iso, branchCode);
+}
+/* Liquidation deadline: the AGING_DUE_DAYS-th working day after cash is
+   received (the receipt day itself is day 0). */
+function liqDueDate(receivedISO, branchCode) {
+  let d = receivedISO || todayISO();
+  let counted = 0, guard = 0;
+  while (counted < AGING_DUE_DAYS && guard++ < 400) {
+    d = addDaysISO(d, 1);
+    if (isLiqWorkingDay(d, branchCode)) counted++;
+  }
+  return d;
+}
+/* Working days from `fromISO` (exclusive) to `toISO` (inclusive); 0 when
+   `toISO` is not after `fromISO`. */
+function workingDaysElapsed(fromISO, toISO, branchCode) {
+  if (!fromISO || !toISO || toISO <= fromISO) return 0;
+  let d = fromISO, n = 0, guard = 0;
+  while (d < toISO && guard++ < 4000) {
+    d = addDaysISO(d, 1);
+    if (isLiqWorkingDay(d, branchCode)) n++;
+  }
+  return n;
+}
+/* Working days past the deadline — at least 1 once the deadline has passed
+   (a deadline on a Friday is already late on the Saturday). */
+function liqOverdueWorkingDays(dueISO, todayIso, branchCode) {
+  if (!dueISO || !todayIso || todayIso <= dueISO) return 0;
+  return Math.max(1, workingDaysElapsed(dueISO, todayIso, branchCode));
+}
+
+/* Ordered aging statuses used for filtering and analytics, against the
+   5-WORKING-day deadline (liqDueDate):
+     before the due date          -> Not Yet Due
+     on the due date              -> Due Today
+     1-5 working days past it     -> Overdue
+     more than 5 working days     -> Critically Overdue
    Fully settled transactions are reported as "Completed". */
 const AGING_BUCKETS = ["Not Yet Due", "Due Today", "Overdue", "Critically Overdue"];
 
@@ -55,19 +152,23 @@ const daysBetween = (fromISO, toISO) => {
   return Math.round((b - a) / 86400000);
 };
 
+/* Calendar arithmetic in UTC, so the result never depends on the viewer's
+   time zone. (Built at LOCAL midnight and read back with toISOString, it
+   landed a day short in the Philippines (UTC+8) — every "+5 days" deadline
+   came out 4 days after release. Fixed Oct 2026.) */
 const addDaysISO = (iso, days) => {
-  const d = new Date((iso || todayISO()) + "T00:00:00");
-  d.setDate(d.getDate() + days);
+  const d = new Date((iso || todayISO()) + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 };
 
-/* Aging status from days-after-release, per the 5-calendar-day liquidation
-   policy shared by petty cash disbursements and employee reimbursements. */
-function agingStatusOf(ageDays, fullyLiquidated) {
+/* Aging status against the 5-working-day deadline: not yet due, due today,
+   overdue (1–5 working days late) or critically overdue (more than 5). */
+function agingStatusOf(dueDelta, overdueWorkingDays, fullyLiquidated) {
   if (fullyLiquidated) return "Completed";
-  if (ageDays <= 4) return "Not Yet Due";
-  if (ageDays === 5) return "Due Today";
-  if (ageDays <= 10) return "Overdue";
+  if (dueDelta < 0) return "Not Yet Due";
+  if (dueDelta === 0) return "Due Today";
+  if (overdueWorkingDays <= 5) return "Overdue";
   return "Critically Overdue";
 }
 
@@ -87,10 +188,11 @@ function buildAgingRecords(disbursements, liquidations, funds, requests, today) 
     const fullyLiquidated = status === "Fully Liquidated" || status === "Over-Liquidated";
     const outstanding = fullyLiquidated ? 0 : Math.max(0, amount - liquidated);
     const releaseDate = d.date || t;
-    const dueDate = addDaysISO(releaseDate, AGING_DUE_DAYS);
+    /* 5 working days from cash received; aging and lateness in working days. */
+    const dueDate = liqDueDate(releaseDate, d.branchCode);
     const dueDelta = daysBetween(dueDate, t); // >0 means past due
-    const ageDays = Math.max(0, daysBetween(releaseDate, t));
-    const overdueDays = Math.max(0, dueDelta);
+    const ageDays = workingDaysElapsed(releaseDate, t, d.branchCode);
+    const overdueDays = fullyLiquidated ? 0 : liqOverdueWorkingDays(dueDate, t, d.branchCode);
     const isPastDue = !fullyLiquidated && dueDelta > 0;
     const isDueToday = !fullyLiquidated && dueDelta === 0;
     const isPending = !fullyLiquidated;
@@ -114,7 +216,7 @@ function buildAgingRecords(disbursements, liquidations, funds, requests, today) 
       custodian: (fund && fund.custodian) || "\u2014",
       amount, liquidated, outstanding, status, fullyLiquidated,
       ageDays, overdueDays, isPastDue, isDueToday, isPending,
-      agingBucket: agingStatusOf(ageDays, fullyLiquidated),
+      agingBucket: agingStatusOf(dueDelta, overdueDays, fullyLiquidated),
       liqStatus: fullyLiquidated ? "Completed" : (isPastDue ? "Overdue" : (isDueToday ? "Due Today" : "Pending")),
       expenseCategory: disbExpense(d),
     };
@@ -128,7 +230,7 @@ function buildAgingRecords(disbursements, liquidations, funds, requests, today) 
    liquidation is still in the requestor's hands: none started, a draft, or
    returned (Rejected) for correction. Cash Received is the release date the
    custodian records when the cash is handed over; the liquidation is due
-   AGING_DUE_DAYS (5) calendar days later. Submitting removes the reminder; a
+   AGING_DUE_DAYS (5) WORKING days later (weekends and holidays skipped). Submitting removes the reminder; a
    liquidation returned for correction brings it back, overdue or not, until
    it is submitted again. */
 function liquidationReminders(disbursements, liquidations, today, funds) {
@@ -142,7 +244,7 @@ function liquidationReminders(disbursements, liquidations, today, funds) {
       const rv = liqReview(liq);
       if (rv.final || rv.legacy) return null;
       const receivedDate = d.date || t;
-      const dueDate = addDaysISO(receivedDate, AGING_DUE_DAYS);
+      const dueDate = liqDueDate(receivedDate, d.branchCode);
       const daysLeft = daysBetween(t, dueDate);
       return {
         id: d.id, seriesNo: d.voucherNo || "—", branchCode: d.branchCode,
@@ -215,7 +317,7 @@ function LiquidationReminderBell() {
         <div className="pcp-notif-panel pcp-reminder-panel">
           <div className="pcp-notif-head">
             <strong><Bell size={14} /> Liquidation Reminders</strong>
-            <span style={{ fontSize: 11, color: "var(--text-mut)" }}>Due {AGING_DUE_DAYS} days after cash received</span>
+            <span style={{ fontSize: 11, color: "var(--text-mut)" }}>Due {AGING_DUE_DAYS} working days after cash received</span>
           </div>
           {count ? (
             <div className="pcp-reminder-list">
@@ -527,9 +629,9 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
       "Transaction Type": r.transactionType, "Request No.": r.requestNo, "Voucher No.": r.voucherNo,
       "Requestor": r.requestor, "Employee": r.employee, "Plant": r.plantLabel, "Branch": r.branchCode,
       "Company": r.company, "Custodian": r.custodian, "Department": deptDesc(r.department),
-      "Release Date": r.releaseDate, "Due Date": r.dueDate, "Days Outstanding": r.ageDays,
+      "Release Date": r.releaseDate, "Due Date": r.dueDate, "Working Days Outstanding": r.ageDays,
       "Amount": r.amount, "Liquidated": r.liquidated, "Outstanding": r.outstanding,
-      "Overdue (days)": r.overdueDays, "Liquidation Status": r.status, "Aging Status": r.agingBucket,
+      "Overdue (working days)": r.overdueDays, "Liquidation Status": r.status, "Aging Status": r.agingBucket,
     }));
     return { plantRows, detail };
   }, [byPlant, detailRows]);
@@ -572,7 +674,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
     <div>
       <TopBar
         title="Liquidation Aging"
-        sub="Petty cash advances monitored under the 5-calendar-day liquidation policy (reimbursements are controlled by custodian approval, not aging)"
+        sub="Petty cash advances monitored under the 5-working-day liquidation policy (weekends and official holidays excluded) (reimbursements are controlled by custodian approval, not aging)"
         right={
           <>
             <button className="pcp-btn" onClick={() => window.print()}><Printer size={14} /> Print / PDF</button>
@@ -588,7 +690,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
             <div style={{ marginLeft: "auto", textAlign: "right" }}>
               <div className="pcp-report-title">Liquidation Aging Report</div>
               <div className="pcp-report-sub">
-                Generated {fmtDate(today)} · Petty cash due {AGING_DUE_DAYS} days after release · {opts.plants.length} plant(s) monitored
+                Generated {fmtDate(today)} · Petty cash due {AGING_DUE_DAYS} working days after release (weekends &amp; holidays excluded) · {opts.plants.length} plant(s) monitored
               </div>
             </div>
           </div>
@@ -686,7 +788,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
           <KpiCard label="Total Released Funds" value={peso(cards.released)} icon={ArrowUpRight} tint="#2054a3" foot="Cash released across all plants" />
           <KpiCard label="Total Pending Liquidations" value={cards.pending} icon={FileSpreadsheet} tint="#b9790a" foot="Vouchers not yet fully liquidated" />
           <KpiCard label="Total Due Today" value={cards.dueToday} icon={Clock} tint="#0891b2" foot="Liquidations due today" />
-          <KpiCard label="Total Overdue Liquidations" value={cards.overdue} icon={AlertTriangle} tint="#c0392b" foot={`Past ${AGING_DUE_DAYS}-day due date`} />
+          <KpiCard label="Total Overdue Liquidations" value={cards.overdue} icon={AlertTriangle} tint="#c0392b" foot={`Past ${AGING_DUE_DAYS} working-day due date`} />
           <KpiCard label="Total Completed Liquidations" value={cards.completed} icon={Check} tint="#15803d" foot="Fully liquidated vouchers" />
           <KpiCard label="Total Outstanding Amount" value={peso(cards.outstanding)} icon={CircleDollarSign} tint={cards.outstanding > 0 ? "#c0392b" : "#15803d"} foot="Unliquidated balance" />
         </div>
@@ -696,7 +798,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
           <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)", fontWeight: 700, fontSize: 13, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
             <span><CircleDollarSign size={14} style={{ verticalAlign: "-2px", marginRight: 6 }} />Outstanding Cash Settlements ({openSettlements.length})</span>
             <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-mut)" }}>
-              {openSettlements.filter((x) => x.info.overdue).length} overdue · due {AGING_DUE_DAYS} days after release · record payments in the Liquidation module
+              {openSettlements.filter((x) => x.info.overdue).length} overdue · due {AGING_DUE_DAYS} working days after release · record payments in the Liquidation module
             </span>
           </div>
           <div className="pcp-table-wrap">
@@ -845,7 +947,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
                   <SortTh field="department" sort={detailSort} cf={detailCF}>Department</SortTh>
                   <SortTh field="releaseDate" sort={detailSort} cf={detailCF}>Release Date</SortTh>
                   <SortTh field="dueDate" sort={detailSort} cf={detailCF}>Due Date</SortTh>
-                  <SortTh field="ageDays" sort={detailSort} cf={detailCF}>Days Out</SortTh>
+                  <SortTh field="ageDays" sort={detailSort} cf={detailCF}>Working Days Out</SortTh>
                   <SortTh field="amount" sort={detailSort} cf={detailCF}>Amount</SortTh>
                   <SortTh field="status" sort={detailSort} cf={detailCF}>Liquidation Status</SortTh>
                   <SortTh field="agingBucket" sort={detailSort} cf={detailCF}>Aging Status</SortTh>

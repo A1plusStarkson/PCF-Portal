@@ -5,10 +5,10 @@
    liquidation is not started, still a draft, or returned for correction.
    Nothing here writes to the PCF database.
 
-   Stages (liquidation is due AGING_DUE_DAYS = 5 days after cash received):
+   Stages (liquidation is due AGING_DUE_DAYS = 5 WORKING days after cash received (liqDueDate)):
      due1     1 day before the due date   → "LIQUIDATION DUE TOMORROW"
      due0     on the due date             → "LIQUIDATION DUE TODAY"
-     overdue  past the 5-day period       → "LIQUIDATION OVERDUE – AUTHORITY TO DEDUCT"
+     overdue  past the 5-working-day period      → "LIQUIDATION OVERDUE – AUTHORITY TO DEDUCT"
 
    Live: the reminders are recomputed whenever a record changes (the portal's
    real-time sync) and every minute (the app's clock), so an alarm appears,
@@ -191,7 +191,7 @@ function LiqAlarmCard({ a, read, firstSeen, onOpen, onToggleRead }) {
       </div>
       {a.stage === "overdue" && (
         <div className="pcp-alarm-note">
-          This liquidation is beyond the allowable {AGING_DUE_DAYS}-day liquidation period and is for the
+          This liquidation is beyond the allowable {AGING_DUE_DAYS}-working-day liquidation period and is for the
           <b> Authority to Deduct</b> process, subject to company policy and the required approval.
         </div>
       )}

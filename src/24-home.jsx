@@ -193,7 +193,7 @@ const HOME_SUBMIT_REMINDER = {
 };
 const HOME_DEFAULT_ANNOUNCEMENTS = [
   HOME_SUBMIT_REMINDER,
-  { title: "Liquidate on time", text: `Cash advances must be liquidated within ${AGING_DUE_DAYS} days of release. Upcoming deadlines are listed on this page.` },
+  { title: "Liquidate on time", text: `Cash advances must be liquidated within ${AGING_DUE_DAYS} working days of receipt (Saturdays, Sundays and holidays are not counted). Upcoming deadlines are listed on this page.` },
   { title: "Series numbers are system-generated", text: "Request and Reimbursement numbers are issued automatically when you submit. They cannot be typed or changed, and are never reused." },
   { title: "Attach complete documents", text: "Upload the Original OR / Sales Invoice for every expense so custodians and approvers can check it on screen." },
 ];
@@ -208,7 +208,7 @@ const HOME_WORKFLOW = [
   { title: "Approval", text: "Custodian approves it" },
   { title: "Release", text: "Cash is released on a voucher" },
   { title: "Expense", text: "Spend and keep the OR / invoice" },
-  { title: "Liquidation", text: `Liquidate within ${AGING_DUE_DAYS} days, then SUBMIT` },
+  { title: "Liquidation", text: `Liquidate within ${AGING_DUE_DAYS} working days, then SUBMIT` },
   { title: "Accounting Check", text: "Custodian review, Accounting check, final approval" },
   { title: "Replenishment", text: "The fund is restored" },
 ];

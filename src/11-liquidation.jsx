@@ -509,14 +509,14 @@ const SETTLEMENT_FILTERS = [
               final. Before that the "amount due" is just the released amount
               minus whatever was typed so far, and showing it as a debt misleads.
    `owing`  — cash still has to change hands (an approved closure ends it).
-   Due date — the same 5-calendar-day deadline (AGING_DUE_DAYS) as the
+   Due date — the same 5-working-day deadline (liqDueDate) as the
               liquidation itself, counted from cash release. */
 function settlementInfo(disb, liq, today) {
   const st = settlementStateFor(disb, liq);
   const approval = receiptApprovalSummary(liq);
   const ready = st.summary.docCount > 0 && st.summary.complete && approval.allApproved;
   const owing = (ready || st.entries.length > 0) && st.type !== "exact" && st.remaining > 0 && !st.closed;
-  const dueDate = addDaysISO((disb && disb.date) || todayISO(), AGING_DUE_DAYS);
+  const dueDate = liqDueDate((disb && disb.date) || todayISO(), disb && disb.branchCode);
   const daysLeft = daysBetween(today || todayISO(), dueDate);
   let category;
   if (!ready && !st.entries.length) category = "Waiting for receipts";

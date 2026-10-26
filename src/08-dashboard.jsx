@@ -818,7 +818,7 @@ function dashPlantRows(funds, requests, disbursements, liquidations, replenishme
     const per = dashPeriodData(r, d, l, bounds);
     const overdue = d.filter((x) => {
       const s = liqStatusFor(x, l);
-      return s !== "Fully Liquidated" && s !== "Over-Liquidated" && daysBetween(x.date || today, today) > AGING_DUE_DAYS;
+      return s !== "Fully Liquidated" && s !== "Over-Liquidated" && today > liqDueDate(x.date || today, x.branchCode);
     }).length;
     return {
       code: p, label: plantLabel(p), fund: m.totalFund, available: m.availableBalance, outstanding: m.outstanding,
@@ -957,18 +957,19 @@ const DASH_CORE_CSS = `
 `;
 
 /* Liquidation aging of a voucher not yet fully liquidated, against the
-   AGING_DUE_DAYS deadline counted from its release date. */
+   5-working-day deadline (liqDueDate) counted from its release date. */
 const DASH_AGING = [
   { key: "within", label: "Within Due Date", short: "Within Due Date", color: "#15803d" },
   { key: "soon", label: "Due Within 1 Day", short: "Due Soon", color: "#d4a017" },
-  { key: "late", label: "Overdue 1–4 Days", short: "Overdue 1–4 Days", color: "#ea580c" },
-  { key: "late5", label: "Overdue 5+ Days", short: "Overdue 5+ Days", color: "#c0392b" },
+  { key: "late", label: "Overdue 1–4 Working Days", short: "Overdue 1–4 Days", color: "#ea580c" },
+  { key: "late5", label: "Overdue 5+ Working Days", short: "Overdue 5+ Days", color: "#c0392b" },
 ];
 function dashAgingBucket(d, today) {
-  const daysLeft = daysBetween(today, addDaysISO(d.date || today, AGING_DUE_DAYS));
+  const due = liqDueDate(d.date || today, d.branchCode);
+  const daysLeft = daysBetween(today, due);
   if (daysLeft >= 2) return "within";
   if (daysLeft >= 0) return "soon";
-  if (daysLeft >= -4) return "late";
+  if (liqOverdueWorkingDays(due, today, d.branchCode) <= 4) return "late";
   return "late5";
 }
 
@@ -1116,7 +1117,7 @@ function DashboardCore({ label, funds, requests, disbursements, liquidations, re
   /* Action Required rows. `records` drive the drill-through; rows without
      records (reimbursements, replenishments) open their module instead. */
   const actions = [
-    { key: "overdue", color: "#c0392b", label: "Overdue Liquidations", sub: `Past the ${AGING_DUE_DAYS}-day deadline`, n: overdue.length,
+    { key: "overdue", color: "#c0392b", label: "Overdue Liquidations", sub: `Past the ${AGING_DUE_DAYS}-working-day deadline`, n: overdue.length,
       amount: amt(overdue, (r) => r.balance), records: rowsOf(overdue), module: "liquidation", verb: "View" },
     { key: "soon", color: "#d4a017", label: "Due Soon", sub: "Due today or tomorrow", n: w.aging.soon.length,
       amount: amt(w.aging.soon, (r) => r.balance), records: rowsOf(w.aging.soon), module: "liquidation", verb: "View" },
@@ -1278,7 +1279,7 @@ function DashboardCore({ label, funds, requests, disbursements, liquidations, re
               </button>
             );
           })}
-          <div className="pcp-chart-hint">Vouchers not fully liquidated, by days from release ({AGING_DUE_DAYS}-day deadline). Click a row to open them.</div>
+          <div className="pcp-chart-hint">Vouchers not fully liquidated, by days from release ({AGING_DUE_DAYS}-working-day deadline; weekends &amp; holidays excluded). Click a row to open them.</div>
         </div>
 
         <div className="pcp-card pcp-card-pad">
