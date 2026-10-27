@@ -205,6 +205,8 @@ function replenishmentDetailDoc(r, detail, funds, generatedBy) {
       "Status": r.status || "—",
       "Prepared By": r.preparedBy || "—",
       "Replenishment Amount": peso(recorded),
+      "Acumatica PO #": r.acumaticaPoNo || "—",
+      "Acumatica APV #": r.acumaticaApvNo || "—",
       "Remarks": [replFinalApprovalRemark(detail), r.remarks].filter(Boolean).join(" · ") || "—",
       ...(recorded !== detail.total ? { "Note": `Recorded amount differs from the transactions' total (${peso(detail.total)})` } : {}),
       ...(detail.missing ? { "Not Shown": `${detail.missing} claimed item(s) no longer found in this plant's records` } : {}),
@@ -515,6 +517,71 @@ function ReplenishmentFormModal({ onClose, onSave, funds, disbursements, liquida
   );
 }
 
+/* Acumatica reference (PO # / APV #) of one replenishment, as shown in the
+   records list; Accounting gets an Add / Edit button (setReplenishmentAcumaticaRef). */
+function AcumaticaRefCell({ r, onEdit }) {
+  const has = !!(r.acumaticaPoNo || r.acumaticaApvNo);
+  const line = (label, v) => (
+    <div style={{ fontSize: 12 }}>
+      <span style={{ color: "var(--text-mut)", fontSize: 11 }}>{label}</span>{" "}
+      {v ? <b>{v}</b> : <span style={{ color: "var(--text-mut)" }}>—</span>}
+    </div>
+  );
+  return (
+    <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+      <div>
+        {line("PO #", r.acumaticaPoNo)}
+        {line("APV #", r.acumaticaApvNo)}
+        {has && r.acumaticaRefBy && (
+          <div style={{ fontSize: 10.5, color: "var(--text-mut)" }}>{r.acumaticaRefBy}<br />{fmtApprovalStamp(r.acumaticaRefAt)}</div>
+        )}
+      </div>
+      {onEdit && (
+        <button className="pcp-btn pcp-btn-sm" onClick={onEdit} title="Enter the Acumatica Purchase Order # and APV #">
+          <Edit3 size={12} /> {has ? "Edit" : "Add"}
+        </button>
+      )}
+    </div>
+  );
+}
+
+function AcumaticaRefModal({ r, onClose, onSave }) {
+  const [poNo, setPoNo] = useState(r.acumaticaPoNo || "");
+  const [apvNo, setApvNo] = useState(r.acumaticaApvNo || "");
+  const changed = poNo.trim() !== (r.acumaticaPoNo || "") || apvNo.trim() !== (r.acumaticaApvNo || "");
+  return (
+    <div className="pcp-modal-backdrop" onClick={onClose}>
+      <div className="pcp-modal" style={{ maxWidth: 460 }} onClick={(e) => e.stopPropagation()}>
+        <div className="pcp-modal-head">
+          <h3>Acumatica Reference — {r.replenishmentNo}</h3>
+          <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose}><X size={15} /></button>
+        </div>
+        <div className="pcp-modal-body">
+          <div style={{ background: "var(--paper)", borderRadius: 8, padding: 12, marginBottom: 14, fontSize: 12.5 }}>
+            <div><strong>{r.replenishmentNo}</strong> · {plantLabel(r.branchCode)}</div>
+            <div style={{ color: "var(--text-mut)", marginTop: 3 }}>{fmtDate(r.date)} · {pesoB(r.amount)}</div>
+          </div>
+          <div className="pcp-field">
+            <label>Purchase Order #</label>
+            <input className="pcp-input" autoFocus value={poNo} onChange={(e) => setPoNo(e.target.value)} placeholder="Acumatica PO number" />
+          </div>
+          <div className="pcp-field">
+            <label>APV #</label>
+            <input className="pcp-input" value={apvNo} onChange={(e) => setApvNo(e.target.value)} placeholder="Acumatica AP voucher number" />
+          </div>
+          <div className="pcp-hint" style={{ fontSize: 12 }}>Either may be left blank and filled in later. Every change is recorded in the Audit Trail.</div>
+        </div>
+        <div className="pcp-modal-foot">
+          <button className="pcp-btn" onClick={onClose}>Cancel</button>
+          <button className="pcp-btn pcp-btn-primary" disabled={!changed} onClick={() => onSave({ poNo, apvNo })}>
+            <Check size={13} /> Save
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const REPLENISH_SORT_FIELDS = {
   replenishmentNo: (r) => r.replenishmentNo,
   date: (r) => r.date,
@@ -522,14 +589,16 @@ const REPLENISH_SORT_FIELDS = {
   amount: (r) => Number(r.amount) || 0,
   preparedBy: (r) => r.preparedBy,
   status: (r) => r.status,
+  acumaticaRef: (r) => [r.acumaticaPoNo, r.acumaticaApvNo].filter(Boolean).join(" "),
   remarks: (r) => r.remarks,
 };
 
-function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, reimbursements, onCreate, onEdit, onComplete, onDelete, canDelete, plantOptions, canEdit, plantTitle, generatedBy, canManage, onRevert, onRevertReady, canViewDetails, onExportAcumatica }) {
+function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, reimbursements, onCreate, onEdit, onComplete, onDelete, canDelete, plantOptions, canEdit, plantTitle, generatedBy, canManage, onRevert, onRevertReady, canViewDetails, onExportAcumatica, onSetAcumaticaRef }) {
   const [orientation, setOrientation] = useReplOrientation();
   const [showForm, setShowForm] = useState(false);
   /* Replenishment whose details modal is open (REPLEN_DETAIL_EMAILS). */
   const [viewing, setViewing] = useState(null);
+  const [editingRef, setEditingRef] = useState(null);
   /* Liquidations + amount handed to a new form from the Ready panel. */
   const [preselect, setPreselect] = useState(null);
   const [editing, setEditing] = useState(null);
@@ -602,7 +671,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
       if (statusFilter !== "All" && r.status !== statusFilter) return false;
       if (search) {
         const q = search.toLowerCase();
-        if (!(r.replenishmentNo.toLowerCase().includes(q) || (r.preparedBy || "").toLowerCase().includes(q))) return false;
+        if (![r.replenishmentNo, r.preparedBy, r.acumaticaPoNo, r.acumaticaApvNo].some((v) => String(v || "").toLowerCase().includes(q))) return false;
       }
       return true;
     });
@@ -614,6 +683,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
     amount: (r) => peso(r.amount),
     preparedBy: (r) => cfText(r.preparedBy),
     status: (r) => cfText(r.status),
+    acumaticaRef: (r) => cfText([r.acumaticaPoNo && "PO # " + r.acumaticaPoNo, r.acumaticaApvNo && "APV # " + r.acumaticaApvNo].filter(Boolean).join(" · ")),
     remarks: (r) => cfText(r.remarks),
   });
   const filtered = sort.sortRows(cf.rows, REPLENISH_SORT_FIELDS);
@@ -811,7 +881,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
           <div className="pcp-filterbar" style={{ padding: "14px 18px", display: "flex", gap: 10, alignItems: "center", borderBottom: "1px solid var(--line)" }}>
             <div style={{ position: "relative", flex: 1, maxWidth: 280 }}>
               <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
-              <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search no. or preparer" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search no., preparer, PO # or APV #" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <select className="pcp-select" style={{ width: 170 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               {["All", ...REPLENISH_STATUSES, "Reverted"].map((s) => <option key={s}>{s}</option>)}
@@ -836,6 +906,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                   <SortTh field="amount" sort={sort} cf={cf}>Amount</SortTh>
                   <SortTh field="preparedBy" sort={sort} cf={cf}>Prepared By</SortTh>
                   <SortTh field="status" sort={sort} cf={cf}>Status</SortTh>
+                  <SortTh field="acumaticaRef" sort={sort} cf={cf}>Acumatica Ref. (PO # / APV #)</SortTh>
                   <SortTh field="remarks" sort={sort} cf={cf}>Remarks</SortTh>
                   <th></th>
                 </tr>
@@ -865,6 +936,9 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                     <td className="pcp-num">{pesoB(r.amount)}</td>
                     <td>{r.preparedBy || "—"}</td>
                     <td>{r.status ? <Badge status={r.status} /> : <span style={{ color: "var(--text-mut)" }}>—</span>}</td>
+                    <td onClick={(e) => e.stopPropagation()} style={{ minWidth: 200 }}>
+                      <AcumaticaRefCell r={r} onEdit={onSetAcumaticaRef && r.status !== "Reverted" ? () => setEditingRef(r) : null} />
+                    </td>
                     <td style={{ maxWidth: 220, whiteSpace: "normal" }}>
                       {approvalRemarkOf(r) && (
                         <div style={{ fontSize: 11, fontWeight: 700, color: "#15803d" }}>{approvalRemarkOf(r)}</div>
@@ -905,7 +979,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                       </div>
                     </td>
                   </tr>
-                )) : <tr><td colSpan={onExportAcumatica ? 9 : 8} className="pcp-empty">No replenishment records match your filters</td></tr>}
+                )) : <tr><td colSpan={onExportAcumatica ? 10 : 9} className="pcp-empty">No replenishment records match your filters</td></tr>}
               </tbody>
             </table>
           </div>
@@ -919,6 +993,10 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
           onClose={() => { setShowForm(false); setPreselect(null); }}
           onSave={(form) => { onCreate(form); setShowForm(false); setPreselect(null); }}
         />
+      )}
+      {editingRef && onSetAcumaticaRef && (
+        <AcumaticaRefModal r={editingRef} onClose={() => setEditingRef(null)}
+          onSave={(ref) => { onSetAcumaticaRef(editingRef.id, ref); setEditingRef(null); }} />
       )}
       {viewing && canViewDetails && (
         <ReplenishmentDetailModal

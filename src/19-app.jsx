@@ -354,6 +354,10 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   /* Replenishments: Export to Acumatica — Accounting (and the System
      Administrator) only, hidden while previewing another role. */
   const canExportAcumatica = (role === "Accounting" || role === "SuperAdmin") && role === (userRole || "Accounting");
+  /* Replenishments: Acumatica PO # / APV # — filled in by Accounting (and the
+     System Superuser), hidden while previewing another role. */
+  const canEditAcumaticaRef = ["accounting@a1plus.com", "superuser@a1plus.com"].includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
   /* Replenishments: click a record to see its transactions and generate the
      PDF report — these accounts only (owner's instruction, Oct 2026).
      Read-only — viewing or reporting never changes a record. */
@@ -1864,6 +1868,21 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       replenishments.map((r) => r.replenishmentNo));
   }, [logAudit, liquidations, disbursements, reimbursements, replenishments, canManageReplen, userName, userEmail, role]); // eslint-disable-line
 
+  /* Acumatica reference (owner's instruction, Oct 2026): the Purchase Order #
+     and APV # Accounting gets after posting the replenishment in Acumatica.
+     Accounting (and the System Superuser) only; either may be left blank. */
+  const setReplenishmentAcumaticaRef = useCallback((id, { poNo, apvNo }) => {
+    const r0 = replenishments.find((x) => x.id === id);
+    if (!canEditAcumaticaRef || !r0 || r0.status === "Reverted") return;
+    const po = String(poNo || "").trim(), apv = String(apvNo || "").trim();
+    if (po === (r0.acumaticaPoNo || "") && apv === (r0.acumaticaApvNo || "")) return;
+    const at = new Date().toISOString().slice(0, 19);
+    setReplenishments((rs) => rs.map((r) => (r.id === id
+      ? { ...r, acumaticaPoNo: po, acumaticaApvNo: apv, acumaticaRefBy: userName || userEmail, acumaticaRefAt: at } : r)));
+    logAudit("Edited", r0.replenishmentNo || id, `Acumatica reference · PO #: ${po || "—"} · APV #: ${apv || "—"}`
+      + (r0.acumaticaPoNo || r0.acumaticaApvNo ? ` (was PO #: ${r0.acumaticaPoNo || "—"} · APV #: ${r0.acumaticaApvNo || "—"})` : ""));
+  }, [logAudit, replenishments, canEditAcumaticaRef, userName, userEmail]);
+
   const completeReplenishment = useCallback((id) => {
     if (!canManageReplen) return;
     setReplenishments((rs) => rs.map((r) => (r.id === id ? { ...r, status: "Completed" } : r)));
@@ -3180,6 +3199,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
             onRevert={revertReplenishment} onRevertReady={revertReadyItem} canManage={canManageReplen}
             canViewDetails={canViewReplenDetails}
             onExportAcumatica={canExportAcumatica ? exportReplenishmentsToAcumatica : undefined}
+            onSetAcumaticaRef={canEditAcumaticaRef ? setReplenishmentAcumaticaRef : undefined}
             canDelete={canDeleteTxn}
             generatedBy={userName || userEmail}
             plantOptions={scopedPlantOptions} canEdit={canEdit}
