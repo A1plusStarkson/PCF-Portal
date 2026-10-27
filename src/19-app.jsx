@@ -1975,6 +1975,11 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   }, [logAudit, replenishments, canDeleteTxn, userName, userEmail, role]); // eslint-disable-line
 
   const exportLiquidation = useCallback((disbursement, liq) => {
+    /* Acumatica format: only once Grace Gan has final-approved it (liqFinalApproved). */
+    if (!liqFinalApproved(disbursement, liquidations.find((l) => l.disbursementId === disbursement.id))) {
+      window.alert(`${disbursement.voucherNo} cannot be exported yet — it does not have ${FINAL_APPROVER_NAME}'s final approval.`);
+      return;
+    }
     const rows = buildLiquidationExportRows(disbursement, liq);
     const meta = [
       ["Petty Cash Liquidation — Acumatica Import Sheet"],
@@ -1991,7 +1996,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Liquidation");
     downloadWorkbook(wb, `Liquidation_${disbursement.voucherNo}.xlsx`);
-  }, []);
+  }, [liquidations]);
 
   /* ---- Funds ----
      Every mutation here is audit-logged. A fund's beginning balance feeds the
@@ -2417,6 +2422,10 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   }, [logAudit, reimbursements, replenishments, canDeleteTxn, userName, userEmail, role]); // eslint-disable-line
 
   const exportReimbursementAcumatica = useCallback((reimb) => {
+    if (!reimbFinalApproved(reimb)) {
+      window.alert(`${reimb.reimbNo} cannot be exported yet — it does not have ${FINAL_APPROVER_NAME}'s final approval.`);
+      return;
+    }
     const rows = (reimb.lines || []).map((l) => ({
       "Branch": reimb.branchCode, "Employee": reimb.employee, "Company": companyOfBranch(reimb.branchCode),
       "Reference No.": reimb.reimbNo, "Expense Date": l.date, "GL Account": l.account || accountForCategory(l.category),

@@ -92,13 +92,18 @@ function buildReimbursementAcumaticaRows(reimb) {
    in notApproved, and the caller exports nothing. */
 const REIMB_NOT_FINAL = ["DRAFT", "SUBMITTED", "FOR REVIEW", "FOR APPROVAL", "FOR FINAL APPROVAL",
   "RETURNED FOR REVISION", "FOR SUBMISSION", "REJECTED"];
+/* Final-approved by Grace Gan — the bar for anything written in Acumatica's
+   format: the Replenishment export, a liquidation's Export to Excel and a
+   reimbursement's Export to Acumatica. */
+const liqFinalApproved = (disb, liq) => !!liq && !!disb && !isVoucherCancelled(disb) && liqReview(liq).final;
+const reimbFinalApproved = (r) => !!r && (reimbReview(r).final || (!!r.status && !REIMB_NOT_FINAL.includes(r.status)));
 function buildReplenishmentAcumaticaRows(repl, disbursements, liquidations, reimbursements) {
   const rows = [];
   const notApproved = [];
   (repl.liquidationIds || []).forEach((id) => {
     const liq = (liquidations || []).find((l) => l.id === id);
     const disb = liq && (disbursements || []).find((d) => d.id === liq.disbursementId);
-    if (!liq || !disb || isVoucherCancelled(disb) || !liqReview(liq).final) {
+    if (!liqFinalApproved(disb, liq)) {
       notApproved.push(disb ? disb.voucherNo : "a liquidation no longer on file");
       return;
     }
@@ -106,7 +111,7 @@ function buildReplenishmentAcumaticaRows(repl, disbursements, liquidations, reim
   });
   (repl.reimbursementIds || []).forEach((id) => {
     const r = (reimbursements || []).find((x) => x.id === id);
-    if (!r || !(reimbReview(r).final || (r.status && !REIMB_NOT_FINAL.includes(r.status)))) {
+    if (!reimbFinalApproved(r)) {
       notApproved.push(r ? r.reimbNo : "a reimbursement no longer on file");
       return;
     }

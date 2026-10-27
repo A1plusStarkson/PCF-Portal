@@ -1430,7 +1430,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
             <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Acumatica</div>
             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               <Badge status={reimb.acumaticaStatus || "Not Yet Exported"} />
-              {canFinance && st === REIMB_STATUS.COMPLETED && (
+              {canFinance && st === REIMB_STATUS.COMPLETED && reimbFinalApproved(reimb) && (
                 <button className="pcp-btn pcp-btn-sm" onClick={() => onExportAcumatica(reimb)}><Download size={13} /> Export to Acumatica</button>
               )}
             </div>

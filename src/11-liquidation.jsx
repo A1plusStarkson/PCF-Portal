@@ -1581,7 +1581,9 @@ function LiquidationWorksheet({
             )}
           </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            <button className="pcp-btn pcp-btn-sm" onClick={() => onExport(disbursement, { lines: validLines })} disabled={!validLines.length}>
+            <button className="pcp-btn pcp-btn-sm" onClick={() => onExport(disbursement, { lines: validLines })}
+              disabled={!validLines.length || !liqFinalApproved(disbursement, liquidation)}
+              title={liqFinalApproved(disbursement, liquidation) ? "Export the expense lines (Acumatica format)" : `Available once ${FINAL_APPROVER_NAME} has given final approval`}>
               <Download size={12} /> Export to Excel
             </button>
             {/* Highlighted Upload beside Export to Excel (LIQ_HEADER_UPLOAD_EMAILS
