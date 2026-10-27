@@ -134,7 +134,7 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
   /* The transaction opened from the list — shown READ-ONLY: every permission
      passed to the detail views is off and every handler is a no-op. */
   const [openRow, setOpenRow] = useState(null);
-  const sort = useTableSort("approvedAt", "desc");
+  const sort = useTableSort("txnDate", "desc", "txnNo");
 
   const allRows = useMemo(
     () => approvedTransactions(disbursements, liquidations, reimbursements, replenishments),

@@ -1589,7 +1589,7 @@ function ReimbursementTab({
   const [categoryFilter, setCategoryFilter] = useState("All");
   const [purposeFilter, setPurposeFilter] = useState("All");
   /* Newest reimbursement no. first on open; any header can take over. */
-  const sort = useTableSort("reimbNo", "desc");
+  const sort = useTableSort("requestDate", "desc", "reimbNo");
   const colFilters = useColumnFilters();
 
   /* Summary cards double as filters: each card's statuses, exactly as counted.

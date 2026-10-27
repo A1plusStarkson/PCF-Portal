@@ -635,7 +635,7 @@ function ApprovalModuleTab({
      reimbursement in its usual detail window. */
   const [openLiqId, setOpenLiqId] = useState(null);
   const [detail, setDetail] = useState(null);
-  const sort = useTableSort("date", "desc");
+  const sort = useTableSort("date", "desc", "seriesNo");
 
   /* ---- Every submitted transaction, with its approval stage ---- */
   const pcaAll = useMemo(

@@ -2352,7 +2352,10 @@ function sortCompare(a, b) {
 
 /* `fields` maps a column key to the value that column sorts on. Rows are copied
    before sorting so the caller's array (often straight from state) is untouched. */
-function useTableSort(defaultKey, defaultDir) {
+/* `tieKey` (optional) breaks ties on the series number in the same direction,
+   so same-day transactions keep their series order — modules with a series
+   number open on transaction date, latest first (owner's instruction, Oct 2026). */
+function useTableSort(defaultKey, defaultDir, tieKey) {
   const [sortKey, setSortKey] = useState(defaultKey);
   const [sortDir, setSortDir] = useState(defaultDir || "asc");
 
@@ -2365,8 +2368,14 @@ function useTableSort(defaultKey, defaultDir) {
   const sortRows = (rows, fields) => {
     const fn = fields && fields[sortKey];
     if (!fn) return rows;
+    const tie = tieKey && tieKey !== sortKey && fields[tieKey];
+    const isBlank = (v) => v === null || v === undefined || v === "" || v === "—";
     return rows.slice().sort((a, b) => {
-      const cmp = sortCompare(fn(a), fn(b));
+      const va = fn(a), vb = fn(b);
+      /* Blanks stay at the bottom in BOTH directions — an undated row must not
+         head a latest-first list. */
+      if (isBlank(va) || isBlank(vb)) return isBlank(va) && isBlank(vb) ? 0 : (isBlank(va) ? 1 : -1);
+      const cmp = sortCompare(va, vb) || (tie ? sortCompare(tie(a), tie(b)) : 0);
       return sortDir === "asc" ? cmp : -cmp;
     });
   };

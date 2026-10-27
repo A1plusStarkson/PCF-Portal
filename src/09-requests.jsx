@@ -162,7 +162,7 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
   const [search, setSearch] = useState("");
   const [plant, setPlant] = useState("ALL");
   /* Newest request no. first on open; any header can take over from there. */
-  const sort = useTableSort("requestNo", "desc");
+  const sort = useTableSort("date", "desc", "requestNo");
 
   /* Sort on what the column actually shows, not the raw field, so Department
      and Plant order the way the reader sees them. */

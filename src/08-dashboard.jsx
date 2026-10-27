@@ -215,7 +215,8 @@ function DrillDownModal({ chartName, label, columns, records, canEdit, onEditRec
   const [fDept, setFDept] = useState("ALL");
   const [fStatus, setFStatus] = useState("ALL");
   const [sortKey, setSortKey] = useState(columns[0].key);
-  const [sortDir, setSortDir] = useState("asc");
+  /* Opens on transaction date, latest first (owner's instruction, Oct 2026). */
+  const [sortDir, setSortDir] = useState(columns[0].key === "date" ? "desc" : "asc");
   const [page, setPage] = useState(0);
   const [pageSize, setPageSize] = useState(25);
   const [expanded, setExpanded] = useState(null);

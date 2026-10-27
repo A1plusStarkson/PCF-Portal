@@ -66,7 +66,7 @@ function TransactionHistoryTab({ requests, disbursements, liquidations, replenis
   const [maxAmt, setMaxAmt] = useState("");
   const [plant, setPlant] = useState("ALL");
   /* Newest first on open, which is the order the feed is built in. */
-  const sort = useTableSort("date", "desc");
+  const sort = useTableSort("date", "desc", "ref");
 
   useEffect(() => { if (initialFilter && initialFilter.type) setType(initialFilter.type); }, [initialFilter]);
 

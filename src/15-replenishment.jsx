@@ -606,14 +606,14 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
   const [search, setSearch] = useState("");
   const [plant, setPlant] = useState("ALL");
   /* Newest replenishment no. first on open; any header can take over. */
-  const sort = useTableSort("replenishmentNo", "desc");
+  const sort = useTableSort("date", "desc", "replenishmentNo");
 
   /* Grace Gan-approved liquidations and reimbursements not yet claimed by a
      replenishment. */
   const ready = useMemo(
     () => replenishmentReadyItems(disbursements, liquidations, reimbursements, replenishments)
       .filter((x) => plant === "ALL" || x.branchCode === plant)
-      .sort((a, b) => String(a.date).localeCompare(String(b.date))),
+      .sort((a, b) => String(b.date).localeCompare(String(a.date)) || sortCompare(b.ref, a.ref)),
     [disbursements, liquidations, reimbursements, replenishments, plant]
   );
 

@@ -2616,8 +2616,8 @@ function LiquidationTab({
   /* TRANSACTION / OR DATE column (TXN_DATE_EMAILS in 19-app.jsx). */
   const txnDateLabels = !!(useContext(AppUI) || {}).txnDateLabels;
   const revertHighlight = !!(useContext(AppUI) || {}).revertHighlight; // REVERT_HIGHLIGHT_EMAILS
-  const pettySort = useTableSort(txnDateLabels ? "txnDate" : "date", "desc");
-  const reimbSort = useTableSort("requestDate", "desc");
+  const pettySort = useTableSort(txnDateLabels ? "txnDate" : "date", "desc", "voucherNo");
+  const reimbSort = useTableSort("requestDate", "desc", "reimbNo");
   /* Unsaved worksheet edits live only in the pop-up, so closing it asks first. */
   const worksheetDirty = useRef(false);
   const closeWorksheet = () => {

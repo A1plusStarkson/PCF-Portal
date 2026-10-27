@@ -289,7 +289,7 @@ function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest
   const [search, setSearch] = useState("");
   const [branchFilter, setBranchFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
-  const sort = useTableSort("date", "desc");
+  const sort = useTableSort("date", "desc", "voucherNo");
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState("");
   const [editDisb, setEditDisb] = useState(null);
