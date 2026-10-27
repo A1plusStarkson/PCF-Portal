@@ -148,6 +148,46 @@ function EditDisbursementModal({ disbursement, onClose, onSave }) {
   );
 }
 
+/* Reject a released voucher (Accounting, Finance, Custodian, SuperAdmin). A reason is required;
+   onConfirm returns false when the app refuses (e.g. liquidation started). */
+function RejectVoucherModal({ disbursement, requestNo, onClose, onConfirm }) {
+  const [reason, setReason] = useState("");
+  const valid = reason.trim().length > 0;
+
+  return (
+    <div className="pcp-modal-backdrop" onClick={onClose}>
+      <div className="pcp-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="pcp-modal-head">
+          <h3>Reject Voucher — {disbursement.voucherNo}</h3>
+          <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose}><X size={15} /></button>
+        </div>
+        <div className="pcp-modal-body">
+          <div style={{ background: "var(--paper)", borderRadius: 8, padding: 12, marginBottom: 14, fontSize: 12.5 }}>
+            <div><strong>{disbursement.voucherNo}</strong>{requestNo ? ` · ${requestNo}` : ""} — {disbursement.employee}</div>
+            <div style={{ color: "var(--text-mut)", marginTop: 3 }}>{fmtDate(disbursement.date)} · {peso(disbursement.amount)}{disbExpense(disbursement) ? ` · ${disbExpense(disbursement)}` : ""}</div>
+          </div>
+          <div className="pcp-hint" style={{ marginBottom: 14, fontSize: 12 }}>
+            The release is cancelled: the voucher stays in the Release Ledger marked Rejected, and is removed from
+            Liquidation, Aging, alarms and fund balances. {requestNo ? `Request ${requestNo}` : "The request"} is set
+            to Rejected and the requestor sees the reason. This cannot be undone.
+          </div>
+          <div className="pcp-field">
+            <label>Reason for rejection <span style={{ color: "var(--danger)" }}>*</span></label>
+            <textarea className="pcp-input" rows={3} autoFocus value={reason} onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. Released to the wrong employee; cash returned to the custodian" />
+          </div>
+        </div>
+        <div className="pcp-modal-foot">
+          <button className="pcp-btn" onClick={onClose}>Cancel</button>
+          <button className="pcp-btn pcp-btn-danger" disabled={!valid} onClick={() => onConfirm(reason.trim())}>
+            <X size={13} /> Reject Voucher
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const SORT_FIELDS = {
   voucherNo: (d) => d.voucherNo,
   requestNo: (d) => d.pcrNo,
@@ -178,7 +218,7 @@ const LEDGER_COL_TEXT = {
   remarks: (d) => cfText(d.remarks),
 };
 
-function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest, onUpdateRemarks, onToggleBilled, onEditDisbursement, plantOptions, plantTitle, canEdit = true, canDelete, onDelete }) {
+function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest, onUpdateRemarks, onToggleBilled, onEditDisbursement, plantOptions, plantTitle, canEdit = true, canDelete, onDelete, canReject, onReject }) {
   const [search, setSearch] = useState("");
   const [branchFilter, setBranchFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -186,11 +226,12 @@ function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest
   const [editingId, setEditingId] = useState(null);
   const [editValue, setEditValue] = useState("");
   const [editDisb, setEditDisb] = useState(null);
+  const [rejectDisb, setRejectDisb] = useState(null);
 
   /* Request each voucher was released from (PCF Request No. column). */
   const reqById = useMemo(() => new Map((requests || []).map((r) => [r.id, r])), [requests]);
   const matching = useMemo(() => {
-    let list = disbursements.map((d) => ({ ...d, liqStatus: liqStatusFor(d, liquidations), pcrNo: pcrNoOf(d, reqById) }));
+    let list = disbursements.map((d) => ({ ...d, liqStatus: isVoucherRejected(d) ? "Rejected" : liqStatusFor(d, liquidations), pcrNo: pcrNoOf(d, reqById) }));
     if (search) {
       const s = search.toLowerCase();
       list = list.filter((d) => d.voucherNo.toLowerCase().includes(s) || d.employee.toLowerCase().includes(s) || String(d.pcrNo || "").toLowerCase().includes(s));
@@ -209,6 +250,8 @@ function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest
       "Branch": d.branchCode, "Company": companyOfBranch(d.branchCode),
       "Department": subaccountLabel(d.department), "Expense": disbExpense(d),
       "Amount": d.amount, "Status": d.status, "Liquidation Status": d.liqStatus, "Remarks": d.remarks || "",
+      "Rejection Reason": d.rejectionReason || "", "Rejected By": d.rejectedBy || "",
+      "Rejected At": d.rejectedAt ? d.rejectedAt.replace("T", " ") : "",
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -259,8 +302,8 @@ function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest
                 </tr>
               </thead>
               <tbody>
-                {rows.length ? rows.map((d) => (
-                  <tr key={d.id}>
+                {rows.length ? rows.map((d) => { const rejected = isVoucherRejected(d); return (
+                  <tr key={d.id} style={rejected ? { background: "var(--danger-bg, rgba(220, 38, 38, 0.05))" } : undefined}>
                     <td><strong>{d.voucherNo}</strong><PrevNo rec={d} /></td>
                     <td><RequestNoLink disb={d} reqById={reqById} onOpen={onOpenRequest} /></td>
                     <td>{fmtDate(d.date)}</td>
@@ -270,9 +313,17 @@ function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest
                     <td title={subaccountLabel(d.department)} style={{ maxWidth: 140, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{subaccountLabel(d.department)}</td>
                     <td style={{ maxWidth: 150, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={disbExpense(d)}>{disbExpense(d) || "—"}</td>
                     <td className="pcp-num"><strong>{peso(d.amount)}</strong></td>
-                    <td><Badge status={d.liqStatus} /></td>
                     <td>
-                      {canEdit ? (
+                      <Badge status={d.liqStatus} />
+                      {rejected && (
+                        <div style={{ marginTop: 4, fontSize: 11, color: "var(--danger)", maxWidth: 180, whiteSpace: "normal" }}
+                          title={`Rejected by ${d.rejectedBy || "—"}${d.rejectedAt ? " · " + d.rejectedAt.replace("T", " ") : ""}`}>
+                          Reason: {d.rejectionReason}
+                        </div>
+                      )}
+                    </td>
+                    <td>
+                      {canEdit && !rejected ? (
                         <button className="pcp-btn pcp-btn-sm" onClick={() => onToggleBilled(d.id)} title="Toggle billed">
                           {d.billed ? <Check size={12} color="#15803d" /> : <span style={{ color: "#8fa397" }}>—</span>}
                         </button>
@@ -299,8 +350,13 @@ function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest
                     </td>
                     <td>
                       <div style={{ display: "flex", gap: 6 }}>
-                        {canEdit && (
+                        {canEdit && !rejected && (
                           <button className="pcp-btn pcp-btn-sm" onClick={() => setEditDisb(d)} title="Edit disbursement"><Edit3 size={12} /></button>
+                        )}
+                        {canReject && onReject && !rejected && (
+                          <button className="pcp-btn pcp-btn-sm" onClick={() => setRejectDisb(d)} title="Reject voucher">
+                            <X size={13} color="var(--danger)" /> Reject
+                          </button>
                         )}
                         {canDelete && onDelete && (
                           <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => onDelete(d.id)} title="Delete voucher and its liquidation (super admin)">
@@ -310,7 +366,7 @@ function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest
                       </div>
                     </td>
                   </tr>
-                )) : <tr><td colSpan={13} className="pcp-empty">No disbursements match your filters</td></tr>}
+                ); }) : <tr><td colSpan={13} className="pcp-empty">No disbursements match your filters</td></tr>}
               </tbody>
             </table>
           </div>
@@ -321,6 +377,13 @@ function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest
           disbursement={editDisb}
           onClose={() => setEditDisb(null)}
           onSave={(id, patch) => { onEditDisbursement(id, patch); setEditDisb(null); }}
+        />
+      )}
+      {rejectDisb && (
+        <RejectVoucherModal
+          disbursement={rejectDisb} requestNo={rejectDisb.pcrNo}
+          onClose={() => setRejectDisb(null)}
+          onConfirm={(reason) => { if (onReject(rejectDisb.id, reason) !== false) setRejectDisb(null); }}
         />
       )}
     </div>

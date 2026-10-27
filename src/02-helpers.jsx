@@ -930,6 +930,11 @@ function liqCashAccounted(disb, liq) {
   return summary.complete && receiptApprovalSummary(liq).allApproved && settlementStateFor(disb, liq).settled;
 }
 
+/* A voucher Accounting rejected from the Release Ledger: the release is
+   cancelled. It stays in the ledger as a record, and nowhere else — no
+   liquidation, aging, alarm, dashboard total or fund balance counts it. */
+const isVoucherRejected = (d) => !!d && d.status === "Rejected";
+
 function liqStatusFor(disb, liquidations) {
   const liq = liquidationFor(disb.id, liquidations);
   const total = liquidatedTotal(liq);

@@ -254,6 +254,13 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
                     <td>{r.approver || "—"}</td>
                     <td>
                       <Badge status={r.status} />
+                      {/* Rejected from the Release Ledger (rejectDisbursement, 19-app.jsx). */}
+                      {r.status === "Rejected" && r.rejectionReason && (
+                        <div style={{ marginTop: 4, fontSize: 11, color: "var(--danger)", maxWidth: 200, whiteSpace: "normal" }}
+                          title={`Rejected by ${r.rejectedBy || "—"}${r.rejectedAt ? " · " + r.rejectedAt.replace("T", " ") : ""}`}>
+                          Reason: {r.rejectionReason}
+                        </div>
+                      )}
                       {/* Disbursed with no voucher saved (missingVoucherIds, 19-app.jsx). */}
                       {missingVoucherIds && missingVoucherIds.has(r.id) && (
                         <div style={{ marginTop: 4 }} title="This request reads Disbursed, but no voucher was ever saved for it — it is not in the Release Ledger or Liquidation. Release it again with the amount actually given.">

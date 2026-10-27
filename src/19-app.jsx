@@ -167,6 +167,10 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   const DELETE_ACCOUNT_EMAILS = ["superuser@a1plus.com"];
   const canDeleteTxn = DELETE_ACCOUNT_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
+  /* Rejecting a released voucher (Release Ledger): every role except the PCF
+     Requestor (Accounting, Finance, Custodian, SuperAdmin), hidden while
+     previewing another role. Custodians see only their own plants. */
+  const canRejectVoucher = ["Accounting", "Finance", "Custodian", "SuperAdmin"].includes(role) && role === (userRole || "Accounting");
 
   /* ---- Series numbers ----
      Petty Cash Request and Reimbursement numbers are issued by the database
@@ -872,7 +876,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
      hide a match) and judged by liqFinalStatus (receipts approved AND cash
      settled), not by encoded expense lines alone. */
   const outstandingAdvancesFor = useCallback((employee) => disbursements
-    .filter((d) => samePerson(d.employee, employee)
+    .filter((d) => !isVoucherRejected(d) && samePerson(d.employee, employee)
       && !liqIsComplete(liqFinalStatus(d, liquidationFor(d.id, liquidations))))
     .map((d) => ({ disb: d, status: liqFinalStatus(d, liquidationFor(d.id, liquidations)) })),
   [disbursements, liquidations]);
@@ -1683,6 +1687,33 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       + ` · Reason: ${reason}`);
   }, [logAudit, disbursements, liquidations, requests, replenishments, canDeleteTxn, userName, userEmail, role]); // eslint-disable-line
 
+  /* Reject a released voucher (Release Ledger; Accounting, Finance, Custodian, SuperAdmin). The
+     release is cancelled but nothing is deleted: the voucher stays in the
+     ledger marked Rejected with its reason, and its request becomes Rejected
+     with the same reason, which the requestor sees on the request and in the
+     notifications. The voucher number is kept — not retired, not re-issued.
+     Refused once a liquidation has been started, so encoded receipts are
+     never silently dropped. */
+  const rejectDisbursement = useCallback((id, reason) => {
+    const d = disbursements.find((x) => x.id === id);
+    const why = String(reason || "").trim();
+    if (!d || !canRejectVoucher || isVoucherRejected(d) || !why) return false;
+    const liq = liquidations.find((l) => l.disbursementId === id);
+    if (liq && ((liq.lines || []).length || (liq.attachments || []).length || claimedBy("liquidationIds", liq.id))) {
+      window.alert(`${d.voucherNo} cannot be rejected — its liquidation has already been started `
+        + `(${(liq.lines || []).length} expense line(s), ${(liq.attachments || []).length} supporting document(s)).`);
+      return false;
+    }
+    const rejection = { rejectionReason: why, rejectedBy: userName || role, rejectedAt: new Date().toISOString().slice(0, 19) };
+    const req = requests.find((r) => r.id === d.requestId);
+    setDisbursements((ds) => ds.map((x) => (x.id === id ? { ...x, status: "Rejected", ...rejection } : x)));
+    if (req) setRequests((rs) => rs.map((r) => (r.id === req.id ? { ...r, status: "Rejected", ...rejection } : r)));
+    logAudit("Rejected", d.voucherNo, `Voucher rejected · Plant: ${plantNameOf(d.branchCode)} · ${d.employee} · ${peso(d.amount)}`
+      + (req ? ` · ${req.requestNo} set to Rejected` : "")
+      + ` · Reason: ${why}`);
+    return true;
+  }, [logAudit, disbursements, liquidations, requests, replenishments, canRejectVoucher, userName, role]); // eslint-disable-line
+
   /* A liquidation is filed under its voucher's number and has none of its
      own, so deleting one renumbers nothing. */
   const deleteLiquidation = useCallback((disbursementId) => {
@@ -2371,7 +2402,8 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
      custodian can never view or edit another plant's records. */
   const visibleFunds = useMemo(() => funds.filter((f) => inScope(f.branchCode)), [funds, inScope]);
   const visibleRequests = useMemo(() => requests.filter((r) => inScope(r.branchCode)), [requests, inScope]);
-  const visibleDisbursements = useMemo(() => disbursements.filter((d) => inScope(d.branchCode)), [disbursements, inScope]);
+  /* Rejected vouchers (isVoucherRejected) are shown in the Release Ledger only. */
+  const visibleDisbursements = useMemo(() => disbursements.filter((d) => !isVoucherRejected(d) && inScope(d.branchCode)), [disbursements, inScope]);
   const visibleReplenishments = useMemo(() => replenishments.filter((r) => inScope(r.branchCode)), [replenishments, inScope]);
   const visibleReimbursements = useMemo(() => reimbursements.filter((r) => inScope(r.branchCode)), [reimbursements, inScope]);
   const visibleLiquidations = useMemo(() => {
@@ -2415,6 +2447,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   const scopedFunds = useMemo(() => visibleFunds.filter((f) => scopeCodes.includes(f.branchCode)), [visibleFunds, scopeCodes]);
   const scopedRequests = useMemo(() => visibleRequests.filter((r) => scopeCodes.includes(r.branchCode)), [visibleRequests, scopeCodes]);
   const scopedDisbursements = useMemo(() => visibleDisbursements.filter((d) => scopeCodes.includes(d.branchCode)), [visibleDisbursements, scopeCodes]);
+  const ledgerDisbursements = useMemo(() => disbursements.filter((d) => inScope(d.branchCode) && scopeCodes.includes(d.branchCode)), [disbursements, inScope, scopeCodes]);
   const scopedReplenishments = useMemo(() => visibleReplenishments.filter((r) => scopeCodes.includes(r.branchCode)), [visibleReplenishments, scopeCodes]);
   const scopedReimbursements = useMemo(() => visibleReimbursements.filter((r) => scopeCodes.includes(r.branchCode)), [visibleReimbursements, scopeCodes]);
   const scopedLiquidations = useMemo(() => {
@@ -3017,9 +3050,10 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
         {activeModule === "disbursements" && (
           <DisbursementsTab
             key={tab}
-            disbursements={scopedDisbursements} liquidations={scopedLiquidations} requests={scopedRequests}
+            disbursements={ledgerDisbursements} liquidations={scopedLiquidations} requests={scopedRequests}
             onOpenRequest={canOpenRequests ? openRequestRecord : undefined}
             onUpdateRemarks={updateRemarks} onToggleBilled={toggleBilled} onEditDisbursement={editDisbursement}
+            canReject={canRejectVoucher} onReject={rejectDisbursement}
             plantOptions={scopedPlantOptions}
             plantTitle={activePlantLabel}
             canEdit={canEditLedger}
@@ -3193,7 +3227,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
         )}        {activeModule === "masterdata" && (
           <MasterDataTab
             funds={plantRestricted ? visibleFunds : funds}
-            disbursements={plantRestricted ? visibleDisbursements : disbursements}
+            disbursements={plantRestricted ? visibleDisbursements : disbursements.filter((d) => !isVoucherRejected(d))}
             liquidations={plantRestricted ? visibleLiquidations : liquidations}
             replenishments={plantRestricted ? visibleReplenishments : replenishments}
             onAddFund={addFund} onEditFund={editFund} onDeleteFund={deleteFund}
@@ -3206,7 +3240,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
           <SystemSettingsTab
             userName={userName} userEmail={userEmail} role={role} plants={allowedPlants}
             isAdmin={isAdmin}
-            requests={requests} disbursements={disbursements}
+            requests={requests} disbursements={disbursements.filter((d) => !isVoucherRejected(d))}
             liquidations={liquidations} replenishments={replenishments}
           />
         )}
