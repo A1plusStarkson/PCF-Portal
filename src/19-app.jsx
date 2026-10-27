@@ -876,7 +876,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
      hide a match) and judged by liqFinalStatus (receipts approved AND cash
      settled), not by encoded expense lines alone. */
   const outstandingAdvancesFor = useCallback((employee) => disbursements
-    .filter((d) => !isVoucherRejected(d) && samePerson(d.employee, employee)
+    .filter((d) => !isVoucherCancelled(d) && samePerson(d.employee, employee)
       && !liqIsComplete(liqFinalStatus(d, liquidationFor(d.id, liquidations))))
     .map((d) => ({ disb: d, status: liqFinalStatus(d, liquidationFor(d.id, liquidations)) })),
   [disbursements, liquidations]);
@@ -900,13 +900,33 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
      the record of the release, so the request is set to Disbursed to match. */
   useEffect(() => {
     if (!loaded) return;
-    const withVoucher = new Map(disbursements.map((d) => [d.requestId, d.voucherNo]));
+    const withVoucher = new Map(disbursements.filter((d) => !isVoucherCancelled(d)).map((d) => [d.requestId, d.voucherNo]));
     const stale = requests.filter((r) => r.status === "Approved" && withVoucher.has(r.id));
     if (!stale.length) return;
     const ids = new Set(stale.map((r) => r.id));
     setRequests((rs) => rs.map((r) => (ids.has(r.id) && r.status === "Approved" ? { ...r, status: "Disbursed" } : r)));
     stale.forEach((r) => logAudit("Status Corrected", r.requestNo,
       `Read Approved but voucher ${withVoucher.get(r.id)} was already released · status set to Disbursed`));
+  }, [loaded, requests, disbursements]); // eslint-disable-line
+
+  /* A rejected or returned voucher's request must read the same. Reject and
+     Return write both records, but they are saved separately — if only the
+     voucher's change reached the database, the request would still read
+     Disbursed. Corrected on load and whenever the records change. */
+  useEffect(() => {
+    if (!loaded) return;
+    const fixes = new Map();
+    disbursements.filter(isVoucherCancelled).forEach((d) => {
+      const r = requestOfVoucher(d, requests);
+      if (r && r.status !== d.status) fixes.set(r.id, d);
+    });
+    if (!fixes.size) return;
+    const carry = (d) => (isVoucherReturned(d)
+      ? { returnDate: d.returnDate, returnAmount: d.returnAmount, returnReason: d.returnReason, returnedBy: d.returnedBy, returnedAt: d.returnedAt }
+      : { rejectionReason: d.rejectionReason, rejectedBy: d.rejectedBy, rejectedAt: d.rejectedAt });
+    setRequests((rs) => rs.map((r) => (fixes.has(r.id) ? { ...r, status: fixes.get(r.id).status, ...carry(fixes.get(r.id)) } : r)));
+    requests.filter((r) => fixes.has(r.id)).forEach((r) => logAudit("Status Corrected", r.requestNo,
+      `Read ${r.status} but voucher ${fixes.get(r.id).voucherNo} is ${fixes.get(r.id).status} · status set to match`));
   }, [loaded, requests, disbursements]); // eslint-disable-line
 
   const confirmDisburse = useCallback(async (extra) => {
@@ -1697,7 +1717,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   const rejectDisbursement = useCallback((id, reason) => {
     const d = disbursements.find((x) => x.id === id);
     const why = String(reason || "").trim();
-    if (!d || !canRejectVoucher || isVoucherRejected(d) || !why) return false;
+    if (!d || !canRejectVoucher || isVoucherCancelled(d) || !why) return false;
     const liq = liquidations.find((l) => l.disbursementId === id);
     if (liq && ((liq.lines || []).length || (liq.attachments || []).length || claimedBy("liquidationIds", liq.id))) {
       window.alert(`${d.voucherNo} cannot be rejected — its liquidation has already been started `
@@ -1705,11 +1725,44 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       return false;
     }
     const rejection = { rejectionReason: why, rejectedBy: userName || role, rejectedAt: new Date().toISOString().slice(0, 19) };
-    const req = requests.find((r) => r.id === d.requestId);
+    const req = requestOfVoucher(d, requests);
     setDisbursements((ds) => ds.map((x) => (x.id === id ? { ...x, status: "Rejected", ...rejection } : x)));
     if (req) setRequests((rs) => rs.map((r) => (r.id === req.id ? { ...r, status: "Rejected", ...rejection } : r)));
     logAudit("Rejected", d.voucherNo, `Voucher rejected · Plant: ${plantNameOf(d.branchCode)} · ${d.employee} · ${peso(d.amount)}`
       + (req ? ` · ${req.requestNo} set to Rejected` : "")
+      + ` · Reason: ${why}`);
+    return true;
+  }, [logAudit, disbursements, liquidations, requests, replenishments, canRejectVoucher, userName, role]); // eslint-disable-line
+
+  /* Record a released voucher's cash as returned, unspent, to the custodian
+     (Release Ledger; same roles as Reject). The original voucher is kept and
+     marked "Returned to Custodian" with the return date, amount and reason;
+     its request gets the same status. Like a rejection it leaves Liquidation,
+     Aging, alarms and fund balances. Only a FULL return is recorded here — a
+     partial one means part was spent, which is liquidated, with the balance
+     returned through the cash settlement in Liquidation. */
+  const returnDisbursement = useCallback((id, { date, amount, reason }) => {
+    const d = disbursements.find((x) => x.id === id);
+    const why = String(reason || "").trim();
+    if (!d || !canRejectVoucher || isVoucherCancelled(d) || !why || !date) return false;
+    if (round2(Number(amount)) !== round2(Number(d.amount))) return false;
+    const liq = liquidations.find((l) => l.disbursementId === id);
+    if (liq && ((liq.lines || []).length || (liq.attachments || []).length || claimedBy("liquidationIds", liq.id))) {
+      window.alert(`${d.voucherNo} cannot be marked returned — its liquidation has already been started `
+        + `(${(liq.lines || []).length} expense line(s), ${(liq.attachments || []).length} supporting document(s)).\n\n`
+        + "Record the returned cash through the cash settlement in Liquidation instead.");
+      return false;
+    }
+    const ret = {
+      returnDate: date, returnAmount: round2(Number(amount)), returnReason: why,
+      returnedBy: userName || role, returnedAt: new Date().toISOString().slice(0, 19),
+    };
+    const req = requestOfVoucher(d, requests);
+    setDisbursements((ds) => ds.map((x) => (x.id === id ? { ...x, status: VOUCHER_RETURNED, ...ret } : x)));
+    if (req) setRequests((rs) => rs.map((r) => (r.id === req.id ? { ...r, status: VOUCHER_RETURNED, ...ret } : r)));
+    logAudit(VOUCHER_RETURNED, d.voucherNo, `Cash returned to custodian · Plant: ${plantNameOf(d.branchCode)} · ${d.employee}`
+      + ` · Released ${fmtDate(d.date)} ${peso(d.amount)} · Returned ${fmtDate(date)} ${peso(ret.returnAmount)}`
+      + (req ? ` · ${req.requestNo} set to ${VOUCHER_RETURNED}` : "")
       + ` · Reason: ${why}`);
     return true;
   }, [logAudit, disbursements, liquidations, requests, replenishments, canRejectVoucher, userName, role]); // eslint-disable-line
@@ -2402,8 +2455,8 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
      custodian can never view or edit another plant's records. */
   const visibleFunds = useMemo(() => funds.filter((f) => inScope(f.branchCode)), [funds, inScope]);
   const visibleRequests = useMemo(() => requests.filter((r) => inScope(r.branchCode)), [requests, inScope]);
-  /* Rejected vouchers (isVoucherRejected) are shown in the Release Ledger only. */
-  const visibleDisbursements = useMemo(() => disbursements.filter((d) => !isVoucherRejected(d) && inScope(d.branchCode)), [disbursements, inScope]);
+  /* Rejected and returned vouchers (isVoucherCancelled) are shown in the Release Ledger only. */
+  const visibleDisbursements = useMemo(() => disbursements.filter((d) => !isVoucherCancelled(d) && inScope(d.branchCode)), [disbursements, inScope]);
   const visibleReplenishments = useMemo(() => replenishments.filter((r) => inScope(r.branchCode)), [replenishments, inScope]);
   const visibleReimbursements = useMemo(() => reimbursements.filter((r) => inScope(r.branchCode)), [reimbursements, inScope]);
   const visibleLiquidations = useMemo(() => {
@@ -3053,7 +3106,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
             disbursements={ledgerDisbursements} liquidations={scopedLiquidations} requests={scopedRequests}
             onOpenRequest={canOpenRequests ? openRequestRecord : undefined}
             onUpdateRemarks={updateRemarks} onToggleBilled={toggleBilled} onEditDisbursement={editDisbursement}
-            canReject={canRejectVoucher} onReject={rejectDisbursement}
+            canReject={canRejectVoucher} onReject={rejectDisbursement} onReturn={returnDisbursement}
             plantOptions={scopedPlantOptions}
             plantTitle={activePlantLabel}
             canEdit={canEditLedger}
@@ -3227,7 +3280,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
         )}        {activeModule === "masterdata" && (
           <MasterDataTab
             funds={plantRestricted ? visibleFunds : funds}
-            disbursements={plantRestricted ? visibleDisbursements : disbursements.filter((d) => !isVoucherRejected(d))}
+            disbursements={plantRestricted ? visibleDisbursements : disbursements.filter((d) => !isVoucherCancelled(d))}
             liquidations={plantRestricted ? visibleLiquidations : liquidations}
             replenishments={plantRestricted ? visibleReplenishments : replenishments}
             onAddFund={addFund} onEditFund={editFund} onDeleteFund={deleteFund}
@@ -3240,7 +3293,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
           <SystemSettingsTab
             userName={userName} userEmail={userEmail} role={role} plants={allowedPlants}
             isAdmin={isAdmin}
-            requests={requests} disbursements={disbursements.filter((d) => !isVoucherRejected(d))}
+            requests={requests} disbursements={disbursements.filter((d) => !isVoucherCancelled(d))}
             liquidations={liquidations} replenishments={replenishments}
           />
         )}

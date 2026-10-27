@@ -1,6 +1,6 @@
 /* ============================= AUDIT TRAIL ============================= */
 
-const AUDIT_ACTIONS = ["Signed In", "Signed Out", "Request Created", "Edited", "Request No. Changed", "Approved", "Rejected", "Released", "Liquidated", "Liquidation Submitted", "Receipt Approved", "Receipt Rejected", "Liquidation Custodian Approved", "Liquidation Final Approved", "Liquidation Rejected", "Liquidation Approval Voided", "Replenished", "Deleted", "Password Changed", "Audit Entry Deleted"];
+const AUDIT_ACTIONS = ["Signed In", "Signed Out", "Request Created", "Edited", "Request No. Changed", "Approved", "Rejected", "Returned to Custodian", "Released", "Liquidated", "Liquidation Submitted", "Receipt Approved", "Receipt Rejected", "Liquidation Custodian Approved", "Liquidation Final Approved", "Liquidation Rejected", "Liquidation Approval Voided", "Replenished", "Deleted", "Password Changed", "Audit Entry Deleted"];
 
 const AUDIT_SORT_FIELDS = {
   ts: (a) => a.ts,
@@ -135,7 +135,7 @@ function AuditTrailTab({ auditLog, canDelete, onDelete }) {
                     )}
                     <td style={{ whiteSpace: "nowrap" }}><Clock size={12} style={{ verticalAlign: "-2px", marginRight: 5, color: "#8fa397" }} />{fmtTs(a.ts)}</td>
                     <td>{a.user}</td>
-                    <td><span className={"pcp-badge pcp-badge-" + (a.action === "Rejected" || a.action === "Liquidation Rejected" || a.action === "Receipt Rejected" || a.action === "Deleted" || a.action === "Audit Entry Deleted" || a.action === "Fund Deleted" ? "red" : a.action === "Beginning Balance Changed" ? "amber" : a.action === "Approved" || a.action === "Released" || a.action === "Replenished" ? "green" : a.action === "Liquidated" ? "blue" : "gray")}>{a.action}</span></td>
+                    <td><span className={"pcp-badge pcp-badge-" + (a.action === "Rejected" || a.action === "Returned to Custodian" || a.action === "Liquidation Rejected" || a.action === "Receipt Rejected" || a.action === "Deleted" || a.action === "Audit Entry Deleted" || a.action === "Fund Deleted" ? "red" : a.action === "Beginning Balance Changed" ? "amber" : a.action === "Approved" || a.action === "Released" || a.action === "Replenished" ? "green" : a.action === "Liquidated" ? "blue" : "gray")}>{a.action}</span></td>
                     <td>{a.entity}</td>
                     <td style={{ whiteSpace: "normal" }}>{a.remarks}</td>
                     {canDelete && (

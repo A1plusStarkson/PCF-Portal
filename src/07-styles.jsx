@@ -2233,7 +2233,7 @@ function PrevNo({ rec, legacy }) {
 
 function Badge({ status }) {
   const map = {
-    Pending: "amber", Approved: "green", Rejected: "red", Disbursed: "green", Overdue: "red", "For Review": "amber",
+    Pending: "amber", Approved: "green", Rejected: "red", "Returned to Custodian": "purple", Disbursed: "green", Overdue: "red", "For Review": "amber",
     Open: "blue", Closed: "gray",
     "Not Liquidated": "orange", "Partially Liquidated": "blue",
     "Fully Liquidated": "green", "Over-Liquidated": "red",

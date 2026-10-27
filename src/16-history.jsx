@@ -132,7 +132,7 @@ function TransactionHistoryTab({ requests, disbursements, liquidations, replenis
             <div className="pcp-field" style={{ margin: 0 }}>
               <label>Status</label>
               <select className="pcp-select" value={status} onChange={(e) => setStatus(e.target.value)}>
-                {["All", "Pending", "Approved", "Rejected", "Disbursed", "Liquidated", "Completed", "Not Liquidated", "Partially Liquidated", "Fully Liquidated"].map((s) => <option key={s}>{s}</option>)}
+                {["All", "Pending", "Approved", "Rejected", "Returned to Custodian", "Disbursed", "Liquidated", "Completed", "Not Liquidated", "Partially Liquidated", "Fully Liquidated"].map((s) => <option key={s}>{s}</option>)}
               </select>
             </div>
             <div className="pcp-field" style={{ margin: 0 }}>

@@ -934,6 +934,18 @@ function liqCashAccounted(disb, liq) {
    cancelled. It stays in the ledger as a record, and nowhere else — no
    liquidation, aging, alarm, dashboard total or fund balance counts it. */
 const isVoucherRejected = (d) => !!d && d.status === "Rejected";
+/* A voucher whose cash the employee handed back, unspent, to the custodian
+   (Release Ledger "Return"). Kept as a record exactly like a rejected one. */
+const VOUCHER_RETURNED = "Returned to Custodian";
+const isVoucherReturned = (d) => !!d && d.status === VOUCHER_RETURNED;
+/* Rejected or returned: the release no longer stands. */
+const isVoucherCancelled = (d) => isVoucherRejected(d) || isVoucherReturned(d);
+/* The request a voucher was released from: by its link, else by the request
+   number the voucher carries (older vouchers may lack the link). */
+const requestOfVoucher = (d, requests) => (!d ? null
+  : (requests || []).find((r) => r.id === d.requestId)
+    || (d.requestNo ? (requests || []).find((r) => r.requestNo === d.requestNo) : null)
+    || null);
 
 function liqStatusFor(disb, liquidations) {
   const liq = liquidationFor(disb.id, liquidations);

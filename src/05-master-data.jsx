@@ -986,6 +986,7 @@ function buildNotifications(requests, disbursements, liquidations, replenishment
     if (r.status === "Pending") out.push({ id: "n-req-" + r.id, type: "approval", icon: "clip", title: "Approval required", text: `${r.requestNo} · ${r.employee} · ${peso(r.amount)}`, date: r.date });
     if (r.status === "Approved") out.push({ id: "n-appr-" + r.id, type: "approved", icon: "check", title: "Request approved — ready to release", text: `${r.requestNo} · ${r.employee}`, date: r.date });
     if (r.status === "Rejected") out.push({ id: "n-rej-" + r.id, type: "rejected", icon: "x", title: "Request rejected", text: `${r.requestNo} · ${r.employee}` + (r.rejectionReason ? ` · Reason: ${r.rejectionReason}` : ""), date: r.rejectedAt ? r.rejectedAt.slice(0, 10) : r.date });
+    if (r.status === VOUCHER_RETURNED) out.push({ id: "n-ret-" + r.id, type: "rejected", icon: "x", title: "Cash returned to custodian", text: `${r.requestNo} · ${r.employee} · ${peso(r.returnAmount)}` + (r.returnReason ? ` · Reason: ${r.returnReason}` : ""), date: r.returnDate || r.date });
   });
   disbursements.forEach((d) => {
     const status = liqStatusFor(d, liquidations);

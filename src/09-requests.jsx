@@ -261,6 +261,13 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
                           Reason: {r.rejectionReason}
                         </div>
                       )}
+                      {/* Cash returned to the custodian (returnDisbursement, 19-app.jsx). */}
+                      {r.status === VOUCHER_RETURNED && (
+                        <div style={{ marginTop: 4, fontSize: 11, color: "var(--purple)", maxWidth: 200, whiteSpace: "normal" }}
+                          title={`Processed by ${r.returnedBy || "—"}${r.returnedAt ? " · " + r.returnedAt.replace("T", " ") : ""}`}>
+                          Returned {fmtDate(r.returnDate)} · {peso(r.returnAmount)}<br />Reason: {r.returnReason}
+                        </div>
+                      )}
                       {/* Disbursed with no voucher saved (missingVoucherIds, 19-app.jsx). */}
                       {missingVoucherIds && missingVoucherIds.has(r.id) && (
                         <div style={{ marginTop: 4 }} title="This request reads Disbursed, but no voucher was ever saved for it — it is not in the Release Ledger or Liquidation. Release it again with the amount actually given.">

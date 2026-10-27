@@ -188,6 +188,73 @@ function RejectVoucherModal({ disbursement, requestNo, onClose, onConfirm }) {
   );
 }
 
+/* Record a released voucher's cash as returned to the custodian. Date, amount
+   and reason are required; only the full released amount can be recorded
+   here (returnDisbursement, 19-app.jsx). */
+function ReturnVoucherModal({ disbursement, requestNo, onClose, onConfirm }) {
+  const [date, setDate] = useState(todayISO());
+  const [amount, setAmount] = useState(disbursement.amount);
+  const [reason, setReason] = useState("");
+  const partial = round2(Number(amount)) !== round2(Number(disbursement.amount));
+  const badDate = !date || date < disbursement.date || date > todayISO();
+  const valid = !partial && !badDate && reason.trim().length > 0;
+
+  return (
+    <div className="pcp-modal-backdrop" onClick={onClose}>
+      <div className="pcp-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="pcp-modal-head">
+          <h3>Return to Custodian — {disbursement.voucherNo}</h3>
+          <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose}><X size={15} /></button>
+        </div>
+        <div className="pcp-modal-body">
+          <div style={{ background: "var(--paper)", borderRadius: 8, padding: 12, marginBottom: 14, fontSize: 12.5 }}>
+            <div><strong>{disbursement.voucherNo}</strong>{requestNo ? ` · ${requestNo}` : ""} — {disbursement.employee}</div>
+            <div style={{ color: "var(--text-mut)", marginTop: 3 }}>Disbursed {fmtDate(disbursement.date)} · {peso(disbursement.amount)}{disbExpense(disbursement) ? ` · ${disbExpense(disbursement)}` : ""}</div>
+          </div>
+          <div className="pcp-hint" style={{ marginBottom: 14, fontSize: 12 }}>
+            The original release stays in the Release Ledger, marked Returned to Custodian with the details below, and is
+            removed from Liquidation, Aging, alarms and fund balances. {requestNo ? `Request ${requestNo}` : "The request"} is
+            set to Returned to Custodian. This cannot be undone.
+          </div>
+          <div className="pcp-field-row">
+            <div className="pcp-field">
+              <label>Return Date <span style={{ color: "var(--danger)" }}>*</span></label>
+              <input type="date" className="pcp-input" value={date} min={disbursement.date} max={todayISO()} onChange={(e) => setDate(e.target.value)} />
+            </div>
+            <div className="pcp-field">
+              <label>Amount Returned (₱) <span style={{ color: "var(--danger)" }}>*</span></label>
+              <input type="number" min="0" step="0.01" className="pcp-input" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            </div>
+          </div>
+          {badDate && (
+            <div style={{ color: "var(--danger)", fontSize: 12, marginTop: -6, marginBottom: 10 }}>
+              The return date must be between the disbursement date ({fmtDate(disbursement.date)}) and today.
+            </div>
+          )}
+          {partial && (
+            <div style={{ color: "var(--danger)", fontSize: 12, marginTop: -6, marginBottom: 10 }}>
+              Only the full {peso(disbursement.amount)} can be recorded as returned here. If part of the cash was spent,
+              liquidate the spent part and record the returned balance in the cash settlement in Liquidation.
+            </div>
+          )}
+          <div className="pcp-field">
+            <label>Reason for return <span style={{ color: "var(--danger)" }}>*</span></label>
+            <textarea className="pcp-input" rows={3} autoFocus value={reason} onChange={(e) => setReason(e.target.value)}
+              placeholder="e.g. Purchase cancelled; cash returned unused to the custodian" />
+          </div>
+        </div>
+        <div className="pcp-modal-foot">
+          <button className="pcp-btn" onClick={onClose}>Cancel</button>
+          <button className="pcp-btn pcp-btn-primary" disabled={!valid}
+            onClick={() => onConfirm({ date, amount: round2(Number(amount)), reason: reason.trim() })}>
+            <RotateCcw size={13} /> Confirm Return
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 const SORT_FIELDS = {
   voucherNo: (d) => d.voucherNo,
   requestNo: (d) => d.pcrNo,
@@ -218,7 +285,7 @@ const LEDGER_COL_TEXT = {
   remarks: (d) => cfText(d.remarks),
 };
 
-function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest, onUpdateRemarks, onToggleBilled, onEditDisbursement, plantOptions, plantTitle, canEdit = true, canDelete, onDelete, canReject, onReject }) {
+function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest, onUpdateRemarks, onToggleBilled, onEditDisbursement, plantOptions, plantTitle, canEdit = true, canDelete, onDelete, canReject, onReject, onReturn }) {
   const [search, setSearch] = useState("");
   const [branchFilter, setBranchFilter] = useState("All");
   const [statusFilter, setStatusFilter] = useState("All");
@@ -227,11 +294,12 @@ function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest
   const [editValue, setEditValue] = useState("");
   const [editDisb, setEditDisb] = useState(null);
   const [rejectDisb, setRejectDisb] = useState(null);
+  const [returnDisb, setReturnDisb] = useState(null);
 
   /* Request each voucher was released from (PCF Request No. column). */
   const reqById = useMemo(() => new Map((requests || []).map((r) => [r.id, r])), [requests]);
   const matching = useMemo(() => {
-    let list = disbursements.map((d) => ({ ...d, liqStatus: isVoucherRejected(d) ? "Rejected" : liqStatusFor(d, liquidations), pcrNo: pcrNoOf(d, reqById) }));
+    let list = disbursements.map((d) => ({ ...d, liqStatus: isVoucherCancelled(d) ? d.status : liqStatusFor(d, liquidations), pcrNo: pcrNoOf(d, reqById) }));
     if (search) {
       const s = search.toLowerCase();
       list = list.filter((d) => d.voucherNo.toLowerCase().includes(s) || d.employee.toLowerCase().includes(s) || String(d.pcrNo || "").toLowerCase().includes(s));
@@ -252,6 +320,8 @@ function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest
       "Amount": d.amount, "Status": d.status, "Liquidation Status": d.liqStatus, "Remarks": d.remarks || "",
       "Rejection Reason": d.rejectionReason || "", "Rejected By": d.rejectedBy || "",
       "Rejected At": d.rejectedAt ? d.rejectedAt.replace("T", " ") : "",
+      "Return Date": d.returnDate || "", "Amount Returned": d.returnAmount != null ? d.returnAmount : "",
+      "Return Reason": d.returnReason || "", "Return Processed By": d.returnedBy || "",
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
@@ -302,8 +372,8 @@ function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest
                 </tr>
               </thead>
               <tbody>
-                {rows.length ? rows.map((d) => { const rejected = isVoucherRejected(d); return (
-                  <tr key={d.id} style={rejected ? { background: "var(--danger-bg, rgba(220, 38, 38, 0.05))" } : undefined}>
+                {rows.length ? rows.map((d) => { const rejected = isVoucherCancelled(d); const returned = isVoucherReturned(d); return (
+                  <tr key={d.id} style={returned ? { background: "var(--purple-bg)" } : rejected ? { background: "var(--danger-bg, rgba(220, 38, 38, 0.05))" } : undefined}>
                     <td><strong>{d.voucherNo}</strong><PrevNo rec={d} /></td>
                     <td><RequestNoLink disb={d} reqById={reqById} onOpen={onOpenRequest} /></td>
                     <td>{fmtDate(d.date)}</td>
@@ -315,7 +385,13 @@ function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest
                     <td className="pcp-num"><strong>{peso(d.amount)}</strong></td>
                     <td>
                       <Badge status={d.liqStatus} />
-                      {rejected && (
+                      {returned && (
+                        <div style={{ marginTop: 4, fontSize: 11, color: "var(--purple)", maxWidth: 190, whiteSpace: "normal" }}
+                          title={`Processed by ${d.returnedBy || "—"}${d.returnedAt ? " · " + d.returnedAt.replace("T", " ") : ""}`}>
+                          Returned {fmtDate(d.returnDate)} · {peso(d.returnAmount)}<br />Reason: {d.returnReason}
+                        </div>
+                      )}
+                      {rejected && !returned && (
                         <div style={{ marginTop: 4, fontSize: 11, color: "var(--danger)", maxWidth: 180, whiteSpace: "normal" }}
                           title={`Rejected by ${d.rejectedBy || "—"}${d.rejectedAt ? " · " + d.rejectedAt.replace("T", " ") : ""}`}>
                           Reason: {d.rejectionReason}
@@ -358,6 +434,11 @@ function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest
                             <X size={13} color="var(--danger)" /> Reject
                           </button>
                         )}
+                        {canReject && onReturn && !rejected && (
+                          <button className="pcp-btn pcp-btn-sm" onClick={() => setReturnDisb(d)} title="Record cash returned to custodian">
+                            <RotateCcw size={12} color="var(--purple)" /> Return
+                          </button>
+                        )}
                         {canDelete && onDelete && (
                           <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={() => onDelete(d.id)} title="Delete voucher and its liquidation (super admin)">
                             <Trash2 size={13} color="var(--danger)" />
@@ -384,6 +465,13 @@ function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest
           disbursement={rejectDisb} requestNo={rejectDisb.pcrNo}
           onClose={() => setRejectDisb(null)}
           onConfirm={(reason) => { if (onReject(rejectDisb.id, reason) !== false) setRejectDisb(null); }}
+        />
+      )}
+      {returnDisb && (
+        <ReturnVoucherModal
+          disbursement={returnDisb} requestNo={returnDisb.pcrNo}
+          onClose={() => setReturnDisb(null)}
+          onConfirm={(ret) => { if (onReturn(returnDisb.id, ret) !== false) setReturnDisb(null); }}
         />
       )}
     </div>
