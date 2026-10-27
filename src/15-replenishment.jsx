@@ -219,7 +219,26 @@ function replenishmentDetailDoc(r, detail, funds, generatedBy) {
   };
 }
 
-function ReplenishmentDetailModal({ replenishment: r, funds, disbursements, liquidations, reimbursements, generatedBy, onClose }) {
+/* Page orientation for the Replenishment PDFs (Ready list and per-replenishment
+   report), chosen beside each print button and remembered in this browser. */
+const REPL_ORIENT_KEY = "pcp.repl.pdfOrientation";
+function useReplOrientation() {
+  const [o, setO] = useState(() => { try { return localStorage.getItem(REPL_ORIENT_KEY) === "portrait" ? "portrait" : "landscape"; } catch (e) { return "landscape"; } });
+  const set = (v) => { setO(v); try { localStorage.setItem(REPL_ORIENT_KEY, v); } catch (e) { /* private mode */ } };
+  return [o, set];
+}
+function OrientationSelect({ value, onChange }) {
+  return (
+    <select className="pcp-select" value={value} onChange={(e) => onChange(e.target.value)}
+      title="Page orientation of the PDF" aria-label="PDF page orientation"
+      style={{ width: "auto", height: 28, padding: "0 26px 0 8px", fontSize: 12 }}>
+      <option value="landscape">Landscape</option>
+      <option value="portrait">Portrait</option>
+    </select>
+  );
+}
+
+function ReplenishmentDetailModal({ replenishment: r, funds, disbursements, liquidations, reimbursements, generatedBy, onClose, orientation, onOrientation }) {
   /* Recomputed from the live records on every render, so it always shows the
      latest saved figures. */
   const detail = replenishmentDetail(r, disbursements, liquidations, reimbursements);
@@ -228,7 +247,7 @@ function ReplenishmentDetailModal({ replenishment: r, funds, disbursements, liqu
   const empty = !detail.txns.length;
   const generate = () => {
     if (empty) { window.alert("This replenishment has no linked transactions, so there is nothing to report."); return; }
-    printReportDocument(replenishmentDetailDoc(r, detail, funds, generatedBy));
+    printReportDocument({ ...replenishmentDetailDoc(r, detail, funds, generatedBy), orientation });
   };
   const field = (label, value) => (
     <div>
@@ -242,6 +261,7 @@ function ReplenishmentDetailModal({ replenishment: r, funds, disbursements, liqu
         <div className="pcp-modal-head">
           <h3>Replenishment {r.replenishmentNo}</h3>
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <OrientationSelect value={orientation} onChange={onOrientation} />
             <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={generate} disabled={empty}
               title={empty ? "No linked transactions — nothing to report" : "Open the print-ready report; choose Save as PDF in the print dialog"}>
               <Printer size={12} /> Generate PDF Report
@@ -506,6 +526,7 @@ const REPLENISH_SORT_FIELDS = {
 };
 
 function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, reimbursements, onCreate, onEdit, onComplete, onDelete, canDelete, plantOptions, canEdit, plantTitle, generatedBy, canManage, onRevert, onRevertReady, canViewDetails, onExportAcumatica }) {
+  const [orientation, setOrientation] = useReplOrientation();
   const [showForm, setShowForm] = useState(false);
   /* Replenishment whose details modal is open (REPLEN_DETAIL_EMAILS). */
   const [viewing, setViewing] = useState(null);
@@ -648,9 +669,10 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
               {ready.length} item(s) · {pesoB(sumOf(ready))} — fully approved by {FINAL_APPROVER_NAME}, not yet replenished
             </span>
             <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
+              <OrientationSelect value={orientation} onChange={setOrientation} />
               <button className="pcp-btn pcp-btn-sm" disabled={!exportScope.length}
                 title={pickedShown.length ? "Print or save the SELECTED items as PDF" : "Print or save everything shown as PDF"}
-                onClick={() => printReportDocument(exportDoc())}>
+                onClick={() => printReportDocument({ ...exportDoc(), orientation })}>
                 <Printer size={12} /> Print / PDF{pickedShown.length ? ` (${pickedShown.length})` : ""}
               </button>
               <button className="pcp-btn pcp-btn-sm" disabled={!exportScope.length}
@@ -900,6 +922,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
       )}
       {viewing && canViewDetails && (
         <ReplenishmentDetailModal
+          orientation={orientation} onOrientation={setOrientation}
           replenishment={replenishments.find((x) => x.id === viewing.id) || viewing}
           funds={funds} disbursements={disbursements} liquidations={liquidations} reimbursements={reimbursements}
           generatedBy={generatedBy} onClose={() => setViewing(null)}
