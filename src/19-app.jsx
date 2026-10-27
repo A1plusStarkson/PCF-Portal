@@ -351,6 +351,9 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   ];
   const canManageReplen = REPLEN_MANAGE_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
+  /* Replenishments: Export to Acumatica — Accounting (and the System
+     Administrator) only, hidden while previewing another role. */
+  const canExportAcumatica = (role === "Accounting" || role === "SuperAdmin") && role === (userRole || "Accounting");
   /* Replenishments: click a record to see its transactions and generate the
      PDF report — these accounts only (owner's instruction, Oct 2026).
      Read-only — viewing or reporting never changes a record. */
@@ -2523,44 +2526,45 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   );
   const activePlantLabel = activePlant ? plantLabel(activePlant) : "";
 
-  /* "Export All to Acumatica" (Liquidation tab): ONLY the plant being viewed.
-     Built from the plant-scoped lists (the open plant's family, intersected
-     with what this user may see) — never the full data — and narrowed to the
-     branch tab when one is picked (`branch`, "ALL" = the whole plant). Both
-     petty cash liquidations and the reimbursements listed in the Liquidation
-     Module go into the one Purchase Orders sheet, same columns as before.
-     Every row is checked against the selection before the file is written;
-     with nothing to export the file still carries the header row. */
-  /* `only` ({ disbIds, reimbIds }) limits the export to the transactions the
-     Liquidation list currently shows, or the ones ticked in it — so an
-     unrelated batch or an unapproved record outside the filter can never ride
-     along. Without it, the whole plant is exported as before. */
-  const exportAllToAcumatica = useCallback((branch, only) => {
-    const oneBranch = branch && branch !== "ALL" ? branch : "";
-    const inSelection = (code) => scopeCodes.includes(code) && (!oneBranch || code === oneBranch);
-    const disbIds = only ? new Set(only.disbIds || []) : null;
-    const reimbIds = only ? new Set(only.reimbIds || []) : null;
-    const disbs = scopedDisbursements.filter((d) => inSelection(d.branchCode) && (!disbIds || disbIds.has(d.id)));
-    const reimbs = scopedReimbursements.filter((r) => inSelection(r.branchCode) && reimbInLiquidationModule(r)
-      && (!reimbIds || reimbIds.has(r.id)));
-    const rows = buildAllAcumaticaExportRows(disbs, scopedLiquidations)
-      .concat(...reimbs.map(buildReimbursementAcumaticaRows));
-    if (!rows.length) {
-      window.alert("Nothing to export: none of these transactions has expense lines yet.");
+  /* "Export to Acumatica" (Replenishment tab; moved from Liquidation, Oct
+     2026). Only replenishments go to Acumatica, and only what Grace Gan has
+     final-approved: every liquidation and reimbursement on each replenishment
+     is checked for her final approval before anything is written, and a
+     reverted replenishment is never exported. One Purchase Orders sheet, the
+     same columns as before; rows outside the plant being viewed stop it. */
+  const exportReplenishmentsToAcumatica = useCallback((ids) => {
+    if (!canExportAcumatica) return;
+    const reps = scopedReplenishments.filter((r) => (ids || []).includes(r.id));
+    const skipped = reps.filter((r) => r.status === "Reverted").map((r) => r.replenishmentNo);
+    const live = reps.filter((r) => r.status !== "Reverted");
+    const built = live.map((r) => ({ r, ...buildReplenishmentAcumaticaRows(r, disbursements, liquidations, reimbursements) }));
+    const blocked = built.filter((x) => x.notApproved.length);
+    if (blocked.length) {
+      window.alert("Export stopped — not everything is approved by " + FINAL_APPROVER_NAME + ":\n\n"
+        + blocked.map((x) => `${x.r.replenishmentNo}: ${x.notApproved.join(", ")}`).join("\n")
+        + "\n\nNothing was exported.");
       return;
     }
-    const stray = rows.filter((row) => !inSelection(row["Branch"]));
+    const rows = [].concat(...built.map((x) => x.rows));
+    if (!rows.length) {
+      window.alert((skipped.length ? `Reverted replenishments are not exported (${skipped.join(", ")}).\n\n` : "")
+        + "Nothing to export: no approved expense lines on the selected replenishment(s).");
+      return;
+    }
+    const stray = rows.filter((row) => !scopeCodes.includes(row["Branch"]));
     if (stray.length) {
-      window.alert(`Export stopped: ${stray.length} line(s) do not belong to ${oneBranch ? plantLabel(oneBranch) : (activePlantLabel || "this plant")}. Nothing was exported.`);
+      window.alert(`Export stopped: ${stray.length} line(s) do not belong to ${activePlantLabel || "this plant"}. Nothing was exported.`);
       return;
     }
     const ws = XLSX.utils.json_to_sheet(rows, { header: ACUMATICA_HEADERS });
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, ACUMATICA_PO_SHEET_NAME);
-    const scopeName = String(oneBranch ? plantLabel(oneBranch) || oneBranch : (activePlantLabel || "All Plants"))
-      .replace(/[^A-Za-z0-9]+/g, "_").replace(/^_+|_+$/g, "");
-    downloadWorkbook(wb, `Acumatica_PO_Export_${scopeName || "Plant"}_${todayISO()}.xlsx`);
-  }, [scopeCodes, scopedDisbursements, scopedLiquidations, scopedReimbursements, activePlantLabel]);
+    const name = built.length === 1 ? built[0].r.replenishmentNo : `${built.length}_Replenishments`;
+    downloadWorkbook(wb, `Acumatica_PO_Export_${String(name).replace(/[^A-Za-z0-9]+/g, "_")}_${todayISO()}.xlsx`);
+    logAudit("Exported", built.map((x) => x.r.replenishmentNo).join(", "),
+      `Exported to Acumatica · ${rows.length} line(s) · ${peso(rows.reduce((s, x) => s + (Number(x.Amount) || 0), 0))}`
+      + (skipped.length ? ` · reverted, not exported: ${skipped.join(", ")}` : ""));
+  }, [canExportAcumatica, scopedReplenishments, disbursements, liquidations, reimbursements, scopeCodes, activePlantLabel, logAudit]);
   /* Resolve the per-plant dashboard header from the canonical list, falling back
      to the funds master data so newly created plants get a working dashboard. */
   const activeBranch = useMemo(() => {
@@ -3121,7 +3125,6 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
             disbursements={scopedDisbursements} liquidations={scopedLiquidations}
             onSaveLiquidation={saveLiquidation} onExport={exportLiquidation}
             showHeaderUpload={canLiqHeaderUpload}
-            onExportAll={exportAllToAcumatica}
             onDecideReceipt={decideReceipt}
             onSubmitLiquidation={submitLiquidation}
             onReopenLiquidation={reopenLiquidation}
@@ -3167,6 +3170,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
             onComplete={completeReplenishment} onDelete={deleteReplenishment}
             onRevert={revertReplenishment} onRevertReady={revertReadyItem} canManage={canManageReplen}
             canViewDetails={canViewReplenDetails}
+            onExportAcumatica={canExportAcumatica ? exportReplenishmentsToAcumatica : undefined}
             canDelete={canDeleteTxn}
             generatedBy={userName || userEmail}
             plantOptions={scopedPlantOptions} canEdit={canEdit}

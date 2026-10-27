@@ -2572,7 +2572,7 @@ function ReimbursementLiquidationPanel({ reimb, canFinance, onAction }) {
 }
 
 function LiquidationTab({
-  disbursements, liquidations, onSaveLiquidation, onExport, onExportAll, plantOptions, plantTitle,
+  disbursements, liquidations, onSaveLiquidation, onExport, plantOptions, plantTitle,
   canApproveReceipts, onDecideReceipt, onSubmitLiquidation, onReopenLiquidation,
   onRecordSettlement, onCloseShortage, onReopenShortage, canApproveShortage,
   onReviewOverLiquidation, canDelete, onDeleteLiquidation, onDeleteReimbursement,
@@ -2808,9 +2808,9 @@ function LiquidationTab({
   });
 
   /* ---- Row selection ----
-     Tick rows to export / print only those; with nothing ticked, everything
-     the filters show (both tabs) is exported. Only rows still shown count, so
-     a filter change can never export a hidden record. Read-only. */
+     Tick rows to print only those; with nothing ticked, everything the
+     filters show is printed. Only rows still shown count, so a filter change
+     can never print a hidden record. Read-only. */
   const [picked, setPicked] = useState(() => new Set());
   const pickedPetty = list.filter((d) => picked.has("liq:" + d.id));
   const pickedReimb = reimbActive.filter((r) => picked.has("reimb:" + r.id));
@@ -2824,10 +2824,6 @@ function LiquidationTab({
   const reimbKeys = reimbActive.map((r) => "reimb:" + r.id);
   const allPettyPicked = list.length > 0 && pickedPetty.length === list.length;
   const allReimbPicked = reimbActive.length > 0 && pickedReimb.length === reimbActive.length;
-  const exportScope = pickedCount
-    ? { disbIds: pickedPetty.map((d) => d.id), reimbIds: pickedReimb.map((r) => r.id) }
-    : { disbIds: list.map((d) => d.id), reimbIds: reimbActive.map((r) => r.id) };
-  const exportCount = exportScope.disbIds.length + exportScope.reimbIds.length;
   const pickedOnTab = source === "pettycash" ? pickedPetty.length : pickedReimb.length;
   const printRows = () => (source === "pettycash"
     ? (pickedPetty.length ? pickedPetty : list)
@@ -2836,7 +2832,7 @@ function LiquidationTab({
   const pickCell = (key) => (
     <td onClick={(e) => e.stopPropagation()} style={{ width: 30 }}>
       <input type="checkbox" checked={picked.has(key)} onChange={(e) => togglePick([key], e.target.checked)}
-        title="Select for export / print" />
+        title="Select for print" />
     </td>
   );
 
@@ -2845,14 +2841,8 @@ function LiquidationTab({
       <TopBar
         title={(plantTitle ? plantTitle + " \u00b7 " : "") + "Liquidation"}
         sub="Liquidate petty cash advances and approved employee reimbursements in one professional workspace"
-        right={
-          <button className="pcp-btn pcp-btn-primary" disabled={!exportCount} onClick={() => onExportAll(plant, exportScope)}
-            title={pickedCount
-              ? `Export the ${pickedCount} ticked transaction(s) to Acumatica`
-              : `Export the ${exportCount} transaction(s) matching the current filters (both tabs) — ${plant === "ALL" ? (plantTitle || "this plant") : plantLabel(plant)} only`}>
-            <Download size={14} /> {pickedCount ? `Export ${pickedCount} Selected to Acumatica` : `Export to Acumatica (${exportCount})`}
-          </button>
-        }
+        /* Export to Acumatica moved to the Replenishment module (Oct 2026):
+           only Grace Gan-approved replenishments go to Acumatica. */
       />
       <div className="pcp-content">
         <PlantScopeTabs plants={plantOptions} value={plant} onChange={(v) => { setPlant(v); setSelectedId(null); setSelectedReimbId(null); }} />

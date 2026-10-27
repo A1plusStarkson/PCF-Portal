@@ -86,14 +86,31 @@ function buildReimbursementAcumaticaRows(reimb) {
   });
 }
 
-/* Every voucher that currently has liquidation lines, flattened into one sheet —
-   used by "Export All to Acumatica" in the Liquidation tab. */
-function buildAllAcumaticaExportRows(disbursements, liquidations) {
+/* A replenishment's liquidations and reimbursements in one Purchase Orders
+   sheet — "Export to Acumatica" in the Replenishment tab. Each item must carry
+   Grace Gan's final approval; any that does not (or cannot be found) is listed
+   in notApproved, and the caller exports nothing. */
+const REIMB_NOT_FINAL = ["DRAFT", "SUBMITTED", "FOR REVIEW", "FOR APPROVAL", "FOR FINAL APPROVAL",
+  "RETURNED FOR REVISION", "FOR SUBMISSION", "REJECTED"];
+function buildReplenishmentAcumaticaRows(repl, disbursements, liquidations, reimbursements) {
   const rows = [];
-  disbursements.forEach((disb) => {
-    const liq = liquidationFor(disb.id, liquidations);
-    if (!liq || !liq.lines || !liq.lines.length) return;
-    liq.lines.forEach((line) => rows.push(buildAcumaticaLine(disb, line, liq.createdDate)));
+  const notApproved = [];
+  (repl.liquidationIds || []).forEach((id) => {
+    const liq = (liquidations || []).find((l) => l.id === id);
+    const disb = liq && (disbursements || []).find((d) => d.id === liq.disbursementId);
+    if (!liq || !disb || isVoucherCancelled(disb) || !liqReview(liq).final) {
+      notApproved.push(disb ? disb.voucherNo : "a liquidation no longer on file");
+      return;
+    }
+    rows.push(...buildLiquidationExportRows(disb, liq));
   });
-  return rows;
+  (repl.reimbursementIds || []).forEach((id) => {
+    const r = (reimbursements || []).find((x) => x.id === id);
+    if (!r || !(reimbReview(r).final || (r.status && !REIMB_NOT_FINAL.includes(r.status)))) {
+      notApproved.push(r ? r.reimbNo : "a reimbursement no longer on file");
+      return;
+    }
+    rows.push(...buildReimbursementAcumaticaRows(r));
+  });
+  return { rows, notApproved };
 }

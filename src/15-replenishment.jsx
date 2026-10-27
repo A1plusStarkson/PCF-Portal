@@ -478,7 +478,7 @@ const REPLENISH_SORT_FIELDS = {
   remarks: (r) => r.remarks,
 };
 
-function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, reimbursements, onCreate, onEdit, onComplete, onDelete, canDelete, plantOptions, canEdit, plantTitle, generatedBy, canManage, onRevert, onRevertReady, canViewDetails }) {
+function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, reimbursements, onCreate, onEdit, onComplete, onDelete, canDelete, plantOptions, canEdit, plantTitle, generatedBy, canManage, onRevert, onRevertReady, canViewDetails, onExportAcumatica }) {
   const [showForm, setShowForm] = useState(false);
   /* Replenishment whose details modal is open (REPLEN_DETAIL_EMAILS). */
   const [viewing, setViewing] = useState(null);
@@ -570,6 +570,15 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
   });
   const filtered = sort.sortRows(cf.rows, REPLENISH_SORT_FIELDS);
 
+  /* Export to Acumatica (Accounting): the ticked replenishments, else every
+     one listed. Reverted ones are never exported; the app also checks each
+     item for Grace Gan's final approval before writing the file. */
+  const [pickedRepl, setPickedRepl] = useState(() => new Set());
+  const exportable = filtered.filter((r) => r.status !== "Reverted");
+  const pickedExport = exportable.filter((r) => pickedRepl.has(r.id));
+  const exportList = pickedExport.length ? pickedExport : exportable;
+  const togglePickRepl = (id, on) => setPickedRepl((p) => { const n = new Set(p); if (on) n.add(id); else n.delete(id); return n; });
+
   const formPlantOptions = (plantOptions && plantOptions.length)
     ? (plant !== "ALL" ? plantOptions.filter((p) => p.code === plant) : plantOptions)
     : null;
@@ -579,7 +588,18 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
       <TopBar
         title={(plantTitle ? plantTitle + " \u00b7 " : "") + "Replenishment"}
         sub="Reimburse funds for liquidated expenses to restore the imprest balance"
-        right={<button className="pcp-btn pcp-btn-primary" onClick={() => { setPreselect(null); setShowForm(true); }}><Plus size={14} /> New Replenishment</button>}
+        right={
+          <>
+            {onExportAcumatica && (
+              <button className="pcp-btn pcp-btn-primary" disabled={!exportList.length}
+                onClick={() => onExportAcumatica(exportList.map((r) => r.id))}
+                title={`Export ${pickedExport.length ? "the ticked" : "the listed"} replenishment(s) to Acumatica — only items final-approved by ${FINAL_APPROVER_NAME}; reverted replenishments are skipped`}>
+                <Download size={14} /> {pickedExport.length ? `Export ${pickedExport.length} Selected to Acumatica` : `Export to Acumatica (${exportList.length})`}
+              </button>
+            )}
+            <button className="pcp-btn pcp-btn-primary" onClick={() => { setPreselect(null); setShowForm(true); }}><Plus size={14} /> New Replenishment</button>
+          </>
+        }
       />
       <div className="pcp-content">
         <PlantScopeTabs plants={plantOptions} value={plant} onChange={setPlant} />
@@ -742,6 +762,13 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
             <table className="pcp-table">
               <thead>
                 <tr>
+                  {onExportAcumatica && (
+                    <th style={{ width: 30 }}>
+                      <input type="checkbox" title="Select all for Acumatica export"
+                        checked={exportable.length > 0 && pickedExport.length === exportable.length}
+                        onChange={(e) => setPickedRepl(e.target.checked ? new Set(exportable.map((r) => r.id)) : new Set())} />
+                    </th>
+                  )}
                   <SortTh field="replenishmentNo" sort={sort} cf={cf}>Replenishment No.</SortTh>
                   <SortTh field="date" sort={sort} cf={cf}>Date</SortTh>
                   <SortTh field="branchCode" sort={sort} cf={cf}>Fund / Plant</SortTh>
@@ -757,6 +784,14 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                   <tr key={r.id} onClick={canViewDetails ? () => setViewing(r) : undefined}
                     style={canViewDetails ? { cursor: "pointer" } : undefined}
                     title={canViewDetails ? "Click to view the transactions in this replenishment" : undefined}>
+                    {onExportAcumatica && (
+                      <td onClick={(e) => e.stopPropagation()} style={{ width: 30 }}>
+                        {r.status !== "Reverted" && (
+                          <input type="checkbox" checked={pickedRepl.has(r.id)} onChange={(e) => togglePickRepl(r.id, e.target.checked)}
+                            title="Select for Acumatica export" />
+                        )}
+                      </td>
+                    )}
                     <td>
                       {canViewDetails
                         ? <button style={{ background: "none", border: 0, padding: 0, font: "inherit", fontWeight: 700, color: "inherit", textDecoration: "underline", cursor: "pointer" }}
@@ -788,6 +823,9 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                         {canViewDetails && (
                           <button className="pcp-btn pcp-btn-sm" onClick={() => setViewing(r)} title="View details and generate the PDF report"><Eye size={12} /> View</button>
                         )}
+                        {onExportAcumatica && r.status !== "Reverted" && (
+                          <button className="pcp-btn pcp-btn-sm" onClick={() => onExportAcumatica([r.id])} title="Export this replenishment to Acumatica"><Download size={12} /> Acumatica</button>
+                        )}
                         {canManage && isOpenRepl(r) && (
                           <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={() => onComplete(r.id)} title="Mark completed"><Check size={12} /></button>
                         )}
@@ -803,7 +841,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                       </div>
                     </td>
                   </tr>
-                )) : <tr><td colSpan={8} className="pcp-empty">No replenishment records match your filters</td></tr>}
+                )) : <tr><td colSpan={onExportAcumatica ? 9 : 8} className="pcp-empty">No replenishment records match your filters</td></tr>}
               </tbody>
             </table>
           </div>
