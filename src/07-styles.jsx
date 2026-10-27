@@ -360,6 +360,26 @@ const CSS = `
   .pcp-modal.pcp-liq-modal { width: min(1600px, 98vw); height: calc(100vh - 24px); }
   .pcp-liq-modal .pcp-modal-body { background: var(--paper); padding: 14px 16px; }
   .pcp-liq-workspace { display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 14px; align-items: start; }
+  /* Freeze panes (useFreezeOffsets, TopBar): under the sticky page header, the
+     plant tabs and each module's filter / search bar stay put while the page
+     scrolls. A .pcp-freeze block (Replenishment: tabs + Ready header + search)
+     freezes a larger area. --topbar-h / --freeze-h are measured by TopBar. */
+  .pcp-content > .pcp-tabs { position: sticky; top: var(--topbar-h, 68px); z-index: 4; background: var(--paper); }
+  .pcp-content > .pcp-tabs::after { content: ""; position: absolute; left: 0; right: 0; top: calc(100% + 1px); height: 14px; background: var(--paper); }
+  .pcp-content .pcp-filterbar { position: sticky; top: calc(var(--topbar-h, 68px) + var(--freeze-h, 0px)); z-index: 3; }
+  /* A card holding only filters (Transaction History, Liquidation Aging) sticks
+     as a whole — a bar inside it could only stick within that short card. */
+  .pcp-content > .pcp-card:has(> .pcp-filterbar):not(:has(table)) { position: sticky; top: calc(var(--topbar-h, 68px) + var(--freeze-h, 0px)); z-index: 3; }
+  .pcp-content > .pcp-card:has(> .pcp-filterbar):not(:has(table))::after { content: ""; position: absolute; left: 0; right: 0; top: calc(100% + 1px); height: 16px; background: var(--paper); }
+  /* The approval pages scale their content 10%, which scales these offsets too. */
+  .pcp-approval-page > .pcp-content > .pcp-tabs { top: calc(var(--topbar-h, 68px) / 1.1); }
+  .pcp-approval-page > .pcp-content .pcp-filterbar { top: calc((var(--topbar-h, 68px) + var(--freeze-h, 0px)) / 1.1); }
+  .pcp-freeze {
+    position: sticky; top: var(--topbar-h, 68px); z-index: 4;
+    margin: -22px -26px 0; padding: 22px 26px 0; background: var(--paper);
+  }
+  .pcp-freeze > .pcp-card { border-bottom-left-radius: 0; border-bottom-right-radius: 0; border-bottom: 0; box-shadow: none; }
+  .pcp-freeze + .pcp-card { border-top: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
   .pcp-liq-sticky {
     position: sticky; top: 8px; z-index: 5; background: var(--card, #fff);
     border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 12px;
@@ -1520,6 +1540,8 @@ const CSS = `
     .pcp-sidebar, .pcp-topbar, .pcp-tabs, .pcp-no-print { display: none !important; }
     .pcp-root { display: block; }
     .pcp-content { padding: 0 !important; }
+    .pcp-freeze { position: static; margin: 0; padding: 0; background: none; }
+    .pcp-content > .pcp-tabs, .pcp-content .pcp-filterbar, .pcp-content > .pcp-card { position: static; }
     .pcp-card { border: 1px solid #ccc; break-inside: avoid; }
     body, .pcp-root { background: #fff !important; }
     table.pcp-table thead th { background: #f0f0f0 !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
@@ -2195,9 +2217,44 @@ function NotificationBell() {
   );
 }
 
+/* Freeze panes, every module (owner's instruction, Oct 2026). The page header
+   is sticky; under it the plant tabs (or a .pcp-freeze block) and each
+   module's filter / search bar stay put while the list scrolls. The header
+   publishes its own height (--topbar-h) and the height of the frozen block
+   under it (--freeze-h) on <html>, re-measured whenever either changes size,
+   and the CSS rules (.pcp-freeze, .pcp-content > .pcp-tabs,
+   .pcp-content .pcp-filterbar) offset themselves by them. */
+function useFreezeOffsets(barRef) {
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!bar) return undefined;
+    const page = bar.parentElement;
+    const root = document.documentElement;
+    const measure = () => {
+      root.style.setProperty("--topbar-h", (bar.offsetHeight || 68) + "px");
+      const content = page && page.querySelector(":scope > .pcp-content");
+      const top = content && (content.querySelector(":scope > .pcp-freeze") || content.querySelector(":scope > .pcp-tabs"));
+      /* Tabs keep their 14px gap below (filled while stuck, see the CSS). */
+      const h = top ? top.getBoundingClientRect().height + (top.classList.contains("pcp-tabs") ? 14 : 0) : 0;
+      root.style.setProperty("--freeze-h", Math.round(h) + "px");
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", measure);
+      return () => window.removeEventListener("resize", measure);
+    }
+    const ro = new ResizeObserver(measure);
+    ro.observe(bar);
+    if (page) ro.observe(page);
+    return () => ro.disconnect();
+  }, [barRef]);
+}
+
 function TopBar({ title, sub, right }) {
+  const barRef = useRef(null);
+  useFreezeOffsets(barRef);
   return (
-    <div className="pcp-topbar">
+    <div className="pcp-topbar" ref={barRef}>
       <div>
         <h1>{title}</h1>
         {sub && <div className="pcp-topbar-sub">{sub}</div>}
