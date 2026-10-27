@@ -297,7 +297,7 @@ function DrillDownModal({ chartName, label, columns, records, canEdit, onEditRec
         : <span style={{ color: "#8fa397" }}>—</span>;
     }
     if (col.badge) return <Badge status={r[col.key]} />;
-    if (col.money) return <span className="pcp-num">{money(r[col.key])}</span>;
+    if (col.money) return <span className="pcp-num pcp-amt">{money(r[col.key])}</span>;
     const v = r[col.key];
     return (v == null || v === "") ? "—" : v;
   };
@@ -337,7 +337,7 @@ function DrillDownModal({ chartName, label, columns, records, canEdit, onEditRec
             <div className="pcp-rc-field"><label>Department</label><select className="pcp-select" value={fDept} onChange={(e) => setFDept(e.target.value)}><option value="ALL">All</option>{opts.departments.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
             <div className="pcp-rc-field"><label>Status</label><select className="pcp-select" value={fStatus} onChange={(e) => setFStatus(e.target.value)}><option value="ALL">All</option>{opts.statuses.map((c) => <option key={c} value={c}>{c}</option>)}</select></div>
           </div>
-          <div className="pcp-drill-count" style={{ marginBottom: 8 }}>{total} transaction{total !== 1 ? "s" : ""} · Total {money(sumAmount)}</div>
+          <div className="pcp-drill-count" style={{ marginBottom: 8 }}>{total} transaction{total !== 1 ? "s" : ""} · Total <b className="pcp-amt">{money(sumAmount)}</b></div>
           <div className="pcp-card">
             <div className="pcp-table-wrap">
               <table className="pcp-table">
@@ -377,9 +377,9 @@ function DrillDownModal({ chartName, label, columns, records, canEdit, onEditRec
                                 <div><div className="lbl">Requestor</div>{r.requestor || "—"}</div>
                                 <div><div className="lbl">Payee</div>{r.payee || "—"}</div>
                                 <div><div className="lbl">Purpose / Description</div>{r.purpose || r.description || "—"}</div>
-                                <div><div className="lbl">Amount Requested</div>{money(r.amountRequested != null ? r.amountRequested : r.amount)}</div>
-                                <div><div className="lbl">Amount Liquidated</div>{money(r.amountLiquidated || 0)}</div>
-                                <div><div className="lbl">Remaining Balance</div>{money(r.remaining != null ? r.remaining : 0)}</div>
+                                <div><div className="lbl">Amount Requested</div><b className="pcp-amt">{money(r.amountRequested != null ? r.amountRequested : r.amount)}</b></div>
+                                <div><div className="lbl">Amount Liquidated</div><b className="pcp-amt">{money(r.amountLiquidated || 0)}</b></div>
+                                <div><div className="lbl">Remaining Balance</div><b className="pcp-amt">{money(r.remaining != null ? r.remaining : 0)}</b></div>
                               </div>
                               <div style={{ marginTop: 12, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.3px", color: "var(--text-mut)" }}>Attached Receipts / Documents</div>
                               <DrillReceipts items={r._receipts} />
@@ -595,10 +595,10 @@ function DeptDrilldownPanel({ funds, requests, disbursements, liquidations }) {
           {/* ---- Summary cards (reflect all active filters) ---- */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginTop: 12 }}>
             <div className="pcp-mini-stat"><div className="lbl">Transactions</div><div className="val">{summary.count}</div></div>
-            <div className="pcp-mini-stat"><div className="lbl">Amount Released</div><div className="val">{peso(summary.released)}</div></div>
-            <div className="pcp-mini-stat"><div className="lbl">Amount Liquidated</div><div className="val">{peso(summary.liquidated)}</div></div>
-            <div className="pcp-mini-stat"><div className="lbl">Amount Requested</div><div className="val">{peso(summary.requested)}</div></div>
-            <div className="pcp-mini-stat"><div className="lbl">Outstanding</div><div className="val" style={{ color: summary.outstanding > 0 ? "var(--danger)" : "inherit" }}>{peso(summary.outstanding)}</div></div>
+            <div className="pcp-mini-stat"><div className="lbl">Amount Released</div><div className="val">{pesoB(summary.released)}</div></div>
+            <div className="pcp-mini-stat"><div className="lbl">Amount Liquidated</div><div className="val">{pesoB(summary.liquidated)}</div></div>
+            <div className="pcp-mini-stat"><div className="lbl">Amount Requested</div><div className="val">{pesoB(summary.requested)}</div></div>
+            <div className="pcp-mini-stat"><div className="lbl">Outstanding</div><div className="val" style={{ color: summary.outstanding > 0 ? "var(--danger)" : "inherit" }}>{pesoB(summary.outstanding)}</div></div>
           </div>
         </div>
       </div>
@@ -638,10 +638,10 @@ function DeptDrilldownPanel({ funds, requests, disbursements, liquidations }) {
                 <td>{r.payee}</td>
                 <td style={{ maxWidth: 220, whiteSpace: "normal" }}>{r.purpose}</td>
                 <td>{r.expenseCategory}</td>
-                <td className="pcp-num">{peso(r.amountRequested)}</td>
-                <td className="pcp-num">{peso(r.amount)}</td>
-                <td className="pcp-num">{peso(r.amountLiquidated)}</td>
-                <td className="pcp-num" style={{ fontWeight: 700, color: r.remaining > 0 ? "var(--danger)" : "inherit" }}>{peso(r.remaining)}</td>
+                <td className="pcp-num">{pesoB(r.amountRequested)}</td>
+                <td className="pcp-num">{pesoB(r.amount)}</td>
+                <td className="pcp-num">{pesoB(r.amountLiquidated)}</td>
+                <td className="pcp-num" style={{ fontWeight: 700, color: r.remaining > 0 ? "var(--danger)" : "inherit" }}>{pesoB(r.remaining)}</td>
                 <td style={{ textAlign: "center" }}><span className={"pcp-badge pcp-badge-" + liqBadge(r.status)}>{r.status}</span></td>
                 <td style={{ textAlign: "center" }}><span className={"pcp-badge pcp-badge-" + agingBadge(r.agingStatus)}>{r.agingStatus}</span></td>
               </tr>
@@ -855,14 +855,14 @@ function PlantComparison({ rows, onOpenPlant }) {
                 <tr key={r.code} className={onOpenPlant ? "pcp-dash-row-click" : undefined}
                   onClick={onOpenPlant ? () => onOpenPlant(r.code) : undefined} title={onOpenPlant ? `Open the ${r.label} dashboard` : undefined}>
                   <td><strong>{r.label}</strong></td>
-                  <td className="pcp-num">{peso(r.fund)}</td>
+                  <td className="pcp-num">{pesoB(r.fund)}</td>
                   <td className="pcp-num">
-                    <span className={low ? "pcp-dash-low" : undefined}>{peso(r.available)}</span>
+                    <span className={low ? "pcp-dash-low" : undefined}>{pesoB(r.available)}</span>
                     <div className="pcp-dash-bar"><span style={{ width: pct + "%", background: low ? "#c0392b" : "#3c6e76" }} /></div>
                   </td>
-                  <td className="pcp-num">{peso(r.outstanding)}</td>
-                  <td className="pcp-num">{peso(r.released)}</td>
-                  <td className="pcp-num">{peso(r.liquidated)}</td>
+                  <td className="pcp-num">{pesoB(r.outstanding)}</td>
+                  <td className="pcp-num">{pesoB(r.released)}</td>
+                  <td className="pcp-num">{pesoB(r.liquidated)}</td>
                   <td className="pcp-num">{r.pending}</td>
                   <td className="pcp-num">{r.open}</td>
                   <td className="pcp-num" style={{ color: r.overdue ? "#c0392b" : undefined, fontWeight: r.overdue ? 700 : undefined }}>{r.overdue}</td>
@@ -871,11 +871,11 @@ function PlantComparison({ rows, onOpenPlant }) {
             })}
             <tr style={{ fontWeight: 700 }}>
               <td>Total</td>
-              <td className="pcp-num">{peso(tot.fund)}</td>
-              <td className="pcp-num">{peso(tot.available)}</td>
-              <td className="pcp-num">{peso(tot.outstanding)}</td>
-              <td className="pcp-num">{peso(tot.released)}</td>
-              <td className="pcp-num">{peso(tot.liquidated)}</td>
+              <td className="pcp-num">{pesoB(tot.fund)}</td>
+              <td className="pcp-num">{pesoB(tot.available)}</td>
+              <td className="pcp-num">{pesoB(tot.outstanding)}</td>
+              <td className="pcp-num">{pesoB(tot.released)}</td>
+              <td className="pcp-num">{pesoB(tot.liquidated)}</td>
               <td className="pcp-num">{tot.pending}</td>
               <td className="pcp-num">{tot.open}</td>
               <td className="pcp-num">{tot.overdue}</td>
@@ -995,7 +995,7 @@ function ActiveAdvancesModal({ rows, onOpen, onOpenAll, onClose }) {
           <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap", marginBottom: 12 }}>
             <div style={{ fontSize: 12.5, color: "var(--text-mut)" }}>
               <b style={{ color: "var(--text)" }}>{people}</b> employee{people === 1 ? "" : "s"} · {rows.length} voucher{rows.length === 1 ? "" : "s"} ·{" "}
-              <b style={{ color: "var(--text)" }}>{peso(rows.reduce((s, r) => s + r.balance, 0))}</b> not yet liquidated
+              <b style={{ color: "var(--text)" }}>{pesoB(rows.reduce((s, r) => s + r.balance, 0))}</b> not yet liquidated
             </div>
             <div style={{ position: "relative", marginLeft: "auto", width: 240 }}>
               <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
@@ -1016,8 +1016,8 @@ function ActiveAdvancesModal({ rows, onOpen, onOpenAll, onClose }) {
                       <td><strong>{r.d.employee}</strong></td>
                       <td>{r.d.voucherNo}</td>
                       <td>{plantLabel(r.d.branchCode)}</td>
-                      <td className="pcp-num" style={{ textAlign: "right" }}>{peso(r.d.amount)}</td>
-                      <td className="pcp-num" style={{ textAlign: "right" }}>{peso(r.balance)}</td>
+                      <td className="pcp-num" style={{ textAlign: "right" }}>{pesoB(r.d.amount)}</td>
+                      <td className="pcp-num" style={{ textAlign: "right" }}>{pesoB(r.balance)}</td>
                       <td>{fmtDate(r.d.date)}</td>
                       <td style={{ whiteSpace: "nowrap" }}>
                         <span className="pcp-dash-dot" style={{ background: b.color, marginRight: 6 }} />
@@ -1185,10 +1185,10 @@ function DashboardCore({ label, funds, requests, disbursements, liquidations, re
 
       {/* The eight KPI cards — every one opens what it counts. */}
       <div className="pcp-kpi-grid pcp-dash-kpi8" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
-        <KpiCard label="Beginning Balance" value={peso(m.totalFund)} icon={Banknote} tint="#2054a3" onClick={nav("masterdata")} />
-        <KpiCard label="Total Disbursed" value={peso(m.totalDisbursed)} icon={ArrowUpRight} tint="#b9790a" onClick={nav("disbursements")} />
-        <KpiCard label="Total Liquidated" value={peso(m.totalLiquidated)} icon={ArrowDownRight} tint="#15803d" onClick={nav("liquidation")} />
-        <KpiCard label="Available Balance" value={peso(m.availableBalance)} icon={CircleDollarSign}
+        <KpiCard label="Beginning Balance" value={pesoB(m.totalFund)} icon={Banknote} tint="#2054a3" onClick={nav("masterdata")} />
+        <KpiCard label="Total Disbursed" value={pesoB(m.totalDisbursed)} icon={ArrowUpRight} tint="#b9790a" onClick={nav("disbursements")} />
+        <KpiCard label="Total Liquidated" value={pesoB(m.totalLiquidated)} icon={ArrowDownRight} tint="#15803d" onClick={nav("liquidation")} />
+        <KpiCard label="Available Balance" value={pesoB(m.availableBalance)} icon={CircleDollarSign}
           tint={low ? "#c0392b" : "#15803d"}
           foot={m.availableBalance < 0 ? "Over committed — replenish soon" : low ? "Below 20% of the fund — replenish soon" : "Cash on hand"}
           onClick={nav("masterdata")} />
@@ -1244,7 +1244,7 @@ function DashboardCore({ label, funds, requests, disbursements, liquidations, re
                     <button type="button" className="pcp-dash-count" disabled={!a.n} onClick={() => runAction(a)}
                       style={a.n ? { color: a.color } : undefined} title={a.n ? `Open the ${a.n} record(s)` : undefined}>{a.n}</button>
                   </td>
-                  <td className="pcp-num" style={{ textAlign: "right" }}>{a.amount == null || !a.n ? "—" : peso(a.amount)}</td>
+                  <td className="pcp-num" style={{ textAlign: "right" }}>{a.amount == null || !a.n ? "—" : pesoB(a.amount)}</td>
                   <td style={{ textAlign: "right" }}>
                     <button className="pcp-btn pcp-btn-sm" disabled={!a.n} onClick={() => runAction(a)}>{a.verb}</button>
                   </td>
@@ -1273,7 +1273,7 @@ function DashboardCore({ label, funds, requests, disbursements, liquidations, re
                 <span className="pcp-dash-dot" style={{ background: b.color, width: 12, height: 12 }} />
                 <span>
                   <div style={{ fontWeight: 700, fontSize: 13 }}>{b.label}</div>
-                  <div style={{ fontSize: 11.5, color: "var(--text-mut)" }}>{peso(amt(rows, (r) => r.balance))} not yet liquidated</div>
+                  <div style={{ fontSize: 11.5, color: "var(--text-mut)" }}>{pesoB(amt(rows, (r) => r.balance))} not yet liquidated</div>
                 </span>
                 <span className="pcp-dash-aging-n" style={{ color: rows.length ? b.color : "var(--text-mut)" }}>{rows.length}</span>
               </button>
@@ -1287,11 +1287,11 @@ function DashboardCore({ label, funds, requests, disbursements, liquidations, re
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
             <div>
               <div style={{ fontSize: 11, color: "var(--text-mut)", textTransform: "uppercase", letterSpacing: 0.6 }}>Beginning Fund</div>
-              <div style={{ fontSize: 18, fontWeight: 800 }} className="pcp-num">{peso(fund)}</div>
+              <div style={{ fontSize: 18, fontWeight: 800 }} className="pcp-num">{pesoB(fund)}</div>
             </div>
             <div style={{ textAlign: "right" }}>
               <div style={{ fontSize: 11, color: "var(--text-mut)", textTransform: "uppercase", letterSpacing: 0.6 }}>Available</div>
-              <div style={{ fontSize: 18, fontWeight: 800, color: low ? "#c0392b" : "#15803d" }} className="pcp-num">{peso(m.availableBalance)}</div>
+              <div style={{ fontSize: 18, fontWeight: 800, color: low ? "#c0392b" : "#15803d" }} className="pcp-num">{pesoB(m.availableBalance)}</div>
             </div>
           </div>
           <div className="pcp-dash-util-bar" role="img" aria-label={`${Math.round(availPct)}% of the fund is available`}>
@@ -1304,10 +1304,10 @@ function DashboardCore({ label, funds, requests, disbursements, liquidations, re
             <span><span className="pcp-dash-dot" style={{ background: "#8a978f" }} /> Spent, for replenishment {Math.round(pct(spentPart))}%</span>
             <span><span className="pcp-dash-dot" style={{ background: low ? "#c0392b" : "#3c6e76" }} /> Available {Math.round(availPct)}%</span>
           </div>
-          <div className="pcp-dash-util-row"><span>Disbursed</span><b>{peso(m.totalDisbursed)}</b></div>
-          <div className="pcp-dash-util-row"><span>Liquidated</span><b>{peso(m.totalLiquidated)}</b></div>
-          <div className="pcp-dash-util-row"><span>Replenished</span><b>{peso(m.totalReplenished)}</b></div>
-          <div className="pcp-dash-util-row"><span>Open advances (not yet liquidated)</span><b>{peso(m.outstanding)}</b></div>
+          <div className="pcp-dash-util-row"><span>Disbursed</span><b>{pesoB(m.totalDisbursed)}</b></div>
+          <div className="pcp-dash-util-row"><span>Liquidated</span><b>{pesoB(m.totalLiquidated)}</b></div>
+          <div className="pcp-dash-util-row"><span>Replenished</span><b>{pesoB(m.totalReplenished)}</b></div>
+          <div className="pcp-dash-util-row"><span>Open advances (not yet liquidated)</span><b>{pesoB(m.outstanding)}</b></div>
           {low && <div className="pcp-chart-hint" style={{ color: "#c0392b", fontWeight: 600 }}>Available balance is below 20% of the fund — replenish soon.</div>}
         </div>
       </div>
@@ -1330,7 +1330,7 @@ function DashboardCore({ label, funds, requests, disbursements, liquidations, re
                   <td>{d.employee}</td>
                   <td>{fmtDate(d.date)}</td>
                   {multiPlant && <td>{plantLabel(plantOfBranch(d.branchCode))}</td>}
-                  <td className="pcp-num" style={{ textAlign: "right" }}>{peso(d.amount)}</td>
+                  <td className="pcp-num" style={{ textAlign: "right" }}>{pesoB(d.amount)}</td>
                   <td><Badge status={liqStatusFor(d, liquidations)} /></td>
                 </tr>
               )) : <tr><td colSpan={multiPlant ? 6 : 5} className="pcp-empty">No disbursements recorded for {label}</td></tr>}
@@ -1539,8 +1539,8 @@ function Dashboard({ funds: allFunds, requests: allReq, disbursements: allDisbAl
                   <tr key={l.id}>
                     <td>{disb ? disb.voucherNo : "—"}</td>
                     <td>{fmtDate(l.createdDate)}</td>
-                    <td className="pcp-num">{peso(total)}</td>
-                    <td className="pcp-num" style={{ color: remaining < 0 ? "#c0392b" : "inherit" }}>{peso(remaining)}</td>
+                    <td className="pcp-num">{pesoB(total)}</td>
+                    <td className="pcp-num" style={{ color: remaining < 0 ? "#c0392b" : "inherit" }}>{pesoB(remaining)}</td>
                   </tr>
                 );
               }) : <tr><td colSpan={4} className="pcp-empty">No liquidations recorded</td></tr>}

@@ -785,12 +785,12 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
 
         {/* ---- Consolidated dashboard cards ---- */}
         <div className="pcp-kpi-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-          <KpiCard label="Total Released Funds" value={peso(cards.released)} icon={ArrowUpRight} tint="#2054a3" foot="Cash released across all plants" />
+          <KpiCard label="Total Released Funds" value={pesoB(cards.released)} icon={ArrowUpRight} tint="#2054a3" foot="Cash released across all plants" />
           <KpiCard label="Total Pending Liquidations" value={cards.pending} icon={FileSpreadsheet} tint="#b9790a" foot="Vouchers not yet fully liquidated" />
           <KpiCard label="Total Due Today" value={cards.dueToday} icon={Clock} tint="#0891b2" foot="Liquidations due today" />
           <KpiCard label="Total Overdue Liquidations" value={cards.overdue} icon={AlertTriangle} tint="#c0392b" foot={`Past ${AGING_DUE_DAYS} working-day due date`} />
           <KpiCard label="Total Completed Liquidations" value={cards.completed} icon={Check} tint="#15803d" foot="Fully liquidated vouchers" />
-          <KpiCard label="Total Outstanding Amount" value={peso(cards.outstanding)} icon={CircleDollarSign} tint={cards.outstanding > 0 ? "#c0392b" : "#15803d"} foot="Unliquidated balance" />
+          <KpiCard label="Total Outstanding Amount" value={pesoB(cards.outstanding)} icon={CircleDollarSign} tint={cards.outstanding > 0 ? "#c0392b" : "#15803d"} foot="Unliquidated balance" />
         </div>
 
         {/* ---- Outstanding cash settlements ---- */}
@@ -817,9 +817,9 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
                     <td>{d.employee}</td>
                     <td>{d.branchCode}</td>
                     <td>{settlementOwes(info.st.type)}</td>
-                    <td className="pcp-num" style={{ textAlign: "right" }}>{peso(info.st.expected)}</td>
-                    <td className="pcp-num" style={{ textAlign: "right" }}>{peso(info.st.actual)}</td>
-                    <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700, color: info.overdue ? "var(--danger)" : "var(--text)" }}>{peso(info.st.remaining)}</td>
+                    <td className="pcp-num" style={{ textAlign: "right" }}>{pesoB(info.st.expected)}</td>
+                    <td className="pcp-num" style={{ textAlign: "right" }}>{pesoB(info.st.actual)}</td>
+                    <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700, color: info.overdue ? "var(--danger)" : "var(--text)" }}>{pesoB(info.st.remaining)}</td>
                     <td>{fmtDate(info.dueDate)}</td>
                     <td><SettlementDueChip dueDate={info.dueDate} daysLeft={info.daysLeft} /></td>
                   </tr>
@@ -858,10 +858,10 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
                       {p.plantLabel}
                       <div style={{ fontSize: 11, color: "var(--text-mut)", fontWeight: 400 }}>{p.company}</div>
                     </td>
-                    <td className="pcp-num">{peso(p.beginning)}</td>
-                    <td className="pcp-num">{peso(p.released)}</td>
-                    <td className="pcp-num">{peso(p.liquidated)}</td>
-                    <td className="pcp-num" style={{ fontWeight: 700, color: p.outstanding > 0 ? "var(--danger)" : "inherit" }}>{peso(p.outstanding)}</td>
+                    <td className="pcp-num">{pesoB(p.beginning)}</td>
+                    <td className="pcp-num">{pesoB(p.released)}</td>
+                    <td className="pcp-num">{pesoB(p.liquidated)}</td>
+                    <td className="pcp-num" style={{ fontWeight: 700, color: p.outstanding > 0 ? "var(--danger)" : "inherit" }}>{pesoB(p.outstanding)}</td>
                     <td className="pcp-num">{p.pending}</td>
                     <td className="pcp-num">{p.dueToday ? <span className="pcp-badge pcp-badge-amber">{p.dueToday}</span> : 0}</td>
                     <td className="pcp-num">{p.overdue ? <span className="pcp-badge pcp-badge-red">{p.overdue}</span> : 0}</td>
@@ -966,7 +966,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
                     <td>{fmtDate(r.releaseDate)}</td>
                     <td>{fmtDate(r.dueDate)}</td>
                     <td className="pcp-num" style={{ fontWeight: 700, color: r.overdueDays > 0 ? "var(--danger)" : "inherit" }}>{r.ageDays}d</td>
-                    <td className="pcp-num">{peso(r.amount)}</td>
+                    <td className="pcp-num">{pesoB(r.amount)}</td>
                     <td><span className={"pcp-badge pcp-badge-" + statusBadge(r.status)}>{r.status}</span></td>
                     <td><span className={"pcp-badge pcp-badge-" + bucketBadge(r)}>{r.agingBucket}</span></td>
                   </tr>

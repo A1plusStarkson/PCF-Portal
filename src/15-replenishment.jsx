@@ -258,7 +258,7 @@ function ReplenishmentDetailModal({ replenishment: r, funds, disbursements, liqu
             {field("Batch", detail.batches.length ? detail.batches.join(", ") : "—")}
             {field("Status", r.status ? <Badge status={r.status} /> : "—")}
             {field("Prepared By", r.preparedBy || "—")}
-            {field("Replenishment Amount", <span className="pcp-num">{peso(recorded)}</span>)}
+            {field("Replenishment Amount", <span className="pcp-num">{pesoB(recorded)}</span>)}
             {field("Remarks", <>
               {replFinalApprovalRemark(detail) && <span style={{ color: "#15803d" }}>{replFinalApprovalRemark(detail)}</span>}
               {replFinalApprovalRemark(detail) && r.remarks ? " · " : ""}{r.remarks || (replFinalApprovalRemark(detail) ? "" : "—")}
@@ -266,7 +266,7 @@ function ReplenishmentDetailModal({ replenishment: r, funds, disbursements, liqu
           </div>
           {recorded !== detail.total && !empty && (
             <div style={{ fontSize: 12, color: "var(--danger)", marginBottom: 8 }}>
-              The recorded replenishment amount ({peso(recorded)}) differs from the total of its transactions ({peso(detail.total)}).
+              The recorded replenishment amount ({pesoB(recorded)}) differs from the total of its transactions ({pesoB(detail.total)}).
             </div>
           )}
           {detail.missing > 0 && (
@@ -310,22 +310,22 @@ function ReplenishmentDetailModal({ replenishment: r, funds, disbursements, liqu
                             <td>{l.category || "—"}</td>
                             <td>{l.account || "—"}</td>
                             <td>{l.dept ? `${l.dept} — ${deptDesc(l.dept)}` : "—"}</td>
-                            <td className="pcp-num" style={{ textAlign: "right" }}>{peso(l.amount)}</td>
+                            <td className="pcp-num" style={{ textAlign: "right" }}>{pesoB(l.amount)}</td>
                           </tr>
                         ))}
                         <tr>
                           <td colSpan={5} style={{ textAlign: "right", fontWeight: 700 }}>
                             Subtotal — {x.ref} (approved amount)
-                            {linesTotal !== x.amount && <span style={{ fontWeight: 500, color: "var(--text-mut)" }}> · expense lines total {peso(linesTotal)}</span>}
+                            {linesTotal !== x.amount && <span style={{ fontWeight: 500, color: "var(--text-mut)" }}> · expense lines total {pesoB(linesTotal)}</span>}
                           </td>
-                          <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700 }}>{peso(x.amount)}</td>
+                          <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700 }}>{pesoB(x.amount)}</td>
                         </tr>
                       </React.Fragment>
                     );
                   })}
                   <tr>
                     <td colSpan={5} style={{ textAlign: "right", fontWeight: 800 }}>GRAND TOTAL — {detail.txns.length} transaction(s)</td>
-                    <td className="pcp-num" style={{ textAlign: "right", fontWeight: 800 }}>{peso(detail.total)}</td>
+                    <td className="pcp-num" style={{ textAlign: "right", fontWeight: 800 }}>{pesoB(detail.total)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -424,7 +424,7 @@ function ReplenishmentFormModal({ onClose, onSave, funds, disbursements, liquida
               <label>Amount (₱)</label>
               <input type="number" min="0" step="0.01" className="pcp-input" placeholder="0.00" value={form.amount} onChange={(e) => set("amount", e.target.value)} />
               <div style={{ fontSize: 11, color: "var(--text-mut)", marginTop: 4 }}>
-                Suggested (unreimbursed liquidations): <strong>{peso(suggested)}</strong>
+                Suggested (unreimbursed liquidations): <strong>{pesoB(suggested)}</strong>
                 {suggested > 0 && <button className="pcp-btn pcp-btn-sm" style={{ marginLeft: 8 }} onClick={() => set("amount", suggested)}>Use</button>}
               </div>
             </div>
@@ -460,7 +460,7 @@ function ReplenishmentFormModal({ onClose, onSave, funds, disbursements, liquida
                       <span className="pcp-badge pcp-badge-gray" style={{ marginRight: 6 }}>{readyKindLabel(x)}</span>
                       <b>{x.ref}</b> · {x.employee} · {plantLabel(x.branchCode)}
                     </span>
-                    <span className="pcp-num">{peso(x.amount)}</span>
+                    <span className="pcp-num">{pesoB(x.amount)}</span>
                   </label>
                 ))}
               </div>
@@ -469,7 +469,7 @@ function ReplenishmentFormModal({ onClose, onSave, funds, disbursements, liquida
             )}
             {picked.size > 0 && (
               <div style={{ fontSize: 11.5, marginTop: 4 }}>
-                {picked.size} item(s) selected · <b>{peso(pickedTotal)}</b>
+                {picked.size} item(s) selected · <b>{pesoB(pickedTotal)}</b>
                 {round2(form.amount) !== pickedTotal && (
                   <span style={{ color: "var(--danger)" }}> — the amount differs from the selected items</span>
                 )}
@@ -645,7 +645,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
           <div className="pcp-section-title" style={{ margin: "0 0 4px", flexWrap: "wrap" }}>
             <ShieldCheck size={15} color="#15803d" /> Ready for Replenishment
             <span style={{ fontSize: 11.5, color: "var(--text-mut)", fontWeight: 500 }}>
-              {ready.length} item(s) · {peso(sumOf(ready))} — fully approved by {FINAL_APPROVER_NAME}, not yet replenished
+              {ready.length} item(s) · {pesoB(sumOf(ready))} — fully approved by {FINAL_APPROVER_NAME}, not yet replenished
             </span>
             <span style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
               <button className="pcp-btn pcp-btn-sm" disabled={!exportScope.length}
@@ -677,7 +677,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                   <button className="pcp-btn pcp-btn-sm pcp-btn-ghost" onClick={clearPicked}><X size={12} /> Clear selection</button>
                 )}
                 <span style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-mut)" }}>
-                  Showing {shown.length} of {ready.length} · {peso(sumOf(shown))}
+                  Showing {shown.length} of {ready.length} · {pesoB(sumOf(shown))}
                 </span>
               </div>
             </>
@@ -700,7 +700,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                     <b style={{ fontSize: 13 }}>{plantLabel(plantCode)}</b>
                   </label>
                   <span style={{ fontSize: 11.5, color: "var(--text-mut)" }}>
-                    {fund && fund.custodian ? `Custodian: ${fund.custodian} · ` : ""}{items.length} item(s) · {peso(sumOf(items))}
+                    {fund && fund.custodian ? `Custodian: ${fund.custodian} · ` : ""}{items.length} item(s) · {pesoB(sumOf(items))}
                   </span>
                   {canEdit && (
                     <button className="pcp-btn pcp-btn-sm pcp-btn-primary" style={{ marginLeft: "auto" }}
@@ -736,7 +736,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                             <td>{plantLabel(x.branchCode)}</td>
                             <td>{x.checkedBy} · {fmtDate(String(x.checkedAt || "").slice(0, 10))}</td>
                             <td>{x.finalBy} · {fmtDate(String(x.finalAt || "").slice(0, 10))}</td>
-                            <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700 }}>{peso(x.amount)}</td>
+                            <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700 }}>{pesoB(x.amount)}</td>
                             {canManage && onRevertReady && (
                               <td onClick={(e) => e.stopPropagation()}>
                                 <button className="pcp-btn pcp-btn-sm" onClick={() => onRevertReady(x.kind, x.id)}
@@ -764,7 +764,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
           {/* Selection summary — stays in view while scrolling a long list. */}
           {pickedShown.length > 0 && (
             <div className="pcp-rr-bar">
-              <span><b>{pickedShown.length}</b> selected · <b className="pcp-num">{peso(sumOf(pickedShown))}</b>
+              <span><b>{pickedShown.length}</b> selected · <b className="pcp-num">{pesoB(sumOf(pickedShown))}</b>
                 {" "}across {groupByPlant(pickedShown).length} plant(s)</span>
               {groupByPlant(pickedShown).length > 1 && (
                 <span style={{ fontSize: 11, opacity: 0.8 }}>One replenishment is created per plant — use each plant's Replenish button.</span>
@@ -781,8 +781,8 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
           )}
         </div>
         <div className="pcp-kpi-grid" style={{ gridTemplateColumns: "repeat(3, 1fr)" }}>
-          <KpiCard label="Total Replenished" value={peso(totalCompleted)} icon={RefreshCw} tint="#15803d" foot="Completed reimbursements" />
-          <KpiCard label="Pending Replenishments" value={replenishments.filter(isOpenRepl).length} icon={Clock} tint="#b9790a" foot={peso(totalPending) + " in progress"} />
+          <KpiCard label="Total Replenished" value={pesoB(totalCompleted)} icon={RefreshCw} tint="#15803d" foot="Completed reimbursements" />
+          <KpiCard label="Pending Replenishments" value={replenishments.filter(isOpenRepl).length} icon={Clock} tint="#b9790a" foot={<>{pesoB(totalPending)} in progress</>} />
           <KpiCard label="Replenishment Records" value={replenishments.length} icon={Landmark} tint="#2054a3" />
         </div>
         <div className="pcp-card">
@@ -840,7 +840,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                     </td>
                     <td>{fmtDate(r.date)}</td>
                     <td>{plantLabel(r.branchCode)}</td>
-                    <td className="pcp-num">{peso(r.amount)}</td>
+                    <td className="pcp-num">{pesoB(r.amount)}</td>
                     <td>{r.preparedBy || "—"}</td>
                     <td>{r.status ? <Badge status={r.status} /> : <span style={{ color: "var(--text-mut)" }}>—</span>}</td>
                     <td style={{ maxWidth: 220, whiteSpace: "normal" }}>

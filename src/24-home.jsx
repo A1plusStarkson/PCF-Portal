@@ -494,7 +494,7 @@ function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, funds, a
             <div className="pcp-card pcp-card-pad" style={{ minWidth: 0 }}>
               <div className="pcp-home-section-title">
                 <Wallet size={16} color="#3c6e76" /> Fund Balances
-                <span className="pcp-home-count" title="Total available across your plants">{peso(fundTotal)}</span>
+                <span className="pcp-home-count" title="Total available across your plants">{pesoB(fundTotal)}</span>
               </div>
               {funds.length ? (
                 <div className="pcp-home-list">
@@ -505,10 +505,10 @@ function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, funds, a
                       <button key={f.code} type="button" className="pcp-home-fund" onClick={f.onClick} title={`Open the ${f.label} dashboard`}>
                         <div className="pcp-home-fund-row">
                           <span className="pcp-home-item-title">{f.label}{f.low && <span className="pcp-home-due red" style={{ marginLeft: 8 }}>Low balance</span>}</span>
-                          <span className="pcp-home-fund-amt" style={{ color: f.low ? color : undefined }}>{peso(f.available)}</span>
+                          <span className="pcp-home-fund-amt" style={{ color: f.low ? color : undefined }}>{pesoB(f.available)}</span>
                         </div>
                         <div className="pcp-home-fund-bar"><span style={{ width: pct + "%", background: color }} /></div>
-                        <div className="pcp-home-item-sub">{Math.round(pct)}% of {peso(f.fund)} fund · {peso(f.outstanding)} in open advances</div>
+                        <div className="pcp-home-item-sub">{Math.round(pct)}% of {pesoB(f.fund)} fund · {pesoB(f.outstanding)} in open advances</div>
                       </button>
                     );
                   })}
@@ -549,7 +549,7 @@ function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, funds, a
                       <div className="pcp-home-item-main">
                         <div className="pcp-home-item-title">{a.seriesNo} · {a.employee}</div>
                         <div className="pcp-home-item-sub">
-                          {plantLabel(plantOfBranch(a.branchCode))}{plantOfBranch(a.branchCode) !== a.branchCode ? ` (${plantLabel(a.branchCode)})` : ""} · {a.kind} · {peso(a.amount)}
+                          {plantLabel(plantOfBranch(a.branchCode))}{plantOfBranch(a.branchCode) !== a.branchCode ? ` (${plantLabel(a.branchCode)})` : ""} · {a.kind} · {pesoB(a.amount)}
                         </div>
                       </div>
                       {a.batchNo && <span className="pcp-home-due yellow">{a.batchNo}</span>}
@@ -575,7 +575,7 @@ function HomePage({ userName, userEmail, roleLabel, plants, quickLinks, funds, a
                     <div className="pcp-home-item-main">
                       <div className="pcp-home-item-title">{d.seriesNo} · {d.employee}</div>
                       <div className="pcp-home-item-sub">
-                        {plantLabel(d.branchCode)} · {peso(d.amount)} · due {fmtDate(d.dueDate)}{d.returned ? " · returned for correction" : ""}
+                        {plantLabel(d.branchCode)} · {pesoB(d.amount)} · due {fmtDate(d.dueDate)}{d.returned ? " · returned for correction" : ""}
                       </div>
                     </div>
                     <span className={"pcp-home-due " + d.level}>{homeDueLabel(d.daysLeft)}</span>

@@ -68,6 +68,7 @@ const CSS = `
     font-family: var(--font-ui);
   }
   .pcp-num { font-variant-numeric: tabular-nums; font-feature-settings: "tnum"; }
+  .pcp-amt { font-weight: 700; }
 
   /* ---- Sidebar ---- */
   .pcp-sidebar {
@@ -183,7 +184,7 @@ const CSS = `
   .pcp-kpi::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--mint); opacity: 0.9; }
   .pcp-kpi-label { font-size: 11px; color: var(--text-mut); font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; }
   /* Figures in semibold, not extra-bold (owner's instruction, Oct 2026). */
-  .pcp-kpi-value { font-size: 22px; font-weight: 600; color: var(--text); margin-top: 6px; letter-spacing: -0.3px; }
+  .pcp-kpi-value { font-size: 22px; font-weight: 700; color: var(--text); margin-top: 6px; letter-spacing: -0.3px; }
   .pcp-kpi-icon {
     position: absolute; right: 14px; top: 14px; width: 30px; height: 30px; border-radius: 8px;
     display: flex; align-items: center; justify-content: center;
@@ -1995,7 +1996,7 @@ function DocTotalBoxes({ count, amount, approved }) {
       <div className="pcp-liq-metric pcp-doc-total"
         title={`Sum of the amounts on all ${count} uploaded documents${approved != null ? ` · approved: ${peso(approved)}` : ""}`}>
         <div className="pcp-kpi-label">Total Amount</div>
-        <div className="pcp-doc-total-num">{peso(amount)}</div>
+        <div className="pcp-doc-total-num">{pesoB(amount)}</div>
       </div>
     </>
   );

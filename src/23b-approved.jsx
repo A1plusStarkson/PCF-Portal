@@ -294,7 +294,7 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
           <KpiCard label={`Approved Transactions — ${scopeLabel}${batch !== APPROVED_ALL_BATCHES ? ` · ${batch}` : ""}`} value={baseRows.length} icon={CircleCheck} tint="#15803d" />
           <KpiCard label="Approved Liquidations" value={countKind("Liquidation")} icon={FileSpreadsheet} tint="#15803d" />
           <KpiCard label="Approved Reimbursements" value={countKind("Reimbursement")} icon={ArrowLeftRight} tint="#15803d" />
-          <KpiCard label="Total Approved Amount (shown)" value={peso(total)} icon={ShieldCheck} tint="#15803d" />
+          <KpiCard label="Total Approved Amount (shown)" value={pesoB(total)} icon={ShieldCheck} tint="#15803d" />
         </div>
 
         <PlantScopeTabs plants={plantOptions} value={plant} onChange={setPlant} />
@@ -409,8 +409,8 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
                     </td>
                     <td>{r.kind}</td>
                     <td className="pcp-num" style={{ textAlign: "right" }}>
-                      {peso(r.amount)}
-                      {r.cashAdvance != null && r.cashAdvance !== r.amount && <div style={mut}>Advance {peso(r.cashAdvance)}</div>}
+                      {pesoB(r.amount)}
+                      {r.cashAdvance != null && r.cashAdvance !== r.amount && <div style={mut}>Advance {pesoB(r.cashAdvance)}</div>}
                     </td>
                     <td>{r.txnDate ? fmtDate(r.txnDate) : "—"}</td>
                     <td style={{ whiteSpace: "nowrap" }}>{fmtApprovedAt(r.approvedAt)}</td>

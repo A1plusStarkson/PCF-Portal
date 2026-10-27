@@ -236,14 +236,14 @@ function PcaApprovalPanel({
               <td>{l.category}</td>
               <td>{deptDesc(l.department)}</td>
               <td title={taxCategoryLabel(l.taxCategory)}>{l.taxCategory || "—"}</td>
-              <td className="pcp-num">{peso(l.amount)}</td>
+              <td className="pcp-num">{pesoB(l.amount)}</td>
             </tr>
           )) : <tr><td colSpan={6} className="pcp-empty">No expense lines captured yet</td></tr>}
         </tbody>
         <tfoot>
           <tr>
             <td colSpan={5} style={{ textAlign: "right", fontWeight: 600 }}>Total Liquidated</td>
-            <td className="pcp-num" style={{ fontWeight: 700 }}>{peso(liquidatedTotal(row.liq))}</td>
+            <td className="pcp-num" style={{ fontWeight: 700 }}>{pesoB(liquidatedTotal(row.liq))}</td>
           </tr>
         </tfoot>
       </table>
@@ -376,11 +376,11 @@ function PcaApprovalPanel({
           </div>
         </div>
         <div className="pcp-liq-sticky-grid" style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
-          <div className="pcp-liq-metric"><div className="pcp-kpi-label">Cash Released</div><div className="pcp-num">{peso(disb.amount)}</div></div>
-          <div className="pcp-liq-metric"><div className="pcp-kpi-label">Approved Receipts</div><div className="pcp-num">{peso(amounts.approvedTotal)}</div></div>
+          <div className="pcp-liq-metric"><div className="pcp-kpi-label">Cash Released</div><div className="pcp-num">{pesoB(disb.amount)}</div></div>
+          <div className="pcp-liq-metric"><div className="pcp-kpi-label">Approved Receipts</div><div className="pcp-num">{pesoB(amounts.approvedTotal)}</div></div>
           <div className="pcp-liq-metric">
             <div className="pcp-kpi-label">{rec.type === "excess" ? "Refund Due" : rec.type === "reimburse" ? "Reimbursement Due" : "Variance"}</div>
-            <div className="pcp-num" style={{ color: rec.type === "exact" ? "var(--green)" : "var(--danger)" }}>{peso(rec.expected)}</div>
+            <div className="pcp-num" style={{ color: rec.type === "exact" ? "var(--green)" : "var(--danger)" }}>{pesoB(rec.expected)}</div>
           </div>
           <div className="pcp-liq-metric">
             <div className="pcp-kpi-label">Cash Settlement</div>
@@ -400,7 +400,7 @@ function PcaApprovalPanel({
               rejected alike) — Approved Receipts beside it is the approved part. */}
           {showDocTotals && <div className="pcp-liq-metric pcp-doc-total" title={`Sum of the amounts on all ${(liq.attachments || []).length} uploaded documents · approved: ${peso(amounts.approvedTotal)}`}>
             <div className="pcp-kpi-label">Total Amount</div>
-            <div className="pcp-doc-total-num">{peso(amounts.allTotal)}</div>
+            <div className="pcp-doc-total-num">{pesoB(amounts.allTotal)}</div>
           </div>}
         </div>
       </div>
@@ -456,7 +456,7 @@ function PcaApprovalPanel({
         <div className="pcp-section-title" style={{ margin: "0 0 10px" }}>
           <Receipt size={15} color="#3c6e76" /> Supporting Documents
           {showDocTotals
-            ? <span className="pcp-doc-total-chip lg" style={{ marginLeft: 8 }}>TOTAL: {(liq.attachments || []).length} · {peso(amounts.allTotal)}</span>
+            ? <span className="pcp-doc-total-chip lg" style={{ marginLeft: 8 }}>TOTAL: {(liq.attachments || []).length} · {pesoB(amounts.allTotal)}</span>
             : ` (${approval.total})`}
         </div>
         {(canDecide || canCheck || canFinal || canReject) && (
@@ -481,7 +481,7 @@ function PcaApprovalPanel({
                 <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
                   <Badge status={status} />
                   <span style={{ fontSize: 10.5, color: "var(--text-mut)" }}>
-                    {a.receiptNo ? `${a.receiptNo} · ` : ""}{docRequiresAmount(a) ? peso(receiptAmountOf(a)) : "no amount"}
+                    {a.receiptNo ? `${a.receiptNo} · ` : ""}{docRequiresAmount(a) ? pesoB(receiptAmountOf(a)) : "no amount"}
                   </span>
                   {canDecide && (
                     <span style={{ marginLeft: "auto", display: "flex", gap: 5 }}>
@@ -1064,7 +1064,7 @@ function ApprovalModuleTab({
                 <div key={x.batchNo} style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", fontSize: 12.5 }}>
                   <strong style={{ minWidth: 110 }}>{x.batchNo}</strong>
                   <span style={{ color: "var(--text-mut)" }}>
-                    {x.pca.length} liquidation(s) · {x.reimb.length} reimbursement(s) · <span className="pcp-num">{peso(x.total)}</span>
+                    {x.pca.length} liquidation(s) · {x.reimb.length} reimbursement(s) · <span className="pcp-num">{pesoB(x.total)}</span>
                   </span>
                   <button className="pcp-btn pcp-btn-sm" onClick={() => setBatch(x.batchNo)}>
                     <Eye size={12} /> Review Batch
@@ -1135,9 +1135,9 @@ function ApprovalModuleTab({
                     </td>
                     <td>{r.requestor || "—"}</td>
                     <td>{r.kind}</td>
-                    <td className="pcp-num" style={{ textAlign: "right" }}>{peso(r.amount)}</td>
+                    <td className="pcp-num" style={{ textAlign: "right" }}>{pesoB(r.amount)}</td>
                     {showDocTotals && <td style={{ textAlign: "right" }}><span className="pcp-doc-total-chip" title={`${r.docs} uploaded document(s)`}><Paperclip size={11} /> {r.docs}</span></td>}
-                    {showDocTotals && <td className="pcp-num" style={{ textAlign: "right", fontWeight: 600 }}>{peso(r.docsAmount)}</td>}
+                    {showDocTotals && <td className="pcp-num" style={{ textAlign: "right", fontWeight: 600 }}>{pesoB(r.docsAmount)}</td>}
                     <td>{fmtDate(r.date)}</td>
                     <td><Badge status={r.stage} /></td>
                     <td style={{ fontWeight: 600 }}>{actionLabel(r.stage) || "—"}</td>

@@ -181,8 +181,8 @@ function LiqAlarmCard({ a, read, firstSeen, onOpen, onToggleRead }) {
         <div><span>Employee / Requestor</span><b>{a.employee || "—"}</b></div>
         <div><span>PCF Reference No.</span><b>{a.seriesNo}</b></div>
         {a.stage === "overdue"
-          ? <div><span>Outstanding Amount</span><b>{peso(a.amount)}</b></div>
-          : <div><span>Amount</span><b>{peso(a.amount)}</b></div>}
+          ? <div><span>Outstanding Amount</span><b>{pesoB(a.amount)}</b></div>
+          : <div><span>Amount</span><b>{pesoB(a.amount)}</b></div>}
         <div><span>Cash Advance Date</span><b>{fmtDate(a.receivedDate)}</b></div>
         <div><span>{a.stage === "overdue" ? "Original Due Date" : "Liquidation Due Date"}</span><b>{fmtDate(a.dueDate)}</b></div>
         <div><span>{a.stage === "overdue" ? "Days Overdue" : "Days Remaining"}</span><b style={{ color: st.tint }}>{liqAlarmDaysText(a)}</b></div>

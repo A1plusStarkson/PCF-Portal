@@ -432,7 +432,7 @@ const reimbDocFooter = (a) => (
   <div style={{ padding: "7px 9px", borderTop: "1px solid var(--line)", fontSize: 11.5, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
     <span style={{ color: "var(--text-mut)" }}>{a.docType || DEFAULT_DOC_TYPE}{a.receiptNo ? ` · ${a.receiptNo}` : ""}</span>
     <span className="pcp-num" style={{ marginLeft: "auto", fontWeight: 700 }}>
-      {receiptAmountOf(a) > 0 ? peso(receiptAmountOf(a)) : reimbDocNeedsAmount(a) ? "amount missing" : "no amount"}
+      {receiptAmountOf(a) > 0 ? pesoB(receiptAmountOf(a)) : reimbDocNeedsAmount(a) ? "amount missing" : "no amount"}
     </span>
   </div>
 );
@@ -444,7 +444,7 @@ function ReimbBalancePanel({ r, onAuthorize, onClearException }) {
   const row = (label, value, bold) => (
     <tr>
       <td style={{ padding: "4px 10px 4px 0", fontSize: 12, fontWeight: bold ? 700 : 500 }}>{label}</td>
-      <td className="pcp-num" style={{ padding: "4px 0", fontSize: 12.5, fontWeight: bold ? 700 : 600, textAlign: "right" }}>{value}</td>
+      <td className="pcp-num" style={{ padding: "4px 0", fontSize: 12.5, fontWeight: 700, textAlign: "right" }}>{value}</td>
     </tr>
   );
   return (
@@ -452,9 +452,9 @@ function ReimbBalancePanel({ r, onAuthorize, onClearException }) {
       <div style={{ display: "flex", flexWrap: "wrap", gap: 16, alignItems: "flex-start", justifyContent: "space-between" }}>
         <table style={{ borderCollapse: "collapse", minWidth: 280 }}>
           <tbody>
-            {row("Total Expense Lines", peso(b.lines))}
-            {row("Total Uploaded Documents", peso(b.docs))}
-            {row("Difference", peso(Math.abs(b.diff)), true)}
+            {row("Total Expense Lines", pesoB(b.lines))}
+            {row("Total Uploaded Documents", pesoB(b.docs))}
+            {row("Difference", pesoB(Math.abs(b.diff)), true)}
           </tbody>
         </table>
         <div style={{ textAlign: "right" }}>
@@ -463,14 +463,14 @@ function ReimbBalancePanel({ r, onAuthorize, onClearException }) {
           </div>
           {!b.balanced && (
             <div style={{ fontSize: 11.5, color: "var(--text-mut)", marginTop: 2 }}>
-              Difference: {peso(Math.abs(b.diff))} — documents are {b.diff > 0 ? "short of" : "over"} the expense lines
+              Difference: {pesoB(Math.abs(b.diff))} — documents are {b.diff > 0 ? "short of" : "over"} the expense lines
             </div>
           )}
         </div>
       </div>
       {!b.balanced && b.exceptionValid && (
         <div style={{ marginTop: 8, fontSize: 11.5, background: "var(--amber-bg)", color: "var(--amber)", padding: "7px 10px", borderRadius: 8, display: "flex", gap: 8, alignItems: "center", justifyContent: "space-between", flexWrap: "wrap" }}>
-          <span>Variance of {peso(Math.abs(b.diff))} authorized by <b>{b.exception.by}</b> on {b.exception.at}: "{b.exception.reason}"</span>
+          <span>Variance of {pesoB(Math.abs(b.diff))} authorized by <b>{b.exception.by}</b> on {b.exception.at}: "{b.exception.reason}"</span>
           {onClearException && <button type="button" className="pcp-btn pcp-btn-sm" onClick={onClearException}>Withdraw</button>}
         </div>
       )}
@@ -966,7 +966,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                   <tfoot>
                     <tr>
                       <td colSpan={8} style={{ textAlign: "right", fontWeight: 600 }}>Total Reimbursement</td>
-                      <td className="pcp-num" style={{ fontWeight: 700 }}>{peso(total)}</td>
+                      <td className="pcp-num" style={{ fontWeight: 700 }}>{pesoB(total)}</td>
                       <td></td>
                     </tr>
                   </tfoot>
@@ -1074,7 +1074,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                           </div>
                           <div style={{ flex: 1, minWidth: 130, textAlign: "right" }}>
                             <div className="pcp-kpi-label">Counted in Total</div>
-                            <div className="pcp-num" style={{ fontWeight: 700 }}>{receiptAmountOf(a) > 0 ? peso(receiptAmountOf(a)) : "—"}</div>
+                            <div className="pcp-num" style={{ fontWeight: 700 }}>{receiptAmountOf(a) > 0 ? pesoB(receiptAmountOf(a)) : "—"}</div>
                           </div>
                         </div>
                         {amountMissing && (
@@ -1110,7 +1110,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
           {step === 4 && (
             <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>Total: {peso(total)}</div>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>Total: {pesoB(total)}</div>
                 <CompliancePill level={compliance.level} />
               </div>
               <div className="pcp-card" style={{ padding: 12 }}>
@@ -1126,11 +1126,11 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                     {normalizedForm.lines.map((l) => (
                       <tr key={l.id}>
                         <td>{fmtDate(l.date)}</td><td>{l.category}</td><td>{l.description}</td>
-                        <td>{l.vendor || "—"}</td><td>{l.account || "—"}</td><td className="pcp-num">{peso(l.amount)}</td>
+                        <td>{l.vendor || "—"}</td><td>{l.account || "—"}</td><td className="pcp-num">{pesoB(l.amount)}</td>
                       </tr>
                     ))}
                   </tbody>
-                  <tfoot><tr><td colSpan={5} style={{ textAlign: "right", fontWeight: 600 }}>Total</td><td className="pcp-num" style={{ fontWeight: 700 }}>{peso(total)}</td></tr></tfoot>
+                  <tfoot><tr><td colSpan={5} style={{ textAlign: "right", fontWeight: 600 }}>Total</td><td className="pcp-num" style={{ fontWeight: 700 }}>{pesoB(total)}</td></tr></tfoot>
                 </table>
               </div>
               <div className="pcp-card" style={{ padding: 12 }}>
@@ -1348,7 +1348,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
           </div>
           {showDocTotals && (
             <div className="pcp-liq-sticky-grid" style={{ marginBottom: 10 }}>
-              <div className="pcp-liq-metric"><div className="pcp-kpi-label">Total Reimbursement</div><div className="pcp-num">{peso(total)}</div></div>
+              <div className="pcp-liq-metric"><div className="pcp-kpi-label">Total Reimbursement</div><div className="pcp-num">{pesoB(total)}</div></div>
               <DocTotalBoxes count={(reimb.attachments || []).length} amount={reimbDocsTotal(reimb)} />
             </div>
           )}
@@ -1378,11 +1378,11 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
                   <tr key={l.id}>
                     <td>{fmtDate(l.date)}</td><td>{l.category}</td><td>{l.description}</td>
                     <td>{l.vendor || "—"}</td><td>{l.account || "—"}</td><td>{deptDesc(l.department)}</td>
-                    <td className="pcp-num">{peso(l.amount)}</td>
+                    <td className="pcp-num">{pesoB(l.amount)}</td>
                   </tr>
                 ))}
               </tbody>
-              <tfoot><tr><td colSpan={6} style={{ textAlign: "right", fontWeight: 600 }}>Total</td><td className="pcp-num" style={{ fontWeight: 700 }}>{peso(total)}</td></tr></tfoot>
+              <tfoot><tr><td colSpan={6} style={{ textAlign: "right", fontWeight: 600 }}>Total</td><td className="pcp-num" style={{ fontWeight: 700 }}>{pesoB(total)}</td></tr></tfoot>
             </table>
           </div>
 
@@ -1390,7 +1390,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
             <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
               Supporting Documents
               {showDocTotals
-                ? <span className="pcp-doc-total-chip lg" style={{ marginLeft: 8 }}>TOTAL: {(reimb.attachments || []).length} · {peso(reimbDocsTotal(reimb))}</span>
+                ? <span className="pcp-doc-total-chip lg" style={{ marginLeft: 8 }}>TOTAL: {(reimb.attachments || []).length} · {pesoB(reimbDocsTotal(reimb))}</span>
                 : ` (${(reimb.attachments || []).length})`}
             </div>
             {/* Rendered inline so the checker and the approver can read every
@@ -1403,7 +1403,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
             <div className="pcp-card" style={{ padding: 12, marginTop: 12 }}>
               <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Payment</div>
               <div style={{ fontSize: 12, color: "var(--text-mut)" }}>
-                {fmtDate(reimb.payment.date)} · {reimb.payment.method} · {reimb.payment.refNo || "—"} · {peso(reimb.payment.amount)} · by {reimb.payment.processedBy}
+                {fmtDate(reimb.payment.date)} · {reimb.payment.method} · {reimb.payment.refNo || "—"} · {pesoB(reimb.payment.amount)} · by {reimb.payment.processedBy}
                 {reimb.payment.remarks ? ` · ${reimb.payment.remarks}` : ""}
               </div>
             </div>
@@ -1686,11 +1686,11 @@ function ReimbursementTab({
         <PlantScopeTabs plants={plantOptions} value={plant} onChange={setPlant} />
 
         <div className="pcp-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(150px,1fr))", gap: 10, marginBottom: 14 }}>
-          <KpiCard label="Pending Reimbursements" value={kpi.pending} icon={ClipboardList} tint="#b9790a" foot={peso(kpi.amtPending)} {...cardProps("pending")} />
+          <KpiCard label="Pending Reimbursements" value={kpi.pending} icon={ClipboardList} tint="#b9790a" foot={pesoB(kpi.amtPending)} {...cardProps("pending")} />
           <KpiCard label="Custodian / Final Approval" value={kpi.forApproval} icon={Check} tint="#2054a3" {...cardProps("forApproval")} />
           <KpiCard label="Fully Approved" value={kpi.approved} icon={FileSpreadsheet} tint="#7c3aed" {...cardProps("approved")} />
           <KpiCard label="For Payment" value={kpi.forPayment} icon={Banknote} tint="#0891b2" {...cardProps("forPayment")} />
-          <KpiCard label="Paid" value={kpi.paid} icon={CircleDollarSign} tint="#15803d" foot={peso(kpi.amtPaid)} {...cardProps("paid")} />
+          <KpiCard label="Paid" value={kpi.paid} icon={CircleDollarSign} tint="#15803d" foot={pesoB(kpi.amtPaid)} {...cardProps("paid")} />
           <KpiCard label="Rejected / Returned" value={kpi.rejected} icon={X} tint="#c0392b" {...cardProps("rejected")} />
         </div>
 
@@ -1760,7 +1760,7 @@ function ReimbursementTab({
                         : <span style={{ color: "var(--text-mut)" }}>—</span>}
                     </td>
                     <td>{(r.lines || []).length}</td>
-                    <td className="pcp-num"><strong>{peso(reimbTotal(r))}</strong></td>
+                    <td className="pcp-num"><strong>{pesoB(reimbTotal(r))}</strong></td>
                     <td><CompliancePill level={(r.compliance && r.compliance.level) || "PASS"} /></td>
                     <td>
                       {revertHl && r.status === REIMB_STATUS.FOR_SUBMISSION

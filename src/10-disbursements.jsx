@@ -30,7 +30,7 @@ function DisburseModal({ request, onClose, onConfirm, nextVoucherNo, outstanding
               </div>
               {outstanding.map((o) => (
                 <div key={o.disb.id} style={{ color: "var(--text-mut)" }}>
-                  {o.disb.voucherNo} · {fmtDate(o.disb.date)} · {peso(o.disb.amount)} · {o.status}
+                  {o.disb.voucherNo} · {fmtDate(o.disb.date)} · {pesoB(o.disb.amount)} · {o.status}
                 </div>
               ))}
               <div style={{ color: "var(--text-mut)", marginTop: 4 }}>This does not prevent the release.</div>
@@ -164,7 +164,7 @@ function RejectVoucherModal({ disbursement, requestNo, onClose, onConfirm }) {
         <div className="pcp-modal-body">
           <div style={{ background: "var(--paper)", borderRadius: 8, padding: 12, marginBottom: 14, fontSize: 12.5 }}>
             <div><strong>{disbursement.voucherNo}</strong>{requestNo ? ` · ${requestNo}` : ""} — {disbursement.employee}</div>
-            <div style={{ color: "var(--text-mut)", marginTop: 3 }}>{fmtDate(disbursement.date)} · {peso(disbursement.amount)}{disbExpense(disbursement) ? ` · ${disbExpense(disbursement)}` : ""}</div>
+            <div style={{ color: "var(--text-mut)", marginTop: 3 }}>{fmtDate(disbursement.date)} · {pesoB(disbursement.amount)}{disbExpense(disbursement) ? ` · ${disbExpense(disbursement)}` : ""}</div>
           </div>
           <div className="pcp-hint" style={{ marginBottom: 14, fontSize: 12 }}>
             The release is cancelled: the voucher stays in the Release Ledger marked Rejected, and is removed from
@@ -209,7 +209,7 @@ function ReturnVoucherModal({ disbursement, requestNo, onClose, onConfirm }) {
         <div className="pcp-modal-body">
           <div style={{ background: "var(--paper)", borderRadius: 8, padding: 12, marginBottom: 14, fontSize: 12.5 }}>
             <div><strong>{disbursement.voucherNo}</strong>{requestNo ? ` · ${requestNo}` : ""} — {disbursement.employee}</div>
-            <div style={{ color: "var(--text-mut)", marginTop: 3 }}>Disbursed {fmtDate(disbursement.date)} · {peso(disbursement.amount)}{disbExpense(disbursement) ? ` · ${disbExpense(disbursement)}` : ""}</div>
+            <div style={{ color: "var(--text-mut)", marginTop: 3 }}>Disbursed {fmtDate(disbursement.date)} · {pesoB(disbursement.amount)}{disbExpense(disbursement) ? ` · ${disbExpense(disbursement)}` : ""}</div>
           </div>
           <div className="pcp-hint" style={{ marginBottom: 14, fontSize: 12 }}>
             The original release stays in the Release Ledger, marked Returned to Custodian with the details below, and is
@@ -233,7 +233,7 @@ function ReturnVoucherModal({ disbursement, requestNo, onClose, onConfirm }) {
           )}
           {partial && (
             <div style={{ color: "var(--danger)", fontSize: 12, marginTop: -6, marginBottom: 10 }}>
-              Only the full {peso(disbursement.amount)} can be recorded as returned here. If part of the cash was spent,
+              Only the full {pesoB(disbursement.amount)} can be recorded as returned here. If part of the cash was spent,
               liquidate the spent part and record the returned balance in the cash settlement in Liquidation.
             </div>
           )}
@@ -382,13 +382,13 @@ function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest
                     <td style={{ fontSize: 11.5, color: "var(--text-mut)" }}>{companyOfBranch(d.branchCode)}</td>
                     <td title={subaccountLabel(d.department)} style={{ maxWidth: 140, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{subaccountLabel(d.department)}</td>
                     <td style={{ maxWidth: 150, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={disbExpense(d)}>{disbExpense(d) || "—"}</td>
-                    <td className="pcp-num"><strong>{peso(d.amount)}</strong></td>
+                    <td className="pcp-num"><strong>{pesoB(d.amount)}</strong></td>
                     <td>
                       <Badge status={d.liqStatus} />
                       {returned && (
                         <div style={{ marginTop: 4, fontSize: 11, color: "var(--purple)", maxWidth: 190, whiteSpace: "normal" }}
                           title={`Processed by ${d.returnedBy || "—"}${d.returnedAt ? " · " + d.returnedAt.replace("T", " ") : ""}`}>
-                          Returned {fmtDate(d.returnDate)} · {peso(d.returnAmount)}<br />Reason: {d.returnReason}
+                          Returned {fmtDate(d.returnDate)} · {pesoB(d.returnAmount)}<br />Reason: {d.returnReason}
                         </div>
                       )}
                       {rejected && !returned && (

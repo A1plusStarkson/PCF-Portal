@@ -250,7 +250,7 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
                         ? <span title={r.purposeJustification}>{OTHERS_PURPOSE}: {r.purposeJustification}</span>
                         : r.purpose}
                     </td>
-                    <td className="pcp-num"><strong>{peso(r.amount)}</strong></td>
+                    <td className="pcp-num"><strong>{pesoB(r.amount)}</strong></td>
                     <td>{r.approver || "—"}</td>
                     <td>
                       <Badge status={r.status} />
@@ -265,7 +265,7 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
                       {r.status === VOUCHER_RETURNED && (
                         <div style={{ marginTop: 4, fontSize: 11, color: "var(--purple)", maxWidth: 200, whiteSpace: "normal" }}
                           title={`Processed by ${r.returnedBy || "—"}${r.returnedAt ? " · " + r.returnedAt.replace("T", " ") : ""}`}>
-                          Returned {fmtDate(r.returnDate)} · {peso(r.returnAmount)}<br />Reason: {r.returnReason}
+                          Returned {fmtDate(r.returnDate)} · {pesoB(r.returnAmount)}<br />Reason: {r.returnReason}
                         </div>
                       )}
                       {/* Disbursed with no voucher saved (missingVoucherIds, 19-app.jsx). */}

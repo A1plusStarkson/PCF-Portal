@@ -645,7 +645,7 @@ function RecordSettlementModal({ disbursement, st, currentUser, onClose, onConfi
         </div>
         <div className="pcp-modal-body">
           <div style={{ fontSize: 11.5, color: "var(--text-mut)", marginBottom: 10 }}>
-            {disbursement.voucherNo} · {disbursement.employee} · {peso(st.remaining)} still outstanding
+            {disbursement.voucherNo} · {disbursement.employee} · {pesoB(st.remaining)} still outstanding
           </div>
           <div className="pcp-field-row">
             <div className="pcp-field">
@@ -676,7 +676,7 @@ function RecordSettlementModal({ disbursement, st, currentUser, onClose, onConfi
           {needsReason && (
             <div className="pcp-field">
               <label>
-                Reason — this leaves {peso(Math.abs(left))} {left > 0 ? "still outstanding" : "overpaid"} <span style={{ color: "var(--danger)" }}>*</span>
+                Reason — this leaves {pesoB(Math.abs(left))} {left > 0 ? "still outstanding" : "overpaid"} <span style={{ color: "var(--danger)" }}>*</span>
               </label>
               <select className="pcp-select" value={reasonSel} onChange={(e) => setReasonSel(e.target.value)}>
                 <option value="">Select a reason</option>
@@ -709,7 +709,7 @@ function RecordSettlementModal({ disbursement, st, currentUser, onClose, onConfi
         </div>
         <div className="pcp-modal-foot">
           <button className="pcp-btn" onClick={onClose}>Cancel</button>
-          <button className="pcp-btn pcp-btn-primary" onClick={confirm}><Check size={13} /> Record {peso(amt > 0 ? amt : 0)}</button>
+          <button className="pcp-btn pcp-btn-primary" onClick={confirm}><Check size={13} /> Record {pesoB(amt > 0 ? amt : 0)}</button>
         </div>
       </div>
     </div>
@@ -731,12 +731,12 @@ function CloseReceivableModal({ disbursement, amount, onClose, onConfirm }) {
     <div className="pcp-modal-backdrop" {...backdropCloseProps(onClose)}>
       <div className="pcp-modal" style={{ maxWidth: 480 }} onClick={(e) => e.stopPropagation()}>
         <div className="pcp-modal-head">
-          <h3>Close {peso(amount)} as Receivable</h3>
+          <h3>Close {pesoB(amount)} as Receivable</h3>
           <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose}><X size={15} /></button>
         </div>
         <div className="pcp-modal-body">
           <div style={{ fontSize: 11.5, color: "var(--text-mut)", marginBottom: 10 }}>
-            {disbursement.voucherNo} · {disbursement.employee} — {peso(amount)} will remain unrecovered and the status
+            {disbursement.voucherNo} · {disbursement.employee} — {pesoB(amount)} will remain unrecovered and the status
             will read LIQUIDATED (SHORT). This is written to the audit trail against your name.
           </div>
           <div className="pcp-field">
@@ -1682,11 +1682,11 @@ function LiquidationWorksheet({
           </div>
         </div>
         <div className="pcp-liq-sticky-grid" style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
-          <div className="pcp-liq-metric"><div className="pcp-kpi-label">PCF Released</div><div className="pcp-num">{peso(disbursement.amount)}</div></div>
-          <div className="pcp-liq-metric"><div className="pcp-kpi-label">Total Receipts</div><div className="pcp-num">{peso(receiptSummary.approvedTotal)}</div></div>
+          <div className="pcp-liq-metric"><div className="pcp-kpi-label">PCF Released</div><div className="pcp-num">{pesoB(disbursement.amount)}</div></div>
+          <div className="pcp-liq-metric"><div className="pcp-kpi-label">Total Receipts</div><div className="pcp-num">{pesoB(receiptSummary.approvedTotal)}</div></div>
           <div className="pcp-liq-metric">
             <div className="pcp-kpi-label">{st.type === "excess" ? "Excess / Refund" : st.type === "reimburse" ? "Reimbursement Due" : "Variance"}</div>
-            <div className="pcp-num" style={{ color: st.type === "reimburse" ? "var(--danger)" : st.type === "excess" ? "var(--amber)" : "var(--green)" }}>{peso(st.expected)}</div>
+            <div className="pcp-num" style={{ color: st.type === "reimburse" ? "var(--danger)" : st.type === "excess" ? "var(--amber)" : "var(--green)" }}>{pesoB(st.expected)}</div>
           </div>
           <div className="pcp-liq-metric"><div className="pcp-kpi-label">Status</div><div><Badge status={finalStatus} /></div></div>
           {/* MODULE_DOC_TOTAL_EMAILS (19-app.jsx). From the worksheet's own
@@ -1804,8 +1804,8 @@ function LiquidationWorksheet({
       {/* Automated computation + receipt-approval gate (collapsible secondary detail). */}
       <Collapsible title="Automated Computation & Receipt Approval" subtitle="encoded totals, receipt approvals">
         <div style={{ display: "flex", flexWrap: "wrap", gap: 18, fontSize: 12.5 }}>
-          <div><div className="pcp-kpi-label">Total Receipt Amount (approved docs)</div><div className="pcp-num" style={{ fontWeight: 700 }}>{peso(receiptSummary.approvedTotal)} <span style={{ color: "var(--text-mut)", fontWeight: 500 }}>({receiptSummary.approvedCount} doc{receiptSummary.approvedCount === 1 ? "" : "s"})</span></div></div>
-          <div><div className="pcp-kpi-label">All Documents Encoded</div><div className="pcp-num" style={{ fontWeight: 700 }}>{peso(receiptSummary.allTotal)} <span style={{ color: "var(--text-mut)", fontWeight: 500 }}>({receiptSummary.docCount} doc{receiptSummary.docCount === 1 ? "" : "s"})</span></div></div>
+          <div><div className="pcp-kpi-label">Total Receipt Amount (approved docs)</div><div className="pcp-num" style={{ fontWeight: 700 }}>{pesoB(receiptSummary.approvedTotal)} <span style={{ color: "var(--text-mut)", fontWeight: 500 }}>({receiptSummary.approvedCount} doc{receiptSummary.approvedCount === 1 ? "" : "s"})</span></div></div>
+          <div><div className="pcp-kpi-label">All Documents Encoded</div><div className="pcp-num" style={{ fontWeight: 700 }}>{pesoB(receiptSummary.allTotal)} <span style={{ color: "var(--text-mut)", fontWeight: 500 }}>({receiptSummary.docCount} doc{receiptSummary.docCount === 1 ? "" : "s"})</span></div></div>
           <div><div className="pcp-kpi-label">Receipts Approved</div><div className="pcp-num" style={{ fontWeight: 700 }}>{approvalSummary.approved} / {approvalSummary.total}</div></div>
           <div>
             <div className="pcp-kpi-label">Amounts Captured</div>
@@ -1818,7 +1818,7 @@ function LiquidationWorksheet({
               </div>
             )}
           </div>
-          <div><div className="pcp-kpi-label">Encoded Expense Lines</div><div className="pcp-num" style={{ fontWeight: 700 }}>{peso(total)} <span style={{ color: "var(--text-mut)", fontWeight: 500 }}>({validLines.length} line{validLines.length === 1 ? "" : "s"})</span></div></div>
+          <div><div className="pcp-kpi-label">Encoded Expense Lines</div><div className="pcp-num" style={{ fontWeight: 700 }}>{pesoB(total)} <span style={{ color: "var(--text-mut)", fontWeight: 500 }}>({validLines.length} line{validLines.length === 1 ? "" : "s"})</span></div></div>
         </div>
 
         {receiptSummary.missing > 0 && (
@@ -1831,7 +1831,7 @@ function LiquidationWorksheet({
             amounts drive the cash settlement — they should agree. */}
         {receiptSummary.docCount > 0 && linesVsReceipts !== 0 && (
           <div style={{ marginTop: 10, padding: "9px 12px", borderRadius: 8, fontSize: 12, background: "var(--amber-bg)", color: "var(--amber)" }}>
-            <AlertTriangle size={13} style={{ verticalAlign: "-2px" }} /> <strong>Encoded expense lines ({peso(total)}) do not match the approved receipts ({peso(receiptSummary.approvedTotal)}).</strong> Difference of {peso(Math.abs(linesVsReceipts))} — the expense breakdown is what gets exported to Acumatica, so reconcile the two before submitting.
+            <AlertTriangle size={13} style={{ verticalAlign: "-2px" }} /> <strong>Encoded expense lines ({pesoB(total)}) do not match the approved receipts ({pesoB(receiptSummary.approvedTotal)}).</strong> Difference of {pesoB(Math.abs(linesVsReceipts))} — the expense breakdown is what gets exported to Acumatica, so reconcile the two before submitting.
           </div>
         )}
         <div style={{ marginTop: 12, padding: "9px 12px", borderRadius: 8, fontSize: 12,
@@ -1861,7 +1861,7 @@ function LiquidationWorksheet({
             </div>
             <div className="pcp-stl-sub">
               The cash settlement is worked out once every receipt has an amount and has been approved by the custodian.
-              {" "}{peso(st.released)} was released.
+              {" "}{pesoB(st.released)} was released.
             </div>
             <ul className="pcp-stl-check">
               {[
@@ -1881,8 +1881,8 @@ function LiquidationWorksheet({
               {settleDue.owing && <SettlementDueChip dueDate={settleDue.dueDate} daysLeft={settleDue.daysLeft} />}
             </div>
             <div className="pcp-stl-sub pcp-num">
-              {peso(st.released)} released − {peso(st.receiptTotal)} approved receipts ={" "}
-              <strong>{st.difference < 0 ? "−" : ""}{peso(Math.abs(st.difference))}</strong>
+              {pesoB(st.released)} released − {pesoB(st.receiptTotal)} approved receipts ={" "}
+              <strong>{st.difference < 0 ? "−" : ""}{pesoB(Math.abs(st.difference))}</strong>
               {" · "}<strong>{settlementOwes(st.type)}</strong>
             </div>
           </div>
@@ -1895,18 +1895,18 @@ function LiquidationWorksheet({
             <div style={{ display: "flex", flexWrap: "wrap", gap: 18, alignItems: "flex-end" }}>
               <div>
                 <div className="pcp-kpi-label">{st.type === "excess" ? "Expected Return" : "Expected Reimbursement"}</div>
-                <div className="pcp-num" style={{ fontWeight: 700, fontSize: 14 }}>{peso(st.expected)}</div>
+                <div className="pcp-num" style={{ fontWeight: 700, fontSize: 14 }}>{pesoB(st.expected)}</div>
               </div>
               <div>
                 <div className="pcp-kpi-label">{st.type === "excess" ? "Returned so far" : "Paid so far"}</div>
-                <div className="pcp-num" style={{ fontWeight: 700, fontSize: 14 }}>{peso(st.actual)}</div>
+                <div className="pcp-num" style={{ fontWeight: 700, fontSize: 14 }}>{pesoB(st.actual)}</div>
               </div>
               <div>
                 <div className="pcp-kpi-label">
                   {st.remaining > 0 ? "Still outstanding" : st.remaining < 0 ? "Overpaid by" : "Remaining"}
                 </div>
                 <div className="pcp-num" style={{ fontWeight: 700, fontSize: 14, color: st.remaining === 0 ? "var(--green)" : "var(--danger)" }}>
-                  {peso(Math.abs(st.remaining))}
+                  {pesoB(Math.abs(st.remaining))}
                 </div>
               </div>
               <div style={{ display: "flex", gap: 8, marginLeft: "auto", flexWrap: "wrap" }}>
@@ -1932,7 +1932,7 @@ function LiquidationWorksheet({
                     onClick={() => setShowReceivable(true)}
                     title="Accept the outstanding balance as a receivable from the requestor so this liquidation can complete"
                   >
-                    <AlertTriangle size={12} /> Close {peso(st.remaining)} as Receivable
+                    <AlertTriangle size={12} /> Close {pesoB(st.remaining)} as Receivable
                   </button>
                 )}
                 {!!st.entries.length && canSettle && (
@@ -1968,7 +1968,7 @@ function LiquidationWorksheet({
                 <div className="pcp-kpi-label" style={{ marginBottom: 4 }}>Recorded movements</div>
                 {st.entries.map((e, i) => (
                   <div key={e.id || i} className="pcp-stl-entry">
-                    <span className="pcp-num" style={{ fontWeight: 700, minWidth: 90 }}>{peso(e.amount)}</span>
+                    <span className="pcp-num" style={{ fontWeight: 700, minWidth: 90 }}>{pesoB(e.amount)}</span>
                     <span>{e.date ? fmtDate(e.date) : "—"}</span>
                     <span className="pcp-badge pcp-badge-gray">{e.mode || "Cash"}</span>
                     {e.reference && <span>Ref {e.reference}</span>}
@@ -2003,7 +2003,7 @@ function LiquidationWorksheet({
         {st.variance === "short" && !st.closed && (
           <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: "var(--red-bg)", color: "var(--brand-dark)", fontSize: 12 }}>
             <AlertTriangle size={13} style={{ verticalAlign: "-2px" }} />{" "}
-            <strong>CASH SHORTAGE: {peso(st.remaining)} of the {peso(st.expected)} due has not been {st.type === "excess" ? "returned" : "paid"}.</strong>
+            <strong>CASH SHORTAGE: {pesoB(st.remaining)} of the {pesoB(st.expected)} due has not been {st.type === "excess" ? "returned" : "paid"}.</strong>
             <div style={{ marginTop: 3 }}>
               Record the balance above when it comes in. If it will not be recovered, it has to be
               accepted as a receivable from the requestor before this liquidation can complete —
@@ -2020,7 +2020,7 @@ function LiquidationWorksheet({
           <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, border: "1px solid var(--line)", fontSize: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
               <div>
-                <strong>Shortage of {peso(st.closure.shortageAmount)} closed — {st.closure.treatment}</strong>
+                <strong>Shortage of {pesoB(st.closure.shortageAmount)} closed — {st.closure.treatment}</strong>
                 <div style={{ color: "var(--text-mut)", marginTop: 3 }}>
                   {st.closure.closedBy} · {(st.closure.closedAt || "").replace("T", " ")}
                   {st.closure.reason ? ` · "${st.closure.reason}"` : ""}
@@ -2041,8 +2041,8 @@ function LiquidationWorksheet({
         {st.variance === "over" && (
           <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: "var(--red-bg)", color: "var(--brand-dark)", fontSize: 12 }}>
             <AlertTriangle size={13} style={{ verticalAlign: "-2px" }} />{" "}
-            <strong>OVER-SETTLED by {peso(Math.abs(st.remaining))}.</strong>{" "}
-            {peso(st.actual)} was recorded against {peso(st.expected)} due. Correct the recorded
+            <strong>OVER-SETTLED by {pesoB(Math.abs(st.remaining))}.</strong>{" "}
+            {pesoB(st.actual)} was recorded against {pesoB(st.expected)} due. Correct the recorded
             movements — use Clear Settlement and re-record — before this liquidation can complete.
           </div>
         )}
@@ -2053,7 +2053,7 @@ function LiquidationWorksheet({
           <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: "var(--red-bg)", color: "var(--brand-dark)", fontSize: 12 }}>
             <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", flexWrap: "wrap" }}>
               <div>
-                <AlertTriangle size={13} style={{ verticalAlign: "-2px" }} /> <strong>WARNING: total receipt amount exceeds the PCF released amount by {peso(st.expected)}.</strong>
+                <AlertTriangle size={13} style={{ verticalAlign: "-2px" }} /> <strong>WARNING: total receipt amount exceeds the PCF released amount by {pesoB(st.expected)}.</strong>
                 <div style={{ marginTop: 3 }}>
                   {st.reviewed
                     ? <>Reviewed by {st.settlement.reviewedBy} · {(st.settlement.reviewedAt || "").replace("T", " ")}{st.settlement.reviewRemarks ? ` · "${st.settlement.reviewRemarks}"` : ""}</>
@@ -2077,8 +2077,8 @@ function LiquidationWorksheet({
             {finalStatus === "LIQUIDATED" && (st.type === "exact"
               ? <>Receipts match the cash released exactly — no cash settlement was required.</>
               : st.type === "excess"
-                ? <>{peso(st.actual)} in excess cash was returned to the PCF Custodian.</>
-                : <>{peso(st.actual)} was reimbursed to the PCF Requestor.</>)}
+                ? <>{pesoB(st.actual)} in excess cash was returned to the PCF Custodian.</>
+                : <>{pesoB(st.actual)} was reimbursed to the PCF Requestor.</>)}
             {finalStatus === "Under Review" && <>Awaiting a reviewer's findings on the over-liquidation.</>}
             {finalStatus === "For Revision" && <>{approvalSummary.rejected} receipt(s) were rejected — correct them and re-save.</>}
             {finalStatus === "Not Liquidated" && <>No supporting documents uploaded yet.</>}
@@ -2091,13 +2091,13 @@ function LiquidationWorksheet({
                   : <>{st.type === "excess" ? `${peso(st.expected)} in excess cash must be returned to the PCF Custodian.` : `${peso(st.expected)} must be reimbursed to the PCF Requestor.`}</>
             )}
             {finalStatus === "PARTIALLY SETTLED" && (
-              <>{peso(st.actual)} of {peso(st.expected)} {st.type === "excess" ? "returned" : "paid"} — <strong>{peso(st.remaining)} still outstanding.</strong> Record the balance when it comes in, or have it closed as a receivable.</>
+              <>{pesoB(st.actual)} of {pesoB(st.expected)} {st.type === "excess" ? "returned" : "paid"} — <strong>{pesoB(st.remaining)} still outstanding.</strong> Record the balance when it comes in, or have it closed as a receivable.</>
             )}
             {finalStatus === "OVER-SETTLED" && (
-              <>{peso(st.actual)} recorded against {peso(st.expected)} due — {peso(Math.abs(st.remaining))} too much. Correct the recorded movements.</>
+              <>{pesoB(st.actual)} recorded against {pesoB(st.expected)} due — {pesoB(Math.abs(st.remaining))} too much. Correct the recorded movements.</>
             )}
             {finalStatus === "LIQUIDATED (SHORT)" && (
-              <>Completed with {peso(st.remaining)} unrecovered — {st.closure.treatment}, closed by {st.closure.closedBy}.</>
+              <>Completed with {pesoB(st.remaining)} unrecovered — {st.closure.treatment}, closed by {st.closure.closedBy}.</>
             )}
           </span>
         </div>
@@ -2196,7 +2196,7 @@ function LiquidationWorksheet({
           opening the Automated Computation panel or adding up by hand. */}
       <div className="pcp-liq-line-total">
         <div className="lbl">Total Expense Amount ({validLines.length} line{validLines.length === 1 ? "" : "s"})</div>
-        <div className="pcp-num val">{peso(total)}</div>
+        <div className="pcp-num val">{pesoB(total)}</div>
         <div></div>
       </div>
       {/* Yellow, larger Add Receipt Line for LIQ_HEADER_UPLOAD_EMAILS (19-app.jsx)
@@ -2215,7 +2215,7 @@ function LiquidationWorksheet({
           <div className="pcp-section-title" style={{ margin: 0 }}>
             <Receipt size={15} color="#3c6e76" /> Supporting Documents
             <span style={{ fontSize: 11.5, color: "var(--text-mut)", fontWeight: 500, marginLeft: 6 }}>
-              ({attachments.length}) — official receipts, sales invoices, etc. · Total Receipt Amount <strong className="pcp-num">{peso(receiptSummary.approvedTotal)}</strong>
+              ({attachments.length}) — official receipts, sales invoices, etc. · Total Receipt Amount <strong className="pcp-num">{pesoB(receiptSummary.approvedTotal)}</strong>
             </span>
           </div>
           <div style={{ display: "flex", gap: 8 }}>
@@ -2338,7 +2338,7 @@ function LiquidationWorksheet({
                   <div style={{ flex: 1, minWidth: 130, textAlign: "right" }}>
                     <div className="pcp-kpi-label">Counted in Total</div>
                     <div className="pcp-num" style={{ fontWeight: 700, color: status === "Approved" ? "var(--green)" : "var(--text-mut)" }}>
-                      {status === "Approved" ? peso(receiptAmountOf(a)) : "—"}
+                      {status === "Approved" ? pesoB(receiptAmountOf(a)) : "—"}
                     </div>
                   </div>
                 </div>
@@ -2400,7 +2400,7 @@ function LiquidationWorksheet({
                     <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-mut)", marginBottom: 3 }}>Receipt Amount History</div>
                     {amtHistory.map((h, i) => (
                       <div key={i} style={{ fontSize: 10.5, color: "var(--text-mut)" }}>
-                        {h.prevAmount == null ? <>Set to <strong>{peso(h.newAmount)}</strong></> : <>{peso(h.prevAmount)} → <strong>{peso(h.newAmount)}</strong></>}
+                        {h.prevAmount == null ? <>Set to <strong>{pesoB(h.newAmount)}</strong></> : <>{pesoB(h.prevAmount)} → <strong>{pesoB(h.newAmount)}</strong></>}
                         {" "}by {h.user} · {(h.ts || "").replace("T", " ")}{h.reason ? ` · "${h.reason}"` : ""}
                       </div>
                     ))}
@@ -2414,11 +2414,11 @@ function LiquidationWorksheet({
             <div style={{ display: "flex", justifyContent: "flex-end", gap: 24, borderTop: "2px solid var(--line)", paddingTop: 10, flexWrap: "wrap" }}>
               <div style={{ textAlign: "right" }}>
                 <div className="pcp-kpi-label">All Documents</div>
-                <div className="pcp-num" style={{ fontWeight: 700 }}>{peso(receiptSummary.allTotal)}</div>
+                <div className="pcp-num" style={{ fontWeight: 700 }}>{pesoB(receiptSummary.allTotal)}</div>
               </div>
               <div style={{ textAlign: "right" }}>
                 <div className="pcp-kpi-label">Total Receipt Amount (approved only)</div>
-                <div className="pcp-num" style={{ fontWeight: 700, fontSize: 15 }}>{peso(receiptSummary.approvedTotal)}</div>
+                <div className="pcp-num" style={{ fontWeight: 700, fontSize: 15 }}>{pesoB(receiptSummary.approvedTotal)}</div>
               </div>
             </div>
           </div>
@@ -2431,7 +2431,7 @@ function LiquidationWorksheet({
 
       {remaining < 0 && (
         <div style={{ marginTop: 14, display: "flex", gap: 8, alignItems: "center", background: "var(--red-bg)", padding: "10px 12px", borderRadius: 8, fontSize: 12, color: "var(--brand-dark)" }}>
-          <AlertTriangle size={15} /> The encoded expense lines ({peso(total)}) exceed the cash advance by {peso(Math.abs(remaining))}. Check them against the Cash Settlement above, which is computed from the approved receipt amounts.
+          <AlertTriangle size={15} /> The encoded expense lines ({pesoB(total)}) exceed the cash advance by {pesoB(Math.abs(remaining))}. Check them against the Cash Settlement above, which is computed from the approved receipt amounts.
         </div>
       )}
       </div>
@@ -2508,9 +2508,9 @@ function ReimbursementLiquidationPanel({ reimb, canFinance, onAction }) {
           </div>
         </div>
         <div className="pcp-liq-sticky-grid" style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)" }}>
-          <div className="pcp-liq-metric"><div className="pcp-kpi-label">Approved Reimbursement</div><div className="pcp-num">{peso(approved)}</div></div>
-          <div className="pcp-liq-metric"><div className="pcp-kpi-label">Validated Expense</div><div className="pcp-num">{peso(validated)}</div></div>
-          <div className="pcp-liq-metric"><div className="pcp-kpi-label">Variance</div><div className="pcp-num" style={{ color: variance === 0 ? "var(--green)" : "var(--danger)" }}>{peso(variance)}</div></div>
+          <div className="pcp-liq-metric"><div className="pcp-kpi-label">Approved Reimbursement</div><div className="pcp-num">{pesoB(approved)}</div></div>
+          <div className="pcp-liq-metric"><div className="pcp-kpi-label">Validated Expense</div><div className="pcp-num">{pesoB(validated)}</div></div>
+          <div className="pcp-liq-metric"><div className="pcp-kpi-label">Variance</div><div className="pcp-num" style={{ color: variance === 0 ? "var(--green)" : "var(--danger)" }}>{pesoB(variance)}</div></div>
           <div className="pcp-liq-metric"><div className="pcp-kpi-label">Status</div><div><Badge status={st} /></div></div>
           {showModuleDocTotals && <DocTotalBoxes count={(reimb.attachments || []).length} amount={reimbDocsTotal(reimb)} />}
         </div>
@@ -2527,16 +2527,16 @@ function ReimbursementLiquidationPanel({ reimb, canFinance, onAction }) {
                 <tr key={l.id}>
                   <td>{fmtDate(l.date)}</td><td>{l.category}</td><td>{l.description}</td>
                   <td>{l.vendor || "—"}</td><td>{l.account || "—"}</td><td>{deptDesc(l.department)}</td>
-                  <td className="pcp-num">{peso(l.amount)}</td>
+                  <td className="pcp-num">{pesoB(l.amount)}</td>
                 </tr>
               ))}
             </tbody>
-            <tfoot><tr><td colSpan={6} style={{ textAlign: "right", fontWeight: 600 }}>Approved Amount</td><td className="pcp-num" style={{ fontWeight: 700 }}>{peso(approved)}</td></tr></tfoot>
+            <tfoot><tr><td colSpan={6} style={{ textAlign: "right", fontWeight: 600 }}>Approved Amount</td><td className="pcp-num" style={{ fontWeight: 700 }}>{pesoB(approved)}</td></tr></tfoot>
           </table>
         </div>
         {variance !== 0 && (
           <div style={{ marginTop: 10, padding: "9px 12px", borderRadius: 8, fontSize: 12, background: "var(--red-bg)", color: "var(--brand-dark)" }}>
-            <AlertTriangle size={13} style={{ verticalAlign: "-2px" }} /> Variance of {peso(Math.abs(variance))} between the approved reimbursement and the validated expense must be reviewed and resolved before completion.
+            <AlertTriangle size={13} style={{ verticalAlign: "-2px" }} /> Variance of {pesoB(Math.abs(variance))} between the approved reimbursement and the validated expense must be reviewed and resolved before completion.
           </div>
         )}
       </div>
@@ -2984,9 +2984,9 @@ function LiquidationTab({
                       <td>{d.branchCode}</td>
                       <td title={subaccountLabel(d.department)} style={LIQ_CLIP_CELL}>{subaccountLabel(d.department)}</td>
                       <td title={disbExpense(d)} style={LIQ_CLIP_CELL}>{disbExpense(d) || "—"}</td>
-                      <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700 }}>{peso(d.amount)}</td>
+                      <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700 }}>{pesoB(d.amount)}</td>
                       <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700 }}>
-                        {liquidationFor(d.id, liquidations) ? peso(d.liqAmount) : <span style={{ color: "var(--text-mut)", fontWeight: 400 }}>—</span>}
+                        {liquidationFor(d.id, liquidations) ? pesoB(d.liqAmount) : <span style={{ color: "var(--text-mut)", fontWeight: 400 }}>—</span>}
                       </td>
                       <td><Badge status={d.liqStatus} /></td>
                       <td><Badge status={d.finalStatus} /></td>
@@ -3054,7 +3054,7 @@ function LiquidationTab({
                       <td>{r.branchCode}</td>
                       <td title={subaccountLabel(r.department)} style={LIQ_CLIP_CELL}>{subaccountLabel(r.department)}</td>
                       <td title={r.purpose || ""} style={LIQ_CLIP_CELL}>{r.purpose || "—"}</td>
-                      <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700 }}>{peso(reimbTotal(r))}</td>
+                      <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700 }}>{pesoB(reimbTotal(r))}</td>
                       <td><Badge status={r.awaitingAcct ? REIMB_STAGE.FOR_ACCOUNTING : r.status} /></td>
                       <AccountingCells review={r.acct} />
                       <td>

@@ -159,7 +159,7 @@ function TransactionHistoryTab({ requests, disbursements, liquidations, replenis
           <div style={{ padding: "0 18px 14px", display: "flex", alignItems: "center", gap: 10 }}>
             <button className="pcp-btn pcp-btn-sm" onClick={reset}><FilterIcon size={12} /> Reset Filters</button>
             <div style={{ marginLeft: "auto", fontSize: 12.5, color: "var(--text-mut)" }}>
-              {filtered.length} of {feed.length} transactions · Total <strong style={{ color: "var(--text)" }}>{peso(total)}</strong>
+              {filtered.length} of {feed.length} transactions · Total <strong style={{ color: "var(--text)" }}>{pesoB(total)}</strong>
             </div>
           </div>
         </div>
@@ -189,7 +189,7 @@ function TransactionHistoryTab({ requests, disbursements, liquidations, replenis
                     <td>{t.branchCode}</td>
                     <td>{t.department ? deptDesc(t.department) : "—"}</td>
                     <td style={{ maxWidth: 200, whiteSpace: "normal" }}>{t.category || "—"}</td>
-                    <td className="pcp-num">{peso(t.amount)}</td>
+                    <td className="pcp-num">{pesoB(t.amount)}</td>
                     <td><Badge status={t.status} /></td>
                   </tr>
                 )) : <tr><td colSpan={9} className="pcp-empty">No transactions match your filters</td></tr>}

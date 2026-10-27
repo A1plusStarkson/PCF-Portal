@@ -706,7 +706,7 @@ function reportPrintHTML(doc) {
     let v = row[col.key];
     if (col.money) v = (v == null || v === "") ? "" : money(v);
     else v = (v == null) ? "" : esc(v);
-    return `<td class="a-${col.align}">${v}</td>`;
+    return `<td class="a-${col.align}${col.money ? " amt" : ""}">${v}</td>`;
   }).join("");
   const bodyRows = doc.rows.map((row) => {
     if (row._group) return `<tr class="grp"><td colspan="${N}">${esc(row.particulars || row[doc.columns[0].key] || "")}</td></tr>`;
@@ -745,6 +745,7 @@ function reportPrintHTML(doc) {
   tbody td { padding: 5px 7px; border: 1px solid #d5d9e0; font-size: 9.5px; vertical-align: top; word-break: break-word; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   tbody tr:nth-child(even) td { background: #f4f6f9; }
   .a-right { text-align: right; } .a-center { text-align: center; } .a-left { text-align: left; }
+  td.amt { font-weight: 700; }
   /* "tbody" keeps these as specific as the zebra rule above (and later, so
      they win): a GRAND TOTAL on an even row used to get the light zebra
      background under its white text and vanish. */

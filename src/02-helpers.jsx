@@ -12,6 +12,10 @@ const shortPeso = (n) => {
   return "₱" + v.toFixed(0);
 };
 
+/* Amounts shown on screen are bold (pcp-amt); plain peso() stays for text, titles and exports. */
+const pesoB = (n) => <b className="pcp-amt">{peso(n)}</b>;
+const shortPesoB = (n) => <b className="pcp-amt">{shortPeso(n)}</b>;
+
 const todayISO = () => new Date().toISOString().slice(0, 10);
 
 const fmtDate = (iso) => {

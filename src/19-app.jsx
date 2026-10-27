@@ -2783,7 +2783,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     const reqs = visibleRequests.filter((r) => mine(r.employee) && (r.status === "Pending" || r.status === "Approved"));
     add("Pending Requests", reqs, "requests", `${reqs.filter((r) => r.status === "Approved").length} approved, awaiting release`, "#2f64a6");
     const adv = visibleDisbursements.filter((d) => mine(d.employee) && liqStatusFor(d, visibleLiquidations) !== "Fully Liquidated");
-    add("Active Cash Advances", adv, "liquidation", peso(sumAmt(adv)), "#b9790a");
+    add("Active Cash Advances", adv, "liquidation", pesoB(sumAmt(adv)), "#b9790a");
     const due = homeDeadlines.filter((d) => mine(d.employee));
     const dueIds = new Set(due.map((d) => d.id));
     const dueRecs = visibleDisbursements.filter((d) => dueIds.has(d.id));
@@ -2793,7 +2793,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       overIds.size ? "Liquidate now to avoid salary deduction" : "None overdue", "#c0392b", { warn: overIds.size > 0 });
     const closed = [REIMB_STATUS.DRAFT, REIMB_STATUS.COMPLETED, REIMB_STATUS.PAID, REIMB_STATUS.REJECTED];
     const reimbs = visibleReimbursements.filter((r) => (mine(r.employee) || mine(r.createdBy)) && !closed.includes(r.status));
-    add("Reimbursements", reimbs, "reimbursement", `${peso(sumAmt(reimbs, (r) => reimbTotal(r)))} in progress`, "#3f9c8f",
+    add("Reimbursements", reimbs, "reimbursement", <>{pesoB(sumAmt(reimbs, (r) => reimbTotal(r)))} in progress</>, "#3f9c8f",
       { openAs: () => navigate("reimbursement") });
     return out;
   }, [userName, allowedTabs, visibleRequests, visibleDisbursements, visibleLiquidations, visibleReimbursements, homeDeadlines, openFiltered]); // eslint-disable-line
@@ -2847,11 +2847,11 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     };
     if (canApprove) {
       const p = visibleRequests.filter((r) => r.status === "Pending");
-      add(p.length, "Requests to approve", peso(sumAmt(p)), "requests", ClipboardList, "#b9790a", p);
+      add(p.length, "Requests to approve", pesoB(sumAmt(p)), "requests", ClipboardList, "#b9790a", p);
     }
     if (canRelease) {
       const a = visibleRequests.filter((r) => r.status === "Approved");
-      add(a.length, "Approved requests to release", peso(sumAmt(a)), "requests", Banknote, "#2054a3", a);
+      add(a.length, "Approved requests to release", pesoB(sumAmt(a)), "requests", Banknote, "#2054a3", a);
     }
     const replenished = replenishedLiquidationIds(visibleReplenishments);
     const atStage = (stage) => visibleDisbursements.filter((d) => {
@@ -2863,12 +2863,12 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     if (isAccountingChecker) { const xs = atStage(LIQ_STAGE.FOR_ACCOUNTING); add(xs.length, "Liquidations for Accounting check", "Custodian-reviewed", canOpen("approvals") ? "approvals" : "liquidation", ClipboardCheck, "#2f64a6", xs); }
     { const xs = atStage(LIQ_STAGE.NEEDS_CORRECTION); add(xs.length, "Liquidations needing correction", "A receipt was rejected", "liquidation", AlertTriangle, "#c0392b", xs); }
     const overdue = homeDeadlines.filter((d) => d.daysLeft < 0);
-    add(overdue.length, "Overdue liquidations", peso(sumAmt(overdue)), "liquidation", AlertTriangle, "#c0392b", vouchersOf(overdue));
+    add(overdue.length, "Overdue liquidations", pesoB(sumAmt(overdue)), "liquidation", AlertTriangle, "#c0392b", vouchersOf(overdue));
     const soon = homeDeadlines.filter((d) => d.daysLeft >= 0 && d.daysLeft <= 1);
-    add(soon.length, "Liquidations due today or tomorrow", peso(sumAmt(soon)), "liquidation", CalendarClock, "#c2560c", vouchersOf(soon));
+    add(soon.length, "Liquidations due today or tomorrow", pesoB(sumAmt(soon)), "liquidation", CalendarClock, "#c2560c", vouchersOf(soon));
     if (!isRequestor) {
       const ready = replenishmentReadyItems(visibleDisbursements, visibleLiquidations, visibleReimbursements, visibleReplenishments);
-      add(ready.length, "Ready for replenishment", peso(sumAmt(ready)), "replenishment", RefreshCw, "#6a4fb8");
+      add(ready.length, "Ready for replenishment", pesoB(sumAmt(ready)), "replenishment", RefreshCw, "#6a4fb8");
     }
     return out;
   }, [allowedTabs, canApprove, canRelease, isLiquidationChecker, isAccountingChecker, isRequestor, visibleRequests, visibleDisbursements, visibleLiquidations, visibleReplenishments, visibleReimbursements, homeDeadlines, openFiltered]); // eslint-disable-line
