@@ -471,7 +471,10 @@ function ReplenishmentFormModal({ onClose, onSave, funds, disbursements, liquida
               <label>Status of PO, RFP and Voucher <span style={{ color: "var(--text-mut)", fontWeight: 400 }}>(optional)</span></label>
               <select className="pcp-select" value={form.status} onChange={(e) => set("status", e.target.value)}>
                 <option value="">—</option>
-                {REPLENISH_STATUSES.map((s) => <option key={s}>{s}</option>)}
+                {/* Completed is set only by Mark as Completed (Accounting), never
+                    picked here — it stays listed only on one already completed. */}
+                {REPLENISH_STATUSES.filter((s) => s !== "Completed" || (replenishment && replenishment.status === "Completed"))
+                  .map((s) => <option key={s}>{s}</option>)}
               </select>
             </div>
           </div>
@@ -998,8 +1001,16 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                         {onExportAcumatica && r.status !== "Reverted" && (
                           <button className="pcp-btn pcp-btn-sm" onClick={() => onExportAcumatica([r.id])} title="Export this replenishment to Acumatica"><Download size={12} /> Acumatica</button>
                         )}
-                        {canManage && isOpenRepl(r) && (
-                          <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={() => onComplete(r.id)} title="Mark completed"><Check size={12} /></button>
+                        {onComplete && isOpenRepl(r) && (
+                          <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={() => onComplete(r.id)}
+                            title="Mark as Completed — only once the PO, RFP, voucher and check are approved and the custodian has received the funds">
+                            <Check size={12} /> Mark as Completed
+                          </button>
+                        )}
+                        {r.status === "Completed" && r.completedBy && (
+                          <span style={{ fontSize: 10.5, color: "var(--text-mut)", alignSelf: "center" }}>
+                            Completed by {r.completedBy}{r.completedAt ? ` · ${fmtApprovalStamp(r.completedAt)}` : ""}
+                          </span>
                         )}
                         {canManage && r.status !== "Reverted" && (
                           <button className="pcp-btn pcp-btn-sm" onClick={() => setEditing(r)} title="Edit"><Edit3 size={12} /></button>

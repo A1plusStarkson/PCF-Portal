@@ -351,6 +351,10 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   ];
   const canManageReplen = REPLEN_MANAGE_EMAILS.includes((userEmail || "").trim().toLowerCase())
     && role === (userRole || "Accounting");
+  /* Mark as Completed: authorized Accounting only (owner's instruction, Oct 2026). */
+  const REPLEN_COMPLETE_EMAILS = ["accounting@a1plus.com", "superuser@a1plus.com"];
+  const canCompleteReplen = REPLEN_COMPLETE_EMAILS.includes((userEmail || "").trim().toLowerCase())
+    && role === (userRole || "Accounting");
   /* Replenishments: Export to Acumatica — Accounting (and the System
      Administrator) only, hidden while previewing another role. */
   const canExportAcumatica = (role === "Accounting" || role === "SuperAdmin") && role === (userRole || "Accounting");
@@ -1845,6 +1849,8 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       replenishmentNo = await issueSeriesNo(replenishmentNoPrefix(form.branchCode), "replenishments", id,
         replenishments.map((r) => r.replenishmentNo));
     } catch (e) { seriesFailed(e, "Replenishment"); return; }
+    /* Completed comes only from Mark as Completed, never at creation. */
+    if (form.status === "Completed") form = { ...form, status: "" };
     setReplenishments((rs) => [...rs, { ...form, id, replenishmentNo }]);
     const linked = linkedVouchers(form.liquidationIds);
     const linkedR = linkedReimbNos(form.reimbursementIds);
@@ -1858,6 +1864,8 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     if (!canManageReplen || !r0 || r0.status === "Reverted") return;
     /* The number is never taken from the form; only a plant move changes it. */
     const { replenishmentNo: _ignored, ...fields } = form;
+    /* Completed comes only from Mark as Completed (completeReplenishment). */
+    if (fields.status === "Completed" && r0.status !== "Completed") fields.status = r0.status || "";
     setReplenishments((rs) => rs.map((r) => (r.id === id ? { ...r, ...fields } : r)));
     const linked = linkedVouchers(form.liquidationIds);
     const linkedR = linkedReimbNos(form.reimbursementIds);
@@ -1883,12 +1891,21 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       + (r0.acumaticaPoNo || r0.acumaticaApvNo ? ` (was PO #: ${r0.acumaticaPoNo || "—"} · APV #: ${r0.acumaticaApvNo || "—"})` : ""));
   }, [logAudit, replenishments, canEditAcumaticaRef, userName, userEmail]);
 
+  /* Mark as Completed (owner's instruction, Oct 2026): Accounting only, once
+     the PO, RFP, voucher and check are approved and the custodian has
+     received the funds. Its transactions then read "Replenished and
+     Completed" in the Approved Module. Stamps who and when. */
   const completeReplenishment = useCallback((id) => {
-    if (!canManageReplen) return;
-    setReplenishments((rs) => rs.map((r) => (r.id === id ? { ...r, status: "Completed" } : r)));
     const r = replenishments.find((x) => x.id === id);
-    logAudit("Replenished", r ? r.replenishmentNo : id, `Marked completed${r ? ` · ${peso(Number(r.amount))}` : ""}`);
-  }, [logAudit, replenishments, canManageReplen]);
+    if (!canCompleteReplen || !r || r.status === "Completed" || r.status === "Reverted") return;
+    if (!window.confirm(`Mark ${r.replenishmentNo} as Completed?\n\n${plantNameOf(r.branchCode)} · ${peso(Number(r.amount))}\n\n`
+      + "Confirm that:\n  • the PO, RFP, Voucher and Check are all approved, and\n  • the replenishment funds have been released to and received by the custodian.\n\n"
+      + "Its transactions will show \"Replenished and Completed\" in the Approved Module.")) return;
+    const ts = new Date().toISOString().slice(0, 19);
+    setReplenishments((rs) => rs.map((x) => (x.id === id
+      ? { ...x, status: "Completed", completedBy: userName || userEmail, completedAt: ts } : x)));
+    logAudit("Replenished", r.replenishmentNo, `Marked as completed · ${peso(Number(r.amount))} · PO, RFP, voucher and check approved; funds received by the custodian`);
+  }, [logAudit, replenishments, canCompleteReplen, userName, userEmail]); // eslint-disable-line
 
   /* Revert: undoes a replenishment without deleting it. The record stays (its
      number stays retired) marked Reverted with who, when and why; the
@@ -3195,7 +3212,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
             disbursements={scopedDisbursements} liquidations={scopedLiquidations}
             reimbursements={scopedReimbursements}
             onCreate={addReplenishment} onEdit={editReplenishment}
-            onComplete={completeReplenishment} onDelete={deleteReplenishment}
+            onComplete={canCompleteReplen ? completeReplenishment : undefined} onDelete={deleteReplenishment}
             onRevert={revertReplenishment} onRevertReady={revertReadyItem} canManage={canManageReplen}
             canViewDetails={canViewReplenDetails}
             onExportAcumatica={canExportAcumatica ? exportReplenishmentsToAcumatica : undefined}

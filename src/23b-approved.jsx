@@ -15,6 +15,25 @@
 const APPROVED_ALL_APPROVERS = "All approvers";
 const APPROVED_ALL_BATCHES = "All batches";
 
+/* Status of a final-approved transaction (owner's definitions, Oct 2026):
+     Approved                  — approved by Grace Gan, not yet in a replenishment;
+     For Replenishment         — in a replenishment not yet marked completed;
+     Replenished and Completed — its replenishment was marked completed by
+                                 Accounting (PO, RFP, voucher and check approved,
+                                 funds received by the custodian). */
+const APPROVED_STATUS = {
+  APPROVED: "Approved",
+  FOR_REPLENISHMENT: "For Replenishment",
+  COMPLETED: "Replenished and Completed",
+};
+const approvedStatusOf = (rp) => (!rp ? APPROVED_STATUS.APPROVED
+  : rp.status === "Completed" ? APPROVED_STATUS.COMPLETED : APPROVED_STATUS.FOR_REPLENISHMENT);
+const APPROVED_STATUS_BADGE = {
+  [APPROVED_STATUS.APPROVED]: "blue",
+  [APPROVED_STATUS.FOR_REPLENISHMENT]: "amber",
+  [APPROVED_STATUS.COMPLETED]: "green",
+};
+
 /* One row per final-approved transaction, both kinds in one shape. */
 function approvedTransactions(disbursements, liquidations, reimbursements, replenishments) {
   const liqRepl = new Map();
@@ -24,14 +43,13 @@ function approvedTransactions(disbursements, liquidations, reimbursements, reple
     (rp.reimbursementIds || []).forEach((id) => reimbRepl.set(id, rp));
   });
   const replLabel = (rp) => (!rp ? "Not yet replenished"
-    : `${rp.replenishmentNo || "—"} (${rp.status === "Completed" ? "Replenished" : "In Replenishment"})`);
+    : `${rp.replenishmentNo || "—"} (${approvedStatusOf(rp)})`);
   const rows = [];
   (disbursements || []).forEach((d) => {
     const liq = liquidationFor(d.id, liquidations || []);
     if (!liq || !liq.workflow) return;
     const rv = liqReview(liq);
     if (!rv.final || rv.legacy) return;
-    const replIds = new Set(liqRepl.has(liq.id) ? [liq.id] : []);
     rows.push({
       key: "liq:" + d.id, id: d.id, kind: "Liquidation",
       txnNo: d.voucherNo || "", plantCode: d.branchCode, requestor: d.employee || "",
@@ -41,7 +59,7 @@ function approvedTransactions(disbursements, liquidations, reimbursements, reple
       txnDate: String(d.date || "").slice(0, 10),
       approvedAt: String(rv.finalAt || ""), approvedBy: rv.finalBy || "",
       finalRemarks: rv.finalRemarks || "",
-      status: String(liqApprovalStage(d, liq, replIds) || ""),
+      status: approvedStatusOf(liqRepl.get(liq.id)),
       batchNo: rv.batchNo || "",
       custodianBy: custodianCheckerLabel(rv), acctBy: acctCheckerLabel(rv),
       replenishment: replLabel(liqRepl.get(liq.id)),
@@ -50,7 +68,6 @@ function approvedTransactions(disbursements, liquidations, reimbursements, reple
   (reimbursements || []).forEach((r) => {
     const rv = reimbReview(r);
     if (!rv.final) return;
-    const replIds = new Set(reimbRepl.has(r.id) ? [r.id] : []);
     rows.push({
       key: "reimb:" + r.id, id: r.id, kind: "Reimbursement",
       txnNo: r.reimbNo || "", plantCode: r.branchCode, requestor: r.employee || "",
@@ -60,7 +77,7 @@ function approvedTransactions(disbursements, liquidations, reimbursements, reple
       txnDate: String(r.requestDate || r.submittedAt || "").slice(0, 10),
       approvedAt: String(rv.finalAt || ""), approvedBy: rv.finalBy || "",
       finalRemarks: rv.finalRemarks || "",
-      status: String(reimbApprovalStage(r, replIds) || r.status || ""),
+      status: approvedStatusOf(reimbRepl.get(r.id)),
       batchNo: rv.batchNo || "",
       custodianBy: custodianCheckerLabel(rv), acctBy: acctCheckerLabel(rv),
       replenishment: replLabel(reimbRepl.get(r.id)),
@@ -386,7 +403,7 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
               </thead>
               <tbody>
                 {rows.length ? rows.map((r) => (
-                  <tr key={r.key} className="pcp-liq-row" tabIndex={0}
+                  <tr key={r.key} className={"pcp-liq-row" + (r.status !== APPROVED_STATUS.APPROVED ? " pcp-row-replenished" : "")} tabIndex={0}
                     onClick={() => open(r)}
                     onKeyDown={(e) => { if (e.key === "Enter") open(r); }}
                     title={`Open ${r.txnNo || "this transaction"} (view only)`}
@@ -426,12 +443,17 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
                       <strong>{r.approvedBy || "—"}</strong>
                       {r.finalRemarks && <div style={mut} title={r.finalRemarks}>"{r.finalRemarks}"</div>}
                     </td>
-                    <td><Badge status={r.status} /></td>
+                    <td><span className={"pcp-badge pcp-badge-" + (APPROVED_STATUS_BADGE[r.status] || "gray")} style={{ whiteSpace: "nowrap" }}>{r.status}</span></td>
                     <td style={{ fontSize: 11 }}>
                       {r.custodianBy && <div>Custodian: {r.custodianBy}</div>}
                       {r.acctBy && <div>Accounting: {r.acctBy}</div>}
                     </td>
-                    <td style={{ fontSize: 11 }}>{r.replenishment}</td>
+                    {/* Replenishment no. in the same green as the Replenished status. */}
+                    <td style={{ fontSize: 11 }}>
+                      {r.replenishment === "Not yet replenished"
+                        ? <span style={{ color: "var(--text-mut)" }}>{r.replenishment}</span>
+                        : <span className="pcp-badge pcp-badge-green" style={{ whiteSpace: "nowrap" }}>{r.replenishment}</span>}
+                    </td>
                     <td>
                       <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={(e) => { e.stopPropagation(); open(r); }}>
                         <Eye size={12} /> Open

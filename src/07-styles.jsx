@@ -226,6 +226,11 @@ const CSS = `
   /* Approval Module: "For Final Approval of Grace Gan", highlighted yellow. */
   .pcp-badge-grace { background: #fff176; color: #3b2a00; border: 1px solid #e0a800; font-weight: 800; }
   [data-theme="dark"] .pcp-badge-grace { background: #5c4a00; color: #fff3a8; }
+  /* Approved Module: a transaction already replenished — the whole row in yellow. */
+  /* !important: it must win over the zebra striping on even rows. */
+  .pcp-table tr.pcp-row-replenished > td { background: #fff59d !important; }
+  .pcp-table tr.pcp-row-replenished:hover > td { background: #ffee58 !important; }
+  [data-theme="dark"] .pcp-table tr.pcp-row-replenished > td { background: #4a3d00 !important; }
 
   .pcp-input, .pcp-select, textarea.pcp-input {
     width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 9px;
