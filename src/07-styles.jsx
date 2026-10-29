@@ -210,6 +210,14 @@ const CSS = `
   table.pcp-table tbody tr:hover td { background: var(--brand-soft); }
   table.pcp-table tbody tr:last-child td { border-bottom: none; }
   .pcp-table-wrap { overflow-x: auto; border-radius: 12px; }
+  /* StickyHScroll: the horizontal scrollbar pinned to the bottom of the screen. */
+  .pcp-hscroll-bar {
+    position: sticky; bottom: 0; z-index: 6; overflow-x: auto; overflow-y: hidden; height: 18px;
+    background: var(--card); border-top: 1px solid var(--line); border-radius: 0 0 12px 12px;
+  }
+  .pcp-hscroll-bar::-webkit-scrollbar { height: 14px; }
+  .pcp-hscroll-bar::-webkit-scrollbar-thumb { background: #8fb3a5; border-radius: 7px; border: 3px solid transparent; background-clip: padding-box; }
+  .pcp-hscroll-bar::-webkit-scrollbar-thumb:hover { background: #5f8f7d; background-clip: padding-box; }
 
   .pcp-badge {
     display: inline-flex; align-items: center; gap: 4px; padding: 3px 9px; border-radius: 99px;
@@ -333,7 +341,7 @@ const CSS = `
   .pcp-liq-full .pcp-content { padding: 14px 18px 48px 18px; }
   table.pcp-table tbody tr.pcp-liq-row { cursor: pointer; }
   /* Replenishment — Ready for Replenishment panel (cut-off chips, selection). */
-  .pcp-rr-plant { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+  .pcp-rr-plant { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 12px; overflow: clip; } /* clip, not hidden: hidden would stop the pinned scrollbar (StickyHScroll) from sticking */
   .pcp-rr-plant-head { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 9px 12px; background: var(--paper); border-bottom: 1px solid var(--line); }
   table.pcp-table tbody tr.pcp-rr-row { cursor: pointer; }
   table.pcp-table tbody tr.pcp-rr-row.on { background: #fff4f5; }
@@ -2148,6 +2156,40 @@ function UploadStatusHost() {
    Wraps an upload area: files dragged over it show a "drop here" veil, and
    dropping hands them to onFiles exactly like the file picker does. Off
    while `disabled` (same rule as the Upload button it sits with). */
+/* A wide table's horizontal scrollbar, pinned to the bottom of the screen
+   (owner's instruction, Oct 2026): without it the scrollbar sits under the
+   last row, so on a long list nobody can reach the right-hand columns
+   without first scrolling to the end. Drop-in for <div className="pcp-table-wrap">;
+   the bar shows only while the table is wider than its box, and it and the
+   table scroll together. */
+function StickyHScroll({ children }) {
+  const wrapRef = useRef(null);
+  const barRef = useRef(null);
+  const [w, setW] = useState(0);
+  const [show, setShow] = useState(false);
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return undefined;
+    const upd = () => { setW(el.scrollWidth); setShow(el.scrollWidth > el.clientWidth + 1); };
+    upd();
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(upd) : null;
+    if (ro) { ro.observe(el); if (el.firstElementChild) ro.observe(el.firstElementChild); }
+    window.addEventListener("resize", upd);
+    return () => { if (ro) ro.disconnect(); window.removeEventListener("resize", upd); };
+  }, []);
+  const sync = (from, to) => { if (to && to.scrollLeft !== from.scrollLeft) to.scrollLeft = from.scrollLeft; };
+  return (
+    <>
+      <div ref={wrapRef} className="pcp-table-wrap" onScroll={(e) => sync(e.currentTarget, barRef.current)}>{children}</div>
+      {show && (
+        <div ref={barRef} className="pcp-hscroll-bar" onScroll={(e) => sync(e.currentTarget, wrapRef.current)} title="Scroll the table left / right">
+          <div style={{ width: w, height: 1 }} />
+        </div>
+      )}
+    </>
+  );
+}
+
 function FileDropZone({ onFiles, disabled, label, children, style }) {
   const [over, setOver] = useState(false);
   const depth = useRef(0);

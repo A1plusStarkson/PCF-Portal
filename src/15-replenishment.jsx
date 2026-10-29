@@ -825,7 +825,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                     </button>
                   )}
                 </div>
-                <div className="pcp-table-wrap">
+                <StickyHScroll>
                   <table className="pcp-table">
                     <thead>
                       <tr>
@@ -868,7 +868,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                       })}
                     </tbody>
                   </table>
-                </div>
+                </StickyHScroll>
               </div>
             );
           }) : (
@@ -915,7 +915,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
             <ColFiltersClear cf={cf} />
             <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-mut)" }}>{filtered.length} of {replenishments.length} records</div>
           </div>
-          <div className="pcp-table-wrap">
+          <StickyHScroll>
             <table className="pcp-table">
               <thead>
                 <tr>
@@ -1027,7 +1027,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                 )) : <tr><td colSpan={onExportAcumatica ? 11 : 10} className="pcp-empty">No replenishment records match your filters</td></tr>}
               </tbody>
             </table>
-          </div>
+          </StickyHScroll>
         </div>
       </div>
       {showForm && (
