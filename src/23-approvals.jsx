@@ -52,19 +52,10 @@ const APPROVAL_ALL_PENDING = "All pending";
 const approvalStageKey = (stage) => String(stage || "").toUpperCase();
 /* How a stage reads in this module's Status column, filters and exports
    (owner's instruction, Oct 2026): For Final Approval names Grace Gan. The
-   stage values themselves are unchanged. */
-const approvalStageLabel = (stage) => {
-  const k = approvalStageKey(stage);
-  if (k === approvalStageKey(LIQ_STAGE.FOR_FINAL)) return "For Final Approval of Grace Gan";
-  if (k === approvalStageKey(LIQ_STAGE.READY)) return "Approved by Grace Gan";
-  if (k === approvalStageKey(LIQ_STAGE.REPLENISHED)) return "Approved by Grace Gan · Replenished";
-  return String(stage || "");
-};
-/* Final-approved: awaiting replenishment or already replenished. */
-const isGraceApprovedStage = (stage) => [LIQ_STAGE.READY, LIQ_STAGE.REPLENISHED]
-  .some((st) => approvalStageKey(st) === approvalStageKey(stage));
-/* Grace Gan's approval date and time for a row, as shown and exported. */
-const approvalFinalStamp = (r) => (r.review && r.review.finalBy && r.review.finalAt ? fmtApprovalStamp(r.review.finalAt) : "");
+   stage values themselves are unchanged. Once she approves, a transaction
+   leaves this module and is listed in the Approved Module. */
+const approvalStageLabel = (stage) => (approvalStageKey(stage) === approvalStageKey(LIQ_STAGE.FOR_FINAL)
+  ? "For Final Approval of Grace Gan" : String(stage || ""));
 
 function approvalPendingStages({ isChecker, isAcct, isFinalApprover }) {
   const out = [];
@@ -80,8 +71,6 @@ const APPROVAL_ACTION_LABEL = {
   [approvalStageKey(LIQ_STAGE.NEEDS_CORRECTION)]: "Return for correction",
   [approvalStageKey(LIQ_STAGE.FOR_ACCOUNTING)]: "Accounting check & batch no.",
   [approvalStageKey(LIQ_STAGE.FOR_FINAL)]: "Final approval",
-  [approvalStageKey(LIQ_STAGE.READY)]: "Ready for Replenishment",
-  [approvalStageKey(LIQ_STAGE.REPLENISHED)]: "Replenished",
 };
 
 /* Submitted petty cash liquidations, newest first. A voucher with no
@@ -120,7 +109,7 @@ function approvalQueueDoc(list, scopeLabel, generatedBy, scopeNote) {
   const columns = [
     col("seriesNo", "Series No."), col("batchNo", "Batch No."), col("date", "Date"),
     col("branch", "Branch"), col("requestor", "Requestor"), col("kind", "Transaction Type"),
-    col("status", "Current Status"), col("approvedAt", "Approved by Grace Gan (Date & Time)"), col("action", "Action"), col("amount", "Amount", { money: true }),
+    col("status", "Current Status"), col("action", "Action"), col("amount", "Amount", { money: true }),
   ];
   const byPlant = new Map();
   list.forEach((r) => {
@@ -137,8 +126,7 @@ function approvalQueueDoc(list, scopeLabel, generatedBy, scopeNote) {
     items.forEach((r) => rows.push({
       seriesNo: r.seriesNo || "—", batchNo: r.batchNo || "—", date: r.date ? fmtDate(r.date) : "—",
       branch: plantLabel(r.plantCode), requestor: r.requestor || "—", kind: r.kind,
-      status: approvalStageLabel(r.stage), action: r.actionText || APPROVAL_ACTION_LABEL[approvalStageKey(r.stage)] || "—",
-      approvedAt: approvalFinalStamp(r) || "—",
+      status: approvalStageLabel(r.stage), action: APPROVAL_ACTION_LABEL[approvalStageKey(r.stage)] || "—",
       amount: round2(Number(r.amount) || 0),
     }));
     rows.push({ _subtotal: true, seriesNo: `Subtotal — ${plantLabel(plantCode)} · ${items.length} transaction(s)`,
@@ -751,29 +739,7 @@ function ApprovalModuleTab({
     && (batch === ALL_BATCHES || r.batchNo === batch)
     && (!dateFrom || r.date >= dateFrom)
     && (!dateTo || r.date <= dateTo);
-  /* Approved by Grace Gan (owner's instruction, Oct 2026): for whoever sees her
-     queue, every transaction she has approved stays listed as a record —
-     status "Approved by Grace Gan" with the date and time, then "· Replenished"
-     with the replenishment no. once one claims it. Shown, never counted as
-     pending. Old approvals from before the two-level review carry no final
-     approver, so they are not hers to list. */
-  const approvedRows = seesFinalQueue
-    ? allRows.filter((r) => isGraceApprovedStage(r.stage) && r.review && r.review.finalBy)
-    : [];
-  /* Replenishment no. holding each transaction (a reverted one only if none other). */
-  const replNoOf = useMemo(() => {
-    const m = new Map();
-    const add = (r, key) => { if (!m.has(key) || r.status !== "Reverted") m.set(key, r.replenishmentNo); };
-    (replenishments || []).forEach((r) => {
-      (r.liquidationIds || []).forEach((id) => add(r, "liq:" + id));
-      (r.reimbursementIds || []).forEach((id) => add(r, "reimb:" + id));
-    });
-    return m;
-  }, [replenishments]);
-  const rowReplNo = (r) => replNoOf.get(r.kind === "Liquidation" ? "liq:" + (r.src.liq && r.src.liq.id) : "reimb:" + r.id) || "";
-  const rowAction = (r) => (approvalStageKey(r.stage) === approvalStageKey(LIQ_STAGE.REPLENISHED) && rowReplNo(r)
-    ? `Replenished · ${rowReplNo(r)}` : actionLabel(r.stage));
-  const baseRows = pendingAll.concat(approvedRows).filter((r) => passesCommon(r)
+  const baseRows = pendingAll.filter((r) => passesCommon(r)
     && (stageFilter === APPROVAL_ALL_PENDING || approvalStageKey(r.stage) === approvalStageKey(stageFilter))
     && (!cardFilter || cardFilter.stages.some((st) => approvalStageKey(r.stage) === approvalStageKey(st))));
   /* ---- For Approval by Grace Gan (showGraceQueue — superuser@ only) ----
@@ -787,11 +753,9 @@ function ApprovalModuleTab({
   const gracePending = useMemo(() => (showGraceQueue
     ? allRows.filter((r) => approvalStageKey(r.stage) === approvalStageKey(LIQ_STAGE.FOR_FINAL) && passesAccountingGate(r.review))
     : []), [allRows, showGraceQueue]);
-  const graceRows = gracePending.concat(showGraceQueue ? approvedRows : []).filter(passesCommon);
+  const graceRows = gracePending.filter(passesCommon);
   const onGraceTab = showGraceQueue && kind === GRACE;
-  const countKind = (k) => baseRows.filter((r) => r.pending && (!k || r.kind === k)).length;
-  const approvedShown = (list) => list.filter((r) => !r.pending).length;
-  const tabCount = (n, approved) => `(${n}${approved ? ` · ${approved} approved` : ""})`;
+  const countKind = (k) => baseRows.filter((r) => r.kind === k).length;
   /* Column header filters: the text each cell shows. */
   const cf = useTableColumnFilters(onGraceTab ? graceRows : baseRows.filter((r) => kind === "all" || r.kind === kind), {
     seriesNo: (r) => cfText(r.seriesNo),
@@ -803,13 +767,9 @@ function ApprovalModuleTab({
     docsAmount: (r) => peso(r.docsAmount),
     date: (r) => (r.date ? fmtDate(r.date) : "—"),
     status: (r) => cfText(approvalStageLabel(r.stage)),
-    approvedAt: (r) => cfText(approvalFinalStamp(r)),
-    action: (r) => cfText(rowAction(r)),
+    action: (r) => cfText(actionLabel(r.stage)),
   });
-  /* Whatever the sort, what still awaits a decision stays above the
-     Approved by Grace Gan rows. */
-  const isApprovedRow = (r) => isGraceApprovedStage(r.stage);
-  const sortedRows = sort.sortRows(
+  const rows = sort.sortRows(
     cf.rows,
     {
       seriesNo: (r) => r.seriesNo,
@@ -821,11 +781,9 @@ function ApprovalModuleTab({
       docsAmount: (r) => r.docsAmount,
       date: (r) => r.date,
       status: (r) => approvalStageKey(r.stage),
-      approvedAt: (r) => (r.review && r.review.finalBy ? String(r.review.finalAt || "") : ""),
-      action: (r) => rowAction(r),
+      action: (r) => actionLabel(r.stage),
     }
   );
-  const rows = sortedRows.filter((r) => !isApprovedRow(r)).concat(sortedRows.filter(isApprovedRow));
   const filtersOn = plant !== "ALL" || kind !== "all" || !!s || stageFilter !== APPROVAL_ALL_PENDING
     || batch !== ALL_BATCHES || !!dateFrom || !!dateTo || !!cardFilter || cf.active;
   const clearFilters = () => {
@@ -855,8 +813,7 @@ function ApprovalModuleTab({
       "Transaction Type": r.kind,
       "Amount": Number(r.amount) || 0,
       "Current Status": approvalStageLabel(r.stage),
-      "Approved by Grace Gan (Date & Time)": approvalFinalStamp(r),
-      "Action": rowAction(r),
+      "Action": actionLabel(r.stage),
     }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(out), "Approval Module");
@@ -873,7 +830,7 @@ function ApprovalModuleTab({
     const scopeNote = (selectedRows.length ? `${list.length} selected transaction(s)` : `All ${list.length} shown`)
       + ` · ${kindLabel} · ${approvalStageLabel(stageFilter)}` + (batch !== ALL_BATCHES ? ` · ${batch}` : "")
       + (dateFrom || dateTo ? ` · ${dateFrom ? fmtDate(dateFrom) : "…"} to ${dateTo ? fmtDate(dateTo) : "…"}` : "");
-    printReportDocument(approvalQueueDoc(list.map((r) => ({ ...r, actionText: rowAction(r) })), scopeLabel, currentUser, scopeNote));
+    printReportDocument(approvalQueueDoc(list, scopeLabel, currentUser, scopeNote));
   };
 
   /* KPI card click: show that card's transactions in the queue below. */
@@ -989,7 +946,7 @@ function ApprovalModuleTab({
     );
   }
 
-  const statusOptions = [APPROVAL_ALL_PENDING].concat(pendingStages, seesFinalQueue ? [LIQ_STAGE.READY, LIQ_STAGE.REPLENISHED] : []);
+  const statusOptions = [APPROVAL_ALL_PENDING].concat(pendingStages);
 
   return (
     <div className="pcp-liq-full pcp-approval-page">
@@ -1042,26 +999,25 @@ function ApprovalModuleTab({
 
         <div className="pcp-tabs" style={{ marginBottom: 14 }}>
           <button className={"pcp-tab" + (kind === "all" ? " active" : "")} onClick={() => setKind("all")}>
-            All Pending {tabCount(countKind(), approvedShown(baseRows))}
+            All Pending ({baseRows.length})
           </button>
           <button className={"pcp-tab" + (kind === "Liquidation" ? " active" : "")} onClick={() => setKind("Liquidation")}>
-            Petty Cash Advance Liquidations {tabCount(countKind("Liquidation"), approvedShown(baseRows.filter((r) => r.kind === "Liquidation")))}
+            Petty Cash Advance Liquidations ({countKind("Liquidation")})
           </button>
           <button className={"pcp-tab" + (kind === "Reimbursement" ? " active" : "")} onClick={() => setKind("Reimbursement")}>
-            Employee Reimbursements {tabCount(countKind("Reimbursement"), approvedShown(baseRows.filter((r) => r.kind === "Reimbursement")))}
+            Employee Reimbursements ({countKind("Reimbursement")})
           </button>
           {showGraceQueue && (
             <button className={"pcp-tab" + (onGraceTab ? " active" : "")} onClick={() => { setKind(GRACE); setCardFilter(null); }}
               title="Every transaction, all plants, waiting for Grace Gan's final approval">
-              <ShieldCheck size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />For Approval by Grace Gan {tabCount(graceRows.length - approvedShown(graceRows), approvedShown(graceRows))}
+              <ShieldCheck size={13} style={{ verticalAlign: "-2px", marginRight: 4 }} />For Approval by Grace Gan ({graceRows.length})
             </button>
           )}
         </div>
         {onGraceTab && (
           <div style={{ fontSize: 12, color: "var(--text-mut)", margin: "-6px 0 12px" }}>
             Every transaction across all plants waiting for <b>Grace Gan's final approval</b> — custodian-approved and
-            Accounting-checked. Approved ones stay listed as <b>Approved by Grace Gan</b> with the date and time until
-            they are replenished; rejected and reverted transactions drop off automatically. Use the plant tabs,
+            Accounting-checked. Once approved, a transaction moves to the Approved Module; rejected and reverted ones drop off automatically. Use the plant tabs,
             search, batch and date filters to narrow it; click a row to view it.
           </div>
         )}
@@ -1157,7 +1113,6 @@ function ApprovalModuleTab({
                   {showDocTotals && <SortTh field="docsAmount" sort={sort} cf={cf} align="right">Total Doc Amount</SortTh>}
                   <SortTh field="date" sort={sort} cf={cf}>Date</SortTh>
                   <SortTh field="status" sort={sort} cf={cf}>Current Status</SortTh>
-                  <SortTh field="approvedAt" sort={sort} cf={cf}>Approved by Grace Gan (Date &amp; Time)</SortTh>
                   <SortTh field="action" sort={sort} cf={cf}>Action</SortTh>
                   <th></th>
                 </tr>
@@ -1201,19 +1156,9 @@ function ApprovalModuleTab({
                     <td>
                       {approvalStageKey(r.stage) === approvalStageKey(LIQ_STAGE.FOR_FINAL)
                         ? <span className="pcp-badge pcp-badge-grace">{approvalStageLabel(r.stage)}</span>
-                        : isGraceApprovedStage(r.stage)
-                          ? <span className="pcp-badge pcp-badge-green">{approvalStageLabel(r.stage)}</span>
-                          : <Badge status={r.stage} />}
+                        : <Badge status={r.stage} />}
                     </td>
-                    <td style={{ whiteSpace: "nowrap" }}>
-                      {approvalFinalStamp(r) ? (
-                        <>
-                          <div style={{ fontWeight: 700, color: "#15803d" }}>{approvalFinalStamp(r)}</div>
-                          <div style={{ fontSize: 10.5, color: "var(--text-mut)" }}>{r.review.finalBy}</div>
-                        </>
-                      ) : <span style={{ color: "var(--text-mut)" }}>{approvalStageKey(r.stage) === approvalStageKey(LIQ_STAGE.FOR_FINAL) ? "Awaiting approval" : "—"}</span>}
-                    </td>
-                    <td style={{ fontWeight: 600 }}>{rowAction(r) || "—"}</td>
+                    <td style={{ fontWeight: 600 }}>{actionLabel(r.stage) || "—"}</td>
                     <td>
                       <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={(e) => { e.stopPropagation(); openRow(r); }}>
                         <Eye size={12} /> Open
@@ -1221,7 +1166,7 @@ function ApprovalModuleTab({
                     </td>
                   </tr>
                 )) : (
-                  <tr><td colSpan={(canSelectExport ? 11 : 10) + (showDocTotals ? 2 : 0)} className="pcp-empty">
+                  <tr><td colSpan={(canSelectExport ? 10 : 9) + (showDocTotals ? 2 : 0)} className="pcp-empty">
                     {pendingAll.length ? "Nothing pending matches these filters"
                       : viewOnly ? "Nothing is awaiting final approval" : "Nothing is awaiting your approval"}
                   </td></tr>

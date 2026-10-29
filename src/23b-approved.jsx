@@ -69,14 +69,22 @@ function approvedTransactions(disbursements, liquidations, reimbursements, reple
   return rows;
 }
 
-const fmtApprovedAt = (ts) => (ts ? `${fmtDate(ts.slice(0, 10))}${ts.length > 10 ? " " + ts.slice(11, 16) : ""}` : "—");
+/* Final-approval stamps are saved in UTC; show them as Philippine date and
+   time (fmtApprovalStamp, 15-replenishment.jsx), e.g. "Oct 24, 2026, 04:00 PM". */
+const fmtApprovedAt = (ts) => (ts ? fmtApprovalStamp(ts) : "—");
+/* The Philippine calendar day of an approval stamp (YYYY-MM-DD), for filters. */
+const approvedDayPH = (ts) => {
+  if (!ts) return "";
+  const d = new Date(/(Z|[+-]\d\d:?\d\d)$/.test(ts) ? ts : ts + "Z");
+  return isNaN(d) ? String(ts).slice(0, 10) : d.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+};
 
 /* Report document for printReportDocument — grouped by plant with subtotals. */
 function approvedModuleDoc(list, scopeLabel, generatedBy, scopeNote) {
   const col = (key, label, opt = {}) => ({ key, label, align: opt.align || (opt.money ? "right" : "left"), money: !!opt.money });
   const columns = [
     col("txnNo", "Transaction No."), col("branch", "Branch"), col("requestor", "Requestor"), col("kind", "Type"),
-    col("txnDate", "Transaction Date"), col("approvedAt", "Approval Date"), col("approvedBy", "Approved By"),
+    col("txnDate", "Transaction Date"), col("approvedAt", "Approved by Grace Gan (Date & Time)"), col("approvedBy", "Approved By"),
     col("batchNo", "Batch No."), col("status", "Current Status"), col("amount", "Amount", { money: true }),
   ];
   const byPlant = new Map();
@@ -146,7 +154,7 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
   const inPlant = (r) => plant === "ALL" || plantOfBranch(r.plantCode) === plantOfBranch(plant);
   const rowPlantLabel = (r) => plantLabel(plantOfBranch(r.plantCode));
   const s = search.trim().toLowerCase();
-  const approvalDay = (r) => r.approvedAt.slice(0, 10);
+  const approvalDay = (r) => approvedDayPH(r.approvedAt);
   /* Batches in the selected plant, newest number first, with their counts;
      narrowed by the batch search box. */
   const plantBatches = useMemo(() => {
@@ -176,7 +184,7 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
     kind: (r) => cfText(r.kind),
     amount: (r) => peso(r.amount),
     txnDate: (r) => (r.txnDate ? fmtDate(r.txnDate) : "—"),
-    approvedAt: (r) => (r.approvedAt ? fmtDate(String(r.approvedAt).slice(0, 10)) : "—"),
+    approvedAt: (r) => cfText(fmtApprovedAt(r.approvedAt)),
     approvedBy: (r) => cfText(r.approvedBy),
     status: (r) => cfText(r.status),
   });
@@ -233,7 +241,7 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
       "Cash Advance": r.cashAdvance == null ? "" : r.cashAdvance,
       "Approved Amount": r.amount,
       "Transaction Date": r.txnDate,
-      "Approval Date": r.approvedAt.replace("T", " ").slice(0, 16),
+      "Approved by Grace Gan (Date & Time)": r.approvedAt ? fmtApprovedAt(r.approvedAt) : "",
       "Approved By": r.approvedBy,
       "Final Approval Remarks": r.finalRemarks,
       "Current Status": r.status,
@@ -368,7 +376,7 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
                   <SortTh field="kind" sort={sort} cf={cf}>Type</SortTh>
                   <SortTh field="amount" sort={sort} cf={cf} align="right">Amount</SortTh>
                   <SortTh field="txnDate" sort={sort} cf={cf}>Transaction Date</SortTh>
-                  <SortTh field="approvedAt" sort={sort} cf={cf}>Approval Date</SortTh>
+                  <SortTh field="approvedAt" sort={sort} cf={cf}>Approved by Grace Gan (Date &amp; Time)</SortTh>
                   <SortTh field="approvedBy" sort={sort} cf={cf}>Approved By</SortTh>
                   <SortTh field="status" sort={sort} cf={cf}>Current Status</SortTh>
                   <th>Checked By</th>
@@ -413,7 +421,7 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
                       {r.cashAdvance != null && r.cashAdvance !== r.amount && <div style={mut}>Advance {pesoB(r.cashAdvance)}</div>}
                     </td>
                     <td>{r.txnDate ? fmtDate(r.txnDate) : "—"}</td>
-                    <td style={{ whiteSpace: "nowrap" }}>{fmtApprovedAt(r.approvedAt)}</td>
+                    <td style={{ whiteSpace: "nowrap", fontWeight: 700, color: "#15803d" }}>{fmtApprovedAt(r.approvedAt)}</td>
                     <td>
                       <strong>{r.approvedBy || "—"}</strong>
                       {r.finalRemarks && <div style={mut} title={r.finalRemarks}>"{r.finalRemarks}"</div>}
