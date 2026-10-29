@@ -661,6 +661,11 @@ const CSS = `
     font-weight: 700; font-size: 15px; pointer-events: none; text-align: center; padding: 12px;
   }
   [data-theme="dark"] .pcp-dropzone-veil { background: rgba(58, 49, 20, 0.9); color: #ffe08a; }
+  /* Replenishment: "approved by Grace Gan" notice at the top of the module. */
+  .pcp-approval-note { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 14px 18px; border-radius: 10px; border: 2px solid #e0a800; background: #fff176; color: #3b2a00; font-size: 18px; font-weight: 600; line-height: 1.35; }
+  .pcp-approval-note svg { color: #8a6100; }
+  [data-theme="dark"] .pcp-approval-note { background: #5c4a00; border-color: #e0a800; color: #fff3a8; }
+  [data-theme="dark"] .pcp-approval-note svg { color: #ffd84d; }
   .pcp-drop-hint { font-size: 11px; color: var(--text-mut); }
   .pcp-toast-x { flex-shrink: 0; border: none; background: transparent; color: inherit; cursor: pointer; padding: 2px; opacity: 0.7; }
   .pcp-toast-x:hover { opacity: 1; }

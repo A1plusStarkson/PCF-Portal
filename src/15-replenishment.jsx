@@ -157,11 +157,22 @@ function fmtApprovalStamp(at) {
    when the transactions were approved at different times. Only when every
    transaction on it carries the final approval; otherwise null. */
 function replFinalApprovalRemark(detail) {
+  const a = replFinalApproval(detail);
+  if (!a) return null;
+  const at = fmtApprovalStamp(a.at);
+  return `APPROVED BY ${String(a.by).toUpperCase()}${at ? " · " + at : ""}`;
+}
+
+/* The final approval behind a replenishment, for its approval column: who
+   gave the latest one and when (`at`, raw stamp), the earliest (`firstAt`)
+   and how many transactions. null unless every transaction carries it. */
+function replFinalApproval(detail) {
   const txns = (detail && detail.txns) || [];
   if (!txns.length || !txns.every((x) => x.rv.final && x.rv.finalBy)) return null;
-  const last = txns.reduce((a, x) => (String(x.rv.finalAt || "") > String(a.rv.finalAt || "") ? x : a), txns[0]);
-  const at = fmtApprovalStamp(last.rv.finalAt);
-  return `APPROVED BY ${String(last.rv.finalBy).toUpperCase()}${at ? " · " + at : ""}`;
+  const by = (x) => String(x.rv.finalAt || "");
+  const last = txns.reduce((a, x) => (by(x) > by(a) ? x : a), txns[0]);
+  const first = txns.reduce((a, x) => (by(x) < by(a) ? x : a), txns[0]);
+  return { by: last.rv.finalBy, at: last.rv.finalAt || "", firstAt: first.rv.finalAt || "", count: txns.length };
 }
 
 /* One replenishment as a Report Center document: letterhead, meta block,
@@ -675,8 +686,16 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
       }
       return true;
     });
+  /* Final approval (who / date and time) per replenishment (replFinalApproval). */
+  const approvals = useMemo(() => new Map(replenishments.map((r) => [r.id,
+    r.status === "Reverted" ? null : replFinalApproval(replenishmentDetail(r, disbursements, liquidations, reimbursements))])),
+  [replenishments, disbursements, liquidations, reimbursements]);
+  const approvalOf = (r) => approvals.get(r.id) || null;
+  const approvalText = (r) => { const a = approvalOf(r); return a ? `${a.by} · ${fmtApprovalStamp(a.at)}` : "—"; };
+  const sortFields = { ...REPLENISH_SORT_FIELDS, approval: (r) => { const a = approvalOf(r); return a ? String(a.at) : ""; } };
   /* Column header filters: the text each cell shows. */
   const cf = useTableColumnFilters(replPool, {
+    approval: (r) => cfText(approvalText(r)),
     replenishmentNo: (r) => cfText(r.replenishmentNo),
     date: (r) => (r.date ? fmtDate(r.date) : "—"),
     branchCode: (r) => cfText(plantLabel(r.branchCode)),
@@ -686,12 +705,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
     acumaticaRef: (r) => cfText([r.acumaticaPoNo && "PO # " + r.acumaticaPoNo, r.acumaticaApvNo && "APV # " + r.acumaticaApvNo].filter(Boolean).join(" · ")),
     remarks: (r) => cfText(r.remarks),
   });
-  const filtered = sort.sortRows(cf.rows, REPLENISH_SORT_FIELDS);
-  /* "APPROVED BY GRACE GAN · date time" per replenishment (replFinalApprovalRemark). */
-  const approvalRemarks = useMemo(() => new Map(replenishments.map((r) => [r.id,
-    r.status === "Reverted" ? null : replFinalApprovalRemark(replenishmentDetail(r, disbursements, liquidations, reimbursements))])),
-  [replenishments, disbursements, liquidations, reimbursements]);
-  const approvalRemarkOf = (r) => approvalRemarks.get(r.id) || null;
+  const filtered = sort.sortRows(cf.rows, sortFields);
 
   /* Export to Acumatica (Accounting): the ticked replenishments, else every
      one listed. Reverted ones are never exported; the app also checks each
@@ -729,6 +743,12 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
             Ready for Replenishment header, search and selection stay under the
             page header while the lists scroll. */}
         <div className="pcp-freeze">
+        {/* Approval notice (owner's instruction, Oct 2026): only final-approved
+            transactions reach this module, so nobody needs to re-check them. */}
+        <div className="pcp-approval-note">
+          <ShieldCheck size={26} strokeWidth={2.4} style={{ flexShrink: 0 }} />
+          <span><b>Note:</b> All transactions under this Replenishment Module have already been <b>APPROVED BY GRACE GAN</b>.</span>
+        </div>
         <PlantScopeTabs plants={plantOptions} value={plant} onChange={setPlant} />
         {/* Liquidations and reimbursements with final approval, waiting to be
             replenished — filterable by cut-off period, searchable, selectable. */}
@@ -807,7 +827,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                     <thead>
                       <tr>
                         <th style={{ width: 30 }}></th><th>Type</th><th>Voucher / Reimb No.</th><th>Txn Date</th>
-                        <th>Employee</th><th>Branch</th><th>Custodian Approved</th><th>Final Approval</th>
+                        <th>Employee</th><th>Branch</th><th>Custodian Approved</th><th>Approved by Grace Gan (Date &amp; Time)</th>
                         <th style={{ textAlign: "right" }}>Approved Amount</th>
                         {canManage && onRevertReady && <th></th>}
                       </tr>
@@ -827,7 +847,10 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                             <td>{x.employee}</td>
                             <td>{plantLabel(x.branchCode)}</td>
                             <td>{x.checkedBy} · {fmtDate(String(x.checkedAt || "").slice(0, 10))}</td>
-                            <td>{x.finalBy} · {fmtDate(String(x.finalAt || "").slice(0, 10))}</td>
+                            <td>
+                              <div style={{ fontWeight: 700, color: "#15803d" }}>{fmtApprovalStamp(x.finalAt) || "—"}</div>
+                              <div style={{ fontSize: 10.5, color: "var(--text-mut)" }}>{x.finalBy}</div>
+                            </td>
                             <td className="pcp-num" style={{ textAlign: "right", fontWeight: 700 }}>{pesoB(x.amount)}</td>
                             {canManage && onRevertReady && (
                               <td onClick={(e) => e.stopPropagation()}>
@@ -906,6 +929,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                   <SortTh field="amount" sort={sort} cf={cf}>Amount</SortTh>
                   <SortTh field="preparedBy" sort={sort} cf={cf}>Prepared By</SortTh>
                   <SortTh field="status" sort={sort} cf={cf}>Status of PO, RFP and Voucher</SortTh>
+                  <SortTh field="approval" sort={sort} cf={cf}>Approved by Grace Gan (Date &amp; Time)</SortTh>
                   <SortTh field="acumaticaRef" sort={sort} cf={cf}>Acumatica Ref. (PO # / APV #)</SortTh>
                   <SortTh field="remarks" sort={sort} cf={cf}>Remarks</SortTh>
                   <th></th>
@@ -936,14 +960,24 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                     <td className="pcp-num">{pesoB(r.amount)}</td>
                     <td>{r.preparedBy || "—"}</td>
                     <td>{r.status ? <Badge status={r.status} /> : <span style={{ color: "var(--text-mut)" }}>—</span>}</td>
+                    <td style={{ minWidth: 170 }}>
+                      {approvalOf(r) ? (
+                        <>
+                          <div style={{ fontWeight: 700, color: "#15803d" }}>{fmtApprovalStamp(approvalOf(r).at)}</div>
+                          <div style={{ fontSize: 10.5, color: "var(--text-mut)" }}>
+                            {approvalOf(r).by}
+                            {approvalOf(r).count > 1 && approvalOf(r).firstAt !== approvalOf(r).at
+                              ? <> · latest of {approvalOf(r).count}<br />earliest {fmtApprovalStamp(approvalOf(r).firstAt)}</>
+                              : null}
+                          </div>
+                        </>
+                      ) : <span style={{ color: "var(--text-mut)" }}>—</span>}
+                    </td>
                     <td onClick={(e) => e.stopPropagation()} style={{ minWidth: 200 }}>
                       <AcumaticaRefCell r={r} onEdit={onSetAcumaticaRef && r.status !== "Reverted" ? () => setEditingRef(r) : null} />
                     </td>
                     <td style={{ maxWidth: 220, whiteSpace: "normal" }}>
-                      {approvalRemarkOf(r) && (
-                        <div style={{ fontSize: 11, fontWeight: 700, color: "#15803d" }}>{approvalRemarkOf(r)}</div>
-                      )}
-                      {r.remarks || (approvalRemarkOf(r) ? "" : "—")}
+                      {r.remarks || "—"}
                       {!!(r.liquidationIds || []).length && (
                         <div style={{ fontSize: 10.5, color: "var(--text-mut)" }}>{r.liquidationIds.length} approved liquidation(s)</div>
                       )}
@@ -979,7 +1013,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                       </div>
                     </td>
                   </tr>
-                )) : <tr><td colSpan={onExportAcumatica ? 10 : 9} className="pcp-empty">No replenishment records match your filters</td></tr>}
+                )) : <tr><td colSpan={onExportAcumatica ? 11 : 10} className="pcp-empty">No replenishment records match your filters</td></tr>}
               </tbody>
             </table>
           </div>
