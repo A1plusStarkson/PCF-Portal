@@ -952,6 +952,14 @@ function ApprovalModuleTab({
           : "Everything awaiting your decision, across all plants. Click a transaction to open it."}
       />
       <div className="pcp-content">
+        {/* Approval notice (owner's instruction, Oct 2026). Only a final
+            approval puts a transaction in Ready for Replenishment
+            (liquidationsReadyForReplenishment / reimbursementsReadyForReplenishment);
+            pending and rejected ones never reach it. */}
+        <div className="pcp-approval-note">
+          <ShieldCheck size={26} strokeWidth={2.4} style={{ flexShrink: 0 }} />
+          <span><b>Note:</b> Only Liquidation and Reimbursement transactions <b>APPROVED BY GRACE GAN</b> will automatically be transferred to and recorded in the Replenishment Module.</span>
+        </div>
         <div className="pcp-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(190px,1fr))", gap: 12, marginBottom: 16 }}>
           {isFinalApprover && (
             <>
