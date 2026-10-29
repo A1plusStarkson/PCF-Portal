@@ -22,7 +22,7 @@ const APPROVED_ALL_BATCHES = "All batches";
                                  Accounting (PO, RFP, voucher and check approved,
                                  funds received by the custodian). */
 const APPROVED_STATUS = {
-  APPROVED: "Approved",
+  APPROVED: "Approved by Grace Gan",
   FOR_REPLENISHMENT: "For Replenishment",
   COMPLETED: "Replenished and Completed",
 };
