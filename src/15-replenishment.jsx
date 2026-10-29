@@ -457,7 +457,7 @@ function ReplenishmentFormModal({ onClose, onSave, funds, disbursements, liquida
               <input className="pcp-input" placeholder="Full name" value={form.preparedBy} onChange={(e) => set("preparedBy", e.target.value)} />
             </div>
             <div className="pcp-field">
-              <label>Status <span style={{ color: "var(--text-mut)", fontWeight: 400 }}>(optional)</span></label>
+              <label>Status of PO, RFP and Voucher <span style={{ color: "var(--text-mut)", fontWeight: 400 }}>(optional)</span></label>
               <select className="pcp-select" value={form.status} onChange={(e) => set("status", e.target.value)}>
                 <option value="">—</option>
                 {REPLENISH_STATUSES.map((s) => <option key={s}>{s}</option>)}
@@ -905,7 +905,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                   <SortTh field="branchCode" sort={sort} cf={cf}>Fund / Plant</SortTh>
                   <SortTh field="amount" sort={sort} cf={cf}>Amount</SortTh>
                   <SortTh field="preparedBy" sort={sort} cf={cf}>Prepared By</SortTh>
-                  <SortTh field="status" sort={sort} cf={cf}>Status</SortTh>
+                  <SortTh field="status" sort={sort} cf={cf}>Status of PO, RFP and Voucher</SortTh>
                   <SortTh field="acumaticaRef" sort={sort} cf={cf}>Acumatica Ref. (PO # / APV #)</SortTh>
                   <SortTh field="remarks" sort={sort} cf={cf}>Remarks</SortTh>
                   <th></th>
