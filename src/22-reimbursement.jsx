@@ -772,7 +772,11 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
           <h3>{isEdit ? `Edit Reimbursement · ${reimb.reimbNo}` : "New Reimbursement Request"}</h3>
           <button className="pcp-btn pcp-btn-ghost pcp-btn-sm" onClick={onClose}><X size={15} /></button>
         </div>
-        <FileDropZone onFiles={onPickFiles} disabled={!canManageDocs} label="Drop receipts or documents here to attach them">
+        {/* The drop zone sits between the flex-column modal and its body, so it
+            must shrink like the body (flex 1, min-height 0) — otherwise it grows
+            to the content's height and the body never scrolls. */}
+        <FileDropZone onFiles={onPickFiles} disabled={!canManageDocs} label="Drop receipts or documents here to attach them"
+          style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: 0, border: "none", borderRadius: 0, background: "transparent", cursor: "default" }}>
         <div className="pcp-modal-body">
           {isEdit && <ReimbRevertNotice reimb={reimb} />}
           <Stepper />
