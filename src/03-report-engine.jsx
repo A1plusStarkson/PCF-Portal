@@ -716,7 +716,8 @@ function reportPrintHTML(doc) {
   const nf = `<tr class="nf"><td colspan="${N}">\u2014\u2014\u2014  NOTHING FOLLOWS  \u2014\u2014\u2014</td></tr>`;
   const totalRow = doc.totalsRow ? `<tr class="tot">${cellHTML(doc.totalsRow)}</tr>` : "";
   const metaHTML = Object.entries(doc.meta || {})
-    .map(([k, v]) => `<div><b>${esc(k)}:</b> ${esc(v)}</div>`).join("");
+    /* doc.metaHighlight: meta keys whose value prints in red bold. */
+    .map(([k, v]) => `<div><b>${esc(k)}:</b> ${(doc.metaHighlight || []).includes(k) ? `<span class="hl">${esc(v)}</span>` : esc(v)}</div>`).join("");
   const wm = doc.watermark ? `<div class="wm">CONFIDENTIAL</div>` : "";
 
   return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${esc(doc.title)} — ${esc(doc.reference)}</title>
@@ -742,6 +743,7 @@ function reportPrintHTML(doc) {
   .rnotice { color: #c62828; font-weight: 800; font-size: 12px; padding: 8px 2px 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .rmeta { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 22px; padding: 9px 2px 4px; font-size: 9.5px; }
   .rmeta b { display: inline-block; min-width: 96px; color: #333; }
+  .rmeta .hl { color: #c62828; font-weight: 800; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .rcount { text-align: right; font-size: 9.5px; font-weight: 700; padding: 0 2px 8px; color: #1f2d3d; }
   tr.cols th { background: #1f2d3d; color: #fff; font-size: 9.5px; font-weight: 700; padding: 6px 7px; border: 1px solid #1f2d3d; }
   tbody td { padding: 5px 7px; border: 1px solid #d5d9e0; font-size: 9.5px; vertical-align: top; word-break: break-word; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
