@@ -166,7 +166,7 @@ function MasterDataTab({ funds, disbursements, liquidations, replenishments, onA
         <ReferenceTable
           title="Departments (Subaccounts)"
           columns={[{ key: "code", label: "Code" }, { key: "desc", label: "Description" }]}
-          rows={SUBACCOUNTS.filter((s) => s.desc)}
+          rows={ACTIVE_SUBACCOUNTS}
         />
         <ReferenceTable
           title="Expense Categories"

@@ -120,7 +120,7 @@ function EditDisbursementModal({ disbursement, onClose, onSave }) {
             <div className="pcp-field">
               <label>Department</label>
               <select className="pcp-select" value={form.department} onChange={(e) => set("department", e.target.value)}>
-                {SUBACCOUNTS.filter((s) => s.desc).map((s) => <option key={s.code} value={s.code}>{s.desc} ({s.code})</option>)}
+                {departmentChoicesFor(form.department).map((c) => <option key={c.value} value={c.value}>{c.label} ({c.value})</option>)}
               </select>
             </div>
           </div>

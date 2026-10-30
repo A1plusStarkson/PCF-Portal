@@ -2167,7 +2167,7 @@ function LiquidationWorksheet({
           </div>
           <SearchSelect
             value={l.department} onChange={(v) => setLineDepartment(l, v)}
-            options={DEPARTMENT_CHOICES}
+            options={departmentChoicesFor(l.department)}
             placeholder="— Select Department —"
             searchPlaceholder="Search department or sub-account…"
             popStyle={{ minWidth: 300 }}

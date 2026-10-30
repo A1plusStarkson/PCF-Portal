@@ -1428,8 +1428,24 @@ function accountForCategory(category) {
    Petty Cash Request form, the Liquidation worksheet and the Reimbursement form
    all browse the same master data in the same shape.
 --------------------------------------------------------------------------- */
-const DEPARTMENT_CHOICES = SUBACCOUNTS.filter((s) => s.desc)
+/* The Department (Subaccounts) list offered on transactions (owner's list,
+   Subaccounts.pdf, Oct 2026). SUBACCOUNTS keeps every older code so existing
+   records still show their department; those codes are just no longer offered.
+   A record already holding one keeps it (departmentChoicesFor). */
+const ACTIVE_SUBACCOUNT_CODES = new Set([
+  "000-00001", "000-00002", "000-00003", "000-00004", "000-00005", "000-00006", "000-00007",
+  "000-00008", "000-00009", "000-00010", "000-00011", "000-00012", "000-00013", "000-00014",
+  "000-00015", "000-00016", "000-00017", "000-00018",
+]);
+const ACTIVE_SUBACCOUNTS = SUBACCOUNTS.filter((s) => ACTIVE_SUBACCOUNT_CODES.has(s.code));
+const DEPARTMENT_CHOICES = ACTIVE_SUBACCOUNTS
   .map((s) => ({ value: s.code, label: s.desc, hint: s.code }));
+/* The list for one picker: an older code already on the record stays selectable. */
+const departmentChoicesFor = (value) => {
+  if (!value || ACTIVE_SUBACCOUNT_CODES.has(value)) return DEPARTMENT_CHOICES;
+  const s = SUBACCOUNTS.find((x) => x.code === value);
+  return DEPARTMENT_CHOICES.concat({ value, label: (s && s.desc) || value, hint: `${value} · no longer offered` });
+};
 
 const EXPENSE_CATEGORY_CHOICES = EXPENSE_CATEGORIES
   .map((c) => ({ value: c, label: c, hint: accountForCategory(c) }));

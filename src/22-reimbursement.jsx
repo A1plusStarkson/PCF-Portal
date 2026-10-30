@@ -822,7 +822,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                   <label>Department Charged</label>
                   <SearchSelect
                     value={form.department} onChange={(v) => set("department", v)}
-                    options={DEPARTMENT_CHOICES}
+                    options={departmentChoicesFor(form.department)}
                     placeholder="— Select Department —"
                     searchPlaceholder="Search department or sub-account…"
                   />
@@ -905,7 +905,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                             <td>
                               <SearchSelect
                                 value={l.department} onChange={(v) => setLineDepartment(l, v)}
-                                options={DEPARTMENT_CHOICES}
+                                options={departmentChoicesFor(l.department)}
                                 placeholder="— Select Department —"
                                 searchPlaceholder="Search department or sub-account…"
                                 style={{ minWidth: 150 }} popStyle={{ minWidth: 300 }}
@@ -944,7 +944,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                         <td>
                           <SearchSelect
                             value={l.department} onChange={(v) => setLine(l.id, { department: v })}
-                            options={DEPARTMENT_CHOICES}
+                            options={departmentChoicesFor(l.department)}
                             placeholder="— Select Department —"
                             searchPlaceholder="Search department or sub-account…"
                             style={{ minWidth: 150 }} popStyle={{ minWidth: 300 }}

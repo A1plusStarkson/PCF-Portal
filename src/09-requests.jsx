@@ -86,7 +86,7 @@ function RequestFormModal({ onClose, onSave, request, plantOptions, allRequestNo
               <SearchSelect
                 value={form.department}
                 onChange={(v) => set("department", v)}
-                options={DEPARTMENT_CHOICES}
+                options={departmentChoicesFor(form.department)}
                 placeholder="— Select Department —"
                 searchPlaceholder="Search department or sub-account…"
               />
