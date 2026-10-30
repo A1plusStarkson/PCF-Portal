@@ -395,8 +395,10 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
                   <SortTh field="txnDate" sort={sort} cf={cf}>Transaction Date</SortTh>
                   <SortTh field="approvedAt" sort={sort} cf={cf}>Approved by Grace Gan (Date &amp; Time)</SortTh>
                   <SortTh field="approvedBy" sort={sort} cf={cf}>Approved By</SortTh>
+                  {/* Checked By removed from the list (owner's instruction, Oct 2026): the
+                      custodian and Accounting checkers show when a transaction is opened,
+                      and stay in the Excel export. */}
                   <SortTh field="status" sort={sort} cf={cf}>Current Status</SortTh>
-                  <th>Checked By</th>
                   <th>Replenishment</th>
                   <th></th>
                 </tr>
@@ -444,10 +446,6 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
                       {r.finalRemarks && <div style={mut} title={r.finalRemarks}>"{r.finalRemarks}"</div>}
                     </td>
                     <td><span className={"pcp-badge pcp-badge-" + (APPROVED_STATUS_BADGE[r.status] || "gray")} style={{ whiteSpace: "nowrap" }}>{r.status}</span></td>
-                    <td style={{ fontSize: 11 }}>
-                      {r.custodianBy && <div>Custodian: {r.custodianBy}</div>}
-                      {r.acctBy && <div>Accounting: {r.acctBy}</div>}
-                    </td>
                     {/* Replenishment no. in the same green as the Replenished status. */}
                     <td style={{ fontSize: 11 }}>
                       {r.replenishment === "Not yet replenished"
@@ -461,7 +459,7 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
                     </td>
                   </tr>
                 )) : (
-                  <tr><td colSpan={13} className="pcp-empty">
+                  <tr><td colSpan={12} className="pcp-empty">
                     {allRows.length ? "No approved transaction matches these filters" : "No transaction has received final approval yet"}
                   </td></tr>
                 )}
