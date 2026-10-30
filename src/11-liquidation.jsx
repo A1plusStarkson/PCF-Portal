@@ -2519,7 +2519,7 @@ function ReimbursementLiquidationPanel({ reimb, canFinance, onAction }) {
       <div className="pcp-card pcp-card-pad" style={{ marginBottom: 12 }}>
         <div className="pcp-section-title" style={{ margin: "0 0 6px" }}>Expense / Liquidation Details</div>
         <div style={{ fontSize: 12, color: "var(--text-mut)", marginBottom: 10 }}>{reimb.purpose}</div>
-        <div className="pcp-table-wrap">
+        <StickyHScroll>
           <table className="pcp-table">
             <thead><tr><th>Date Incurred</th><th>Category</th><th>Description</th><th>Vendor</th><th>Account</th><th>Dept</th><th>Amount</th></tr></thead>
             <tbody>
@@ -2533,7 +2533,7 @@ function ReimbursementLiquidationPanel({ reimb, canFinance, onAction }) {
             </tbody>
             <tfoot><tr><td colSpan={6} style={{ textAlign: "right", fontWeight: 600 }}>Approved Amount</td><td className="pcp-num" style={{ fontWeight: 700 }}>{pesoB(approved)}</td></tr></tfoot>
           </table>
-        </div>
+        </StickyHScroll>
         {variance !== 0 && (
           <div style={{ marginTop: 10, padding: "9px 12px", borderRadius: 8, fontSize: 12, background: "var(--red-bg)", color: "var(--brand-dark)" }}>
             <AlertTriangle size={13} style={{ verticalAlign: "-2px" }} /> Variance of {pesoB(Math.abs(variance))} between the approved reimbursement and the validated expense must be reviewed and resolved before completion.
@@ -2936,7 +2936,7 @@ function LiquidationTab({
         </div>
 
         <div className="pcp-card">
-          <div className="pcp-table-wrap">
+          <StickyHScroll>
             {source === "pettycash" ? (
               <table className="pcp-table">
                 <thead>
@@ -3081,7 +3081,7 @@ function LiquidationTab({
                 </tbody>
               </table>
             )}
-          </div>
+          </StickyHScroll>
         </div>
       </div>
 

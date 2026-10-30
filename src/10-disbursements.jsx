@@ -352,7 +352,7 @@ function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest
             <ColFiltersClear cf={cf} />
             <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-mut)" }}>{rows.length} of {disbursements.length} vouchers</div>
           </div>
-          <div className="pcp-table-wrap">
+          <StickyHScroll>
             <table className="pcp-table">
               <thead>
                 <tr>
@@ -450,7 +450,7 @@ function DisbursementsTab({ disbursements, liquidations, requests, onOpenRequest
                 ); }) : <tr><td colSpan={13} className="pcp-empty">No disbursements match your filters</td></tr>}
               </tbody>
             </table>
-          </div>
+          </StickyHScroll>
         </div>
       </div>
       {editDisb && (

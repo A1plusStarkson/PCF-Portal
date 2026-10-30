@@ -379,7 +379,7 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
         </div>
 
         <div className="pcp-card">
-          <div className="pcp-table-wrap">
+          <StickyHScroll>
             <table className="pcp-table">
               <thead>
                 <tr>
@@ -467,7 +467,7 @@ function ApprovedModuleTab({ disbursements, liquidations, reimbursements, replen
                 )}
               </tbody>
             </table>
-          </div>
+          </StickyHScroll>
         </div>
       </div>
 

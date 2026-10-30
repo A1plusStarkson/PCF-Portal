@@ -164,7 +164,7 @@ function TransactionHistoryTab({ requests, disbursements, liquidations, replenis
           </div>
         </div>
         <div className="pcp-card">
-          <div className="pcp-table-wrap">
+          <StickyHScroll>
             <table className="pcp-table">
               <thead>
                 <tr>
@@ -195,7 +195,7 @@ function TransactionHistoryTab({ requests, disbursements, liquidations, replenis
                 )) : <tr><td colSpan={9} className="pcp-empty">No transactions match your filters</td></tr>}
               </tbody>
             </table>
-          </div>
+          </StickyHScroll>
         </div>
       </div>
     </div>

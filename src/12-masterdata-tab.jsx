@@ -120,7 +120,7 @@ function MasterDataTab({ funds, disbursements, liquidations, replenishments, onA
           <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)", fontWeight: 700, fontSize: 13 }}>
             Petty Cash Funds (Plants)
           </div>
-          <div className="pcp-table-wrap">
+          <StickyHScroll>
             <table className="pcp-table">
               <thead><tr>
                 <SortTh field="label" sort={sort} cf={cf}>Plant</SortTh>
@@ -154,7 +154,7 @@ function MasterDataTab({ funds, disbursements, liquidations, replenishments, onA
                 })}
               </tbody>
             </table>
-          </div>
+          </StickyHScroll>
         </div>
 
         <div className="pcp-eyebrow" style={{ marginBottom: 8 }}>Reference Data (from Acumatica master files)</div>

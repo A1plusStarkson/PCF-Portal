@@ -256,7 +256,7 @@ const CSS = `
     background: var(--blue-bg); box-shadow: inset 0 0 0 2px var(--blue);
     border-radius: 10px; padding: 10px 12px;
   }
-  @media print { .pcp-filterbar { background: none; box-shadow: none; } }
+  @media print { .pcp-filterbar { background: none; box-shadow: none; } .pcp-hscroll-bar { display: none; } }
   /* Filter titles in blue-teal, every module (owner's instruction, Oct 2026):
      field labels inside a filter bar, and the inline .pcp-filter-label ones.
      --dm-filter-title is defined only for the dark theme. */
@@ -405,7 +405,7 @@ const CSS = `
   .pcp-liq-sticky-grid { display: flex; flex-wrap: wrap; gap: 16px 24px; align-items: center; }
   .pcp-liq-metric .pcp-kpi-label { font-size: 10px; }
   .pcp-liq-metric .pcp-num { font-size: 14px; font-weight: 700; }
-  .pcp-collapse { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 12px; overflow: hidden; }
+  .pcp-collapse { border: 1px solid var(--line); border-radius: 10px; margin-bottom: 12px; overflow: clip; } /* clip: keeps the pinned table scrollbar (StickyHScroll) working */
   .pcp-collapse-head {
     display: flex; align-items: center; justify-content: space-between; gap: 10px;
     padding: 10px 14px; cursor: pointer; background: var(--paper); font-weight: 700; font-size: 12.5px;
@@ -2162,7 +2162,7 @@ function UploadStatusHost() {
    without first scrolling to the end. Drop-in for <div className="pcp-table-wrap">;
    the bar shows only while the table is wider than its box, and it and the
    table scroll together. */
-function StickyHScroll({ children }) {
+function StickyHScroll({ children, style }) {
   const wrapRef = useRef(null);
   const barRef = useRef(null);
   const [w, setW] = useState(0);
@@ -2170,17 +2170,26 @@ function StickyHScroll({ children }) {
   useEffect(() => {
     const el = wrapRef.current;
     if (!el) return undefined;
-    const upd = () => { setW(el.scrollWidth); setShow(el.scrollWidth > el.clientWidth + 1); };
-    upd();
+    /* At most one measurement per frame. A pending one is never cancelled, so
+       a list that keeps changing can't starve it. */
+    let raf = 0;
+    const measure = () => { raf = 0; setW(el.scrollWidth); setShow(el.scrollWidth > el.clientWidth + 1); };
+    const upd = () => { if (!raf) raf = requestAnimationFrame(measure); };
+    measure();
+    /* Re-measure when the box or the table resizes, and when rows or the
+       table itself are swapped (filters, tabs, sorting). */
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(upd) : null;
-    if (ro) { ro.observe(el); if (el.firstElementChild) ro.observe(el.firstElementChild); }
+    const watch = () => { if (ro) { ro.disconnect(); ro.observe(el); Array.from(el.children).forEach((c) => ro.observe(c)); } };
+    watch();
+    const mo = typeof MutationObserver !== "undefined" ? new MutationObserver(() => { watch(); upd(); }) : null;
+    if (mo) mo.observe(el, { childList: true, subtree: true });
     window.addEventListener("resize", upd);
-    return () => { if (ro) ro.disconnect(); window.removeEventListener("resize", upd); };
+    return () => { cancelAnimationFrame(raf); if (ro) ro.disconnect(); if (mo) mo.disconnect(); window.removeEventListener("resize", upd); };
   }, []);
   const sync = (from, to) => { if (to && to.scrollLeft !== from.scrollLeft) to.scrollLeft = from.scrollLeft; };
   return (
     <>
-      <div ref={wrapRef} className="pcp-table-wrap" onScroll={(e) => sync(e.currentTarget, barRef.current)}>{children}</div>
+      <div ref={wrapRef} className="pcp-table-wrap" style={style} onScroll={(e) => sync(e.currentTarget, barRef.current)}>{children}</div>
       {show && (
         <div ref={barRef} className="pcp-hscroll-bar" onScroll={(e) => sync(e.currentTarget, wrapRef.current)} title="Scroll the table left / right">
           <div style={{ width: w, height: 1 }} />

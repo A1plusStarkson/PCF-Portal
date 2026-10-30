@@ -801,7 +801,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
               {openSettlements.filter((x) => x.info.overdue).length} overdue · due {AGING_DUE_DAYS} working days after release · record payments in the Liquidation module
             </span>
           </div>
-          <div className="pcp-table-wrap">
+          <StickyHScroll>
             <table className="pcp-table">
               <thead>
                 <tr>
@@ -826,7 +826,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
                 )) : <tr><td colSpan={9} className="pcp-empty">No cash is waiting to be returned or reimbursed</td></tr>}
               </tbody>
             </table>
-          </div>
+          </StickyHScroll>
         </div>
 
         {/* ---- Aging by plant (drill-down) ---- */}
@@ -835,7 +835,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
             <span><Building2 size={14} style={{ verticalAlign: "-2px", marginRight: 6 }} />Aging by Plant ({byPlant.length})</span>
             <span style={{ fontSize: 11, fontWeight: 500, color: "var(--text-mut)" }}>Click a plant to drill down into its transactions</span>
           </div>
-          <div className="pcp-table-wrap">
+          <StickyHScroll>
             <table className="pcp-table">
               <thead>
                 <tr>
@@ -872,7 +872,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
                 )) : <tr><td colSpan={9} className="pcp-empty">No plants configured</td></tr>}
               </tbody>
             </table>
-          </div>
+          </StickyHScroll>
         </div>
 
         {/* ---- Analytics ---- */}
@@ -934,7 +934,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
           <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)", fontWeight: 700, fontSize: 13 }}>
             {selectedPlant ? `${selectedPlant.label} \u2014 ` : ""}Aging Detail ({detailRows.length})
           </div>
-          <div className="pcp-table-wrap">
+          <StickyHScroll>
             <table className="pcp-table">
               <thead>
                 <tr>
@@ -973,7 +973,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
                 )) : <tr><td colSpan={13} className="pcp-empty">No transactions match the selected filters</td></tr>}
               </tbody>
             </table>
-          </div>
+          </StickyHScroll>
         </div>
       </div>
     </div>

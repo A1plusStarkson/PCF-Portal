@@ -214,7 +214,7 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
             <ColFiltersClear cf={cf} />
             <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-mut)" }}>{filtered.length} of {requests.length} requests</div>
           </div>
-          <div className="pcp-table-wrap">
+          <StickyHScroll>
             <table className="pcp-table">
               <thead>
                 <tr>
@@ -308,7 +308,7 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
                 )) : <tr><td colSpan={10} className="pcp-empty">No requests match your filters</td></tr>}
               </tbody>
             </table>
-          </div>
+          </StickyHScroll>
         </div>
       </div>
       {/* The Request No. is issued by the app on save (addRequest), never taken

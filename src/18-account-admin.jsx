@@ -237,7 +237,7 @@ function UserManagementTab({ currentEmail, onChangePassword }) {
       />
       <div className="pcp-content">
         <div className="pcp-card">
-          <div className="pcp-table-wrap">
+          <StickyHScroll>
             <table className="pcp-table">
               <thead><tr>
                 <SortTh field="name" sort={sort} cf={cf}>Name</SortTh>
@@ -258,7 +258,7 @@ function UserManagementTab({ currentEmail, onChangePassword }) {
                 )) : <tr><td colSpan={5} className="pcp-empty">No users configured. Add them in index.html (window.PCP_USERS) and in your Supabase project.</td></tr>}
               </tbody>
             </table>
-          </div>
+          </StickyHScroll>
         </div>
         <div className="pcp-card pcp-card-pad" style={{ marginTop: 16, fontSize: 12.5, color: "var(--text-mut)", lineHeight: 1.6 }}>
           <div style={{ fontWeight: 700, color: "var(--text)", marginBottom: 6 }}>Managing accounts</div>

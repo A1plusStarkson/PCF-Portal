@@ -853,7 +853,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                 <div style={{ fontSize: 13, fontWeight: 600 }}>Expense Lines</div>
                 <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={addLine}><Plus size={13} /> Add Line</button>
               </div>
-              <div className="pcp-table-wrap">
+              <StickyHScroll>
                 <table className="pcp-table">
                   <thead>
                     {autoCat ? (
@@ -975,7 +975,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                     </tr>
                   </tfoot>
                 </table>
-              </div>
+              </StickyHScroll>
             </div>
           )}
 
@@ -1123,7 +1123,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                 </div>
                 <div style={{ fontSize: 12, marginTop: 4 }}>{form.purpose || "—"}</div>
               </div>
-              <div className="pcp-table-wrap">
+              <StickyHScroll>
                 <table className="pcp-table">
                   <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Vendor</th><th>Account</th><th>Amount</th></tr></thead>
                   <tbody>
@@ -1136,7 +1136,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                   </tbody>
                   <tfoot><tr><td colSpan={5} style={{ textAlign: "right", fontWeight: 600 }}>Total</td><td className="pcp-num" style={{ fontWeight: 700 }}>{pesoB(total)}</td></tr></tfoot>
                 </table>
-              </div>
+              </StickyHScroll>
               <div className="pcp-card" style={{ padding: 12 }}>
                 <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>Attachments ({form.attachments.length})</div>
                 <AttachmentGallery attachments={form.attachments} emptyLabel="None" large renderFooter={reimbDocFooter} />
@@ -1374,7 +1374,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
             />
           )}
 
-          <div className="pcp-table-wrap">
+          <StickyHScroll>
             <table className="pcp-table">
               <thead><tr><th>Date</th><th>Category</th><th>Description</th><th>Vendor</th><th>Account</th><th>Dept</th><th>Amount</th></tr></thead>
               <tbody>
@@ -1388,7 +1388,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
               </tbody>
               <tfoot><tr><td colSpan={6} style={{ textAlign: "right", fontWeight: 600 }}>Total</td><td className="pcp-num" style={{ fontWeight: 700 }}>{pesoB(total)}</td></tr></tfoot>
             </table>
-          </div>
+          </StickyHScroll>
 
           <div className="pcp-card" style={{ padding: 12, marginTop: 12 }}>
             <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 8 }}>
@@ -1718,7 +1718,7 @@ function ReimbursementTab({
             )}
             <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-mut)" }}>{filtered.length} of {reimbursements.length}</div>
           </div>
-          <div className="pcp-table-wrap">
+          <StickyHScroll>
             <table className="pcp-table">
               <thead>
                 <tr>
@@ -1791,7 +1791,7 @@ function ReimbursementTab({
                 )) : <tr><td colSpan={11} className="pcp-empty">No reimbursement requests match your filters</td></tr>}
               </tbody>
             </table>
-          </div>
+          </StickyHScroll>
         </div>
       </div>
 

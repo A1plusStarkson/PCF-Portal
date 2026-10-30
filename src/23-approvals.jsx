@@ -226,7 +226,7 @@ function PcaApprovalPanel({
   const closeFloat = useCallback(() => setFloatExpenses(false), []);
   /* The one expense table, shown in the page and in the floating window. */
   const expenseTable = (
-    <div className="pcp-table-wrap">
+    <StickyHScroll>
       <table className="pcp-table">
         <thead>
           <tr>
@@ -253,7 +253,7 @@ function PcaApprovalPanel({
           </tr>
         </tfoot>
       </table>
-    </div>
+    </StickyHScroll>
   );
   const { disb, liq, approval, amounts, review, settlement: st, stage } = row;
   /* TOTAL documents — DOC_TOTAL_EMAILS in 19-app.jsx only. */
@@ -1095,7 +1095,7 @@ function ApprovalModuleTab({
         )}
 
         <div className="pcp-card">
-          <div className="pcp-table-wrap">
+          <StickyHScroll>
             <table className="pcp-table">
               <thead>
                 <tr>
@@ -1173,7 +1173,7 @@ function ApprovalModuleTab({
                 )}
               </tbody>
             </table>
-          </div>
+          </StickyHScroll>
         </div>
       </div>
 

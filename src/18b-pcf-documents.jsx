@@ -154,7 +154,7 @@ function DocDetailsModal({ doc, onClose }) {
             {rows.map(([k, v]) => <div key={k}><div className="lbl">{k}</div>{v}</div>)}
           </div>
           <div style={{ marginTop: 16, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.3px", color: "var(--text-mut)" }}>Version History</div>
-          <div className="pcp-table-wrap" style={{ marginTop: 6 }}>
+          <StickyHScroll style={{ marginTop: 6 }}>
             <table className="pcp-table">
               <thead><tr><th>Version</th><th>File</th><th>Size</th><th>By</th><th>Date</th></tr></thead>
               <tbody>
@@ -164,9 +164,9 @@ function DocDetailsModal({ doc, onClose }) {
                   ))}
               </tbody>
             </table>
-          </div>
+          </StickyHScroll>
           <div style={{ marginTop: 16, fontSize: 11, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.3px", color: "var(--text-mut)" }}>Activity Log</div>
-          <div className="pcp-table-wrap" style={{ marginTop: 6 }}>
+          <StickyHScroll style={{ marginTop: 6 }}>
             <table className="pcp-table">
               <thead><tr><th>Action</th><th>User</th><th>Date &amp; Time</th><th>Source</th></tr></thead>
               <tbody>
@@ -176,7 +176,7 @@ function DocDetailsModal({ doc, onClose }) {
                 {(!doc.activity || !doc.activity.length) && <tr><td colSpan={4} className="pcp-empty">No activity recorded yet</td></tr>}
               </tbody>
             </table>
-          </div>
+          </StickyHScroll>
         </div>
         <div className="pcp-modal-foot">
           <button className="pcp-btn pcp-btn-primary" onClick={onClose}>Done</button>
@@ -580,7 +580,7 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
           <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--line)", fontWeight: 700, fontSize: 13 }}>
             Documents ({sorted.length})
           </div>
-          <div className="pcp-table-wrap">
+          <StickyHScroll>
             <table className="pcp-table">
               <thead>
                 <tr>
@@ -647,7 +647,7 @@ function PcfDocumentsTab({ documents, funds, plantOptions, userName, role, isAdm
                 }) : <tr><td colSpan={10} className="pcp-empty">No documents match your search / filters.</td></tr>}
               </tbody>
             </table>
-          </div>
+          </StickyHScroll>
         </div>
       </div>
 

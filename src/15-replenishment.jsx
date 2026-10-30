@@ -312,7 +312,7 @@ function ReplenishmentDetailModal({ replenishment: r, funds, disbursements, liqu
               No transactions are linked to this replenishment, so no report can be generated.
             </div>
           ) : (
-            <div className="pcp-table-wrap">
+            <StickyHScroll>
               <table className="pcp-table">
                 <thead>
                   <tr>
@@ -362,7 +362,7 @@ function ReplenishmentDetailModal({ replenishment: r, funds, disbursements, liqu
                   </tr>
                 </tbody>
               </table>
-            </div>
+            </StickyHScroll>
           )}
         </div>
         <div className="pcp-modal-foot">
@@ -931,7 +931,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                   <SortTh field="branchCode" sort={sort} cf={cf}>Fund / Plant</SortTh>
                   <SortTh field="amount" sort={sort} cf={cf}>Amount</SortTh>
                   <SortTh field="preparedBy" sort={sort} cf={cf}>Prepared By</SortTh>
-                  <SortTh field="status" sort={sort} cf={cf}>Status of PO, RFP and Voucher</SortTh>
+                  <SortTh field="status" sort={sort} cf={cf} style={{ whiteSpace: "normal", minWidth: 110, maxWidth: 130, lineHeight: 1.35 }}>Status of PO, RFP and Voucher</SortTh>
                   <SortTh field="approval" sort={sort} cf={cf}>Approved by Grace Gan (Date &amp; Time)</SortTh>
                   <SortTh field="acumaticaRef" sort={sort} cf={cf}>Acumatica Ref. (PO # / APV #)</SortTh>
                   <SortTh field="remarks" sort={sort} cf={cf}>Remarks</SortTh>

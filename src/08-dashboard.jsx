@@ -340,7 +340,7 @@ function DrillDownModal({ chartName, label, columns, records, canEdit, onEditRec
           </div>
           <div className="pcp-drill-count" style={{ marginBottom: 8 }}>{total} transaction{total !== 1 ? "s" : ""} · Total <b className="pcp-amt">{money(sumAmount)}</b></div>
           <div className="pcp-card">
-            <div className="pcp-table-wrap">
+            <StickyHScroll>
               <table className="pcp-table">
                 <thead>
                   <tr>
@@ -397,7 +397,7 @@ function DrillDownModal({ chartName, label, columns, records, canEdit, onEditRec
                   )) : <tr><td colSpan={columns.length + 1} className="pcp-empty">No matching transactions.</td></tr>}
                 </tbody>
               </table>
-            </div>
+            </StickyHScroll>
           </div>
           <div className="pcp-pager">
             <span>Rows:</span>
@@ -613,7 +613,7 @@ function DeptDrilldownPanel({ funds, requests, disbursements, liquidations }) {
       </div>
 
       {/* ---- Filtered transaction table ---- */}
-      <div className="pcp-table-wrap" style={{ transition: "opacity 0.15s ease" }}>
+      <StickyHScroll style={{ transition: "opacity 0.15s ease" }}>
         <table className="pcp-table">
           <thead>
             <tr>
@@ -649,7 +649,7 @@ function DeptDrilldownPanel({ funds, requests, disbursements, liquidations }) {
             )) : <tr><td colSpan={17} className="pcp-empty">No transactions match the selected filters.</td></tr>}
           </tbody>
         </table>
-      </div>
+      </StickyHScroll>
 
       {total > 0 && (
         <div className="pcp-pager">
@@ -840,7 +840,7 @@ function PlantComparison({ rows, onOpenPlant }) {
   return (
     <div className="pcp-card pcp-card-pad" style={{ marginBottom: 16 }}>
       <div className="pcp-section-title"><Building2 size={15} color="#3c6e76" /> Plant Comparison</div>
-      <div className="pcp-table-wrap">
+      <StickyHScroll>
         <table className="pcp-table">
           <thead>
             <tr>
@@ -883,7 +883,7 @@ function PlantComparison({ rows, onOpenPlant }) {
             </tr>
           </tbody>
         </table>
-      </div>
+      </StickyHScroll>
       <div className="pcp-chart-hint">Available balance turns red below 20% of the fund. {onOpenPlant ? "Click a plant to open its dashboard." : ""}</div>
     </div>
   );
@@ -1226,7 +1226,7 @@ function DashboardCore({ label, funds, requests, disbursements, liquidations, re
             {needAttention ? `${needAttention} item type${needAttention === 1 ? "" : "s"} need attention` : "Nothing needs attention right now"}
           </span>
         </div>
-        <div className="pcp-table-wrap">
+        <StickyHScroll>
           <table className="pcp-table pcp-dash-action-table">
             <thead><tr><th>Action</th><th style={{ textAlign: "center" }}>Count</th><th style={{ textAlign: "right" }}>Amount</th><th></th></tr></thead>
             <tbody>
@@ -1253,7 +1253,7 @@ function DashboardCore({ label, funds, requests, disbursements, liquidations, re
               ))}
             </tbody>
           </table>
-        </div>
+        </StickyHScroll>
       </div>
 
       {/* Liquidation Aging + Fund Utilization */}
@@ -1319,7 +1319,7 @@ function DashboardCore({ label, funds, requests, disbursements, liquidations, re
           <div className="pcp-section-title">Recent Transactions — {label}</div>
           {onNavigate && <button className="pcp-btn pcp-btn-sm" style={{ marginLeft: "auto" }} onClick={() => onNavigate("disbursements")}>View All <ChevronRight size={13} /></button>}
         </div>
-        <div className="pcp-table-wrap">
+        <StickyHScroll>
           <table className="pcp-table">
             <thead>
               <tr><th>Voucher</th><th>Employee</th><th>Date</th>{multiPlant && <th>Plant</th>}<th style={{ textAlign: "right" }}>Amount</th><th>Status</th></tr>
@@ -1337,7 +1337,7 @@ function DashboardCore({ label, funds, requests, disbursements, liquidations, re
               )) : <tr><td colSpan={multiPlant ? 6 : 5} className="pcp-empty">No disbursements recorded for {label}</td></tr>}
             </tbody>
           </table>
-        </div>
+        </StickyHScroll>
       </div>
 
       {showAdvances && (
@@ -1528,7 +1528,7 @@ function Dashboard({ funds: allFunds, requests: allReq, disbursements: allDisbAl
 
       <div className="pcp-card pcp-card-pad">
         <div className="pcp-section-title">Recent Liquidations</div>
-        <div className="pcp-table-wrap">
+        <StickyHScroll>
           <table className="pcp-table">
             <thead><tr><th>Voucher</th><th>Date</th><th>Liquidated</th><th>Remaining</th></tr></thead>
             <tbody>
@@ -1547,7 +1547,7 @@ function Dashboard({ funds: allFunds, requests: allReq, disbursements: allDisbAl
               }) : <tr><td colSpan={4} className="pcp-empty">No liquidations recorded</td></tr>}
             </tbody>
           </table>
-        </div>
+        </StickyHScroll>
       </div>
       {drill && drillData && (
         <DrillDownModal

@@ -107,7 +107,7 @@ function AuditTrailTab({ auditLog, canDelete, onDelete }) {
             <ColFiltersClear cf={cf} />
             <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-mut)" }}>{filtered.length} of {auditLog.length} entries</div>
           </div>
-          <div className="pcp-table-wrap">
+          <StickyHScroll>
             <table className="pcp-table">
               <thead><tr>
                 {canDelete && (
@@ -149,7 +149,7 @@ function AuditTrailTab({ auditLog, canDelete, onDelete }) {
                 )) : <tr><td colSpan={canDelete ? 7 : 5} className="pcp-empty">No audit entries match your filters</td></tr>}
               </tbody>
             </table>
-          </div>
+          </StickyHScroll>
         </div>
       </div>
     </div>
