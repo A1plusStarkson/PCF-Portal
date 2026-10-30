@@ -810,7 +810,7 @@ function reportPrintHTML(doc) {
     </tbody>
   </table>
   <div class="sign">
-    ${reportSignatures(doc).map((s) => `<div class="box"><div class="who">${esc(s.who)}</div>${doc.graceSeal && /approved/i.test(s.who) ? `<div class="gs-stamp">${graceSealSVG(86, doc.graceSeal.range)}</div>` : ""}<div class="line">${esc(s.name) || "&nbsp;"}</div>${s.role ? `<div class="role">${esc(s.role)}</div>` : ""}</div>`).join("")}
+    ${reportSignatures(doc).map((s) => `<div class="box"><div class="who">${esc(s.who)}</div>${doc.graceSeal && /approved/i.test(s.who) ? `<div class="gs-stamp">${graceSealSVG(64)}</div>` : ""}<div class="line">${esc(s.name) || "&nbsp;"}</div>${s.role ? `<div class="role">${esc(s.role)}</div>` : ""}</div>`).join("")}
   </div>
   <script>window.onload=function(){setTimeout(function(){window.print();},350);};window.onafterprint=function(){setTimeout(function(){window.close();},100);};</script>
 </body></html>`;
@@ -844,18 +844,16 @@ function graceWatermarkSVG(range) {
   </g>
 </svg>`;
 }
-function graceSealSVG(size, range) {
+function graceSealSVG(size) {
   const c = "#1f6f43";
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 200 200">
-  <defs><path id="gsr" d="M100,100 m-74,0 a74,74 0 1,1 148,0 a74,74 0 1,1 -148,0"/></defs>
+  <defs><path id="gsr" d="M100,100 m-66,0 a66,66 0 1,1 132,0 a66,66 0 1,1 -132,0"/></defs>
   <circle cx="100" cy="100" r="95" fill="none" stroke="${c}" stroke-width="5"/>
   <circle cx="100" cy="100" r="86" fill="none" stroke="${c}" stroke-width="1.5"/>
   <circle cx="100" cy="100" r="58" fill="none" stroke="${c}" stroke-width="1.5"/>
-  <text font-family="Arial, sans-serif" font-size="14" font-weight="800" fill="${c}">
-    <textPath href="#gsr" startOffset="0" textLength="455" lengthAdjust="spacingAndGlyphs">APPROVED BY GRACE P. GAN • FINAL APPROVER •</textPath></text>
-  <path d="M72 92 l18 18 l38 -40" fill="none" stroke="${c}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
-  <text x="100" y="132" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="800" fill="${c}">APPROVED</text>
-  ${range ? `<text x="100" y="148" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="700" fill="${c}">${esc(range)}</text>` : ""}
+  <text font-family="Arial, sans-serif" font-size="21" font-weight="800" fill="${c}">
+    <textPath href="#gsr" startOffset="0" textLength="405" lengthAdjust="spacing">APPROVED GRACE GAN •</textPath></text>
+  <path d="M70 100 l20 20 l40 -42" fill="none" stroke="${c}" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>`;
 }
 
