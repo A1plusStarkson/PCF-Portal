@@ -769,7 +769,7 @@ function reportPrintHTML(doc) {
      backgrounds): a background tiled at the printable page height down the whole
      document. position: fixed printed on page 1 only. */
   body { position: relative; }
-  .gs-wm { position: absolute; inset: 0; z-index: 50; opacity: 0.11; pointer-events: none; background-repeat: repeat-y; background-position: center top; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .gs-wm { position: absolute; inset: 0; z-index: 50; opacity: 0.22; pointer-events: none; background-repeat: repeat-y; background-position: center top; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   /* Space for the stamp on every box, so all three signature lines stay level. */
   .sign.has-seal .box { position: relative; }
   .sign.has-seal .who { margin-bottom: 68px; }
