@@ -770,8 +770,11 @@ function reportPrintHTML(doc) {
      document. position: fixed printed on page 1 only. */
   body { position: relative; }
   .gs-wm { position: absolute; inset: 0; z-index: 50; opacity: 0.11; pointer-events: none; background-repeat: repeat-y; background-position: center top; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-  .gs-stamp svg { display: block; margin: 0 auto; }
-  .gs-stamp { margin: -28px 0 -2px; opacity: 0.92; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  /* Space for the stamp on every box, so all three signature lines stay level. */
+  .sign.has-seal .box { position: relative; }
+  .sign.has-seal .who { margin-bottom: 68px; }
+  .gs-stamp svg { display: block; }
+  .gs-stamp { position: absolute; top: 15px; left: 50%; transform: translateX(-50%); opacity: 0.92; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .wm { position: fixed; top: 40%; left: 8%; font-size: 130px; color: rgba(37,78,88,0.08); font-weight: 800; transform: rotate(-30deg); z-index: 0; pointer-events: none; }
 </style></head>
 <body>
@@ -812,7 +815,7 @@ function reportPrintHTML(doc) {
       ${nf}
     </tbody>
   </table>
-  <div class="sign">
+  <div class="sign${doc.graceSeal ? " has-seal" : ""}">
     ${reportSignatures(doc).map((s) => `<div class="box"><div class="who">${esc(s.who)}</div>${doc.graceSeal && /approved/i.test(s.who) ? `<div class="gs-stamp">${graceSealSVG(64)}</div>` : ""}<div class="line">${esc(s.name) || "&nbsp;"}</div>${s.role ? `<div class="role">${esc(s.role)}</div>` : ""}</div>`).join("")}
   </div>
   ${doc.graceSeal ? `<script>(function(){
