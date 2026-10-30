@@ -763,10 +763,17 @@ function reportPrintHTML(doc) {
   .sign .who { color: #333; margin-bottom: 30px; }
   .sign .line { border-top: 1px solid #111; padding-top: 3px; font-weight: 700; }
   .sign .role { font-size: 8.5px; color: #555; }
+  /* Grace Gan seal: faint watermark (every printed page) and the stamp above "Approved by". */
+  /* Watermark: the seal filling the whole page (fixed, so it repeats on every printed page). */
+  .gs-wm { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0.11; z-index: 50; pointer-events: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; } /* on top of the table, faint — rows have their own backgrounds */
+  .gs-wm svg { width: 100vw; height: 100vh; }
+  .gs-stamp svg { display: block; margin: 0 auto; }
+  .gs-stamp { margin: -28px 0 -2px; opacity: 0.92; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .wm { position: fixed; top: 40%; left: 8%; font-size: 130px; color: rgba(37,78,88,0.08); font-weight: 800; transform: rotate(-30deg); z-index: 0; pointer-events: none; }
 </style></head>
 <body>
   ${wm}
+  ${doc.graceSeal ? `<div class="gs-wm">${graceWatermarkSVG(doc.graceSeal.range)}</div>` : ""}
   <table class="rpt">
     <thead>
       <tr><td class="head-cell" colspan="${N}">
@@ -803,10 +810,53 @@ function reportPrintHTML(doc) {
     </tbody>
   </table>
   <div class="sign">
-    ${reportSignatures(doc).map((s) => `<div class="box"><div class="who">${esc(s.who)}</div><div class="line">${esc(s.name) || "&nbsp;"}</div>${s.role ? `<div class="role">${esc(s.role)}</div>` : ""}</div>`).join("")}
+    ${reportSignatures(doc).map((s) => `<div class="box"><div class="who">${esc(s.who)}</div>${doc.graceSeal && /approved/i.test(s.who) ? `<div class="gs-stamp">${graceSealSVG(86, doc.graceSeal.range)}</div>` : ""}<div class="line">${esc(s.name) || "&nbsp;"}</div>${s.role ? `<div class="role">${esc(s.role)}</div>` : ""}</div>`).join("")}
   </div>
   <script>window.onload=function(){setTimeout(function(){window.print();},350);};window.onafterprint=function(){setTimeout(function(){window.close();},100);};</script>
 </body></html>`;
+}
+
+/* ---- Grace Gan approval seal (owner's request, Oct 2026) ----
+   A system-drawn seal, never her real signature: a faint watermark on every
+   page and a small stamp above the "Approved by" line. A report sets
+   doc.graceSeal = { range } ONLY when every transaction in it carries her
+   recorded final approval; `range` is the span of those approval dates. */
+function graceSealRange(stamps) {
+  const day = (s) => {
+    const d = new Date(/(Z|[+-]\d\d:?\d\d)$/.test(s) ? s : s + "Z");
+    return isNaN(d) ? "" : d.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+  };
+  const days = (stamps || []).filter(Boolean).map((s) => day(String(s))).filter(Boolean).sort();
+  if (!days.length) return "";
+  const a = days[0], b = days[days.length - 1];
+  if (a === b) return fmtDate(a);
+  return a.slice(0, 4) === b.slice(0, 4)
+    ? `${fmtDate(a).replace(/,\s*\d{4}$/, "")} – ${fmtDate(b)}` : `${fmtDate(a)} – ${fmtDate(b)}`;
+}
+/* The full-page watermark: "APPROVED BY GRACE GAN" in large diagonal text,
+   stretched to the page, with the approval date(s) under it. */
+function graceWatermarkSVG(range) {
+  const c = "#1f6f43";
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid meet">
+  <g transform="rotate(-30 500 350)" font-family="Arial, sans-serif" font-weight="900" fill="${c}" text-anchor="middle">
+    <text x="500" y="350" font-size="88" textLength="900" lengthAdjust="spacingAndGlyphs">APPROVED BY GRACE GAN</text>
+    ${range ? `<text x="500" y="430" font-size="44" font-weight="700">${esc(range)}</text>` : ""}
+  </g>
+</svg>`;
+}
+function graceSealSVG(size, range) {
+  const c = "#1f6f43";
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 200 200">
+  <defs><path id="gsr" d="M100,100 m-74,0 a74,74 0 1,1 148,0 a74,74 0 1,1 -148,0"/></defs>
+  <circle cx="100" cy="100" r="95" fill="none" stroke="${c}" stroke-width="5"/>
+  <circle cx="100" cy="100" r="86" fill="none" stroke="${c}" stroke-width="1.5"/>
+  <circle cx="100" cy="100" r="58" fill="none" stroke="${c}" stroke-width="1.5"/>
+  <text font-family="Arial, sans-serif" font-size="14" font-weight="800" fill="${c}">
+    <textPath href="#gsr" startOffset="0" textLength="455" lengthAdjust="spacingAndGlyphs">APPROVED BY GRACE P. GAN • FINAL APPROVER •</textPath></text>
+  <path d="M72 92 l18 18 l38 -40" fill="none" stroke="${c}" stroke-width="9" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="100" y="132" text-anchor="middle" font-family="Arial, sans-serif" font-size="15" font-weight="800" fill="${c}">APPROVED</text>
+  ${range ? `<text x="100" y="148" text-anchor="middle" font-family="Arial, sans-serif" font-size="9" font-weight="700" fill="${c}">${esc(range)}</text>` : ""}
+</svg>`;
 }
 
 /* Open the generated report in a new window and trigger the print / Save-as-PDF

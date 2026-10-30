@@ -129,7 +129,7 @@ function approvedModuleDoc(list, scopeLabel, generatedBy, scopeNote) {
   const company = companies.length === 1 ? companies[0] : "";
   const profile = companyProfile(company);
   return {
-    title: `Approved Transactions — ${scopeLabel}`, orientation: "landscape", columns, rows, totalsRow, count: list.length,
+    title: `Approved Transactions by Grace Gan — ${scopeLabel}`, orientation: "landscape", columns, rows, totalsRow, count: list.length,
     meta: {
       "Plant": scopeLabel,
       "Company": company || "All Companies",
@@ -138,6 +138,9 @@ function approvedModuleDoc(list, scopeLabel, generatedBy, scopeNote) {
       "Date Generated": nowStamp(),
     },
     notice: APPROVED_MODULE_NOTE,
+    /* Grace Gan seal — only when every row carries her own final approval. */
+    graceSeal: list.length && list.every((r) => r.approvedAt && /grace/i.test(r.approvedBy || ""))
+      ? { range: graceSealRange(list.map((r) => r.approvedAt)) } : null,
     reference: makeReportRef("APPROVED"), watermark: false,
     company, logo: logoForCompany(company),
     reviewer: (profile && profile.reviewer) || DEFAULT_REVIEWER,

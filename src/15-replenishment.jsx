@@ -226,6 +226,9 @@ function replenishmentDetailDoc(r, detail, funds, generatedBy) {
     },
     /* Shown in red bold (owner's instruction, Oct 2026). */
     metaHighlight: ["Replenishment No.", "Company", "Replenishment Amount", "Remarks"],
+    /* Grace Gan seal — only when every transaction carries her own final approval. */
+    graceSeal: detail.txns.length && detail.txns.every((x) => x.rv.final && x.rv.finalAt && /grace/i.test(x.rv.finalBy || ""))
+      ? { range: graceSealRange(detail.txns.map((x) => x.rv.finalAt)) } : null,
     reference: makeReportRef("REPL"), reportCode: "REPLDETAIL", watermark: false,
     company, logo: logoForCompany(company),
     reviewer: (profile && profile.reviewer) || DEFAULT_REVIEWER,
