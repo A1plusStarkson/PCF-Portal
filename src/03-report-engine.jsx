@@ -765,15 +765,18 @@ function reportPrintHTML(doc) {
   .sign .role { font-size: 8.5px; color: #555; }
   /* Grace Gan seal: faint watermark (every printed page) and the stamp above "Approved by". */
   /* Watermark: the seal filling the whole page (fixed, so it repeats on every printed page). */
-  .gs-wm { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; opacity: 0.11; z-index: 50; pointer-events: none; -webkit-print-color-adjust: exact; print-color-adjust: exact; } /* on top of the table, faint — rows have their own backgrounds */
-  .gs-wm svg { width: 100vw; height: 100vh; }
+  /* One watermark per page, on top of the table and faint (rows have their own
+     backgrounds): a background tiled at the printable page height down the whole
+     document. position: fixed printed on page 1 only. */
+  body { position: relative; }
+  .gs-wm { position: absolute; inset: 0; z-index: 50; opacity: 0.11; pointer-events: none; background-repeat: repeat-y; background-position: center top; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .gs-stamp svg { display: block; margin: 0 auto; }
   .gs-stamp { margin: -28px 0 -2px; opacity: 0.92; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .wm { position: fixed; top: 40%; left: 8%; font-size: 130px; color: rgba(37,78,88,0.08); font-weight: 800; transform: rotate(-30deg); z-index: 0; pointer-events: none; }
 </style></head>
 <body>
   ${wm}
-  ${doc.graceSeal ? `<div class="gs-wm">${graceWatermarkSVG(doc.graceSeal.range)}</div>` : ""}
+  ${doc.graceSeal ? `<div class="gs-wm" style="background-size: 100% ${doc.orientation === "portrait" ? 270 : 183}mm; background-image: url('data:image/svg+xml,${encodeURIComponent(graceWatermarkSVG(doc.graceSeal.range)).replace(/'/g, "%27")}')"></div>` : ""}
   <table class="rpt">
     <thead>
       <tr><td class="head-cell" colspan="${N}">
@@ -812,6 +815,19 @@ function reportPrintHTML(doc) {
   <div class="sign">
     ${reportSignatures(doc).map((s) => `<div class="box"><div class="who">${esc(s.who)}</div>${doc.graceSeal && /approved/i.test(s.who) ? `<div class="gs-stamp">${graceSealSVG(64)}</div>` : ""}<div class="line">${esc(s.name) || "&nbsp;"}</div>${s.role ? `<div class="role">${esc(s.role)}</div>` : ""}</div>`).join("")}
   </div>
+  ${doc.graceSeal ? `<script>(function(){
+    /* Stretch the watermark to the end of the last printed page (not just the
+       end of the content), measured at the printable width. Rounds down when
+       close, so it can never spill onto an extra blank page. */
+    function fit(){
+      var w=document.querySelector(".gs-wm"),b=document.body,p=document.createElement("div");
+      if(!w)return;
+      p.style.height="${doc.orientation === "portrait" ? 270 : 183}mm";b.appendChild(p);var ph=p.offsetHeight;b.removeChild(p);
+      var old=b.style.width;b.style.width="${doc.orientation === "portrait" ? 190 : 277}mm";var h=b.scrollHeight;b.style.width=old;
+      var n=Math.max(1,Math.ceil((h-ph*0.02)/ph));w.style.bottom="auto";w.style.height=(n*ph-2)+"px";
+    }
+    fit();window.addEventListener("load",fit);
+  })();</script>` : ""}
   <script>window.onload=function(){setTimeout(function(){window.print();},350);};window.onafterprint=function(){setTimeout(function(){window.close();},100);};</script>
 </body></html>`;
 }
