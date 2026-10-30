@@ -681,6 +681,10 @@ const CSS = `
   .pcp-approval-note { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; padding: 14px 18px; border-radius: 10px; border: 2px solid #e0a800; background: #fff176; color: #3b2a00; font-size: 18px; font-weight: 600; line-height: 1.35; }
   .pcp-approval-note svg { color: #8a6100; }
   [data-theme="dark"] .pcp-approval-note { background: #5c4a00; border-color: #e0a800; color: #fff3a8; }
+  /* Yellow note beside a page title (Approved Module). */
+  .pcp-title-note { display: inline-flex; align-items: center; gap: 6px; margin-left: 12px; padding: 4px 12px; vertical-align: middle; border-radius: 8px; border: 2px solid #e0a800; background: #fff176; color: #c62828; font-size: 14px; font-weight: 800; letter-spacing: 0; text-transform: none; }
+  .pcp-title-note svg { color: #c62828; }
+  [data-theme="dark"] .pcp-title-note, [data-theme="dark"] .pcp-title-note svg { background: #5c4a00; color: #ff8a80; }
   [data-theme="dark"] .pcp-approval-note svg { color: #ffd84d; }
   .pcp-drop-hint { font-size: 11px; color: var(--text-mut); }
   .pcp-toast-x { flex-shrink: 0; border: none; background: transparent; color: inherit; cursor: pointer; padding: 2px; opacity: 0.7; }

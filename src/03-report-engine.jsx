@@ -738,6 +738,8 @@ function reportPrintHTML(doc) {
   .rh-title { font-size: 13px; font-weight: 800; margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
   .rh-ref { min-width: 130px; text-align: right; font-size: 8px; color: #555; line-height: 1.5; }
   .rh-ref .ref-no { font-weight: 700; color: #111; font-size: 9px; }
+  /* doc.notice: an optional line in red bold above the meta block. */
+  .rnotice { color: #c62828; font-weight: 800; font-size: 12px; padding: 8px 2px 0; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
   .rmeta { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 22px; padding: 9px 2px 4px; font-size: 9.5px; }
   .rmeta b { display: inline-block; min-width: 96px; color: #333; }
   .rcount { text-align: right; font-size: 9.5px; font-weight: 700; padding: 0 2px 8px; color: #1f2d3d; }
@@ -778,6 +780,7 @@ function reportPrintHTML(doc) {
             <div>Verification No.</div>
           </div>
         </div>
+        ${doc.notice ? `<div class="rnotice">${esc(doc.notice)}</div>` : ""}
         <div class="rmeta">${metaHTML}</div>
         <div class="rcount">Transaction Count: ${doc.count}</div>
       </td></tr>
