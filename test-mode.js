@@ -1,7 +1,7 @@
 /* ============================= TEST MODE =============================
    Loaded by index.html ONLY when the address ends in ?test=1, for
    presentations and training. It holds made-up transactions in the browser's
-   memory: refresh and everything is back as it started.
+   memory and this browser; Reset sample data puts it back as it started.
 
    It can never touch the live portal:
      - index.html blanks the Supabase address and key before anything connects;
@@ -125,15 +125,61 @@
   var doneB = reimbursement("MATTEL", 1800, "FULLY APPROVED / READY FOR REPLENISHMENT", merge(CUSTODIAN(), ACCOUNTING("BATCH-S08"), FINAL()));
   add("replenishments", { id: "t-rpl-0", replenishmentNo: "RPL-T-2026-9001", date: day(20), branchCode: "A1+", amount: 8000, preparedBy: "Accounting Department", status: "Completed", completedBy: "Accounting Department", completedAt: stamp(16, 3), acumaticaPoNo: "PO-SAMPLE-01", acumaticaApvNo: "APV-SAMPLE-01", remarks: "Sample completed replenishment", liquidationIds: [doneA], reimbursementIds: [doneB] });
 
-  window.PCP_TEST_ROWS = rows;
+  /* ---- Shared between accounts and tabs in this browser ----
+     Changes are kept in this browser under their own key, so what Grace Gan
+     approves is there when Accounting signs in, and open tabs update each other
+     (the same job the realtime channel does on the live portal). It stays in
+     the browser: other computers do not see it. Reset puts the sample back. */
+  var SAVED_KEY = "pcp-test-records";
+  var readSaved = function () { try { return JSON.parse(localStorage.getItem(SAVED_KEY) || "{}"); } catch (e) { return {}; } };
+  var channel = typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("pcp-test-records") : null;
+  window.PCP_TEST_INSTALL = function (storage) {
+    storage.records = Object.assign({}, storage.records, {
+      getAll: function () {
+        var saved = readSaved(), seen = {};
+        var out = rows.map(function (r) { seen[r.id] = true; return saved[r.id] || r; });
+        Object.keys(saved).forEach(function (id) { if (!seen[id]) out.push(saved[id]); });
+        return Promise.resolve(out);
+      },
+      put: function (changed) {
+        if (!changed || !changed.length) return Promise.resolve(true);
+        var saved = readSaved();
+        changed.forEach(function (r) { if (r && r.id != null) saved[r.id] = r; });
+        try { localStorage.setItem(SAVED_KEY, JSON.stringify(saved)); }
+        catch (e) { console.warn("Test mode: browser storage is full; the change stays in this tab only."); }
+        if (channel) channel.postMessage({ rows: changed });
+        return Promise.resolve(true);
+      },
+      subscribe: function (onChange) {
+        if (channel) channel.addEventListener("message", function (e) {
+          if (e.data && e.data.reset) { location.reload(); return; }
+          ((e.data && e.data.rows) || []).forEach(function (r) {
+            onChange({ id: r.id, collection: r.collection, data: r.data, deleted: !!r.deleted });
+          });
+        });
+        return Promise.resolve(null);
+      },
+    });
+  };
+  var resetSample = function () {
+    if (!window.confirm("Reset test mode to the original sample data?\n\nEvery change made in test mode in this browser is cleared. The live portal is not affected.")) return;
+    try { localStorage.removeItem(SAVED_KEY); } catch (e) {}
+    if (channel) channel.postMessage({ reset: true });
+    location.reload();
+  };
 
   /* ---- Always-visible markers ---- */
   document.addEventListener("DOMContentLoaded", function () {
     document.title = "TEST MODE - " + document.title;
     var bar = document.createElement("div");
     bar.id = "pcp-test-banner";
-    bar.textContent = "TEST MODE · Sample data only · Nothing here reaches the live portal · Refresh to reset";
+    bar.textContent = "TEST MODE · Sample data only · Nothing here reaches the live portal";
     bar.style.cssText = "position:fixed;left:50%;bottom:22px;transform:translateX(-50%);z-index:99999;padding:7px 16px;border-radius:99px;background:#c62828;color:#fff;font:700 13px Arial,sans-serif;white-space:nowrap;pointer-events:none;box-shadow:0 4px 14px rgba(0,0,0,.3)";
+    var resetBtn = document.createElement("button");
+    resetBtn.type = "button"; resetBtn.id = "pcp-test-reset"; resetBtn.textContent = "Reset sample data";
+    resetBtn.style.cssText = "margin-left:10px;padding:3px 10px;border:1px solid #fff;border-radius:99px;background:#fff;color:#c62828;font:700 12px Arial,sans-serif;cursor:pointer;pointer-events:auto";
+    resetBtn.onclick = resetSample;
+    bar.appendChild(resetBtn);
     document.body.appendChild(bar);
     var help = document.createElement("div");
     help.id = "pcp-test-logins";

@@ -6,7 +6,7 @@ function Root() {
   const [checking, setChecking] = useState(cloudEnabled);
   const [user, setUser] = useState(null);
   const [localSession, setLocalSession] = useState(() => {
-    try { const v = localStorage.getItem(LOCAL_SESSION_KEY); return v ? JSON.parse(v) : null; }
+    try { const v = (window.PCP_TEST_MODE ? sessionStorage : localStorage).getItem(LOCAL_SESSION_KEY); return v ? JSON.parse(v) : null; }
     catch (e) { return null; }
   });
 
@@ -42,13 +42,13 @@ function Root() {
   const doLocalLogin = useCallback((username, password) => {
     const s = localSignIn(username, password);
     if (!s) return { error: { message: "Invalid username or password." } };
-    try { localStorage.setItem(LOCAL_SESSION_KEY, JSON.stringify(s)); } catch (e) {}
+    try { (window.PCP_TEST_MODE ? sessionStorage : localStorage).setItem(LOCAL_SESSION_KEY, JSON.stringify(s)); } catch (e) {}
     setLocalSession(s);
     return {};
   }, []);
 
   const localSignOut = useCallback(() => {
-    try { localStorage.removeItem(LOCAL_SESSION_KEY); } catch (e) {}
+    try { (window.PCP_TEST_MODE ? sessionStorage : localStorage).removeItem(LOCAL_SESSION_KEY); } catch (e) {}
     setLocalSession(null);
   }, []);
 
