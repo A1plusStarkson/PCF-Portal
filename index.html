@@ -112,6 +112,16 @@
      further down all read that name. */
   window.PCP_SUPABASE_PUBLISHABLE_KEY = "sb_publishable_4DaKPkhmDZNr0sbie8WgDw_MHuvTcjB";
   window.PCP_SUPABASE_ANON_KEY = window.PCP_SUPABASE_PUBLISHABLE_KEY;
+
+  /* TEST MODE: the address ending in ?test=1 opens sample data held in memory
+     (test-mode.js), never the live database. Everything the live portal does
+     is unchanged without that exact ending. */
+  window.PCP_TEST_MODE = /[?&]test=1(&|$)/.test(location.search);
+  if (window.PCP_TEST_MODE) {
+    window.PCP_SUPABASE_URL = "";
+    window.PCP_SUPABASE_PUBLISHABLE_KEY = "";
+    window.PCP_SUPABASE_ANON_KEY = "";
+  }
   window.PCP_TABLE = "pcp_state";
   /* Starting announcements for the Home page. Once Accounting / an admin
      saves them with Manage on the Home page, the portal's own list (stored
@@ -233,6 +243,7 @@
      source. (If you ever clear the Supabase keys, add accounts here to restore
      an offline username/password login.) */
   window.PCP_LOCAL_USERS = [];
+  if (window.PCP_TEST_MODE) document.write("<scr" + "ipt src=\"test-mode.js?v=20261103a\"></scr" + "ipt>");
 
   /* Storage adapter: Supabase (shared) when configured, else localStorage.
      window.storage is defined synchronously so the app can call it
@@ -401,7 +412,7 @@
         try { var v = localStorage.getItem(k); return v == null ? null : { value: v }; }
         catch (e) { return null; }
       },
-      set: function (k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+      set: function (k, v) { if (window.PCP_TEST_MODE) return; try { localStorage.setItem(k, v); } catch (e) {} }
     };
 
     // Resolves to a Supabase client, or null when not configured / on failure.
@@ -1017,6 +1028,14 @@
   })();
 </script>
 
+<script>
+  if (window.PCP_TEST_MODE) {
+    window.storage.records = Object.assign({}, window.storage.records, {
+      getAll: function () { return Promise.resolve(window.PCP_TEST_ROWS || []); },
+    });
+  }
+</script>
+
 <!-- ============================================================
      THE PORTAL (modular source)
      The app source lives in the src/ folder, split into readable files
@@ -1031,7 +1050,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20261030s";
+  window.PCP_SRC_VERSION = "20261103a";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",

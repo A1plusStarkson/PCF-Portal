@@ -399,7 +399,7 @@ function downloadTextFile(text, filename, mime) {
   const blob = new Blob([text], { type: mime || "text/plain;charset=utf-8" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = filename;
+  a.href = url; a.download = (window.PCP_TEST_MODE ? "TEST_" : "") + filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }

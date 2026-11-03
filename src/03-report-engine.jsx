@@ -75,7 +75,7 @@ function downloadCsv(filename, headers, rows) {
   const blob = new Blob(["\uFEFF" + lines.join("\r\n")], { type: "text/csv;charset=utf-8;" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
-  a.href = url; a.download = filename;
+  a.href = url; a.download = (window.PCP_TEST_MODE ? "TEST_" : "") + filename;
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
   URL.revokeObjectURL(url);
 }
@@ -795,6 +795,7 @@ function reportPrintHTML(doc) {
             <div>Verification No.</div>
           </div>
         </div>
+        ${window.PCP_TEST_MODE ? `<div class="rnotice">TEST MODE: SAMPLE DATA. NOT A REAL RECORD.</div>` : ""}
         ${doc.notice ? `<div class="rnotice">${esc(doc.notice)}</div>` : ""}
         <div class="rmeta">${metaHTML}</div>
         <div class="rcount">Transaction Count: ${doc.count}</div>
@@ -860,6 +861,7 @@ function graceWatermarkSVG(range) {
   <g transform="rotate(-30 500 350)" font-family="Arial, sans-serif" font-weight="900" fill="${c}" text-anchor="middle">
     <text x="500" y="350" font-size="88" textLength="900" lengthAdjust="spacingAndGlyphs">APPROVED BY GRACE GAN</text>
     ${range ? `<text x="500" y="430" font-size="44" font-weight="700">${esc(range)}</text>` : ""}
+    ${window.PCP_TEST_MODE ? `<text x="500" y="500" font-size="44" font-weight="700">TEST MODE - SAMPLE DATA</text>` : ""}
   </g>
 </svg>`;
 }
