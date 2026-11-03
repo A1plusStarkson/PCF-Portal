@@ -680,6 +680,13 @@ function exportReportCsv(doc) {
 }
 
 function exportReportExcel(doc) {
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, reportSheet(doc), "Report");
+  downloadWorkbook(wb, `${doc.title.replace(/\s+/g, "_")}_${todayISO()}.xlsx`);
+}
+
+/* The report as one worksheet: heading, meta, table and footer. */
+function reportSheet(doc) {
   const { headers, rows } = reportMatrix(doc, true);
   const aoa = [[doc.company ? companyHeaderName(doc.company) : COMPANY_MAIN], [PORTAL_NAME], [doc.title], []];
   Object.entries(doc.meta || {}).forEach(([k, v]) => aoa.push([k, v]));
@@ -690,10 +697,7 @@ function exportReportExcel(doc) {
   aoa.push([`Transaction Count: ${doc.count}`]);
   aoa.push([`Reference: ${doc.reference}`]);
   aoa.push([`Printed: ${nowStamp()}`]);
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, "Report");
-  downloadWorkbook(wb, `${doc.title.replace(/\s+/g, "_")}_${todayISO()}.xlsx`);
+  return XLSX.utils.aoa_to_sheet(aoa);
 }
 
 /* Build a fully self-contained, print-ready HTML document for one report.

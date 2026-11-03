@@ -421,6 +421,11 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   const isFinalApproverAccount = useMemo(() => emailIn(LIQUIDATION_FINAL_APPROVER_EMAILS), [userEmail]); // eslint-disable-line
   const isFinalOnlyAccount = useMemo(() => emailIn(LIQUIDATION_FINAL_ONLY_EMAILS), [userEmail]); // eslint-disable-line
   const isFinalApprover = isFinalApproverAccount && role === (userRole || "Accounting");
+  /* A final approval given by the System Superuser is recorded as Grace Gan's
+     (owner's instruction, Nov 2026), so every module and report shows it as
+     approved by her. The account that clicked is kept in review.finalByAccount
+     and the audit log. */
+  const finalStampName = (actor) => (emailIn(["superuser@a1plus.com"]) ? "Grace Gan" : actor);
   /* Grace Gan is excluded by ACCOUNT, not by the role being viewed — otherwise
      previewing "Custodian" would make her a checker. */
   const isLiquidationChecker = !isFinalOnlyAccount
@@ -1170,13 +1175,13 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       return;
     }
     setLiquidations((ls) => ls.map((l) => (l.disbursementId === disbursementId ? {
-      ...l, review: { ...(l.review || {}), finalBy: actor, finalAt: ts, finalRemarks: remarks || "" },
+      ...l, review: { ...(l.review || {}), finalBy: finalStampName(actor), finalByAccount: userEmail || "", finalAt: ts, finalRemarks: remarks || "" },
     } : l)));
     logAudit("Liquidation Final Approved", d.voucherNo,
       `${peso(receiptAmountSummary(liq).approvedTotal)} · batch ${liqReview(liq).batchNo} · ready for replenishment${remarks ? ` · ${remarks}` : ""}`);
     /* true only when the approval went through (a batch approval counts these). */
     return true;
-  }, [isFinalApprover, liquidations, disbursements, logAudit, userName, role]);
+  }, [isFinalApprover, liquidations, disbursements, logAudit, userName, userEmail, role]);
 
   /* ---- Accounting review: Assign Batch Number / Mark as Checked / Undo ----
      kind "liq" (id = disbursementId) or "reimb" (id = reimbursement id).
@@ -2404,8 +2409,8 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       if (action === "custodian-approve") {
         patch.review = { history: cur.history || [], checkedBy: actor, financeChecker: fc, checkedAt: ts, checkRemarks: comments };
       } else if (action === "final-approve") {
-        patch.review = { ...cur, finalBy: actor, finalAt: ts, finalRemarks: comments };
-        patch.approvedBy = actor; patch.approvedAt = ts;
+        patch.review = { ...cur, finalBy: finalStampName(actor), finalByAccount: userEmail || "", finalAt: ts, finalRemarks: comments };
+        patch.approvedBy = finalStampName(actor); patch.approvedAt = ts;
       } else if (action === "return" || action === "reject" || action === "revert") {
         /* Stamps are never silently lost: a cleared custodian approval moves
            into review.history, like clearReview does for a liquidation. */
@@ -2421,7 +2426,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     logAudit("Reimbursement " + label, r0.reimbNo, logged);
     /* true only when the action went through (a batch approval counts these). */
     return true;
-  }, [logAudit, reimbursements, userName, role, inScope, isLiquidationChecker, isFinalApprover, isAccountingChecker, canRevert, activeFinanceChecker]); // eslint-disable-line
+  }, [logAudit, reimbursements, userName, userEmail, role, inScope, isLiquidationChecker, isFinalApprover, isAccountingChecker, canRevert, activeFinanceChecker]); // eslint-disable-line
 
   const recordReimbursementPayment = useCallback((id, payment) => {
     const ts = reimbTs();

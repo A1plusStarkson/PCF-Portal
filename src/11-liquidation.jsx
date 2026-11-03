@@ -2831,6 +2831,28 @@ function LiquidationTab({
     ? (pickedPetty.length ? pickedPetty : list)
     : (pickedReimb.length ? pickedReimb : reimbActive));
   const printCount = pickedOnTab || (source === "pettycash" ? pettyCount : reimbCount);
+  /* Excel: sheet 1 in the Acumatica "Purchase Orders Template" layout, one row
+     per expense line (as the Approval Module export and the Replenishment
+     Export to Acumatica); sheet 2 the same list as Print / PDF. One plant per
+     export. Read-only: nothing is changed. */
+  const exportListExcel = () => {
+    const shown = printRows();
+    const plantsIn = [...new Set(shown.map((x) => plantOfBranch(x.branchCode)))];
+    if (plantsIn.length > 1) {
+      window.alert("Each Excel export covers one plant.\n\nThe rows to export are from "
+        + plantsIn.map((p) => plantLabel(p)).join(", ")
+        + ".\n\nChoose a plant first (or tick rows from one plant only), then export again.");
+      return;
+    }
+    const lines = [].concat(...shown.map((x) => (source === "pettycash"
+      ? buildLiquidationExportRows(x, liquidationFor(x.id, liquidations))
+      : buildReimbursementAcumaticaRows(x))));
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lines, { header: ACUMATICA_HEADERS }), ACUMATICA_PO_SHEET_NAME);
+    XLSX.utils.book_append_sheet(wb, reportSheet(listDoc()), "Liquidation Summary");
+    const kindName = source === "pettycash" ? "Petty_Cash" : "Reimbursement";
+    downloadWorkbook(wb, `Liquidation_${kindName}_${plantLabel(plantsIn[0] || plant).replace(/[^A-Za-z0-9]+/g, "_")}_${todayISO()}.xlsx`);
+  };
   const pickCell = (key) => (
     <td onClick={(e) => e.stopPropagation()} style={{ width: 30 }}>
       <input type="checkbox" checked={picked.has(key)} onChange={(e) => togglePick([key], e.target.checked)}
@@ -2922,8 +2944,8 @@ function LiquidationTab({
                 title="Print or save as PDF exactly the transactions shown, grouped by batch">
                 <Printer size={12} /> Print / PDF ({printCount}{pickedOnTab ? " selected" : ""})
               </button>
-              <button className="pcp-btn pcp-btn-sm" disabled={!printCount} onClick={() => exportReportExcel(listDoc())}
-                title="Export exactly the transactions shown to Excel">
+              <button className="pcp-btn pcp-btn-sm" disabled={!printCount} onClick={exportListExcel}
+                title="Export exactly the transactions shown to Excel — Acumatica layout, one plant per export">
                 <FileSpreadsheet size={12} /> Excel
               </button>
             </span>
