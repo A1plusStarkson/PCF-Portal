@@ -34,12 +34,14 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
       # Publish only what the portal loads: index.html, the src/*.jsx
-      # fragments and the logo PNGs. SQL scripts, runbooks, docs, old
+      # fragments, the logo PNGs and test mode (test-mode.js, test/). SQL scripts, runbooks, docs, old
       # single-file builds and tools stay in the repo but off the web.
       - name: Collect site files
         run: |
           mkdir _site
-          cp index.html _site/
+          cp index.html test-mode.js _site/
+          mkdir _site/test
+          cp test/index.html _site/test/
           mkdir _site/src
           cp src/*.jsx _site/src/
           cp ./*.png _site/
