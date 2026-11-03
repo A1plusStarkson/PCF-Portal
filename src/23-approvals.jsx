@@ -800,9 +800,24 @@ function ApprovalModuleTab({
   const allTicked = rows.length > 0 && selectedRows.length === rows.length;
   const toggleRow = (key) => setSelected((cur) => (cur.includes(key) ? cur.filter((k) => k !== key) : [...cur, key]));
   const toggleAll = () => setSelected(allTicked ? [] : visibleKeys);
+  /* Sheet 1 is the Acumatica "Purchase Orders Template" layout — the same
+     columns, order and defaults as the Replenishment tab's Export to Acumatica
+     (04-acumatica-export.jsx) — one row per expense line. Sheet 2 keeps the
+     one-row-per-transaction list with its approval status. */
   const exportApprovals = () => {
     const list = selectedRows.length ? selectedRows : rows;
     if (!list.length) { window.alert("There is nothing to export."); return; }
+    /* One plant per file, as with the Replenishment export to Acumatica. */
+    const plantsIn = [...new Set(list.map((r) => plantOfBranch(r.plantCode)))];
+    if (plantsIn.length > 1) {
+      window.alert("Each Excel export covers one plant.\n\nThe rows to export are from "
+        + plantsIn.map((p) => plantLabel(p)).join(", ")
+        + ".\n\nChoose a plant first (or tick rows from one plant only), then export again.");
+      return;
+    }
+    const lines =[].concat(...list.map((r) => (r.kind === "Liquidation"
+      ? buildLiquidationExportRows(r.src.disb, r.src.liq)
+      : buildReimbursementAcumaticaRows(r.src))));
     const out = list.map((r) => ({
       "Series No.": r.seriesNo || "",
       "Batch No.": r.batchNo || "",
@@ -816,8 +831,9 @@ function ApprovalModuleTab({
       "Action": actionLabel(r.stage),
     }));
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(out), "Approval Module");
-    const scope = plant === "ALL" ? "All_Plants" : plantLabel(plantOfBranch(plant)).replace(/[^A-Za-z0-9]+/g, "_");
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(lines, { header: ACUMATICA_HEADERS }), ACUMATICA_PO_SHEET_NAME);
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(out), "Approval Summary");
+    const scope = plantLabel(plantsIn[0]).replace(/[^A-Za-z0-9]+/g, "_");
     downloadWorkbook(wb, `Approval_Module_${scope}_${todayISO()}.xlsx`);
   };
   /* Print / PDF — same scope as the Excel export. Opens the formatted report;
@@ -1059,7 +1075,7 @@ function ApprovalModuleTab({
               </button>
               <button
                 className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={exportApprovals} disabled={!rows.length}
-                title={selectedRows.length ? "Export the ticked rows to Excel" : "Export every row shown to Excel (tick rows to export only those)"}
+                title={(selectedRows.length ? "Export the ticked rows to Excel" : "Export every row shown to Excel (tick rows to export only those)") + " — one plant per export, Acumatica layout"}
               >
                 <FileSpreadsheet size={12} /> Export Excel ({selectedRows.length ? `${selectedRows.length} selected` : `all ${rows.length} shown`})
               </button>
