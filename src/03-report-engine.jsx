@@ -165,14 +165,21 @@ function buildReport(type, D, F) {
   const { funds, requests, disbursements, liquidations, replenishments, auditLog } = D;
   const reps = replenishments || [];
 
-  const custodianOf = (code) => (funds.find((f) => f.branchCode === code) || {}).custodian || "";
+  /* A branch with no fund of its own (Hasbro, Sitio … under Manila) has its plant's custodian. */
+  const custodianOf = (code) => (funds.find((f) => f.branchCode === code)
+    || funds.find((f) => f.branchCode === plantOfBranch(code)) || {}).custodian || "";
   const okBranch = (code) => {
     if (F.company && companyOfBranch(code) !== F.company) return false;
     if (F.plant && code !== F.plant) return false;
     if (F.branch && code !== F.branch) return false;
-    if (F.custodian && custodianOf(code) !== F.custodian) return false;
+    if (F.custodian && !custodianNames(custodianOf(code)).includes(F.custodian)) return false;
     return true;
   };
+  /* A transaction on a fund shared by several custodians counts for the one
+     who gave its custodian approval (txnForCustodian). */
+  const okDisb = (d) => okBranch(d.branchCode)
+    && txnForCustodian(custodianOf(d.branchCode), liqReview(liquidationFor(d.id, liquidations)), F.custodian);
+  const okReimb = (r) => okBranch(r.branchCode) && txnForCustodian(custodianOf(r.branchCode), reimbReview(r), F.custodian);
   const okDate = (iso) => {
     if (!iso) return !(F.from || F.to);
     if (F.from && iso < F.from) return false;
@@ -184,7 +191,7 @@ function buildReport(type, D, F) {
   const okBatch = (rv) => !F.batch || (!!rv && !!rv.batchNo && normalizeBatchNo(rv.batchNo) === F.batch);
 
   const fFunds = funds.filter((f) => okBranch(f.branchCode));
-  const fDisb = disbursements.filter((d) => okBranch(d.branchCode) && okDate(d.date));
+  const fDisb = disbursements.filter((d) => okDisb(d) && okDate(d.date));
   const fRepl = reps.filter((r) => okBranch(r.branchCode) && okDate(r.date));
   const fReq = requests.filter((r) => okBranch(r.branchCode) && okDate(r.date));
   const fDisbIds = new Set(fDisb.map((d) => d.id));
@@ -271,7 +278,7 @@ function buildReport(type, D, F) {
       ];
       const tmp = [];
       disbursements.forEach((d) => {
-        if (!okBranch(d.branchCode)) return;
+        if (!okDisb(d)) return;
         const liq = liquidationFor(d.id, liquidations);
         if (!liq || !liq.lines) return;
         if (!okBatch(liqReview(liq))) return;
@@ -340,7 +347,7 @@ function buildReport(type, D, F) {
 
       const items = [];
       disbursements.forEach((d) => {
-        if (!okBranch(d.branchCode)) return;
+        if (!okDisb(d)) return;
         const liq = liquidationFor(d.id, liquidations);
         if (!liq) return;
         const rv = liqReview(liq);
@@ -360,7 +367,7 @@ function buildReport(type, D, F) {
       const S = REIMB_STATUS;
       const APPROVED_REIMB = [S.READY, S.APPROVED, S.FOR_LIQUIDATION, S.UNDER_REVIEW, S.LIQUIDATION_DONE, S.FOR_PAYMENT, S.PAID, S.COMPLETED];
       (D.reimbursements || []).forEach((r) => {
-        if (!okBranch(r.branchCode)) return;
+        if (!okReimb(r)) return;
         const rv = reimbReview(r);
         if (!okBatch(rv)) return;
         const base = { d: r.branchCode, ref: r.reimbNo, kind: "Reimbursement", employee: r.employee,
@@ -420,7 +427,7 @@ function buildReport(type, D, F) {
       const stamp = (by, at) => `${by || "—"}${at ? " · " + fmtDate(String(at).slice(0, 10)) : ""}`;
       const items = [];
       disbursements.forEach((d) => {
-        if (!okBranch(d.branchCode)) return;
+        if (!okDisb(d)) return;
         const liq = liquidationFor(d.id, liquidations);
         const rv = liq ? liqReview(liq) : null;
         if (!rv || !rv.batchNo) return;
@@ -428,7 +435,7 @@ function buildReport(type, D, F) {
           ref: d.voucherNo, kind: "Liquidation", employee: d.employee, rv, amount: receiptAmountSummary(liq).approvedTotal });
       });
       (D.reimbursements || []).forEach((r) => {
-        if (!okBranch(r.branchCode)) return;
+        if (!okReimb(r)) return;
         const rv = reimbReview(r);
         if (!rv.batchNo) return;
         items.push({ batch: normalizeBatchNo(rv.batchNo), d: r.branchCode, iso: String(r.requestDate || "").slice(0, 10),
@@ -519,7 +526,7 @@ function buildReport(type, D, F) {
       ];
       const map = {};
       disbursements.forEach((d) => {
-        if (!okBranch(d.branchCode)) return;
+        if (!okDisb(d)) return;
         const liq = liquidationFor(d.id, liquidations);
         if (!liq || !liq.lines) return;
         if (!okBatch(liqReview(liq))) return;

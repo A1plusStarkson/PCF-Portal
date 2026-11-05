@@ -1265,6 +1265,27 @@ function liqFinalStatus(disb, liq) {
    them back into a review queue.
    Legacy approvals are never offered for replenishment — they may already
    have been replenished under the old, unlinked process. */
+/* ---- Funds shared by several custodians (owner's instruction, Nov 2026) ----
+   A fund's custodian field may name more than one person ("Ayessa Milosantos,
+   Mary Queen Ecat" for Manila); report filters list each person separately. */
+function custodianNames(s) {
+  return String(s || "").split(/\s*(?:,|\/|&|\band\b)\s*/i).map((t) => t.trim()).filter(Boolean);
+}
+/* Whether a transaction counts for the one custodian picked in a report's
+   Custodian filter. On a shared fund it is the custodian who gave its
+   custodian approval (checkedBy, or the Finance Checker named on it); one not
+   yet custodian-approved, or approved by someone not named on the fund,
+   counts for each of them. */
+function txnForCustodian(fundCustodian, rv, name) {
+  if (!name) return true;
+  const names = custodianNames(fundCustodian);
+  if (!names.includes(name)) return false;
+  if (names.length < 2) return true;
+  const who = `${(rv && rv.checkedBy) || ""} ${(rv && rv.financeChecker) || ""}`.toLowerCase();
+  const matched = names.filter((n) => who.includes(n.toLowerCase()));
+  return !matched.length || matched.includes(name);
+}
+
 function liqReview(liq) {
   if (!liq) return { checked: false, final: false, legacy: false, history: [] };
   if (!liq.workflow) {

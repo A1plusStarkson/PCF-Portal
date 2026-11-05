@@ -18,7 +18,8 @@ function ManagementReportTab({ funds, requests, disbursements, liquidations, rep
     funds.forEach((f) => { if (!seen.has(f.branchCode)) seen.set(f.branchCode, f.label || plantLabel(f.branchCode)); });
     return [...seen.entries()].map(([code, label]) => ({ code, label }));
   }, [funds]);
-  const custodianOpts = useMemo(() => [...new Set(funds.map((f) => f.custodian).filter(Boolean))], [funds]);
+  /* One choice per person: Manila's two custodians are listed separately (custodianNames). */
+  const custodianOpts = useMemo(() => [...new Set([].concat(...funds.map((f) => custodianNames(f.custodian))))], [funds]);
   /* Every Accounting batch number in the data this user can see (Transactions per Batch). */
   const batchOpts = useMemo(() => {
     const s = new Set();
@@ -73,8 +74,8 @@ function ManagementReportTab({ funds, requests, disbursements, liquidations, rep
     const code = F.branch ? plantOfBranch(F.branch) : F.plant;
     const inScope = funds.filter((f) => f.custodian && (!code || f.branchCode === code)
       && (!F.company || companyOfBranch(f.branchCode) === F.company)
-      && (!F.custodian || f.custodian === F.custodian));
-    return [...new Set(inScope.map((f) => `${f.custodian} (${plantLabel(f.branchCode) || f.label || f.branchCode})`))].join(", ");
+      && (!F.custodian || custodianNames(f.custodian).includes(F.custodian)));
+    return [...new Set(inScope.map((f) => `${F.custodian || f.custodian} (${plantLabel(f.branchCode) || f.label || f.branchCode})`))].join(", ");
   }, [F.custodian, F.branch, F.plant, F.company, funds]);
 
   const doc = useMemo(() => {

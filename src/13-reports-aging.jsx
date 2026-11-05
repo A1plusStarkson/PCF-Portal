@@ -213,7 +213,8 @@ function buildAgingRecords(disbursements, liquidations, funds, requests, today) 
       branchCode: d.branchCode,
       plantLabel: (fund && fund.label) || plantLabel(d.branchCode) || d.branchCode,
       company: companyOfBranch(d.branchCode),
-      custodian: (fund && fund.custodian) || "\u2014",
+      /* A branch with no fund of its own (Hasbro, Sitio \u2026 under Manila) has its plant's custodian. */
+      custodian: (fund || fundByBranch.get(plantOfBranch(d.branchCode)) || {}).custodian || "\u2014",
       amount, liquidated, outstanding, status, fullyLiquidated,
       ageDays, overdueDays, isPastDue, isDueToday, isPending,
       agingBucket: agingStatusOf(dueDelta, overdueDays, fullyLiquidated),
@@ -253,7 +254,7 @@ function liquidationReminders(disbursements, liquidations, today, funds) {
         level: reminderLevel(daysLeft),
         liqStatus: !liq ? "Not started" : sub === "Rejected" ? "Returned for correction"
           : sub === LIQ_FOR_SUBMISSION ? "Reverted by custodian — for submission" : "Draft — not yet submitted",
-        custodian: (fundByBranch.get(d.branchCode) || {}).custodian || "",
+        custodian: (fundByBranch.get(d.branchCode) || fundByBranch.get(plantOfBranch(d.branchCode)) || {}).custodian || "",
       };
     })
     .filter(Boolean)
@@ -494,11 +495,11 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
       plants.set(f.branchCode, f.label || plantLabel(f.branchCode) || f.branchCode);
       companies.add(companyOfBranch(f.branchCode));
       branches.add(f.branchCode);
-      if (f.custodian) custodians.add(f.custodian);
+      custodianNames(f.custodian).forEach((n) => custodians.add(n));
     });
     allRecords.forEach((r) => {
       companies.add(r.company); plants.set(r.branchCode, r.plantLabel); branches.add(r.branchCode);
-      if (r.custodian && r.custodian !== "\u2014") custodians.add(r.custodian);
+      if (r.custodian !== "\u2014") custodianNames(r.custodian).forEach((n) => custodians.add(n));
       if (r.requestor) requestors.add(r.requestor);
       if (r.department) departments.add(r.department);
     });
@@ -517,7 +518,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
     if (filters.company !== "ALL" && r.company !== filters.company) return false;
     if (filters.plant !== "ALL" && r.branchCode !== filters.plant) return false;
     if (filters.branch !== "ALL" && r.branchCode !== filters.branch) return false;
-    if (filters.custodian !== "ALL" && r.custodian !== filters.custodian) return false;
+    if (filters.custodian !== "ALL" && !txnForCustodian(r.custodian, r.review, filters.custodian)) return false;
     if (filters.requestor !== "ALL" && r.requestor !== filters.requestor) return false;
     if (filters.department !== "ALL" && r.department !== filters.department) return false;
     if (filters.status !== "ALL" && r.status !== filters.status) return false;
@@ -533,7 +534,7 @@ function LiquidationAgingTab({ funds, requests, disbursements, liquidations, rep
     if (filters.company !== "ALL" && companyOfBranch(f.branchCode) !== filters.company) return false;
     if (filters.plant !== "ALL" && f.branchCode !== filters.plant) return false;
     if (filters.branch !== "ALL" && f.branchCode !== filters.branch) return false;
-    if (filters.custodian !== "ALL" && f.custodian !== filters.custodian) return false;
+    if (filters.custodian !== "ALL" && !custodianNames(f.custodian).includes(filters.custodian)) return false;
     return true;
   }), [funds, filters]);
 
