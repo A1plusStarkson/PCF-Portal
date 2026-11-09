@@ -282,44 +282,55 @@ function AccountingReviewBox({ kind, id, refNo, review, mode, accounting }) {
               ? "Old transaction, already approved. Review its details and documents, then assign a Batch Number and mark it checked — only the Accounting fields are added."
               : "Review the transaction details and every supporting document, verify the amounts, then assign a Batch Number and mark it checked."}
           </div>
-          {/* Checker and remarks first, so Mark as Checked sits right beside
-              the Batch Number buttons (owner's instruction, Nov 2026). */}
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 8 }}>
-            {needChecker && (
+          {/* One row (owner's instruction, Nov 2026): Batch Number buttons,
+              then the Accounting Checker dropdown and Mark as Checked in
+              yellow, then Remarks beside Mark as Checked. */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+            {/* Batch Number, + New and Assign Batch Number — yellow too. */}
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-end", padding: "6px 10px", borderRadius: 10,
+              background: "#fff3c4", border: "2px solid #e8b53a" }}>
               <div className="pcp-field" style={{ margin: 0 }}>
-                <label>Accounting Checker</label>
-                <select className="pcp-input" style={{ width: 170 }} value={checker} onChange={(e) => setChecker(e.target.value)}>
-                  <option value="">— Select your name —</option>
-                  {checkerNames.map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
+                <label style={{ color: "#6b4a07", fontWeight: 700 }}>Batch Number</label>
+                <input className="pcp-input" style={{ width: 130, background: "#fffbe6", borderColor: "#e8b53a", color: "#3d2a00", fontWeight: 600 }}
+                  list={listId} value={batch}
+                  onChange={(e) => setBatch(e.target.value)} placeholder={acc.nextBatchNo || "BATCH-001"} />
+                <datalist id={listId}>
+                  {(acc.batches || []).map((b) => <option key={b.batchNo} value={b.batchNo}>{`${b.count} transaction(s)`}</option>)}
+                </datalist>
               </div>
-            )}
-            <div className="pcp-field" style={{ margin: 0, flex: 1, minWidth: 180, maxWidth: 420 }}>
+              {acc.nextBatchNo && (
+                <button className="pcp-btn pcp-btn-sm" onClick={() => setBatch(acc.nextBatchNo)} title="Start a new batch"
+                  style={{ background: "#f5c518", borderColor: "#c99a06", color: "#3d2a00", fontWeight: 800 }}>
+                  <Plus size={12} /> New: {acc.nextBatchNo}
+                </button>
+              )}
+              <button className="pcp-btn pcp-btn-sm" onClick={assign} disabled={!typed || typed === rv.batchNo}
+                style={{ background: "#f5c518", borderColor: "#c99a06", color: "#3d2a00", fontWeight: 800 }}>
+                Assign Batch Number
+              </button>
+            </div>
+            <div style={{ display: "flex", gap: 8, alignItems: "flex-end", padding: "6px 10px", borderRadius: 10,
+              background: "#fff3c4", border: "2px solid #e8b53a" }}>
+              {needChecker && (
+                <div className="pcp-field" style={{ margin: 0 }}>
+                  <label style={{ color: "#6b4a07", fontWeight: 700 }}>Accounting Checker</label>
+                  <select className="pcp-input" style={{ width: 160, background: "#fffbe6", borderColor: "#e8b53a", color: "#3d2a00", fontWeight: 600 }}
+                    value={checker} onChange={(e) => setChecker(e.target.value)}>
+                    <option value="">— Select your name —</option>
+                    {checkerNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+              )}
+              <button className="pcp-btn pcp-btn-sm" onClick={check} disabled={!typed || (needChecker && !checker)}
+                style={{ background: "#f5c518", borderColor: "#c99a06", color: "#3d2a00", fontWeight: 800 }}
+                title={!typed ? "Assign a Batch Number first" : needChecker && !checker ? "Select the Accounting Checker first" : "Mark as checked by Accounting"}>
+                <ShieldCheck size={12} /> Mark as Checked
+              </button>
+            </div>
+            <div className="pcp-field" style={{ margin: 0, flex: 1, minWidth: 130, maxWidth: 360 }}>
               <label>Remarks (optional)</label>
               <input className="pcp-input" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="e.g. amounts agree with ORs" />
             </div>
-          </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
-            <div className="pcp-field" style={{ margin: 0 }}>
-              <label>Batch Number</label>
-              <input className="pcp-input" style={{ width: 170 }} list={listId} value={batch}
-                onChange={(e) => setBatch(e.target.value)} placeholder={acc.nextBatchNo || "BATCH-001"} />
-              <datalist id={listId}>
-                {(acc.batches || []).map((b) => <option key={b.batchNo} value={b.batchNo}>{`${b.count} transaction(s)`}</option>)}
-              </datalist>
-            </div>
-            {acc.nextBatchNo && (
-              <button className="pcp-btn pcp-btn-sm" onClick={() => setBatch(acc.nextBatchNo)} title="Start a new batch">
-                <Plus size={12} /> New: {acc.nextBatchNo}
-              </button>
-            )}
-            <button className="pcp-btn pcp-btn-sm" onClick={assign} disabled={!typed || typed === rv.batchNo}>
-              Assign Batch Number
-            </button>
-            <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={check} disabled={!typed || (needChecker && !checker)}
-              title={!typed ? "Assign a Batch Number first" : needChecker && !checker ? "Select the Accounting Checker first" : "Mark as checked by Accounting"}>
-              <ShieldCheck size={12} /> Mark as Checked
-            </button>
           </div>
         </div>
       )}
