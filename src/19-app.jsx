@@ -1315,7 +1315,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     const ts = new Date().toISOString();
     const by = (userEmail || "").trim().toLowerCase();
     const byName = userName || role;
-    if ((action === "assign-batch" || action === "check") && !batchNo) {
+    if ((action === "assign-batch" || action === "check" || action === "change-batch") && !batchNo) {
       window.alert("Assign a Batch Number first.");
       return;
     }
@@ -1333,13 +1333,14 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
        in the portal edits or deletes acctLog; clearReview carries it over. */
     const who = checker || byName;
     const logEntry = (cur) => ({
-      action: action === "assign-batch" ? (cur.batchNo && cur.batchNo !== batchNo ? `Batch Number changed from ${cur.batchNo}` : "Batch Number assigned")
+      action: action === "change-batch" ? `Batch Number changed from ${cur.batchNo || "—"} (after the Accounting check)`
+        : action === "assign-batch" ? (cur.batchNo && cur.batchNo !== batchNo ? `Batch Number changed from ${cur.batchNo}` : "Batch Number assigned")
         : action === "check" ? "Checked by Accounting" : "Accounting check undone",
       batchNo: action === "undo" ? (cur.batchNo || "") : batchNo, by: who, account: by, at: ts, remarks,
     });
     const modified = (cur) => ({ acctModifiedBy: who, acctModifiedAt: ts, acctLog: (cur.acctLog || []).concat([logEntry(cur)]) });
     const stamp = (cur, mode) => {
-      if (action === "assign-batch") return { ...cur, ...modified(cur), batchNo };
+      if (action === "assign-batch" || action === "change-batch") return { ...cur, ...modified(cur), batchNo };
       if (action === "check") {
         return {
           ...cur, ...modified(cur), batchNo, acctCheckedBy: by, acctCheckedByName: byName, acctChecker: checker, acctCheckedAt: ts, acctRemarks: remarks, revertedTo: null,
@@ -1355,7 +1356,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
         }]),
       };
     };
-    const verb = action === "assign-batch" ? "Batch Number Assigned" : action === "check" ? "Accounting Checked" : "Accounting Check Undone";
+    const verb = action === "change-batch" ? "Batch Number Changed" : action === "assign-batch" ? "Batch Number Assigned" : action === "check" ? "Accounting Checked" : "Accounting Check Undone";
     /* Undo never strips a check that a final approval relied on: allowed
        before final approval, or on a check that was itself made after the
        fact (retro). */
@@ -1373,7 +1374,10 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
         window.alert("Accounting can review a liquidation once the custodian has approved it (or an old liquidation that is already approved).");
         return;
       }
-      if (action !== "undo" && rv.acctChecked) { window.alert("This liquidation is already checked by Accounting."); return; }
+      if (action !== "undo" && action !== "change-batch" && rv.acctChecked) { window.alert("This liquidation is already checked by Accounting."); return; }
+      /* A checked liquidation's Batch Number may still be changed until final approval (owner's instruction, Nov 2026). */
+      if (action === "change-batch" && (!rv.acctChecked || rv.final || mode !== "flow")) { window.alert("The Batch Number can be changed only on a checked liquidation that is not yet final-approved."); return; }
+      if (action === "change-batch" && normalizeBatchNo(rv.batchNo) === batchNo) { window.alert("That is already its Batch Number."); return; }
       if (action === "undo" && (!rv.acctChecked || !undoAllowed(mode, rv))) {
         window.alert("This Accounting check was relied on by the final approval and cannot be undone.");
         return;
@@ -1394,7 +1398,10 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
         window.alert("Segregation of duties: you cannot check your own reimbursement request.");
         return;
       }
-      if (action !== "undo" && rv.acctChecked) { window.alert("This reimbursement is already checked by Accounting."); return; }
+      if (action !== "undo" && action !== "change-batch" && rv.acctChecked) { window.alert("This reimbursement is already checked by Accounting."); return; }
+      /* A checked reimbursement's Batch Number may still be changed until final approval (owner's instruction, Nov 2026). */
+      if (action === "change-batch" && (!rv.acctChecked || rv.final || mode !== "flow")) { window.alert("The Batch Number can be changed only on a checked reimbursement that is not yet final-approved."); return; }
+      if (action === "change-batch" && normalizeBatchNo(rv.batchNo) === batchNo) { window.alert("That is already its Batch Number."); return; }
       if (action === "undo" && (!rv.acctChecked || !undoAllowed(mode, rv))) {
         window.alert("This Accounting check was relied on by the final approval and cannot be undone.");
         return;

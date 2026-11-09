@@ -369,7 +369,35 @@ function AccountingReviewBox({ kind, id, refNo, review, mode, accounting }) {
           </div>
         </div>
       )}
-      {canUndo && (
+      {/* The assigned Batch Number stays editable after the Accounting check,
+          until final approval (owner's instruction, Nov 2026). Recorded in
+          the Batch Number History with the Accounting Staff's name. */}
+      {canAct && rv.acctChecked && mode === "flow" && !rv.final && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--line)", display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-end", padding: "6px 10px", borderRadius: 10, background: "#fff3c4", border: "2px solid #e8b53a" }}>
+            <div className="pcp-field" style={{ margin: 0 }}>
+              <label style={{ color: "#6b4a07", fontWeight: 700 }}>Edit Batch Number</label>
+              <input className="pcp-input" style={{ width: 150, background: "#fffbe6", borderColor: "#e8b53a", color: "#3d2a00", fontWeight: 600 }}
+                list={listId} value={batch} onChange={(e) => setBatch(e.target.value)} />
+            </div>
+            {acc.nextBatchNo && (
+              <button className="pcp-btn pcp-btn-sm" onClick={() => setBatch(acc.nextBatchNo)}
+                style={{ background: "#f5c518", borderColor: "#c99a06", color: "#3d2a00", fontWeight: 800 }}>
+                <Plus size={12} /> New: {acc.nextBatchNo}
+              </button>
+            )}
+            <button className="pcp-btn pcp-btn-sm" disabled={!typed || typed === rv.batchNo}
+              style={{ background: "#f5c518", borderColor: "#c99a06", color: "#3d2a00", fontWeight: 800 }}
+              onClick={() => {
+                if (!window.confirm(`Change the Batch Number of ${refNo} from ${rv.batchNo || "—"} to ${typed}?\n\nIt stays checked by Accounting; the change is recorded in the Batch Number History.`)) return;
+                acc.onReview(kind, id, "change-batch", { batchNo: typed });
+              }}>
+              Save Batch Number
+            </button>
+          </div>
+        </div>
+      )}
+      {canUndo && !acc.batchOnly && (
         <div style={{ marginTop: 8 }}>
           <button className="pcp-btn pcp-btn-sm" onClick={undo}><RefreshCw size={12} /> Undo Accounting Check</button>
         </div>
@@ -984,6 +1012,17 @@ const MISSING_FIELD_STYLE = { borderColor: "var(--danger)" };
    They are separate components because a hook cannot be called from inside
    the .map that renders the receipt rows; the signed-URL cache means the two
    of them still cost one network call per receipt, not two. */
+/* A document's name as a link that opens the file in a new tab (Accounting
+   correction view). Plain text while the file is still loading. */
+function AttachmentNameLink({ att }) {
+  const src = useFileUrl(att);
+  if (!src) return <>{att.name}</>;
+  return (
+    <a href={src} target="_blank" rel="noopener noreferrer" title={`Open ${att.name}`}
+      style={{ color: "#2054a3", textDecoration: "underline", cursor: "pointer" }}>{att.name}</a>
+  );
+}
+
 function AttachmentLinks({ att }) {
   const src = useFileUrl(att);
   if (!src) {
@@ -1674,9 +1713,17 @@ function LiquidationWorksheet({
                 />
               </label>
             )}
-            {!finalLocked && (
+            {/* Accounting correction: SAVE shows only once something changed
+                (and in the bar at the bottom of the screen). */}
+            {!finalLocked && !correctionMode && (
               <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={handleSave}>
-                {saved ? "Saved" : correctionMode ? "Save Correction" : "Save Liquidation"}
+                {saved ? "Saved" : "Save Liquidation"}
+              </button>
+            )}
+            {correctionMode && !saved && (
+              <button className="pcp-btn pcp-btn-sm" onClick={handleSave}
+                style={{ background: "#f5c518", borderColor: "#c99a06", color: "#3d2a00", fontWeight: 800 }}>
+                <Check size={12} /> SAVE
               </button>
             )}
             {isDraft ? (
@@ -1799,8 +1846,32 @@ function LiquidationWorksheet({
       {liquidation && (review.checked || review.legacy) && (
         <AccountingReviewBox
           kind="liq" id={disbursement.id} refNo={disbursement.voucherNo} review={review}
-          mode={liqAcctMode(liquidation)} accounting={accounting}
+          mode={liqAcctMode(liquidation)}
+          accounting={correctionMode && !saved && accounting && accounting.onReview
+            /* Unsaved corrections: no batch / check until they are saved or discarded. */
+            ? { ...accounting, onReview: () => window.alert("You have unsaved corrections. Click SAVE (or Discard) first.") }
+            : accounting}
         />
+      )}
+      {/* Accounting correction: unsaved changes → SAVE / Discard bar. Nothing
+          is written until SAVE is clicked. */}
+      {correctionMode && !saved && (
+        <div role="region" aria-label="Unsaved corrections"
+          style={{ position: "fixed", left: "50%", bottom: 64, transform: "translateX(-50%)", zIndex: 950,
+            display: "flex", alignItems: "center", gap: 10, padding: "10px 14px", borderRadius: 12,
+            background: "#fff3c4", border: "2px solid #e8b53a", boxShadow: "0 10px 30px rgba(15,18,30,0.25)", color: "#3d2a00" }}>
+          <AlertTriangle size={16} color="#b9790a" />
+          <span style={{ fontSize: 13, fontWeight: 700 }}>You have unsaved corrections.</span>
+          <button className="pcp-btn pcp-btn-sm" onClick={() => {
+            setLines(liquidation ? liquidation.lines.map((l) => ({ ...l })) : [emptyLine()]);
+            setAttachments(liquidation && liquidation.attachments ? liquidation.attachments.map(normalizeAttachment) : []);
+            setSaved(true);
+          }}>Discard</button>
+          <button className="pcp-btn pcp-btn-sm" onClick={handleSave}
+            style={{ background: "#f5c518", borderColor: "#c99a06", color: "#3d2a00", fontWeight: 800 }}>
+            <Check size={12} /> SAVE
+          </button>
+        </div>
       )}
 
       {/* Revert history — each Revert to Requestor, newest first. While it is
@@ -2349,7 +2420,9 @@ function LiquidationWorksheet({
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <FileText size={15} color="#2054a3" style={{ flexShrink: 0 }} />
                   <div style={{ minWidth: 0, flex: 1 }}>
-                    <div style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{a.name}</div>
+                    <div style={{ fontSize: 12, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {correctionMode ? <AttachmentNameLink att={a} /> : a.name}
+                    </div>
                     <div style={{ fontSize: 10.5, color: "var(--text-mut)" }}>
                       {(a.size / 1024).toFixed(0)} KB · {(a.type || "file")} · uploaded {fmtDate(a.uploadedAt)}
                     </div>

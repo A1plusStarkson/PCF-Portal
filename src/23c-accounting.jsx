@@ -194,6 +194,11 @@ function AccountingModuleTab({
   /* Acting is for an Accounting checker on a pending transaction only. */
   const canAct = pendingMode && !!(accounting && accounting.isChecker);
   const readOnlyAccounting = useMemo(() => ({ ...(accounting || {}), isChecker: false, onReview: undefined, onEscalationRevert: undefined }), [accounting]);
+  /* Accounting - Approved: Accounting may still change a checked transaction's Batch
+     Number until final approval — nothing else (no undo, no revert). */
+  const batchOnlyAccounting = useMemo(() => (accounting && accounting.isChecker
+    ? { ...accounting, batchOnly: true, onEscalationRevert: undefined, canRevertToCustodian: false, canRevertToAccounting: false }
+    : readOnlyAccounting), [accounting, readOnlyAccounting]);
 
   const [plant, setPlant] = useState("ALL");
   const [kind, setKind] = useState("all");
@@ -205,9 +210,7 @@ function AccountingModuleTab({
   const [aging, setAging] = useState(ACCT_ALL_AGING);
   const [selected, setSelected] = useState([]);
   const [openRow, setOpenRow] = useState(null);
-  /* The liquidation open in the correction editor (its id), and the
-     reimbursement open in the edit form. */
-  const [correctingId, setCorrectingId] = useState(null);
+  /* The reimbursement open in the edit form. */
   const [editingReimb, setEditingReimb] = useState(null);
   const sort = useTableSort(pendingMode ? "custodianAt" : "acctAt", pendingMode ? "asc" : "desc", "txnNo");
 
@@ -332,20 +335,19 @@ function AccountingModuleTab({
   if (openPca) {
     const live = canAct && openPca.stage === LIQ_STAGE.FOR_ACCOUNTING;
     const canCorrect = live && !!onCorrectLiquidation;
-    /* ---- Correction editor: the liquidation worksheet in correction mode ---- */
-    if (canCorrect && correctingId === openPca.disb.id) {
+    /* ---- Accounting (owner's instruction, Nov 2026): no separate "Edit for
+       Correction" step. A pending liquidation opens straight into the
+       worksheet — expense details and documents open and editable, files
+       clickable — with the Accounting Review box. Nothing is saved until
+       Accounting clicks SAVE, which appears once something is changed. ---- */
+    if (canCorrect) {
       return (
         <div className="pcp-liq-full pcp-approval-page">
-          <TopBar title={title} sub={`Correcting liquidation ${openPca.disb.voucherNo} · ${openPca.disb.employee}`} />
+          <TopBar title={title} sub={`Liquidation ${openPca.disb.voucherNo} · ${openPca.disb.employee}`} />
           <div className="pcp-content">
-            <button className="pcp-btn pcp-btn-sm" style={{ marginBottom: 12 }} onClick={() => setCorrectingId(null)}>
-              <ChevronLeft size={12} /> Back to the transaction
+            <button className="pcp-btn pcp-btn-sm" style={{ marginBottom: 12 }} onClick={() => setOpenRow(null)}>
+              <ChevronLeft size={12} /> Back to {title}
             </button>
-            <div className="pcp-card pcp-card-pad" style={{ marginBottom: 12, background: "#fff3c4", borderColor: "#e8b53a", color: "#3d2a00", fontSize: 12.5 }}>
-              <b>Accounting correction.</b> Edit the expense lines, the documents (add, remove, document type, receipt no., amount),
-              then click <b>Save Correction</b> and give the reason. The custodian approval is kept; every change is recorded
-              with your name, the date and time, and the reason (Batch Number History, Audit Log).
-            </div>
             <LiquidationWorksheet
               key={"corr-" + openPca.disb.id}
               disbursement={openPca.disb}
@@ -353,7 +355,7 @@ function AccountingModuleTab({
               onSave={onCorrectLiquidation}
               liquidations={liquidations} disbursements={disbursements}
               currentUser={currentUser}
-              accounting={readOnlyAccounting}
+              accounting={accounting}
               canApproveReceipts={false} canDelete={false} canRejectLiquidation={false} canFinalApprove={false} canRevert={false}
               correctionMode
             />
@@ -365,22 +367,13 @@ function AccountingModuleTab({
       <div className="pcp-liq-full pcp-approval-page">
         <TopBar title={title} sub={`Liquidation ${openPca.disb.voucherNo} · ${openPca.disb.employee}${live ? "" : " · view only"}`} />
         <div className="pcp-content">
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
-            <button className="pcp-btn pcp-btn-sm" onClick={() => { setOpenRow(null); setCorrectingId(null); }}>
-              <ChevronLeft size={12} /> Back to {title}
-            </button>
-            {canCorrect && (
-              <button className="pcp-btn pcp-btn-sm" onClick={() => setCorrectingId(openPca.disb.id)}
-                style={{ background: "#f5c518", borderColor: "#c99a06", color: "#3d2a00", fontWeight: 800 }}
-                title="Correct the expense details, documents and amounts — the custodian approval is kept and every change is recorded">
-                <Edit3 size={12} /> Edit for Correction
-              </button>
-            )}
-          </div>
+          <button className="pcp-btn pcp-btn-sm" style={{ marginBottom: 12 }} onClick={() => setOpenRow(null)}>
+            <ChevronLeft size={12} /> Back to {title}
+          </button>
           <PcaApprovalPanel
             key={openPca.disb.id} row={openPca}
             isChecker={false} isFinalApprover={false} currentUser={currentUser}
-            accounting={live ? accounting : readOnlyAccounting}
+            accounting={live ? accounting : batchOnlyAccounting}
             onDecideReceipt={live ? onDecideReceipt : noop} onRejectLiquidation={noop} onReopenLiquidation={noop}
             onCheckLiquidation={live ? onCheckLiquidation : noop} onFinalApprove={noop}
             canRevert={false} onRevertLiquidation={undefined}
@@ -579,7 +572,7 @@ function AccountingModuleTab({
           reimb={openReimb}
           currentUser={currentUser}
           isChecker={false} isFinalApprover={false} canFinance={false} allowPayment={false} canRevert={false}
-          accounting={reimbLive ? accounting : readOnlyAccounting}
+          accounting={reimbLive ? accounting : batchOnlyAccounting}
           onAction={reimbLive ? (id, action, opts) => { onReimbursementAction(id, action, opts); setOpenRow(null); } : noop}
           onEdit={reimbLive && onUpdateReimbursement ? (r) => { setOpenRow(null); setEditingReimb(r); } : undefined}
           onClose={() => setOpenRow(null)}
