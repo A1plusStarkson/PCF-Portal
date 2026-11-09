@@ -14,6 +14,7 @@
   window.PCP_LOCAL_USERS = [
     { user: "a1plusadmin@a1plus.com", password: TEST_PASSWORD, role: "SuperAdmin", name: "Grace Gan" },
     { user: "accounting@a1plus.com", password: TEST_PASSWORD, role: "Accounting", name: "Accounting Department" },
+    { user: "finance@a1plus.com", password: TEST_PASSWORD, role: "Finance", name: "Finance Department" },
   ];
 
   /* ---- Second lock: nothing in this tab may reach the live database ---- */
@@ -184,7 +185,7 @@
     var help = document.createElement("div");
     help.id = "pcp-test-logins";
     help.style.cssText = "position:fixed;left:22px;top:22px;z-index:99999;padding:12px 16px;border-radius:10px;background:#fff176;color:#3b2a00;border:2px solid #e0a800;font:13px/1.5 Arial,sans-serif;display:none";
-    help.innerHTML = "<b>Test logins</b> (password for both: <b>" + TEST_PASSWORD + "</b>)<br>Grace Gan: a1plusadmin@a1plus.com<br>Accounting: accounting@a1plus.com";
+    help.innerHTML = "<b>Test logins</b> (password for all: <b>" + TEST_PASSWORD + "</b>)<br>Grace Gan: a1plusadmin@a1plus.com<br>Accounting: accounting@a1plus.com<br>Finance: finance@a1plus.com";
     document.body.appendChild(help);
     setInterval(function () { help.style.display = document.querySelector("input[type=password]") ? "block" : "none"; }, 400);
   });

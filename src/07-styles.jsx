@@ -1799,6 +1799,13 @@ const APPROVAL_MODULES = [
   { key: "approved", label: "Approved Module", icon: CircleCheck },
 ];
 
+/* Accounting's step of the approval chain (23c-accounting.jsx):
+   ACCOUNTING_MODULE_EMAILS — Accounting and the System Superuser. */
+const ACCOUNTING_MODULES = [
+  { key: "acct-approval", label: "Accounting - Approval", icon: Landmark },
+  { key: "acct-approved", label: "Accounting - Approved", icon: ShieldCheck },
+];
+
 /* Consolidated monitoring modules that span every plant in one shared view.
    The Liquidation Aging report lives here so it always covers ALL plants. */
 const MONITORING_MODULES = [

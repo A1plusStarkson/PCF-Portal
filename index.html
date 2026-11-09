@@ -243,7 +243,7 @@
      source. (If you ever clear the Supabase keys, add accounts here to restore
      an offline username/password login.) */
   window.PCP_LOCAL_USERS = [];
-  if (window.PCP_TEST_MODE) document.write("<scr" + "ipt src=\"test-mode.js?v=20261103b\"></scr" + "ipt>");
+  if (window.PCP_TEST_MODE) document.write("<scr" + "ipt src=\"test-mode.js?v=20261109c\"></scr" + "ipt>");
 
   /* Storage adapter: Supabase (shared) when configured, else localStorage.
      window.storage is defined synchronously so the app can call it
@@ -1046,7 +1046,7 @@
      browsers reload the fragments. The order of PCP_SRC_FILES matters and
      must not be rearranged (later files rely on earlier definitions). -->
 <script>
-  window.PCP_SRC_VERSION = "20261105a";
+  window.PCP_SRC_VERSION = "20261109c";
   window.PCP_SRC_FILES = [
     "src/01-imports.jsx",
     "src/02-helpers.jsx",
@@ -1070,6 +1070,7 @@
     "src/22-reimbursement.jsx",
     "src/23-approvals.jsx",
     "src/23b-approved.jsx",
+    "src/23c-accounting.jsx",
     "src/24-home.jsx",
     "src/25-liq-alarms.jsx",
     "src/19-app.jsx",

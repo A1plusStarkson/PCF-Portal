@@ -282,6 +282,23 @@ function AccountingReviewBox({ kind, id, refNo, review, mode, accounting }) {
               ? "Old transaction, already approved. Review its details and documents, then assign a Batch Number and mark it checked — only the Accounting fields are added."
               : "Review the transaction details and every supporting document, verify the amounts, then assign a Batch Number and mark it checked."}
           </div>
+          {/* Checker and remarks first, so Mark as Checked sits right beside
+              the Batch Number buttons (owner's instruction, Nov 2026). */}
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 8 }}>
+            {needChecker && (
+              <div className="pcp-field" style={{ margin: 0 }}>
+                <label>Accounting Checker</label>
+                <select className="pcp-input" style={{ width: 170 }} value={checker} onChange={(e) => setChecker(e.target.value)}>
+                  <option value="">— Select your name —</option>
+                  {checkerNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                </select>
+              </div>
+            )}
+            <div className="pcp-field" style={{ margin: 0, flex: 1, minWidth: 180, maxWidth: 420 }}>
+              <label>Remarks (optional)</label>
+              <input className="pcp-input" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="e.g. amounts agree with ORs" />
+            </div>
+          </div>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
             <div className="pcp-field" style={{ margin: 0 }}>
               <label>Batch Number</label>
@@ -299,19 +316,6 @@ function AccountingReviewBox({ kind, id, refNo, review, mode, accounting }) {
             <button className="pcp-btn pcp-btn-sm" onClick={assign} disabled={!typed || typed === rv.batchNo}>
               Assign Batch Number
             </button>
-            <div className="pcp-field" style={{ margin: 0, flex: 1, minWidth: 180 }}>
-              <label>Remarks (optional)</label>
-              <input className="pcp-input" value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="e.g. amounts agree with ORs" />
-            </div>
-            {needChecker && (
-              <div className="pcp-field" style={{ margin: 0 }}>
-                <label>Accounting Checker</label>
-                <select className="pcp-input" style={{ width: 170 }} value={checker} onChange={(e) => setChecker(e.target.value)}>
-                  <option value="">— Select your name —</option>
-                  {checkerNames.map((n) => <option key={n} value={n}>{n}</option>)}
-                </select>
-              </div>
-            )}
             <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={check} disabled={!typed || (needChecker && !checker)}
               title={!typed ? "Assign a Batch Number first" : needChecker && !checker ? "Select the Accounting Checker first" : "Mark as checked by Accounting"}>
               <ShieldCheck size={12} /> Mark as Checked

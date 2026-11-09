@@ -470,6 +470,8 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   const approvalViewOnly = canViewFinalQueue && !isApprovalModuleMember;
   /* APPROVED MODULE: view-only, by email (APPROVED_MODULE_EMAILS). */
   const canUseApprovedModule = emailIn(APPROVED_MODULE_EMAILS) && role === (userRole || "Accounting");
+  /* Accounting - Approval / Accounting - Approved (23c-accounting.jsx). */
+  const canUseAccountingModules = emailIn(ACCOUNTING_MODULE_EMAILS) && role === (userRole || "Accounting");
   /* Accounts held to a fixed module list (RESTRICTED_MODULE_ACCESS) whatever
      their role or a role preview would grant. */
   const restrictedModules = RESTRICTED_MODULE_ACCESS[(userEmail || "").trim().toLowerCase()] || null;
@@ -2665,6 +2667,10 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     if (apprMods.length) {
       groups.push({ key: "approvals", label: "Approvals", items: apprMods.map((m) => ({ tabKey: m.key, label: m.label, icon: m.icon })) });
     }
+    const acctMods = ACCOUNTING_MODULES.filter((m) => canUseAccountingModules && (!restrictedModules || restrictedModules.includes(m.key)));
+    if (acctMods.length) {
+      groups.push({ key: "accounting", label: "Accounting", items: acctMods.map((m) => ({ tabKey: m.key, label: m.label, icon: m.icon })) });
+    }
     const monMods = MONITORING_MODULES.filter((m) => roleModuleKeys.includes(m.key));
     if (monMods.length) {
       groups.push({ key: "monitoring", label: "Monitoring", items: monMods.map((m) => ({ tabKey: m.key, label: m.label, icon: m.icon })) });
@@ -2675,7 +2681,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       groups.push({ key: "admin", label: "Administration", items: globalMods.map((m) => ({ tabKey: m.key, label: m.label, icon: m.icon })) });
     }
     return groups;
-  }, [roleModuleKeys, orderedPlants, canUseApprovalModule, canUseApprovedModule, restrictedModules, canAccessPcfDocuments]);
+  }, [roleModuleKeys, orderedPlants, canUseApprovalModule, canUseApprovedModule, canUseAccountingModules, restrictedModules, canAccessPcfDocuments]);
 
   /* Flat set of every valid tab key for this user — used to block navigation to
      unauthorized pages, including manual URL/state tampering. */
@@ -3312,6 +3318,23 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
             disbursements={visibleDisbursements} liquidations={visibleLiquidations}
             reimbursements={visibleReimbursements} replenishments={visibleReplenishments}
             plantOptions={plantOptions} currentUser={userName || role}
+          />
+        )}
+        {(activeModule === "acct-approval" || activeModule === "acct-approved") && canUseAccountingModules && allowedTabs.has(activeModule) && (
+          <AccountingModuleTab
+            key={tab}
+            mode={activeModule === "acct-approval" ? "pending" : "approved"}
+            disbursements={visibleDisbursements} liquidations={visibleLiquidations}
+            reimbursements={visibleReimbursements} replenishments={visibleReplenishments}
+            plantOptions={plantOptions} currentUser={userName || role}
+            accounting={accountingProps}
+            onDecideReceipt={decideReceipt}
+            onRejectLiquidation={rejectLiquidation}
+            onReopenLiquidation={reopenLiquidation}
+            onCheckLiquidation={checkLiquidation}
+            onFinalApprove={finalApproveLiquidation}
+            onReimbursementAction={reimbursementAction}
+            onOpenOther={(k) => setTab(k)}
           />
         )}
         {activeModule === "aging" && (
