@@ -186,6 +186,8 @@ function AccountingModuleTab({
   mode, disbursements, liquidations, reimbursements, replenishments, plantOptions, currentUser,
   accounting, onDecideReceipt, onRejectLiquidation, onReopenLiquidation, onCheckLiquidation, onFinalApprove,
   onReimbursementAction, onOpenOther,
+  /* Accounting corrections (owner's instruction, Nov 2026). */
+  onCorrectLiquidation, onUpdateReimbursement, reimbPlantOptions, canDeleteReimbDocs, canAuthorizeReimbVariance,
 }) {
   const pendingMode = mode === "pending";
   const title = pendingMode ? "Accounting - Approval" : "Accounting - Approved";
@@ -203,6 +205,10 @@ function AccountingModuleTab({
   const [aging, setAging] = useState(ACCT_ALL_AGING);
   const [selected, setSelected] = useState([]);
   const [openRow, setOpenRow] = useState(null);
+  /* The liquidation open in the correction editor (its id), and the
+     reimbursement open in the edit form. */
+  const [correctingId, setCorrectingId] = useState(null);
+  const [editingReimb, setEditingReimb] = useState(null);
   const sort = useTableSort(pendingMode ? "custodianAt" : "acctAt", pendingMode ? "asc" : "desc", "txnNo");
 
   const everyRow = useMemo(
@@ -325,13 +331,52 @@ function AccountingModuleTab({
     ? pcaApprovalQueue(disbursements, liquidations, replenishments).find((x) => x.disb.id === openRow.id) : null;
   if (openPca) {
     const live = canAct && openPca.stage === LIQ_STAGE.FOR_ACCOUNTING;
+    const canCorrect = live && !!onCorrectLiquidation;
+    /* ---- Correction editor: the liquidation worksheet in correction mode ---- */
+    if (canCorrect && correctingId === openPca.disb.id) {
+      return (
+        <div className="pcp-liq-full pcp-approval-page">
+          <TopBar title={title} sub={`Correcting liquidation ${openPca.disb.voucherNo} · ${openPca.disb.employee}`} />
+          <div className="pcp-content">
+            <button className="pcp-btn pcp-btn-sm" style={{ marginBottom: 12 }} onClick={() => setCorrectingId(null)}>
+              <ChevronLeft size={12} /> Back to the transaction
+            </button>
+            <div className="pcp-card pcp-card-pad" style={{ marginBottom: 12, background: "#fff3c4", borderColor: "#e8b53a", color: "#3d2a00", fontSize: 12.5 }}>
+              <b>Accounting correction.</b> Edit the expense lines, the documents (add, remove, document type, receipt no., amount),
+              then click <b>Save Correction</b> and give the reason. The custodian approval is kept; every change is recorded
+              with your name, the date and time, and the reason (Batch Number History, Audit Log).
+            </div>
+            <LiquidationWorksheet
+              key={"corr-" + openPca.disb.id}
+              disbursement={openPca.disb}
+              liquidation={openPca.liq}
+              onSave={onCorrectLiquidation}
+              liquidations={liquidations} disbursements={disbursements}
+              currentUser={currentUser}
+              accounting={readOnlyAccounting}
+              canApproveReceipts={false} canDelete={false} canRejectLiquidation={false} canFinalApprove={false} canRevert={false}
+              correctionMode
+            />
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="pcp-liq-full pcp-approval-page">
         <TopBar title={title} sub={`Liquidation ${openPca.disb.voucherNo} · ${openPca.disb.employee}${live ? "" : " · view only"}`} />
         <div className="pcp-content">
-          <button className="pcp-btn pcp-btn-sm" style={{ marginBottom: 12 }} onClick={() => setOpenRow(null)}>
-            <ChevronLeft size={12} /> Back to {title}
-          </button>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 12 }}>
+            <button className="pcp-btn pcp-btn-sm" onClick={() => { setOpenRow(null); setCorrectingId(null); }}>
+              <ChevronLeft size={12} /> Back to {title}
+            </button>
+            {canCorrect && (
+              <button className="pcp-btn pcp-btn-sm" onClick={() => setCorrectingId(openPca.disb.id)}
+                style={{ background: "#f5c518", borderColor: "#c99a06", color: "#3d2a00", fontWeight: 800 }}
+                title="Correct the expense details, documents and amounts — the custodian approval is kept and every change is recorded">
+                <Edit3 size={12} /> Edit for Correction
+              </button>
+            )}
+          </div>
           <PcaApprovalPanel
             key={openPca.disb.id} row={openPca}
             isChecker={false} isFinalApprover={false} currentUser={currentUser}
@@ -536,7 +581,23 @@ function AccountingModuleTab({
           isChecker={false} isFinalApprover={false} canFinance={false} allowPayment={false} canRevert={false}
           accounting={reimbLive ? accounting : readOnlyAccounting}
           onAction={reimbLive ? (id, action, opts) => { onReimbursementAction(id, action, opts); setOpenRow(null); } : noop}
+          onEdit={reimbLive && onUpdateReimbursement ? (r) => { setOpenRow(null); setEditingReimb(r); } : undefined}
           onClose={() => setOpenRow(null)}
+        />
+      )}
+      {/* Accounting correction of a reimbursement: the usual edit form; saving
+          keeps its status and approvals and is recorded (updateReimbursement,
+          "override"), with Accounting's Last Modified and log. */}
+      {editingReimb && (
+        <ReimbursementEditModal
+          reimb={(reimbursements || []).find((x) => x.id === editingReimb.id) || editingReimb}
+          plantOptions={reimbPlantOptions}
+          allReimbursements={reimbursements || []}
+          currentUser={currentUser}
+          canDeleteDocs={!!canDeleteReimbDocs}
+          canAuthorizeVariance={!!canAuthorizeReimbVariance}
+          onUpdate={onUpdateReimbursement}
+          onClose={() => setEditingReimb(null)}
         />
       )}
     </div>

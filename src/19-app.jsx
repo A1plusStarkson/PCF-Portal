@@ -1098,6 +1098,98 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     ));
   }, [logAudit, disbursements, liquidations, userName, role]);
 
+  /* ---- Accounting correction of a liquidation (Accounting - Approval) ----
+     Owner's instruction, Nov 2026: Accounting may correct the expense lines,
+     the documents and their details/amounts of a custodian-approved
+     liquidation awaiting the Accounting check. The custodian approval and
+     every receipt decision are KEPT (owner's choice) — unlike saveLiquidation,
+     which voids them — and every change is recorded instead: amount history
+     per document, removed documents kept on the record, the earlier expense
+     lines kept, the permanent Accounting log, Last Modified By/At and the
+     audit trail, each with the reason and the Accounting Staff's name. A
+     document Accounting adds counts as approved by Accounting. Re-checked
+     here, whatever the UI showed. */
+  const accountingCorrectLiquidation = useCallback((disbursementId, lines, attachments, opts) => {
+    const o = opts || {};
+    const reason = String(o.reason || "").trim();
+    const d = disbursements.find((x) => x.id === disbursementId);
+    const liq = liquidations.find((l) => l.disbursementId === disbursementId);
+    const rv = liqReview(liq);
+    if (!isAccountingChecker) { window.alert("Only Accounting can make an Accounting correction."); return false; }
+    if (accountingCheckerNamesFor(userEmail).length && !activeAccountingStaff) {
+      window.alert("Select the Accounting Staff (your name) in the left sidebar first.");
+      return false;
+    }
+    if (!d || !liq || !inScope(d.branchCode) || liqApprovalStage(d, liq) !== LIQ_STAGE.FOR_ACCOUNTING || rv.acctChecked || rv.final) {
+      window.alert("Accounting can correct a liquidation only while it waits for the Accounting check. Nothing was changed.");
+      return false;
+    }
+    if (!reason) { window.alert("A reason for the correction is required. Nothing was changed."); return false; }
+    const ts = new Date().toISOString().slice(0, 19);
+    const who = userName || role;
+    const prevById = {};
+    (liq.attachments || []).forEach((a) => { prevById[a.id] = a; });
+    const notes = [];
+    const amountChanges = [];
+    const atts = (attachments || []).map((a) => {
+      const prev = prevById[a.id];
+      const amount = round2(a.receiptAmount);
+      if (!prev) {
+        notes.push(`document added: ${a.name}${amount ? ` (${peso(amount)})` : ""}`);
+        return {
+          ...a, receiptAmount: amount, approvalStatus: "Approved",
+          approvalHistory: [{ approver: who, ts, status: "Approved", remarks: `Added by Accounting (correction) — ${reason}` }],
+          amountHistory: amount ? [{ prevAmount: null, newAmount: amount, user: who, ts, reason: `Accounting correction — ${reason}` }] : [],
+        };
+      }
+      const prevAmount = round2(prev.receiptAmount);
+      const fieldNotes = [];
+      if ((prev.docType || DEFAULT_DOC_TYPE) !== (a.docType || DEFAULT_DOC_TYPE)) fieldNotes.push(`type ${prev.docType || DEFAULT_DOC_TYPE} → ${a.docType || DEFAULT_DOC_TYPE}`);
+      if ((prev.receiptNo || "") !== (a.receiptNo || "")) fieldNotes.push(`receipt no. ${prev.receiptNo || "—"} → ${a.receiptNo || "—"}`);
+      if (prevAmount !== amount) { fieldNotes.push(`amount ${peso(prevAmount)} → ${peso(amount)}`); amountChanges.push({ name: a.name, prevAmount, amount }); }
+      if (fieldNotes.length) notes.push(`${a.name}: ${fieldNotes.join(", ")}`);
+      /* Decisions stay as stored; an amount change is noted on the document. */
+      return {
+        ...prev, ...a, receiptAmount: amount,
+        approvalStatus: prev.approvalStatus || "Pending",
+        approvalHistory: (prev.approvalHistory || []).concat(prevAmount !== amount
+          ? [{ approver: who, ts, status: prev.approvalStatus || "Pending", remarks: `Amount corrected by Accounting ${peso(prevAmount)} → ${peso(amount)} — ${reason}` }] : []),
+        amountHistory: (prev.amountHistory || []).concat(prevAmount !== amount
+          ? [{ prevAmount, newAmount: amount, user: who, ts, reason: `Accounting correction — ${reason}` }] : []),
+      };
+    });
+    const keptIds = new Set(atts.map((a) => a.id));
+    const removed = (liq.attachments || []).filter((a) => !keptIds.has(a.id));
+    removed.forEach((a) => notes.push(`document removed: ${a.name}`));
+    const sumLines = (ls) => round2((ls || []).reduce((s, l) => s + (Number(l.amount) || 0), 0));
+    const lineKey = (ls) => JSON.stringify((ls || []).map((l) => [l.date, l.expense, l.category, l.department, l.taxCategory, round2(l.amount)]));
+    if (lineKey(liq.lines) !== lineKey(lines)) {
+      notes.push(`expense lines: ${(liq.lines || []).length} line(s) ${peso(sumLines(liq.lines))} → ${lines.length} line(s) ${peso(sumLines(lines))}`);
+    }
+    if (!notes.length) { window.alert("Nothing was changed."); return false; }
+    const summary = notes.join("; ");
+    const iso = new Date().toISOString();
+    setLiquidations((ls) => ls.map((l) => {
+      if (l.disbursementId !== disbursementId) return l;
+      const cur = l.review || {};
+      return {
+        ...l, lines, attachments: atts,
+        /* Removed documents are kept on the record, never lost. */
+        removedAttachments: (l.removedAttachments || []).concat(removed.map((a) => ({ ...a, removedBy: who, removedAt: ts, removedReason: `Accounting correction — ${reason}` }))),
+        /* The expense lines as they were before, for the record. */
+        lineHistory: (l.lineHistory || []).concat([{ by: who, at: ts, reason: `Accounting correction — ${reason}`, lines: l.lines || [] }]),
+        review: {
+          ...cur, acctModifiedBy: who, acctModifiedAt: iso,
+          acctLog: (cur.acctLog || []).concat([{ action: `Corrected by Accounting — ${summary}`, batchNo: cur.batchNo || "",
+            by: who, account: (userEmail || "").trim().toLowerCase(), at: iso, remarks: reason }]),
+        },
+      };
+    }));
+    logAudit("Liquidation Corrected by Accounting", d.voucherNo, `${summary} · Reason: ${reason} · custodian approval kept`);
+    amountChanges.forEach((c) => logAudit("Receipt Amount Changed", d.voucherNo, `${c.name}: ${peso(c.prevAmount)} → ${peso(c.amount)} · Accounting correction — ${reason}`));
+    return true;
+  }, [isAccountingChecker, activeAccountingStaff, userEmail, userName, role, disbursements, liquidations, inScope, logAudit]); // eslint-disable-line
+
   /* Submit the liquidation for custodian review. Receipt amounts become
      read-only afterwards for everyone except a checker. Submitting (or
      resubmitting after a rejection) always starts the two-level review afresh
@@ -2313,8 +2405,18 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     if (mode === "override") {
       const r0 = reimbursements.find((x) => x.id === id);
       if (!canEditReimbOverride || !r0 || !inScope(r0.branchCode)) return;
+      /* An Accounting correction (Accounting - Approval) also counts as
+         Accounting's Last Modified and goes into the permanent Accounting log. */
+      const acctStamp = (rv) => {
+        if (!isAccountingChecker) return rv;
+        const cur = rv || {};
+        const who = userName || role;
+        return { ...cur, acctModifiedBy: who, acctModifiedAt: new Date().toISOString(),
+          acctLog: (cur.acctLog || []).concat([{ action: "Corrected by Accounting (details / attachments)" + (docNote ? ` — ${docNote}` : ""),
+            batchNo: cur.batchNo || "", by: who, account: (userEmail || "").trim().toLowerCase(), at: new Date().toISOString(), remarks: "" }]) };
+      };
       setReimbursements((rs) => rs.map((r) => (r.id !== id ? r : {
-        ...r, ...base, status: r.status, review: r.review,
+        ...r, ...base, status: r.status, review: acctStamp(r.review),
         submittedBy: r.submittedBy, submittedAt: r.submittedAt,
         history: [...(r.history || []), { ts, user: userName || role, action: "Edited for checking / verification", prevStatus: r.status, newStatus: r.status, comments: docNote }],
       })));
@@ -2362,7 +2464,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     const r = reimbursements.find((x) => x.id === id);
     logAudit(mode === "submit" ? "Reimbursement Submitted" : "Reimbursement Edited", r ? r.reimbNo : id, withDocNote(`${form.employee} · ${peso(reimbTotal(base))}`));
     if (r) moveReimbPlant(r, base.branchCode);
-  }, [buildReimbFromForm, logAudit, reimbursements, userName, role, canEditReimbOverride, canEditReimbBeforeCustodian, canDeleteReimbDocs, inScope]); // eslint-disable-line
+  }, [buildReimbFromForm, logAudit, reimbursements, userName, userEmail, role, isAccountingChecker, canEditReimbOverride, canEditReimbBeforeCustodian, canDeleteReimbDocs, inScope]); // eslint-disable-line
 
   /* Workflow transition. The two approval levels mirror the liquidation's
      (see 11-liquidation.jsx): a custodian-level checker (isLiquidationChecker)
@@ -3411,6 +3513,11 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
             onFinalApprove={finalApproveLiquidation}
             onReimbursementAction={reimbursementAction}
             onOpenOther={(k) => setTab(k)}
+            onCorrectLiquidation={isAccountingChecker ? accountingCorrectLiquidation : undefined}
+            onUpdateReimbursement={isAccountingChecker && canEditReimbOverride ? updateReimbursement : undefined}
+            reimbPlantOptions={branchOptions.filter((p) => inScope(p.code))}
+            canDeleteReimbDocs={canDeleteReimbDocs}
+            canAuthorizeReimbVariance={canAuthorizeReimbVariance}
           />
         )}
         {activeModule === "aging" && (

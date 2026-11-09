@@ -1146,6 +1146,10 @@ function LiquidationWorksheet({
   canRejectLiquidation, onRejectLiquidation,
   onCheckLiquidation, canFinalApprove, onFinalApprove, currentUser, onDirtyChange, accounting,
   canRevert, onRevertLiquidation, showHeaderUpload, canRequestorEdit, onRequestorEdit,
+  /* Accounting correction (Accounting - Approval): lines, documents and their
+     details stay editable after submission; Save asks for a reason and goes to
+     onSave = accountingCorrectLiquidation, which keeps the approvals. */
+  correctionMode,
 }) {
   const showModuleDocTotals = !!(useContext(AppUI) || {}).showModuleDocTotals; // TOTAL boxes — MODULE_DOC_TOTAL_EMAILS
   const txnDateLabels = !!(useContext(AppUI) || {}).txnDateLabels; // "Transaction / OR Date" — TXN_DATE_EMAILS
@@ -1352,7 +1356,7 @@ function LiquidationWorksheet({
   /* After submission the amounts are read-only; only a checker may still
      correct them (with a reason, in the audit trail), and never after final
      approval. */
-  const amountsLocked = finalLocked || (!isDraft && !canApproveReceipts);
+  const amountsLocked = finalLocked || (!isDraft && !canApproveReceipts && !correctionMode);
   /* Receipts are decided by the checker AFTER the requestor submits, while the
      amounts are locked — so an approved amount can never be edited afterwards
      by the person who claimed it. */
@@ -1494,6 +1498,24 @@ function LiquidationWorksheet({
       return;
     }
     let reason = "";
+    /* Accounting correction: always a reason; saved only if the handler
+       accepts it (it re-checks the stage and the staff). */
+    if (correctionMode) {
+      const answer = window.prompt(
+        `Reason for this Accounting correction on ${disbursement.voucherNo} (required):\n\n`
+        + "The custodian approval is kept. Every change is recorded with your name, the date and time, and this reason.", ""
+      );
+      if (answer == null) return;
+      if (!answer.trim()) { window.alert("A reason is required. Nothing was saved."); return; }
+      const cleanAtts = attachments.map((a) => ({
+        ...a,
+        docType: a.docType || DEFAULT_DOC_TYPE,
+        receiptNo: (a.receiptNo || "").trim(),
+        receiptAmount: round2(a.receiptAmount),
+      }));
+      if (onSave(disbursement.id, validLines.map((l) => ({ ...l, amount: Number(l.amount) })), cleanAtts, { reason: answer.trim() }) === true) setSaved(true);
+      return;
+    }
     /* A correction made after submission must carry a reason for the audit
        trail. Draft edits are free-form and logged without one. */
     if (!isDraft && changedAmounts.length) {
@@ -1654,7 +1676,7 @@ function LiquidationWorksheet({
             )}
             {!finalLocked && (
               <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={handleSave}>
-                {saved ? "Saved" : "Save Liquidation"}
+                {saved ? "Saved" : correctionMode ? "Save Correction" : "Save Liquidation"}
               </button>
             )}
             {isDraft ? (
@@ -2402,7 +2424,12 @@ function LiquidationWorksheet({
                     No amount needed for a general supporting document. Enter one only if this document shows a peso amount that forms part of the liquidation.
                   </div>
                 )}
-                {status !== "Approved" && status !== "Rejected" && Number(a.receiptAmount) > 0 && (
+                {correctionMode && !isSaved && (
+                  <div style={{ fontSize: 10.5, color: "#6b4a07", marginTop: 5 }}>
+                    Added by Accounting — counted as approved once you click Save Correction.
+                  </div>
+                )}
+                {!(correctionMode && !isSaved) && status !== "Approved" && status !== "Rejected" && Number(a.receiptAmount) > 0 && (
                   <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 5 }}>
                     Excluded from the total until the custodian approves this document.
                   </div>
