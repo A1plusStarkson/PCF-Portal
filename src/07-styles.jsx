@@ -1930,7 +1930,7 @@ function SoundToggle() {
   );
 }
 
-function Sidebar({ tab, setTab, role, roleLabel, navGroups, userEmail, userName, financeCheckerNames, financeChecker, onFinanceChecker, onSignOut, onChangePassword, onManageMfa }) {
+function Sidebar({ tab, setTab, role, roleLabel, navGroups, userEmail, userName, financeCheckerNames, financeChecker, onFinanceChecker, checkerLabel, onSignOut, onChangePassword, onManageMfa }) {
   const groups = navGroups || [];
   return (
     <aside className="pcp-sidebar">
@@ -1969,7 +1969,7 @@ function Sidebar({ tab, setTab, role, roleLabel, navGroups, userEmail, userName,
                 (FINANCE_CHECKER_NAMES); stamped on every transaction they approve. */}
             {financeCheckerNames && financeCheckerNames.length > 0 && onFinanceChecker && (
               <label style={{ display: "block", marginTop: 6 }}>
-                <span style={{ display: "block", fontSize: 10.5, color: "var(--sb-mut, #9fbcab)", marginBottom: 2 }}>Finance Checker:</span>
+                <span style={{ display: "block", fontSize: 10.5, color: "var(--sb-mut, #9fbcab)", marginBottom: 2 }}>{checkerLabel || "Finance Checker:"}</span>
                 <select value={financeChecker || ""} onChange={(e) => onFinanceChecker(e.target.value)}
                   title="Select your name before checking transactions"
                   style={{ width: "100%", fontSize: 12, padding: "4px 6px", borderRadius: 6,

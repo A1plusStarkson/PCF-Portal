@@ -2,6 +2,15 @@
 
 const AUDIT_ACTIONS = ["Signed In", "Signed Out", "Request Created", "Edited", "Request No. Changed", "Approved", "Rejected", "Returned to Custodian", "Released", "Exported", "Liquidated", "Liquidation Submitted", "Receipt Approved", "Receipt Rejected", "Liquidation Custodian Approved", "Liquidation Final Approved", "Liquidation Rejected", "Liquidation Approval Voided", "Replenished", "Deleted", "Password Changed", "Audit Entry Deleted"];
 
+/* Audit stamps are saved in UTC without a zone mark (toISOString().slice(0, 19)).
+   They were shown as if local, 8 hours behind Philippine time; they are now
+   read as UTC and shown in Philippine time. The saved values are unchanged. */
+function auditDayPH(ts) {
+  const s = String(ts || "");
+  const d = new Date(/(Z|[+-]dd:?dd)$/.test(s) ? s : s + "Z");
+  return isNaN(d) ? s.slice(0, 10) : d.toLocaleDateString("en-CA", { timeZone: "Asia/Manila" });
+}
+
 const AUDIT_SORT_FIELDS = {
   ts: (a) => a.ts,
   user: (a) => a.user,
@@ -11,7 +20,7 @@ const AUDIT_SORT_FIELDS = {
 };
 /* Column header filters: the text each cell shows (Date by day, not to the second). */
 const AUDIT_COL_TEXT = {
-  ts: (a) => (a.ts ? fmtDate(String(a.ts).slice(0, 10)) : "—"),
+  ts: (a) => (a.ts ? fmtDate(auditDayPH(a.ts)) : "—"),
   user: (a) => cfText(a.user),
   action: (a) => cfText(a.action),
   entity: (a) => cfText(a.entity),
@@ -38,12 +47,8 @@ function AuditTrailTab({ auditLog, canDelete, onDelete }) {
   const cf = useTableColumnFilters(pool, AUDIT_COL_TEXT);
   const filtered = sort.sortRows(cf.rows, AUDIT_SORT_FIELDS);
 
-  const fmtTs = (ts) => {
-    if (!ts) return "—";
-    const d = new Date(ts);
-    if (isNaN(d.getTime())) return ts;
-    return d.toLocaleString("en-PH", { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
-  };
+  /* Saved in UTC (toISOString, no zone mark); shown in Philippine time. */
+  const fmtTs = (ts) => (ts ? fmtApprovalStamp(ts) || ts : "—");
 
   const exportExcel = useCallback(() => {
     const out = filtered.map((a) => ({ "Date & Time": fmtTs(a.ts), "User": a.user, "Action": a.action, "Reference": a.entity, "Remarks": a.remarks }));

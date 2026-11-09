@@ -1333,6 +1333,10 @@ function acctStamps(r) {
     batchNo: String(x.batchNo || "").trim(),
     /* Checked after the transaction was already approved (see liqAcctMode). */
     acctRetro: !!x.acctRetro,
+    /* Last Accounting change (who / when) and the permanent Accounting log —
+       every batch assignment, check, undo and revert, oldest first. */
+    acctModifiedBy: x.acctModifiedBy || "", acctModifiedAt: x.acctModifiedAt || "",
+    acctLog: Array.isArray(x.acctLog) ? x.acctLog : [],
   };
 }
 
@@ -1382,6 +1386,8 @@ function clearReview(liq, actor, ts, note) {
   const r = (liq && liq.review) || {};
   const had = !!(r.checkedBy || r.finalBy || r.acctCheckedBy || r.batchNo);
   return {
+    /* The Accounting log is never cleared with the review. */
+    ...(Array.isArray(r.acctLog) && r.acctLog.length ? { acctLog: r.acctLog, acctModifiedBy: r.acctModifiedBy || "", acctModifiedAt: r.acctModifiedAt || "" } : {}),
     history: (r.history || []).concat(had ? [{
       action: note, user: actor, ts,
       checkedBy: r.checkedBy || "", financeChecker: r.financeChecker || "", checkedAt: r.checkedAt || "",

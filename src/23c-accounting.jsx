@@ -118,7 +118,8 @@ function accountingRows(disbursements, liquidations, reimbursements, replenishme
       custodian: custodianCheckerLabel(r.rv) || "",
       custodianAt: r.rv.checkedAt || "",
       acctAt: r.rv.acctChecked ? r.rv.acctCheckedAt || "" : "",
-      acctBy: r.rv.acctChecked ? acctCheckerLabel(r.rv) : "",
+      acctBy: r.rv.acctChecked ? (r.rv.acctChecker || acctCheckerLabel(r.rv)) : "",
+      modifiedBy: r.rv.acctModifiedBy || "", modifiedAt: r.rv.acctModifiedAt || "",
       acctRemarks: r.rv.acctRemarks || "",
       batchNo: r.rv.batchNo || "",
       finalAt: r.rv.final ? r.rv.finalAt || "" : "",
@@ -293,7 +294,9 @@ function AccountingModuleTab({
       "Amount": r.amount,
       "Custodian Approval Date": r.custodianAt ? fmtAcctModStamp(r.custodianAt) : "",
       "Accounting Approval Date": r.acctAt ? fmtAcctModStamp(r.acctAt) : "",
-      "Accounting Approved By": r.acctBy,
+      "Checked By": r.acctBy,
+      "Last Modified By": r.modifiedBy,
+      "Last Modified": r.modifiedAt ? fmtAcctModStamp(r.modifiedAt) : "",
       "Accounting Remarks": r.acctRemarks,
       "Batch No.": r.batchNo,
       ...(pendingMode ? { "Pending Days": r.days, "Pending Aging": r.aging.short } : {
@@ -500,7 +503,10 @@ function AccountingModuleTab({
                     ) : (
                       <td>
                         <div style={{ whiteSpace: "nowrap", fontSize: 11.5, fontWeight: 700, color: "#15803d" }}>{fmtAcctModStamp(r.acctAt)}</div>
-                        {r.acctBy && <div style={mut}>{r.acctBy}</div>}
+                        {r.acctBy && <div style={mut}>Checked by {r.acctBy}</div>}
+                        {r.modifiedBy && (r.modifiedBy !== r.acctBy || r.modifiedAt !== r.acctAt) && (
+                          <div style={mut}>Last modified by {r.modifiedBy} · {fmtAcctModStamp(r.modifiedAt)}</div>
+                        )}
                         {r.acctRemarks && <div style={mut} title={r.acctRemarks}>"{r.acctRemarks}"</div>}
                       </td>
                     )}

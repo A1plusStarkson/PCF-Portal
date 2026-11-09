@@ -591,10 +591,10 @@ function buildReport(type, D, F) {
         c("entity", "Entity"), c("remarks", "Remarks", { width: "38%" }),
       ];
       const arr = [...(auditLog || [])]
-        .filter((a) => okDate((a.ts || "").slice(0, 10)))
+        .filter((a) => okDate(auditDayPH(a.ts)))
         .sort((a, b) => (b.ts || "").localeCompare(a.ts || ""));
       const rows = arr.map((a) => ({
-        ts: (a.ts || "").replace("T", " "), user: a.user || "—", action: a.action || "—",
+        ts: a.ts ? fmtApprovalStamp(a.ts) : "", user: a.user || "—", action: a.action || "—",
         entity: a.entity || "—", remarks: a.remarks || "",
       }));
       /* No amounts here, so the grand total is the entry count. */

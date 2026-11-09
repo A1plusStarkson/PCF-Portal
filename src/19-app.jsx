@@ -448,13 +448,28 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     try { sessionStorage.setItem("pcp.financeChecker", v || ""); } catch (e) { /* storage unavailable */ }
   }, []);
   const activeFinanceChecker = financeCheckerNames.includes(financeChecker) ? financeChecker : "";
+  /* ACCOUNTING STAFF: the person using the shared Accounting account
+     (ACCOUNTING_CHECKER_NAMES), picked on a selection screen on entering the
+     portal (owner's instruction, Nov 2026). Kept for this browser tab until
+     sign-out, so every action that session — batch numbers, checks,
+     reverts, history, audit log — is recorded under that person's name.
+     Switchable in the sidebar. */
+  const accountingStaffNames = emailIn(ACCOUNTING_CHECKER_EMAILS) ? accountingCheckerNamesFor(userEmail) : [];
+  const [accountingStaff, setAccountingStaffRaw] = useState(() => {
+    try { return sessionStorage.getItem("pcp.accountingStaff") || ""; } catch (e) { return ""; }
+  });
+  const setAccountingStaff = useCallback((v) => {
+    setAccountingStaffRaw(v || "");
+    try { sessionStorage.setItem("pcp.accountingStaff", v || ""); } catch (e) { /* storage unavailable */ }
+  }, []);
+  const activeAccountingStaff = accountingStaffNames.includes(accountingStaff) ? accountingStaff : "";
   /* The name every action is recorded under (history, audit, approvals,
      receipt decisions, reverts, settlements, payments…). On the shared
      Finance account it is the Finance Checker picked in the sidebar — so a
      transaction shows "Mary Queen Ecat" or "Ayessa Milosantos", never the
      account's combined name (owner's instruction, Oct 2026). Everyone else:
      the account name, as before. Records already saved are not changed. */
-  const userName = activeFinanceChecker || accountName;
+  const userName = activeFinanceChecker || activeAccountingStaff || accountName;
   const missingFinanceChecker = () => {
     if (!financeCheckerNames.length || activeFinanceChecker) return false;
     window.alert("Select your name under Finance Checker (left sidebar, below your account name) before checking transactions.");
@@ -645,6 +660,8 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     try {
       if (window.storage && window.storage.flushNow) await window.storage.flushNow();
     } catch (e) { /* sign out regardless; nothing more we can do here */ }
+    /* The staff picked on a shared account last only until sign-out. */
+    try { sessionStorage.removeItem("pcp.accountingStaff"); sessionStorage.removeItem("pcp.financeChecker"); } catch (e) { /* storage unavailable */ }
     if (onSignOut) onSignOut();
   }, [onSignOut, userName, userEmail, funds, requests, disbursements, liquidations,
       replenishments, auditLog, documents, reimbursements, announcements]);
@@ -1210,25 +1227,36 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       window.alert("Assign a Batch Number first.");
       return;
     }
-    /* The named Accounting Checker (ACCOUNTING_CHECKER_NAMES): required on a
-       check when this account has names, and must be one of them. */
+    /* The named Accounting Checker (ACCOUNTING_CHECKER_NAMES): the Accounting
+       Staff picked on entering the portal; every Accounting action on a
+       shared account needs one, and it must be one of the names. */
     const checkerNames = accountingCheckerNamesFor(by);
-    const checker = String(p.checker || "").trim();
-    if (action === "check" && checkerNames.length && !checkerNames.includes(checker)) {
-      window.alert("Select the Accounting Checker (your name) before marking this transaction as checked.");
+    const checker = activeAccountingStaff || String(p.checker || "").trim();
+    if (checkerNames.length && !checkerNames.includes(checker)) {
+      window.alert("Select the Accounting Staff (your name) in the left sidebar before working on transactions.");
       return;
     }
+    /* Who changed it and when (Last Modified By / Last Modified), plus a
+       permanent entry in review.acctLog — the Batch Number history. Nothing
+       in the portal edits or deletes acctLog; clearReview carries it over. */
+    const who = checker || byName;
+    const logEntry = (cur) => ({
+      action: action === "assign-batch" ? (cur.batchNo && cur.batchNo !== batchNo ? `Batch Number changed from ${cur.batchNo}` : "Batch Number assigned")
+        : action === "check" ? "Checked by Accounting" : "Accounting check undone",
+      batchNo: action === "undo" ? (cur.batchNo || "") : batchNo, by: who, account: by, at: ts, remarks,
+    });
+    const modified = (cur) => ({ acctModifiedBy: who, acctModifiedAt: ts, acctLog: (cur.acctLog || []).concat([logEntry(cur)]) });
     const stamp = (cur, mode) => {
-      if (action === "assign-batch") return { ...cur, batchNo };
+      if (action === "assign-batch") return { ...cur, ...modified(cur), batchNo };
       if (action === "check") {
         return {
-          ...cur, batchNo, acctCheckedBy: by, acctCheckedByName: byName, acctChecker: checker, acctCheckedAt: ts, acctRemarks: remarks, revertedTo: null,
+          ...cur, ...modified(cur), batchNo, acctCheckedBy: by, acctCheckedByName: byName, acctChecker: checker, acctCheckedAt: ts, acctRemarks: remarks, revertedTo: null,
           acctRetro: mode === "retro",
         };
       }
       /* undo — the old stamps go to review.history, never silently lost. */
       return {
-        ...cur, acctCheckedBy: "", acctCheckedByName: "", acctChecker: "", acctCheckedAt: "", acctRemarks: "", acctRetro: false,
+        ...cur, ...modified(cur), acctCheckedBy: "", acctCheckedByName: "", acctChecker: "", acctCheckedAt: "", acctRemarks: "", acctRetro: false,
         history: (cur.history || []).concat([{
           action: `Accounting check undone${remarks ? ` — ${remarks}` : ""}`, user: byName, ts,
           acctCheckedBy: cur.acctCheckedBy || "", acctChecker: cur.acctChecker || "", acctCheckedAt: cur.acctCheckedAt || "", batchNo: cur.batchNo || "",
@@ -1285,7 +1313,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       })));
       logAudit("Reimbursement " + verb, r0.reimbNo, note(mode));
     }
-  }, [isAccountingChecker, userEmail, userName, role, disbursements, liquidations, reimbursements, inScope, logAudit]); // eslint-disable-line
+  }, [isAccountingChecker, activeAccountingStaff, userEmail, userName, role, disbursements, liquidations, reimbursements, inScope, logAudit]); // eslint-disable-line
 
   /* ---- Revert one step back (owner's instruction, Oct 2026) ----
        Final Approver → Accounting  (to "ACCOUNTING"): custodian-approved and
@@ -1320,6 +1348,15 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
         acctCheckedBy: r.acctCheckedBy || "", acctChecker: r.acctChecker || "", acctCheckedAt: r.acctCheckedAt || "", batchNo: r.batchNo || "",
       };
       const clearedAcct = { acctCheckedBy: "", acctCheckedByName: "", acctChecker: "", acctCheckedAt: "", acctRemarks: "", acctRetro: false };
+      /* Every revert goes into the permanent Accounting log (the Batch Number
+         is kept there even when the revert clears it); Accounting's own
+         revert also counts as its Last Modified. */
+      const logged = {
+        acctLog: (r.acctLog || []).concat([{ action: `${label} — ${why}`, batchNo: r.batchNo || "", by: actor,
+          account: (userEmail || "").trim().toLowerCase(), at: ts, remarks: why }]),
+        ...(toAcct ? {} : { acctModifiedBy: actor, acctModifiedAt: ts }),
+      };
+      Object.assign(clearedAcct, logged);
       return toAcct
         ? { ...r, ...clearedAcct, revertedTo: marker, history: (r.history || []).concat([histEntry]) }
         : { ...r, ...clearedAcct, batchNo: "", checkedBy: "", financeChecker: "", checkedAt: "", checkRemarks: "",
@@ -1359,7 +1396,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       })));
       logAudit("Reimbursement " + label, r0.reimbNo, `Comment: ${why}`);
     }
-  }, [isFinalApprover, isAccountingChecker, userName, role, disbursements, liquidations, reimbursements, inScope, logAudit]); // eslint-disable-line
+  }, [isFinalApprover, isAccountingChecker, userName, userEmail, role, disbursements, liquidations, reimbursements, inScope, logAudit]); // eslint-disable-line
 
   /* Every Batch Number in use, with how many transactions carry it, and the
      next free one — for the Accounting batch picker. */
@@ -1374,9 +1411,11 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   const accountingProps = useMemo(() => ({
     isChecker: isAccountingChecker, checkerNames: accountingCheckerNamesFor(userEmail), batches: accountingBatches.batches,
     nextBatchNo: accountingBatches.nextBatchNo, onReview: accountingReview,
+    /* The Accounting Staff picked for this session (stamped as the checker). */
+    staff: activeAccountingStaff,
     /* One-step-back reverts (escalationRevert): who may use which. */
     canRevertToAccounting: isFinalApprover, canRevertToCustodian: isAccountingChecker, onEscalationRevert: escalationRevert,
-  }), [isAccountingChecker, userEmail, accountingBatches, accountingReview, isFinalApprover, escalationRevert]);
+  }), [isAccountingChecker, userEmail, activeAccountingStaff, accountingBatches, accountingReview, isFinalApprover, escalationRevert]);
 
   /* Record that the refund or reimbursement cash has ACTUALLY changed hands.
      The actual amount is stored so it can be checked against the expected one. */
@@ -2409,7 +2448,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       const patch = { status: next, history: [...(r.history || []), { ts, user: actor, action: label, prevStatus: prev, newStatus: next, comments: logged, ...(fc ? { financeChecker: fc } : {}) }] };
       const cur = r.review || {};
       if (action === "custodian-approve") {
-        patch.review = { history: cur.history || [], checkedBy: actor, financeChecker: fc, checkedAt: ts, checkRemarks: comments };
+        patch.review = { history: cur.history || [], ...(Array.isArray(cur.acctLog) ? { acctLog: cur.acctLog, acctModifiedBy: cur.acctModifiedBy || "", acctModifiedAt: cur.acctModifiedAt || "" } : {}), checkedBy: actor, financeChecker: fc, checkedAt: ts, checkRemarks: comments };
       } else if (action === "final-approve") {
         patch.review = { ...cur, finalBy: finalStampName(actor), finalByAccount: userEmail || "", finalAt: ts, finalRemarks: comments };
         patch.approvedBy = finalStampName(actor); patch.approvedAt = ts;
@@ -2421,6 +2460,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
             action: label, user: actor, ts, checkedBy: cur.checkedBy, financeChecker: cur.financeChecker || "", checkedAt: cur.checkedAt || "",
             acctCheckedBy: cur.acctCheckedBy || "", acctChecker: cur.acctChecker || "", acctCheckedAt: cur.acctCheckedAt || "", batchNo: cur.batchNo || "",
           }] : []),
+          ...(Array.isArray(cur.acctLog) ? { acctLog: cur.acctLog, acctModifiedBy: cur.acctModifiedBy || "", acctModifiedAt: cur.acctModifiedAt || "" } : {}),
         };
       }
       return { ...r, ...patch };
@@ -3061,7 +3101,41 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
           </div>
         </div>
       )}
-      <Sidebar tab={tab} setTab={setTab} role={role} roleLabel={accountRoleLabel(role, userEmail, userRole || "Accounting")} navGroups={navGroups} userEmail={userEmail} userName={accountName} financeCheckerNames={financeCheckerNames} financeChecker={activeFinanceChecker} onFinanceChecker={setFinanceChecker} onSignOut={handleSignOut} onChangePassword={() => setShowChangePw(true)} onManageMfa={hasMfa ? () => setShowMfaDevices(true) : undefined} />
+      {/* Shared Accounting account: the Accounting Staff selection screen on
+          entering the portal (owner's instruction, Nov 2026). Every action
+          that session is recorded under the name picked. Switchable in the
+          sidebar; cleared at sign-out. */}
+      {accountingStaffNames.length > 0 && !activeAccountingStaff && role === (userRole || "Accounting") && (
+        <div className="pcp-modal-backdrop" style={{ zIndex: 1500, alignItems: "center" }}>
+          <div className="pcp-modal" style={{ maxWidth: 440 }} role="dialog" aria-label="Select Accounting Staff">
+            <div className="pcp-modal-head" style={{ cursor: "default" }}><h3>Accounting Account</h3></div>
+            <div className="pcp-modal-body">
+              <div style={{ fontSize: 12.5, color: "var(--text-mut)", marginBottom: 12 }}>
+                Please select the Accounting Staff who will access the portal. Every batch number,
+                check and change you make this session is recorded under your name.
+              </div>
+              <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.4, textTransform: "uppercase", color: "#6b4a07", marginBottom: 8 }}>
+                Select Accounting Staff
+              </div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {accountingStaffNames.map((n) => (
+                  <button key={n} type="button" className="pcp-btn pcp-btn-primary" style={{ justifyContent: "center", fontSize: 14, padding: "10px 14px" }}
+                    onClick={() => { setAccountingStaff(n); logAudit("Accounting Staff Selected", userEmail || "Accounting", n); }}>
+                    <UserCog size={15} /> {n}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      <Sidebar tab={tab} setTab={setTab} role={role} roleLabel={accountRoleLabel(role, userEmail, userRole || "Accounting")} navGroups={navGroups} userEmail={userEmail} userName={accountName}
+        financeCheckerNames={financeCheckerNames.length ? financeCheckerNames : accountingStaffNames}
+        financeChecker={financeCheckerNames.length ? activeFinanceChecker : activeAccountingStaff}
+        onFinanceChecker={financeCheckerNames.length ? setFinanceChecker
+          : (n) => { if (n && n !== activeAccountingStaff) logAudit("Accounting Staff Switched", userEmail || "Accounting", `${activeAccountingStaff || "—"} → ${n}`); setAccountingStaff(n); }}
+        checkerLabel={financeCheckerNames.length ? "Finance Checker:" : "Accounting Staff:"}
+        onSignOut={handleSignOut} onChangePassword={() => setShowChangePw(true)} onManageMfa={hasMfa ? () => setShowMfaDevices(true) : undefined} />
       <div className="pcp-main">
         {/* Shown to EVERYONE, not just admins: this one says the screen below
             is incomplete, and a custodian looking at a short list needs that

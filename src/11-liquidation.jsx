@@ -42,7 +42,7 @@ const ACCOUNTING_CHECKER_EMAILS = ["accounting@a1plus.com"];
    the check. The email stamp (acctCheckedBy) is unchanged — the database gate
    still matches it. An account not listed here checks without a name. */
 const ACCOUNTING_CHECKER_NAMES = {
-  "accounting@a1plus.com": ["Roselyn Bo", "Rogielyn Mayor"],
+  "accounting@a1plus.com": ["Rogielyn Mayor", "Roselyn Bo"],
 };
 const accountingCheckerNamesFor = (email) => ACCOUNTING_CHECKER_NAMES[String(email || "").trim().toLowerCase()] || [];
 /* The people who share the Finance account (owner's instruction, Oct 2026).
@@ -205,6 +205,8 @@ function AccountingReviewBox({ kind, id, refNo, review, mode, accounting }) {
   useEffect(() => { setChecker(""); }, [id]);
   const checkerNames = acc.checkerNames || [];
   const needChecker = checkerNames.length > 0;
+  /* The Accounting Staff picked on entering the portal is the checker. */
+  const pick = acc.staff || checker;
   const retro = mode === "retro";
   const canAct = !!acc.isChecker && !!acc.onReview && !!mode;
   /* Never undo a check the final approval relied on. */
@@ -222,12 +224,12 @@ function AccountingReviewBox({ kind, id, refNo, review, mode, accounting }) {
   };
   const check = () => {
     if (!typed) { window.alert("Assign a Batch Number before marking this transaction as checked."); return; }
-    if (needChecker && !checker) { window.alert("Select the Accounting Checker (your name) before marking this transaction as checked."); return; }
-    const who = checker ? ` (${checker})` : "";
+    if (needChecker && !pick) { window.alert("Select the Accounting Checker (your name) before marking this transaction as checked."); return; }
+    const who = pick ? ` (${pick})` : "";
     if (!window.confirm(retro
       ? `Mark ${refNo} as checked by Accounting${who} under batch ${typed}?\n\nThis transaction is already approved — only the Accounting check and Batch Number are added; its approval and status stay as they are.`
       : `Mark ${refNo} as checked by Accounting${who} under batch ${typed}?\n\nIt then goes to ${FINAL_APPROVER_NAME} for final approval with the rest of ${typed}.`)) return;
-    acc.onReview(kind, id, "check", { batchNo: typed, remarks: remarks.trim(), checker });
+    acc.onReview(kind, id, "check", { batchNo: typed, remarks: remarks.trim(), checker: pick });
     setRemarks("");
   };
   /* One step back (escalationRevert in 19-app.jsx), only in the live flow
@@ -260,10 +262,34 @@ function AccountingReviewBox({ kind, id, refNo, review, mode, accounting }) {
     <div className="pcp-card pcp-card-pad" style={{ marginBottom: 12, borderColor: rv.acctChecked ? "#bfe3c8" : undefined }}>
       <div className="pcp-section-title" style={{ margin: "0 0 8px" }}><ShieldCheck size={15} /> Accounting Review</div>
       {row("Accounting Checked", rv.acctChecked ? <b style={{ color: "var(--green)" }}>YES</b> : "NO")}
-      {row("Checked By", acctCheckerLabel(rv) || "—")}
-      {row("Checked Date", rv.acctChecked ? fmtAcctStamp(rv.acctCheckedAt) : "—")}
       {row("Batch Number", rv.batchNo ? <b>{rv.batchNo}</b> : "—")}
+      {/* Checked By and Last Modified By are separate (owner's instruction,
+          Nov 2026): who checked it may not be who changed it last. */}
+      {row("Checked By", rv.acctChecked ? (rv.acctChecker || acctCheckerLabel(rv) || "—") : "—")}
+      {row("Last Modified By", rv.acctModifiedBy || "—")}
+      {row("Date Checked", rv.acctChecked ? fmtAcctStamp(rv.acctCheckedAt) : "—")}
+      {row("Last Modified", rv.acctModifiedAt ? fmtAcctStamp(rv.acctModifiedAt) : "—")}
       {rv.acctRemarks && row("Remarks", `"${rv.acctRemarks}"`)}
+      {rv.acctLog && rv.acctLog.length > 0 && (
+        <details style={{ marginTop: 6 }}>
+          <summary style={{ fontSize: 12, cursor: "pointer", color: "var(--text-mut)" }}>
+            Batch Number History ({rv.acctLog.length}) — recorded automatically, cannot be edited
+          </summary>
+          <table className="pcp-table" style={{ marginTop: 6, fontSize: 11.5 }}>
+            <thead><tr><th>Date &amp; Time</th><th>Action</th><th>Batch Number</th><th>By</th></tr></thead>
+            <tbody>
+              {rv.acctLog.slice().reverse().map((e, i) => (
+                <tr key={i}>
+                  <td style={{ whiteSpace: "nowrap" }}>{fmtAcctStamp(e.at)}</td>
+                  <td>{e.action}{e.remarks && !String(e.action || "").includes(e.remarks) ? ` · "${e.remarks}"` : ""}</td>
+                  <td>{e.batchNo || "—"}</td>
+                  <td>{e.by || "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </details>
+      )}
       {rv.acctChecked && rv.acctRetro && (
         <div style={{ fontSize: 11, color: "var(--text-mut)", marginTop: 4 }}>Checked after the transaction was already approved — its approval was not changed.</div>
       )}
@@ -314,16 +340,25 @@ function AccountingReviewBox({ kind, id, refNo, review, mode, accounting }) {
               {needChecker && (
                 <div className="pcp-field" style={{ margin: 0 }}>
                   <label style={{ color: "#6b4a07", fontWeight: 700 }}>Accounting Checker</label>
-                  <select className="pcp-input" style={{ width: 160, background: "#fffbe6", borderColor: "#e8b53a", color: "#3d2a00", fontWeight: 600 }}
-                    value={checker} onChange={(e) => setChecker(e.target.value)}>
-                    <option value="">— Select your name —</option>
-                    {checkerNames.map((n) => <option key={n} value={n}>{n}</option>)}
-                  </select>
+                  {acc.staff ? (
+                    /* Fixed to the Accounting Staff of this session; switch it
+                       in the sidebar. */
+                    <div className="pcp-input" title="The Accounting Staff selected for this session — switch it in the left sidebar"
+                      style={{ width: 160, background: "#fffbe6", borderColor: "#e8b53a", color: "#3d2a00", fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+                      <UserCog size={13} /> {acc.staff}
+                    </div>
+                  ) : (
+                    <select className="pcp-input" style={{ width: 160, background: "#fffbe6", borderColor: "#e8b53a", color: "#3d2a00", fontWeight: 600 }}
+                      value={checker} onChange={(e) => setChecker(e.target.value)}>
+                      <option value="">— Select your name —</option>
+                      {checkerNames.map((n) => <option key={n} value={n}>{n}</option>)}
+                    </select>
+                  )}
                 </div>
               )}
-              <button className="pcp-btn pcp-btn-sm" onClick={check} disabled={!typed || (needChecker && !checker)}
+              <button className="pcp-btn pcp-btn-sm" onClick={check} disabled={!typed || (needChecker && !pick)}
                 style={{ background: "#f5c518", borderColor: "#c99a06", color: "#3d2a00", fontWeight: 800 }}
-                title={!typed ? "Assign a Batch Number first" : needChecker && !checker ? "Select the Accounting Checker first" : "Mark as checked by Accounting"}>
+                title={!typed ? "Assign a Batch Number first" : needChecker && !pick ? "Select the Accounting Checker first" : "Mark as checked by Accounting"}>
                 <ShieldCheck size={12} /> Mark as Checked
               </button>
             </div>
