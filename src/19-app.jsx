@@ -2652,6 +2652,12 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
         { tabKey: "dashboard", label: "Consolidated Dashboard", icon: LayoutDashboard },
       ] });
     }
+    /* Accounting - Approval / Approved sit right after the Consolidated
+       Dashboard, before the plants (owner's instruction, Nov 2026). */
+    const acctMods = ACCOUNTING_MODULES.filter((m) => canUseAccountingModules && (!restrictedModules || restrictedModules.includes(m.key)));
+    if (acctMods.length) {
+      groups.push({ key: "accounting", label: "Accounting", items: acctMods.map((m) => ({ tabKey: m.key, label: m.label, icon: m.icon })) });
+    }
     orderedPlants.forEach((p) => {
       groups.push({
         key: "plant-" + p.code,
@@ -2666,10 +2672,6 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       : canUseApprovalModule && roleModuleKeys.includes(m.key)));
     if (apprMods.length) {
       groups.push({ key: "approvals", label: "Approvals", items: apprMods.map((m) => ({ tabKey: m.key, label: m.label, icon: m.icon })) });
-    }
-    const acctMods = ACCOUNTING_MODULES.filter((m) => canUseAccountingModules && (!restrictedModules || restrictedModules.includes(m.key)));
-    if (acctMods.length) {
-      groups.push({ key: "accounting", label: "Accounting", items: acctMods.map((m) => ({ tabKey: m.key, label: m.label, icon: m.icon })) });
     }
     const monMods = MONITORING_MODULES.filter((m) => roleModuleKeys.includes(m.key));
     if (monMods.length) {

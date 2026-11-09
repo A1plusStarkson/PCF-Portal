@@ -373,7 +373,7 @@ function AccountingModuleTab({
         {pendingMode && (
           <div className="pcp-kpi-grid" style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(170px,1fr))", gap: 10, marginBottom: 16 }}>
             {ACCT_AGING.map((b) => (
-              <KpiCard key={b.key} label={`Pending Aging: ${b.label}`} value={agingCount(b.key)} icon={b.key === "overdue" ? AlertTriangle : Clock} tint={b.tint}
+              <KpiCard key={b.key} label={b.label} value={agingCount(b.key)} icon={b.key === "overdue" ? AlertTriangle : Clock} tint={b.tint}
                 active={aging === b.key} onClick={() => setAging(aging === b.key ? ACCT_ALL_AGING : b.key)} />
             ))}
           </div>
