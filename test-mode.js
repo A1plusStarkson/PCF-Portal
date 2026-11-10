@@ -132,6 +132,10 @@
   liquidation("WARNER", 2640, merge(CUSTODIAN()));
   liquidation("ST", 3315.5, merge(CUSTODIAN()));
   liquidation("RG", 1420, merge(CUSTODIAN()));
+  /* Warner: more for Accounting to check (owner's request, Nov 2026) — a
+     liquidation and a reimbursement. */
+  liquidation("WARNER", 1985.75, merge(CUSTODIAN()));
+  reimbursement("WARNER", 1260, "FOR FINAL APPROVAL", merge(CUSTODIAN()));
 
   add("replenishments", { id: "t-rpl-0", replenishmentNo: "RPL-T-2026-9001", date: day(20), branchCode: "A1+", amount: 8000, preparedBy: "Accounting Department", status: "Completed", completedBy: "Accounting Department", completedAt: stamp(16, 3), acumaticaPoNo: "PO-SAMPLE-01", acumaticaApvNo: "APV-SAMPLE-01", remarks: "Sample completed replenishment", liquidationIds: [doneA], reimbursementIds: [doneB] });
 
