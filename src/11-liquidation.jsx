@@ -24,8 +24,12 @@
    approved as custodian — enforced per record in every final-approve gate,
    UI and handler. See isLiquidationChecker / isFinalApprover in 19-app.jsx.
    The same people and rules apply to employee reimbursements. */
-const FINAL_APPROVER_NAME = "Grace Gan or the System Superuser";
-const LIQUIDATION_FINAL_APPROVER_EMAILS = ["a1plusadmin@a1plus.com", "superuser@a1plus.com"];
+/* Owner's instruction, Nov 2026: final approval is Grace Gan's alone — the
+   System Superuser no longer gives it anywhere in the portal (it still views
+   everything and keeps its custodian-level review). Approvals it gave before
+   stay as recorded. */
+const FINAL_APPROVER_NAME = "Grace Gan";
+const LIQUIDATION_FINAL_APPROVER_EMAILS = ["a1plusadmin@a1plus.com"];
 const LIQUIDATION_FINAL_ONLY_EMAILS = ["a1plusadmin@a1plus.com"];
 const LIQUIDATION_CHECKER_ROLES = ["Custodian", "Accounting", "Finance", "SuperAdmin"];
 
