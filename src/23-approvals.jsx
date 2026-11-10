@@ -611,7 +611,7 @@ function ApprovalModuleTab({
   const canFinance = !viewOnly && canFinanceIn;
   const canEditReimb = !viewOnly && canEditReimbIn;
   const canRevert = !viewOnly && canRevertIn;
-  const readOnlyAccounting = useMemo(() => ({ ...(accountingIn || {}), isChecker: false, onReview: undefined }), [accountingIn]);
+  const readOnlyAccounting = useMemo(() => ({ ...(accountingIn || {}), isChecker: false, onReview: undefined, onEscalationRevert: undefined }), [accountingIn]);
   const accounting = viewOnly ? readOnlyAccounting : accountingIn;
   const seesFinalQueue = isFinalApprover || !!viewFinalQueue;
   /* A transaction awaiting final approval, seen by someone who cannot give it. */

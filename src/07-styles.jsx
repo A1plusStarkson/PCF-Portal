@@ -1945,6 +1945,8 @@ function Sidebar({ tab, setTab, role, roleLabel, navGroups, userEmail, userName,
         {groups.map((group) => (
           <div className="pcp-nav-group" key={group.key}>
             {group.label && <div className="pcp-nav-group-label">{group.label}</div>}
+            {/* A small note under a heading, e.g. VIEW ONLY under APPROVALS - GRACE GAN. */}
+            {group.note && <div className="pcp-nav-group-note" style={{ fontSize: 9.5, fontWeight: 800, letterSpacing: 0.6, textTransform: "uppercase", color: "#f5c518", margin: "-2px 0 4px 8px" }}>{group.note}</div>}
             {group.items.map((item) => {
               const Icon = item.icon;
               return (

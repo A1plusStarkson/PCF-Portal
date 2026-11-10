@@ -482,7 +482,12 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
   const isApprovalModuleMember = emailIn(APPROVAL_MODULE_EMAILS) && role === (userRole || "Accounting");
   const canViewFinalQueue = emailIn(APPROVAL_FINAL_VIEW_EMAILS) && role === (userRole || "Accounting");
   const canUseApprovalModule = isApprovalModuleMember || canViewFinalQueue;
-  const approvalViewOnly = canViewFinalQueue && !isApprovalModuleMember;
+  /* APPROVALS - GRACE GAN (owner's instruction, Nov 2026): Grace Gan is the only
+     account that acts in the Approval Module; every other account with access
+     sees it VIEW ONLY (the sidebar says so). Accounting checks and batches in
+     its own Accounting modules. */
+  const isGraceGanAccount = emailIn(["a1plusadmin@a1plus.com"]);
+  const approvalViewOnly = (canViewFinalQueue && !isApprovalModuleMember) || !isGraceGanAccount;
   /* APPROVED MODULE: view-only, by email (APPROVED_MODULE_EMAILS). */
   const canUseApprovedModule = emailIn(APPROVED_MODULE_EMAILS) && role === (userRole || "Accounting");
   /* Accounting - Approval / Accounting - Approved (23c-accounting.jsx). */
@@ -2820,7 +2825,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       ? canUseApprovedModule && (!restrictedModules || restrictedModules.includes("approved"))
       : canUseApprovalModule && roleModuleKeys.includes(m.key)));
     if (apprMods.length) {
-      groups.push({ key: "approvals", label: "Approvals", items: apprMods.map((m) => ({ tabKey: m.key, label: m.label, icon: m.icon })) });
+      groups.push({ key: "approvals", label: "Approvals - Grace Gan", note: isGraceGanAccount ? "" : "View only", items: apprMods.map((m) => ({ tabKey: m.key, label: m.label, icon: m.icon })) });
     }
     const monMods = MONITORING_MODULES.filter((m) => roleModuleKeys.includes(m.key));
     if (monMods.length) {
@@ -2832,7 +2837,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       groups.push({ key: "admin", label: "Administration", items: globalMods.map((m) => ({ tabKey: m.key, label: m.label, icon: m.icon })) });
     }
     return groups;
-  }, [roleModuleKeys, orderedPlants, canUseApprovalModule, canUseApprovedModule, canUseAccountingModules, restrictedModules, canAccessPcfDocuments]);
+  }, [roleModuleKeys, orderedPlants, canUseApprovalModule, canUseApprovedModule, canUseAccountingModules, isGraceGanAccount, restrictedModules, canAccessPcfDocuments]);
 
   /* Flat set of every valid tab key for this user — used to block navigation to
      unauthorized pages, including manual URL/state tampering. */
@@ -3468,7 +3473,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
         {activeModule === "approvals" && canUseApprovalModule && (
           <ApprovalModuleTab
             canSelectExport={canApprovalExport}
-            viewFinalQueue={canViewFinalQueue}
+            viewFinalQueue={canViewFinalQueue || !isGraceGanAccount}
             showGraceQueue={canSeeGraceQueue}
             viewOnly={approvalViewOnly}
             disbursements={visibleDisbursements} liquidations={visibleLiquidations}
@@ -3490,7 +3495,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
             reimbPlantOptions={branchOptions.filter((p) => inScope(p.code))}
             onExportReimbursementAcumatica={exportReimbursementAcumatica}
             isChecker={isLiquidationChecker}
-            isFinalApprover={isFinalApprover}
+            isFinalApprover={isFinalApprover && isGraceGanAccount}
             canFinance={["Accounting", "Finance", "SuperAdmin"].includes(role) || !!isAdmin}
             currentUser={userName || role}
             plantOptions={plantOptions}
