@@ -124,6 +124,15 @@
   B = 24;
   var doneA = liquidation("HASBRO", 6200, merge(CUSTODIAN(), ACCOUNTING("BATCH-S08"), FINAL()));
   var doneB = reimbursement("MATTEL", 1800, "FULLY APPROVED / READY FOR REPLENISHMENT", merge(CUSTODIAN(), ACCOUNTING("BATCH-S08"), FINAL()));
+  /* Waiting for the Accounting check in every plant (owner's request, Nov
+     2026): custodian approved, no batch yet. Added last so the sample numbers
+     above, and any test changes already saved against them, stay the same. */
+  B = 3;
+  liquidation("A1+", 1875, merge(CUSTODIAN()));
+  liquidation("WARNER", 2640, merge(CUSTODIAN()));
+  liquidation("ST", 3315.5, merge(CUSTODIAN()));
+  liquidation("RG", 1420, merge(CUSTODIAN()));
+
   add("replenishments", { id: "t-rpl-0", replenishmentNo: "RPL-T-2026-9001", date: day(20), branchCode: "A1+", amount: 8000, preparedBy: "Accounting Department", status: "Completed", completedBy: "Accounting Department", completedAt: stamp(16, 3), acumaticaPoNo: "PO-SAMPLE-01", acumaticaApvNo: "APV-SAMPLE-01", remarks: "Sample completed replenishment", liquidationIds: [doneA], reimbursementIds: [doneB] });
 
   /* ---- Shared between accounts and tabs in this browser ----
