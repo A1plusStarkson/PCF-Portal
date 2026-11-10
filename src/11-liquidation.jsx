@@ -114,9 +114,9 @@ const PCF_DOCUMENTS_ACCESS_EMAILS = [
 /* Accounting stamps are full ISO timestamps (with zone), shown in local time. */
 function fmtAcctStamp(ts) {
   if (!ts) return "—";
-  const d = new Date(ts);
-  if (isNaN(d)) return String(ts).replace("T", " ");
-  return d.toLocaleString("en-PH", { year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  /* Philippine time whatever the computer's own time zone, the same as every
+     other approval time (fmtApprovalStamp, 15-replenishment.jsx). */
+  return fmtApprovalStamp(ts) || String(ts).replace("T", " ");
 }
 
 /* The four Accounting columns, shared by every list that shows them. */
@@ -174,7 +174,7 @@ function EscalationRevertNotice({ marker }) {
       <div style={{ border: "1px solid " + (hlOn ? "#f0c54a" : "var(--line)"), borderRadius: 8, padding: "9px 11px", background: hlOn ? "#fffdf2" : undefined }}>
         <div style={{ fontSize: 12 }}><strong>{t.from}:</strong> {marker.reason || "—"}</div>
         <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 4 }}>
-          Reverted by {marker.by || "—"} · {String(marker.at || "").replace("T", " ")}
+          Reverted by {marker.by || "—"} · {fmtApprovalStamp(marker.at) || "—"}
         </div>
       </div>
     </div>
@@ -1678,16 +1678,16 @@ function LiquidationWorksheet({
               <Badge status={stage} />
               {!isDraft && liquidation && liquidation.submittedBy && (
                 <span style={{ fontSize: 10.5, color: "var(--text-mut)" }}>
-                  submitted by {liquidation.submittedBy} · {(liquidation.submittedAt || "").replace("T", " ")}
+                  submitted by {liquidation.submittedBy} · {fmtApprovalStamp(liquidation.submittedAt) || "—"}
                 </span>
               )}
             </div>
             {/* The approval chain, stamped. */}
             {(review.checked || review.final) && !review.legacy && (
               <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 5, lineHeight: 1.5 }}>
-                {review.checked && <div>Custodian approved by <b>{custodianCheckerLabel(review)}</b> · {review.checkedAt.replace("T", " ")}{review.checkRemarks ? ` · "${review.checkRemarks}"` : ""}</div>}
+                {review.checked && <div>Custodian approved by <b>{custodianCheckerLabel(review)}</b> · {fmtApprovalStamp(review.checkedAt) || "—"}{review.checkRemarks ? ` · "${review.checkRemarks}"` : ""}</div>}
                 {review.acctChecked && <div>Accounting checked by <b>{acctCheckerLabel(review)}</b> · {fmtAcctStamp(review.acctCheckedAt)} · batch <b>{review.batchNo}</b></div>}
-                {review.final && <div>Final approval by <b>{review.finalBy}</b> · {review.finalAt.replace("T", " ")}{review.finalRemarks ? ` · "${review.finalRemarks}"` : ""}</div>}
+                {review.final && <div>Final approval by <b>{review.finalBy}</b> · {fmtApprovalStamp(review.finalAt) || "—"}{review.finalRemarks ? ` · "${review.finalRemarks}"` : ""}</div>}
               </div>
             )}
           </div>
@@ -1902,7 +1902,7 @@ function LiquidationWorksheet({
                 <div style={{ fontSize: 12.5, fontWeight: 700 }}>Revert #{all.length - i}</div>
                 <div style={{ fontSize: 12, marginTop: 4 }}><strong>Reason:</strong> {r.reason}</div>
                 <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 4 }}>
-                  Reverted by {r.revertedBy} · {(r.revertedAt || "").replace("T", " ")}
+                  Reverted by {r.revertedBy} · {fmtApprovalStamp(r.revertedAt) || "—"}
                   {r.prevStatus ? ` · ${r.prevStatus} → FOR SUBMISSION` : ""}
                 </div>
               </div>
@@ -1935,7 +1935,7 @@ function LiquidationWorksheet({
                 <div style={{ fontSize: 12, marginTop: 4 }}><strong>Rejection Reason:</strong> {r.reason}</div>
                 <div style={{ fontSize: 12, marginTop: 2 }}><strong>Reviewer Comment:</strong> {r.comment ? r.comment : "—"}</div>
                 <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 4 }}>
-                  Rejected by {r.rejectedBy} · {(r.rejectedAt || "").replace("T", " ")}
+                  Rejected by {r.rejectedBy} · {fmtApprovalStamp(r.rejectedAt) || "—"}
                   {r.prevStatus ? ` · ${r.prevStatus} → ${r.newStatus}` : ""}
                 </div>
               </div>
@@ -2165,7 +2165,7 @@ function LiquidationWorksheet({
               <div>
                 <strong>Shortage of {pesoB(st.closure.shortageAmount)} closed — {st.closure.treatment}</strong>
                 <div style={{ color: "var(--text-mut)", marginTop: 3 }}>
-                  {st.closure.closedBy} · {(st.closure.closedAt || "").replace("T", " ")}
+                  {st.closure.closedBy} · {fmtApprovalStamp(st.closure.closedAt) || "—"}
                   {st.closure.reason ? ` · "${st.closure.reason}"` : ""}
                 </div>
               </div>
@@ -2199,7 +2199,7 @@ function LiquidationWorksheet({
                 <AlertTriangle size={13} style={{ verticalAlign: "-2px" }} /> <strong>WARNING: total receipt amount exceeds the PCF released amount by {pesoB(st.expected)}.</strong>
                 <div style={{ marginTop: 3 }}>
                   {st.reviewed
-                    ? <>Reviewed by {st.settlement.reviewedBy} · {(st.settlement.reviewedAt || "").replace("T", " ")}{st.settlement.reviewRemarks ? ` · "${st.settlement.reviewRemarks}"` : ""}</>
+                    ? <>Reviewed by {st.settlement.reviewedBy} · {fmtApprovalStamp(st.settlement.reviewedAt) || "—"}{st.settlement.reviewRemarks ? ` · "${st.settlement.reviewRemarks}"` : ""}</>
                     : <>This liquidation will not be approved automatically. A reviewer must investigate the discrepancy before it can be liquidated.</>}
                 </div>
               </div>
@@ -2538,7 +2538,7 @@ function LiquidationWorksheet({
                     <div style={{ fontSize: 10.5, fontWeight: 700, color: "var(--text-mut)", marginBottom: 3 }}>Approval History</div>
                     {history.map((h, i) => (
                       <div key={i} style={{ fontSize: 10.5, color: "var(--text-mut)" }}>
-                        <strong style={{ color: h.status === "Rejected" ? "var(--danger)" : "var(--green)" }}>{h.status}</strong> by {h.approver} · {h.ts.replace("T", " ")}{h.remarks ? ` · "${h.remarks}"` : ""}
+                        <strong style={{ color: h.status === "Rejected" ? "var(--danger)" : "var(--green)" }}>{h.status}</strong> by {h.approver} · {fmtApprovalStamp(h.ts) || "—"}{h.remarks ? ` · "${h.remarks}"` : ""}
                       </div>
                     ))}
                   </div>
@@ -2551,7 +2551,7 @@ function LiquidationWorksheet({
                     {amtHistory.map((h, i) => (
                       <div key={i} style={{ fontSize: 10.5, color: "var(--text-mut)" }}>
                         {h.prevAmount == null ? <>Set to <strong>{pesoB(h.newAmount)}</strong></> : <>{pesoB(h.prevAmount)} → <strong>{pesoB(h.newAmount)}</strong></>}
-                        {" "}by {h.user} · {(h.ts || "").replace("T", " ")}{h.reason ? ` · "${h.reason}"` : ""}
+                        {" "}by {h.user} · {fmtApprovalStamp(h.ts) || "—"}{h.reason ? ` · "${h.reason}"` : ""}
                       </div>
                     ))}
                   </div>

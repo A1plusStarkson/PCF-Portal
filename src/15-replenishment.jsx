@@ -149,7 +149,10 @@ const replStamp = (by, at) => (by ? `${by}${at ? " · " + fmtApprovalStamp(at) :
 function fmtApprovalStamp(at) {
   if (!at) return "";
   const s = String(at);
-  const d = new Date(/(Z|[+-]\d\d:?\d\d)$/.test(s) ? s : s + "Z");
+  /* Stamps are saved in UTC: "2026-10-25T01:28:47", "2026-10-25 01:28:47" or
+     with a Z — all read as UTC and shown in Philippine time. */
+  const iso = s.trim().replace(" ", "T");
+  const d = new Date(/(Z|[+-]\d\d:?\d\d)$/.test(iso) ? iso : iso + "Z");
   if (isNaN(d)) return s.replace("T", " ");
   return d.toLocaleString("en-PH", { timeZone: "Asia/Manila", year: "numeric", month: "short", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: true });
 }
@@ -997,7 +1000,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                       )}
                       {r.status === "Reverted" && (
                         <div style={{ fontSize: 10.5, color: "var(--danger)" }}>
-                          Reverted by {r.revertedBy || "—"} · {String(r.revertedAt || "").replace("T", " ")}{r.revertReason ? ` · "${r.revertReason}"` : ""}
+                          Reverted by {r.revertedBy || "—"} · {fmtApprovalStamp(r.revertedAt) || "—"}{r.revertReason ? ` · "${r.revertReason}"` : ""}
                         </div>
                       )}
                     </td>

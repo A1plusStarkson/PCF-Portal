@@ -107,7 +107,7 @@ function ReimbRevertNotice({ reimb }) {
               <div style={{ fontSize: 12.5, fontWeight: 700 }}>Revert #{revs.length - i}</div>
               <div style={{ fontSize: 12, marginTop: 4 }}><strong>Reason:</strong> {h.comments || "—"}</div>
               <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 4 }}>
-                Reverted by {h.user || "—"} · {String(h.ts || "").replace("T", " ")}
+                Reverted by {h.user || "—"} · {fmtApprovalStamp(h.ts) || "—"}
                 {h.prevStatus ? ` · ${h.prevStatus} → FOR SUBMISSION` : ""}
               </div>
             </div>
@@ -1359,9 +1359,9 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
 
           {(review.checked || review.final) && (
             <div style={{ fontSize: 11.5, color: "var(--text-mut)", marginBottom: 10, lineHeight: 1.5 }}>
-              {review.checked && <div>Custodian approved by <b>{custodianCheckerLabel(review)}</b> · {review.checkedAt}{review.checkRemarks ? ` · "${review.checkRemarks}"` : ""}</div>}
+              {review.checked && <div>Custodian approved by <b>{custodianCheckerLabel(review)}</b> · {fmtApprovalStamp(review.checkedAt)}{review.checkRemarks ? ` · "${review.checkRemarks}"` : ""}</div>}
               {review.acctChecked && <div>Accounting checked by <b>{acctCheckerLabel(review)}</b> · {fmtAcctStamp(review.acctCheckedAt)} · batch <b>{review.batchNo}</b></div>}
-              {review.final && <div>Final approval by <b>{review.finalBy}</b> · {review.finalAt}{review.finalRemarks ? ` · "${review.finalRemarks}"` : ""}</div>}
+              {review.final && <div>Final approval by <b>{review.finalBy}</b> · {fmtApprovalStamp(review.finalAt)}{review.finalRemarks ? ` · "${review.finalRemarks}"` : ""}</div>}
             </div>
           )}
           <ReimbRevertNotice reimb={reimb} />
