@@ -328,6 +328,7 @@ function PcaApprovalPanel({
             <div style={{ fontSize: 12, color: "var(--text-mut)", marginTop: 2 }}>
               {subaccountLabel(disb.department)} · {plantLabel(disb.branchCode)} · {companyOfBranch(disb.branchCode)}
             </div>
+            <DetailedPurposeLine text={disb.detailedPurpose} />
             <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 7, flexWrap: "wrap" }}>
               <Badge status={stage} />
               <Badge status={row.finalStatus} />

@@ -686,7 +686,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
     reimb
       ? {
           employee: reimb.employee || "", department: reimb.department || SUBACCOUNTS[1].code,
-          branchCode: reimb.branchCode || defaultBranch, purpose: reimb.purpose || "",
+          branchCode: reimb.branchCode || defaultBranch, purpose: reimb.purpose || "", detailedPurpose: reimb.detailedPurpose || "",
           requestDate: reimb.requestDate || todayISO(), remarks: reimb.remarks || "",
           lines: (reimb.lines || []).map((l) => ({ ...l })),
           attachments: (reimb.attachments || []).map((a) => ({ ...a })),
@@ -697,7 +697,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
         }
       : {
           employee: currentUser || "", department: SUBACCOUNTS[1].code, branchCode: defaultBranch,
-          purpose: "", requestDate: todayISO(), remarks: "",
+          purpose: "", detailedPurpose: "", requestDate: todayISO(), remarks: "",
           lines: [emptyReimbLine(autoCat)], attachments: [],
           needsPO: false, needsProof: false, hasPersonal: false,
           entertainmentNotPreApproved: false, hasFines: false, certify: false,
@@ -909,6 +909,15 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                 <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 4 }}>
                   Select the approved expense classification. This does not, by itself, make an expense reimbursable — the usual receipts, approvals and supporting documents still apply.
                 </div>
+              </div>
+              {/* Detailed Purpose (owner's instruction, Nov 2026): the requestor's
+                  own explanation, separate from the approved Purpose above;
+                  shown to the custodian, Accounting and Grace Gan. */}
+              <div className="pcp-field">
+                <label>Detailed Purpose</label>
+                <textarea className="pcp-input" rows={2} maxLength={500}
+                  placeholder="Explain specifically what the expense was for (e.g. toll fees for the client visit to Batangas on Nov 20)."
+                  value={form.detailedPurpose || ""} onChange={(e) => set("detailedPurpose", e.target.value)} />
               </div>
               <div className="pcp-field">
                 <label>Remarks (optional)</label>
@@ -1447,6 +1456,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
               ? <>{purposeCategory(reimb.purpose) && <span className="pcp-badge pcp-badge-gray">{purposeCategory(reimb.purpose)}</span>}<span style={{ color: "var(--text-mut)" }}>{reimb.purpose}</span></>
               : <span style={{ color: "var(--text-mut)" }}>—</span>}
           </div>
+          <DetailedPurposeLine text={reimb.detailedPurpose} style={{ marginTop: -4, marginBottom: 10 }} />
           {showDocTotals && (
             <div className="pcp-liq-sticky-grid" style={{ marginBottom: 10 }}>
               <div className="pcp-liq-metric"><div className="pcp-kpi-label">Total Reimbursement</div><div className="pcp-num">{pesoB(total)}</div></div>

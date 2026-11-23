@@ -10,6 +10,7 @@ function RequestFormModal({ onClose, onSave, request, plantOptions, allRequestNo
           date: request.date, employee: request.employee, department: request.department,
           branchCode: request.branchCode, purpose: request.purpose,
           purposeJustification: request.purposeJustification || "",
+          detailedPurpose: request.detailedPurpose || "",
           amount: request.amount, approver: request.approver || "",
         }
       : {
@@ -18,7 +19,7 @@ function RequestFormModal({ onClose, onSave, request, plantOptions, allRequestNo
              once can never get the same one. */
           requestNo: "",
           date: todayISO(), employee: "", department: SUBACCOUNTS[1].code,
-          branchCode: defaultBranch, purpose: "", purposeJustification: "", amount: "", approver: "",
+          branchCode: defaultBranch, purpose: "", purposeJustification: "", detailedPurpose: "", amount: "", approver: "",
         }
   );
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
@@ -102,6 +103,21 @@ function RequestFormModal({ onClose, onSave, request, plantOptions, allRequestNo
               emptyOptionLabel="— Select an allowable purpose —"
               searchPlaceholder="Search allowable purpose…"
               invalid={!form.purpose}
+            />
+          </div>
+          {/* Detailed Purpose (owner's instruction, Nov 2026): the requestor's own
+              explanation of how the cash will be used, separate from the
+              allowable purpose above. Carried to the release voucher and shown
+              in the liquidation to Accounting and the approvers. */}
+          <div className="pcp-field">
+            <label>Detailed Purpose</label>
+            <textarea
+              className="pcp-input"
+              rows={2}
+              maxLength={500}
+              placeholder="Explain specifically how the cash will be used (e.g. fuel for the delivery run to the Laguna warehouse on Nov 25)."
+              value={form.detailedPurpose || ""}
+              onChange={(e) => set("detailedPurpose", e.target.value)}
             />
           </div>
           {isOthers && (
@@ -249,6 +265,11 @@ function RequestsTab({ requests, funds, onCreate, onEdit, onApprove, onReject, o
                       {r.purpose === OTHERS_PURPOSE && r.purposeJustification
                         ? <span title={r.purposeJustification}>{OTHERS_PURPOSE}: {r.purposeJustification}</span>
                         : r.purpose}
+                      {r.detailedPurpose && (
+                        <div style={{ fontSize: 11, color: "var(--text-mut)", marginTop: 2 }} title={r.detailedPurpose}>
+                          {r.detailedPurpose.length > 90 ? r.detailedPurpose.slice(0, 90) + "…" : r.detailedPurpose}
+                        </div>
+                      )}
                     </td>
                     <td className="pcp-num"><strong>{pesoB(r.amount)}</strong></td>
                     <td>{r.approver || "—"}</td>

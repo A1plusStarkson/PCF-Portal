@@ -845,6 +845,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       id, requestNo, date: form.date, employee: form.employee,
       department: form.department, branchCode: form.branchCode, purpose: form.purpose,
       purposeJustification: form.purposeJustification || "",
+      detailedPurpose: String(form.detailedPurpose || "").trim(),
       amount: Number(form.amount), approver: form.approver, status: "Pending",
     }]);
     logAudit("Request Created", requestNo, `${form.employee} · ${peso(Number(form.amount))} · ${form.purpose}`);
@@ -868,8 +869,13 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       ...x, date: form.date, employee: form.employee, department: form.department,
       branchCode: form.branchCode, purpose: form.purpose,
       purposeJustification: form.purposeJustification || "", amount: Number(form.amount),
+      detailedPurpose: String(form.detailedPurpose || "").trim(),
       approver: form.approver,
     })));
+    /* The release voucher keeps a copy of the Detailed Purpose; keep it in step. */
+    if (released.length && String(form.detailedPurpose || "").trim() !== String(r.detailedPurpose || "")) {
+      setDisbursements((ds) => ds.map((d) => (d.requestId === id ? { ...d, detailedPurpose: String(form.detailedPurpose || "").trim() } : d)));
+    }
     logAudit("Edited", r.requestNo, `Request updated · ${form.employee} · ${peso(Number(form.amount))}`
       + (r.status === "Disbursed" ? " · edited after release (Accounting override — Release Ledger voucher unchanged)" : ""));
 
@@ -988,6 +994,8 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     setDisbursements((ds) => [...ds, {
       id, voucherNo, date: extra.date, requestId: req.id,
       employee: req.employee, branchCode: req.branchCode, department: req.department,
+      /* The request's Detailed Purpose travels with the voucher to its liquidation. */
+      detailedPurpose: req.detailedPurpose || "",
       expense: extra.expense || "", amount: extra.amount, status: "Open",
       remarks: extra.remarks, billed: false,
     }]);
@@ -2304,6 +2312,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     return {
       employee: form.employee, department: form.department, branchCode: form.branchCode,
       company: companyOfBranch(form.branchCode), purpose: form.purpose,
+      detailedPurpose: String(form.detailedPurpose || "").trim(),
       requestDate: form.requestDate, remarks: form.remarks || "",
       lines: (form.lines || []).map((l) => ({ ...l, amount: Number(l.amount) || 0, account: l.account || accountForCategory(l.category) })),
       attachments: (form.attachments || []).map((a) => ({ ...a, receiptAmount: receiptAmountOf(a) || "" })),

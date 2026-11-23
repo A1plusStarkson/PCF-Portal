@@ -1021,6 +1021,19 @@ const MISSING_FIELD_STYLE = { borderColor: "var(--danger)" };
    They are separate components because a hook cannot be called from inside
    the .map that renders the receipt rows; the signed-URL cache means the two
    of them still cost one network call per receipt, not two. */
+/* The requestor's Detailed Purpose (owner's instruction, Nov 2026), shown to
+   the custodian, Accounting and the approvers wherever the transaction opens.
+   Nothing is shown on records that have none. */
+function DetailedPurposeLine({ text, style }) {
+  const t = String(text || "").trim();
+  if (!t) return null;
+  return (
+    <div style={{ fontSize: 12, marginTop: 6, lineHeight: 1.45, whiteSpace: "pre-wrap", ...(style || {}) }}>
+      <span style={{ fontWeight: 700 }}>Detailed Purpose:</span> <span style={{ color: "var(--text)" }}>{t}</span>
+    </div>
+  );
+}
+
 /* A document's name as a link that opens the file in a new tab (Accounting
    correction view). Plain text while the file is still loading. */
 function AttachmentNameLink({ att }) {
@@ -1682,6 +1695,7 @@ function LiquidationWorksheet({
             <div style={{ fontSize: 12, color: "var(--text-mut)", marginTop: 2 }}>
               {disbursement.branchCode} · {companyOfBranch(disbursement.branchCode)} · {fmtDate(disbursement.date)}
             </div>
+            <DetailedPurposeLine text={disbursement.detailedPurpose} />
             <div style={{ display: "flex", gap: 6, alignItems: "center", marginTop: 7, flexWrap: "wrap" }}>
               <Badge status={finalStatus} />
               <Badge status={stage} />

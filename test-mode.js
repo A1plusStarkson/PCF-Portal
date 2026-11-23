@@ -73,7 +73,7 @@
   /* A released voucher with its liquidation. Returns the liquidation id. */
   var liquidation = function (branch, amount, review, submitted) {
     var n = ++liqNo, i = seq++, s = SAMPLES[i % SAMPLES.length], id = "t-liq-" + n, dv = "t-dv-" + n, date = day(B + 4 + (i % 3));
-    add("disbursements", { id: dv, voucherNo: "PCV-T-2026-" + n, date: date, employee: EMPLOYEES[i % EMPLOYEES.length], department: s[2], branchCode: branch, expense: s[1], purpose: s[1], amount: amount, status: "Open" });
+    add("disbursements", { id: dv, voucherNo: "PCV-T-2026-" + n, date: date, employee: EMPLOYEES[i % EMPLOYEES.length], department: s[2], branchCode: branch, expense: s[1], purpose: s[1], detailedPurpose: "Sample detailed purpose: " + s[1].toLowerCase() + " for official company business.", amount: amount, status: "Open" });
     add("liquidations", {
       id: id, disbursementId: dv, createdDate: day(B + 3), workflow: true, submissionStatus: submitted === false ? "Draft" : "Submitted", submittedAt: stamp(B + 2, 2),
       review: review, settlement: { settled: true },
@@ -86,7 +86,7 @@
     var n = ++rmbNo, i = seq++, s = SAMPLES[i % SAMPLES.length], id = "t-rmb-" + n, date = day(B + 4 + (i % 3));
     add("reimbursements", {
       id: id, reimbNo: "RMB-T-2026-" + n, requestDate: date, submittedAt: stamp(B + 2, 3), employee: EMPLOYEES[i % EMPLOYEES.length], createdBy: EMPLOYEES[i % EMPLOYEES.length],
-      department: s[2], branchCode: branch, purpose: s[1], status: status, review: review,
+      department: s[2], branchCode: branch, purpose: s[1], status: status, review: review, detailedPurpose: "Sample detailed purpose: " + s[1].toLowerCase() + " during an official client visit.",
       lines: [{ id: "rl-" + n, date: date, description: s[1], vendor: "Sample Vendor", category: s[0], department: s[2], amount: amount }],
       attachments: [attachment(id, n, amount)],
     });

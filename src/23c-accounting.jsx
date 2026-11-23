@@ -83,6 +83,7 @@ function accountingRows(disbursements, liquidations, reimbursements, replenishme
       key: "liq:" + d.id, id: d.id, kind: "Liquidation",
       txnNo: d.voucherNo || "", plantCode: d.branchCode, requestor: d.employee || "",
       particulars: d.purpose || disbExpense(d) || "",
+      detailedPurpose: d.detailedPurpose || "",
       cashAdvance: Number(d.amount) || 0,
       amount: round2(x.amounts.approvedTotal || liquidatedTotal(x.liq)),
       txnDate: String(d.date || "").slice(0, 10),
@@ -101,6 +102,7 @@ function accountingRows(disbursements, liquidations, reimbursements, replenishme
       key: "reimb:" + r.id, id: r.id, kind: "Reimbursement",
       txnNo: r.reimbNo || "", plantCode: r.branchCode, requestor: r.employee || "",
       particulars: r.purpose || "",
+      detailedPurpose: r.detailedPurpose || "",
       cashAdvance: null,
       amount: round2(reimbTotal(r)),
       txnDate: String(r.requestDate || r.submittedAt || "").slice(0, 10),
@@ -231,7 +233,7 @@ function AccountingModuleTab({
     && (company === "ALL" || r.company === company)
     && (pendingMode || status === ACCT_ALL_STATUSES || r.status === status)
     && (!pendingMode || aging === ACCT_ALL_AGING || r.aging.key === aging)
-    && (!s || [r.txnNo, r.requestor, r.particulars, r.custodian, r.batchNo, r.company, plantLabel(r.plantCode), rowPlantLabel(r)]
+    && (!s || [r.txnNo, r.requestor, r.particulars, r.detailedPurpose, r.custodian, r.batchNo, r.company, plantLabel(r.plantCode), rowPlantLabel(r)]
       .some((f) => String(f || "").toLowerCase().includes(s)))
     && (!dateFrom || r.txnDate >= dateFrom)
     && (!dateTo || r.txnDate <= dateTo));
@@ -299,6 +301,7 @@ function AccountingModuleTab({
       "Transaction Date": r.txnDate,
       "Transaction Type": r.kind,
       "Particulars / Description": r.particulars,
+      "Detailed Purpose": r.detailedPurpose || "",
       "Cash Advance": r.cashAdvance == null ? "" : r.cashAdvance,
       "Amount": r.amount,
       "Custodian Approval Date": r.custodianAt ? fmtAcctModStamp(r.custodianAt) : "",
@@ -526,7 +529,9 @@ function AccountingModuleTab({
                     </td>
                     <td>
                       {r.requestor || "—"}
-                      {r.particulars && <div style={{ ...mut, maxWidth: 200, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={r.particulars}>{r.particulars}</div>}
+                      {r.particulars && <div style={{ ...mut, maxWidth: 200, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }} title={r.detailedPurpose ? `${r.particulars}
+Detailed Purpose: ${r.detailedPurpose}` : r.particulars}>{r.particulars}</div>}
+                      {r.detailedPurpose && <div style={{ ...mut, maxWidth: 200, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontStyle: "italic" }} title={r.detailedPurpose}>{r.detailedPurpose}</div>}
                     </td>
                     <td style={{ fontSize: 11.5 }}>{r.custodian || "—"}</td>
                     <td>{r.kind}</td>
