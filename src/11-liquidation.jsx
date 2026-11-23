@@ -159,11 +159,15 @@ const ESCALATION_REVERT_TEXT = {
     todo: "Check the Final Approver's comment, correct or update what is needed, then mark it checked again." },
   CUSTODIAN: { title: "Reverted to Custodian", from: "Accounting's comment",
     todo: "Check Accounting's comment and correct what is needed before the transaction is processed again, then approve it as custodian again." },
+  /* Grace Gan rejected it at final approval (reimbursements, owner's
+     instruction, Nov 2026): back to Accounting with her reason. */
+  REJECTED_TO_ACCOUNTING: { title: "Rejected by Grace Gan", from: "Grace Gan's reason for rejection",
+    todo: "Correct what Grace Gan's reason asks for, then mark it checked again — it then goes back to Grace Gan for final approval." },
 };
 function EscalationRevertNotice({ marker }) {
   const hlOn = !!(useContext(AppUI) || {}).revertHighlight;
   if (!marker) return null;
-  const t = ESCALATION_REVERT_TEXT[marker.to];
+  const t = ESCALATION_REVERT_TEXT[marker.rejected ? "REJECTED_TO_ACCOUNTING" : marker.to];
   if (!t) return null;
   return (
     <div className={"pcp-card pcp-card-pad" + (hlOn ? " pcp-revert-hl" : "")} role="alert" style={{ marginBottom: 12, borderColor: "var(--amber)" }}>
@@ -178,7 +182,7 @@ function EscalationRevertNotice({ marker }) {
       <div style={{ border: "1px solid " + (hlOn ? "#f0c54a" : "var(--line)"), borderRadius: 8, padding: "9px 11px", background: hlOn ? "#fffdf2" : undefined }}>
         <div style={{ fontSize: 12 }}><strong>{t.from}:</strong> {marker.reason || "—"}</div>
         <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 4 }}>
-          Reverted by {marker.by || "—"} · {fmtApprovalStamp(marker.at) || "—"}
+          {marker.rejected ? "Rejected" : "Reverted"} by {marker.by || "—"} · {fmtApprovalStamp(marker.at) || "—"}
         </div>
       </div>
     </div>
@@ -186,8 +190,9 @@ function EscalationRevertNotice({ marker }) {
 }
 /* Compact list tag for the same state. */
 function EscalationRevertTag({ marker }) {
-  if (!marker || !ESCALATION_REVERT_TEXT[marker.to]) return null;
-  return <span className="pcp-revert-hl-tag" title={`${ESCALATION_REVERT_TEXT[marker.to].from}: ${marker.reason || ""}`}>{ESCALATION_REVERT_TEXT[marker.to].title}</span>;
+  const t = marker && ESCALATION_REVERT_TEXT[marker.rejected ? "REJECTED_TO_ACCOUNTING" : marker.to];
+  if (!t) return null;
+  return <span className="pcp-revert-hl-tag" title={`${t.from}: ${marker.reason || ""}`}>{t.title}</span>;
 }
 
 /* ---- Accounting Review box ----

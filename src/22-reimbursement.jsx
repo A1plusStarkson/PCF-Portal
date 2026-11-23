@@ -69,15 +69,85 @@ const REIMB_CUSTODIAN_REVIEW_STATUSES = [REIMB_STATUS.SUBMITTED, REIMB_STATUS.FO
 
 /* In the requestor's hands: a draft, one returned for revision, or one the
    custodian reverted (FOR SUBMISSION). Editable and (re)submittable. */
+/* The approval workflow of a reimbursement, step by step, for the final
+   approver (owner's instruction, Nov 2026): Submitted → Custodian Approved →
+   Accounting Checked → Final Approval (Grace Gan) → Ready for Replenishment.
+   Done steps green, the current one yellow; a rejection, return or revert
+   is shown as where it stopped. Derived from the record; display only. */
+function ReimbWorkflowTrack({ reimb, review }) {
+  const st = reimb.status;
+  const rv = review || {};
+  const steps = [
+    { label: "Submitted", done: st !== REIMB_STATUS.DRAFT && !!(reimb.submittedAt || rv.checked) },
+    { label: "Custodian Approved", done: !!rv.checked },
+    { label: "Accounting Checked", done: !!(rv.acctChecked && rv.batchNo) },
+    { label: "Final Approval (Grace Gan)", done: !!rv.final },
+    { label: "Ready for Replenishment", done: st === REIMB_STATUS.READY },
+  ];
+  const stopped = st === REIMB_STATUS.REJECTED ? { text: "REJECTED — the requestor may correct and resubmit", color: "var(--danger)" }
+    : st === REIMB_STATUS.FOR_SUBMISSION ? { text: "Reverted to the requestor — FOR SUBMISSION", color: "#b9790a" }
+      : st === REIMB_STATUS.RETURNED ? { text: "Returned for revision", color: "#b9790a" } : null;
+  /* Rejected by Grace Gan → with Accounting again (it stays in the flow). */
+  const esc = reimbEscalationRevert(reimb);
+  const note = !stopped && esc && esc.rejected ? { text: "Rejected by Grace Gan — back with Accounting for correction", color: "var(--danger)" } : null;
+  const current = stopped ? -1 : steps.findIndex((s) => !s.done);
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 10 }} aria-label="Approval workflow">
+      {steps.map((s, i) => {
+        const on = i === current;
+        const style = s.done ? { background: "#e7f5ec", color: "#15803d", borderColor: "#bfe3c8" }
+          : on ? { background: "#fff3c4", color: "#3d2a00", borderColor: "#e8b53a" }
+            : { background: "var(--dm-subtle, #f4f6f9)", color: "var(--text-mut)", borderColor: "var(--line)" };
+        return (
+          <React.Fragment key={s.label}>
+            <span style={{ ...style, border: "1px solid", borderRadius: 999, padding: "3px 10px", fontSize: 11.5, fontWeight: on || s.done ? 700 : 500, whiteSpace: "nowrap" }}>
+              {s.done ? "✓ " : ""}{s.label}
+            </span>
+            {i < steps.length - 1 && <span style={{ color: "var(--text-mut)" }}>{"›"}</span>}
+          </React.Fragment>
+        );
+      })}
+      {(stopped || note) && <span style={{ fontSize: 11.5, fontWeight: 700, color: (stopped || note).color, marginLeft: 6 }}>{(stopped || note).text}</span>}
+    </div>
+  );
+}
+
+/* A REJECTED reimbursement can also be corrected and resubmitted by the
+   requestor, like a rejected liquidation (owner's instruction, Nov 2026). */
 function reimbIsDraftLike(r) {
   return !!r && (r.status === REIMB_STATUS.DRAFT || r.status === REIMB_STATUS.RETURNED
-    || r.status === REIMB_STATUS.FOR_SUBMISSION);
+    || r.status === REIMB_STATUS.FOR_SUBMISSION || r.status === REIMB_STATUS.REJECTED);
 }
 
 /* Every revert of this reimbursement (history entries into FOR SUBMISSION),
    newest first. */
 function reimbRevertHistory(r) {
   return ((r && r.history) || []).filter((h) => h.newStatus === REIMB_STATUS.FOR_SUBMISSION).slice().reverse();
+}
+
+/* "Rejected" notice: the reason(s) and what to do next — correct and
+   resubmit (owner's instruction, Nov 2026). Shown to everyone who opens it. */
+function ReimbRejectedNotice({ reimb }) {
+  if (!reimb || reimb.status !== REIMB_STATUS.REJECTED) return null;
+  const rejs = ((reimb.history || []).filter((h) => h.newStatus === REIMB_STATUS.REJECTED)).slice().reverse();
+  const last = rejs[0];
+  return (
+    <div className="pcp-card pcp-card-pad" role="alert" style={{ marginBottom: 12, borderColor: "#f0c0c0", background: "#fff5f5" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+        <AlertTriangle size={17} color="var(--danger)" />
+        <div style={{ fontSize: 14, fontWeight: 800, color: "var(--danger)", textTransform: "uppercase", letterSpacing: 0.4 }}>Rejected</div>
+      </div>
+      {last && (
+        <div style={{ fontSize: 12.5 }}>
+          <strong>Reason:</strong> {last.comments || "—"}
+          <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 3 }}>Rejected by {last.user || "—"} · {fmtApprovalStamp(last.ts) || "—"}</div>
+        </div>
+      )}
+      <div style={{ fontSize: 12, marginTop: 6 }}>
+        The requestor can correct the details or attachments and click <b>Resubmit Request</b>; it then goes through the custodian, Accounting and Grace Gan again.
+      </div>
+    </div>
+  );
 }
 
 /* "Reverted to Requestor" notice for a reimbursement in FOR SUBMISSION — the
@@ -779,6 +849,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
           style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", padding: 0, border: "none", borderRadius: 0, background: "transparent", cursor: "default" }}>
         <div className="pcp-modal-body">
           {isEdit && <ReimbRevertNotice reimb={reimb} />}
+          {isEdit && <ReimbRejectedNotice reimb={reimb} />}
           <Stepper />
 
           {/* STEP 1 — Expense Information */}
@@ -1209,7 +1280,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
               title={!form.certify ? "Confirm the certification on the Submit step" : compliance.level === "FAILED" ? "Resolve policy failures before submitting" : ""}
               onClick={() => onSubmit(payload())}
             >
-              {isEdit && (reimb.status === REIMB_STATUS.RETURNED || reimb.status === REIMB_STATUS.FOR_SUBMISSION) ? "Resubmit Request" : "Submit Request"}
+              {isEdit && (reimb.status === REIMB_STATUS.RETURNED || reimb.status === REIMB_STATUS.FOR_SUBMISSION || reimb.status === REIMB_STATUS.REJECTED) ? "Resubmit Request" : "Submit Request"}
             </button>
           </div>
           )}
@@ -1278,13 +1349,39 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
   const canRecordPayment = !!allowPayment && canFinance && st === REIMB_STATUS.READY && !(reimb.payment && reimb.payment.date);
   /* Revert to Requestor (REVERT_EMAILS): submitted and not yet final-approved. */
   const canRevertNow = !!canRevert && (atCheck || st === REIMB_STATUS.FOR_FINAL);
-  const showComments = canCheck || canFinal || canAcctReturn || canRevertNow
-    || (canFinance && REIMB_OPEN_STATUSES.includes(st) && !atCheck && st !== REIMB_STATUS.FOR_FINAL);
+  /* Grace Gan's top action bar (same as a liquidation): shown while it waits
+     for her final approval. Reasons are asked in a pop-up, so the footer
+     buttons and Comments box are not repeated. */
+  const topActions = canFinal && !isOwn;
+  const showComments = !topActions && (canCheck || canFinal || canAcctReturn || canRevertNow
+    || (canFinance && REIMB_OPEN_STATUSES.includes(st) && !atCheck && st !== REIMB_STATUS.FOR_FINAL));
 
   const act = (action) => { onAction(reimb.id, action, { comments }); setComments(""); };
   const custodianApprove = () => {
     if (!window.confirm(`Approve ${reimb.reimbNo} as custodian?\n\n${reimb.employee} · ${peso(total)} · ${(reimb.attachments || []).length} document(s).\n\nIt goes to ${FINAL_APPROVER_NAME} for final approval.`)) return;
     act("custodian-approve");
+  };
+  /* Reasons for the top bar, asked in a pop-up like a liquidation's. */
+  const askReason = (msg) => {
+    const r = window.prompt(msg, "");
+    if (r == null) return null;
+    if (!r.trim()) { window.alert("A reason is required. Nothing was changed."); return null; }
+    return r.trim();
+  };
+  const topRevert = () => {
+    const why = askReason(`Revert ${reimb.reimbNo} to the requestor?\n\nIt becomes FOR SUBMISSION. The requestor corrects it and resubmits, and it goes through the custodian, Accounting and you again.\n\nReason (required, the requestor sees it):`);
+    if (why) onAction(reimb.id, "revert", { comments: why });
+  };
+  /* Grace Gan's Reject (owner's instruction, Nov 2026): back to ACCOUNTING
+     with her reason — the custodian approval and batch are kept, Accounting's
+     check is cleared. Accounting corrects and checks it again, and it returns
+     to her for final approval. */
+  const topReject = () => {
+    if (!accounting || !accounting.onEscalationRevert) return;
+    const why = askReason(`Reject ${reimb.reimbNo}?\n\n${reimb.employee} · ${peso(total)}\n\nIt goes back to Accounting with your reason (FOR ACCOUNTING CHECK). Accounting corrects it and checks it again, and it then returns to you for final approval.\n\nReason for rejection (required):`);
+    if (!why) return;
+    accounting.onEscalationRevert("reimb", reimb.id, "ACCOUNTING", why, { reject: true });
+    onClose();
   };
   const finalApprove = () => {
     if (!passesAccountingGate(review)) { window.alert(ACCOUNTING_GATE_MESSAGE); return; }
@@ -1364,7 +1461,28 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
               {review.final && <div>Final approval by <b>{review.finalBy}</b> · {fmtApprovalStamp(review.finalAt)}{review.finalRemarks ? ` · "${review.finalRemarks}"` : ""}</div>}
             </div>
           )}
+          {/* Grace Gan (the final approver): the approval workflow at a glance,
+              and — while it waits for her — the same top action bar as a
+              liquidation (owner's instruction, Nov 2026). */}
+          {isFinalApprover && <ReimbWorkflowTrack reimb={reimb} review={review} />}
+          {topActions && (
+            <div className="pcp-card pcp-card-pad" style={{ marginBottom: 10 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
+                <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={finalApprove}><ShieldCheck size={12} /> Final Approve</button>
+                {canRevertNow && (
+                  <button className="pcp-btn pcp-btn-sm" onClick={topRevert}><ArrowLeftRight size={12} /> Revert to Requestor</button>
+                )}
+                <button className="pcp-btn pcp-btn-sm" style={{ color: "var(--danger)", borderColor: "#f0c0c0" }} onClick={topReject}><X size={12} /> Reject Reimbursement</button>
+              </div>
+              <div style={{ fontSize: 11.5, color: "var(--text-mut)", marginTop: 8, lineHeight: 1.55 }}>
+                <div><b>Final Approve</b> {"→"} FULLY APPROVED / READY FOR REPLENISHMENT; it moves to the Replenishment module automatically.</div>
+                <div><b>Revert to Requestor</b> {"→"} FOR SUBMISSION; the requestor corrects it and resubmits, and it goes through the custodian, Accounting and you again.</div>
+                <div><b>Reject</b> {"→"} back to Accounting with your reason; Accounting corrects and checks it again, and it returns to you for final approval.</div>
+              </div>
+            </div>
+          )}
           <ReimbRevertNotice reimb={reimb} />
+          <ReimbRejectedNotice reimb={reimb} />
           {guidance && !(revertHl && st === REIMB_STATUS.FOR_SUBMISSION) && <div className="pcp-hint" style={{ marginBottom: 10 }}>{guidance}</div>}
           <EscalationRevertNotice marker={reimbEscalationRevert(reimb)} />
           {reimbAcctMode(reimb) && (
@@ -1452,7 +1570,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
         <div className="pcp-modal-foot" style={{ flexWrap: "wrap", gap: 8 }}>
           {/* Custodian review (level 1) and final approval (level 2).
               Segregation of duties: nobody approves their own reimbursement. */}
-          {(canCheck || canFinal || canAcctReturn) && (
+          {!topActions && (canCheck || canFinal || canAcctReturn) && (
             isOwn ? (
               <div style={{ fontSize: 12, color: "var(--danger)" }}>Segregation of duties: you cannot approve your own reimbursement.</div>
             ) : (
@@ -1464,7 +1582,7 @@ function ReimbursementDetail({ reimb, onClose, onAction, onExportAcumatica, curr
               </>
             )
           )}
-          {canRevertNow && (
+          {canRevertNow && !topActions && (
             <button
               className="pcp-btn" onClick={() => act("revert")} disabled={!comments.trim()}
               title={comments.trim() ? "Send back to the requestor as FOR SUBMISSION — they correct / add attachments and resubmit"

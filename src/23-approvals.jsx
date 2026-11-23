@@ -375,7 +375,18 @@ function PcaApprovalPanel({
               </button>
             )}
             {canReject && (
-              <button className="pcp-btn pcp-btn-sm pcp-btn-danger" onClick={() => setRejecting(true)}>
+              <button className="pcp-btn pcp-btn-sm pcp-btn-danger" onClick={() => {
+                /* Grace Gan at final approval: her rejection goes to Accounting
+                   only (owner's instruction, Nov 2026), with her reason. */
+                if (canFinal && !isChecker && accounting && accounting.onEscalationRevert) {
+                  const why = window.prompt(`Reject ${disb.voucherNo}?\n\nIt goes back to Accounting with your reason (FOR ACCOUNTING CHECK). Accounting corrects it and checks it again, and it then returns to you for final approval.\n\nReason for rejection (required):`, "");
+                  if (why == null) return;
+                  if (!why.trim()) { window.alert("A reason is required. Nothing was changed."); return; }
+                  accounting.onEscalationRevert("liq", disb.id, "ACCOUNTING", why.trim(), { reject: true });
+                  return;
+                }
+                setRejecting(true);
+              }}>
                 <X size={12} /> Reject Liquidation
               </button>
             )}

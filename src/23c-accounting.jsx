@@ -518,7 +518,7 @@ function AccountingModuleTab({
                     <td>
                       <strong>{r.txnNo || "—"}</strong>
                       {r.batchNo && <div style={mut}>{r.batchNo}</div>}
-                      {r.escRevert && <div><span className="pcp-badge pcp-badge-red" style={{ whiteSpace: "nowrap" }} title={r.escRevert.reason || ""}>Reverted to {r.escRevert.to === "ACCOUNTING" ? "Accounting" : "Custodian"}</span></div>}
+                      {r.escRevert && <div><span className="pcp-badge pcp-badge-red" style={{ whiteSpace: "nowrap" }} title={r.escRevert.reason || ""}>{r.escRevert.rejected ? "Rejected by Grace Gan" : `Reverted to ${r.escRevert.to === "ACCOUNTING" ? "Accounting" : "Custodian"}`}</span></div>}
                     </td>
                     <td>
                       {rowPlantLabel(r)}

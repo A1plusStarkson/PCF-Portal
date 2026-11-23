@@ -1432,7 +1432,12 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
      (EscalationRevertNotice) until that step is done again (the custodian
      approval / Accounting check write a fresh review without it). Same
      record and number; every rule is re-checked here. */
-  const escalationRevert = useCallback((kind, id, to, reason) => {
+  /* opts.reject: Grace Gan REJECTS at final approval (reimbursements, owner's
+     instruction, Nov 2026) — the same one step back to Accounting, recorded
+     and shown as "Rejected by Grace Gan" with her reason. Accounting
+     corrects and checks it again; it then returns to her for final approval. */
+  const escalationRevert = useCallback((kind, id, to, reason, opts) => {
+    const asReject = !!(opts && opts.reject) && to === "ACCOUNTING";
     const why = String(reason || "").trim();
     const toAcct = to === "ACCOUNTING";
     if (toAcct ? !isFinalApprover : !isAccountingChecker) {
@@ -1442,8 +1447,8 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     if (!why) { window.alert("A comment is required — it tells them what to correct."); return; }
     const ts = new Date().toISOString().slice(0, 19);
     const actor = userName || role;
-    const marker = { to: toAcct ? "ACCOUNTING" : "CUSTODIAN", by: actor, at: ts, reason: why };
-    const label = toAcct ? "Reverted to Accounting" : "Reverted to Custodian";
+    const marker = { to: toAcct ? "ACCOUNTING" : "CUSTODIAN", by: actor, at: ts, reason: why, ...(asReject ? { rejected: true } : {}) };
+    const label = asReject ? "Rejected by Grace Gan, returned to Accounting" : toAcct ? "Reverted to Accounting" : "Reverted to Custodian";
     const nextReview = (cur) => {
       const r = cur || {};
       const histEntry = {
@@ -1498,7 +1503,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
         ...r, status: next, review: nextReview(r.review),
         history: [...(r.history || []), { ts: reimbTs(), user: actor, action: label, prevStatus: r.status, newStatus: next, comments: why }],
       })));
-      logAudit("Reimbursement " + label, r0.reimbNo, `Comment: ${why}`);
+      logAudit("Reimbursement " + label, r0.reimbNo, `${asReject ? "Reason for rejection" : "Comment"}: ${why}`);
     }
   }, [isFinalApprover, isAccountingChecker, userName, userEmail, role, disbursements, liquidations, reimbursements, inScope, logAudit]); // eslint-disable-line
 
@@ -1677,6 +1682,12 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       return;
     }
     const comment = String((payload && payload.comment) || "").trim();
+    /* Grace Gan's rejection at final approval goes to ACCOUNTING only (owner's
+       instruction, Nov 2026) — never to the requestor. */
+    if (isFinalApprover && liqApprovalStage(d0, liq0) === LIQ_STAGE.FOR_FINAL) {
+      escalationRevert("liq", disbursementId, "ACCOUNTING", comment ? `${reason} — ${comment}` : reason, { reject: true });
+      return;
+    }
     const ts = new Date().toISOString().slice(0, 19);
     const actor = userName || role;
     const d = disbursements.find((x) => x.id === disbursementId);
@@ -1706,7 +1717,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     )));
     logAudit("Liquidation Rejected", d ? d.voucherNo : disbursementId,
       `Reason: ${reason}${comment ? ` · Comment: ${comment}` : ""} · ${prevStatus} → REJECTED`);
-  }, [isLiquidationChecker, isFinalApprover, isLiquidationFinalLocked, logAudit, disbursements, liquidations, requests, userName, role]);
+  }, [isLiquidationChecker, isFinalApprover, isLiquidationFinalLocked, escalationRevert, logAudit, disbursements, liquidations, requests, userName, role]);
 
   /* ---- Requestor EDIT (LIQ_REQUESTOR_EDIT_EMAILS) ----
      Only while the custodian has not started: submitted, no receipt approved
@@ -2465,7 +2476,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
       if (r.id !== id) return r;
       const submit = mode === "submit";
       const status = submit ? REIMB_STATUS.SUBMITTED : (r.status === REIMB_STATUS.RETURNED ? REIMB_STATUS.DRAFT : r.status);
-      const action = submit ? (r.status === REIMB_STATUS.RETURNED || r.status === REIMB_STATUS.FOR_SUBMISSION ? "Resubmitted" : "Submitted") : "Edited (Draft)";
+      const action = submit ? (r.status === REIMB_STATUS.RETURNED || r.status === REIMB_STATUS.FOR_SUBMISSION || r.status === REIMB_STATUS.REJECTED ? "Resubmitted" : "Submitted") : "Edited (Draft)";
       return {
         ...r, ...base, status,
         submittedBy: submit ? (userName || role) : r.submittedBy,
@@ -2541,6 +2552,12 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
           return;
         }
         if (!comments) { window.alert("Enter the reason in Comments first."); return; }
+        /* Grace Gan at final approval: her rejection (or return) goes to
+           ACCOUNTING only (owner's instruction, Nov 2026). */
+        if (isFinalApprover && atFinal && passesAccountingGate(rv)) {
+          escalationRevert("reimb", id, "ACCOUNTING", comments, { reject: true });
+          return;
+        }
         next = action === "return" ? REIMB_STATUS.RETURNED : REIMB_STATUS.REJECTED;
         label = action === "return" ? "Returned for Revision" : "Rejected";
         break;
@@ -2582,7 +2599,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     logAudit("Reimbursement " + label, r0.reimbNo, logged);
     /* true only when the action went through (a batch approval counts these). */
     return true;
-  }, [logAudit, reimbursements, userName, userEmail, role, inScope, isLiquidationChecker, isFinalApprover, isAccountingChecker, canRevert, activeFinanceChecker]); // eslint-disable-line
+  }, [logAudit, reimbursements, userName, userEmail, role, inScope, isLiquidationChecker, isFinalApprover, isAccountingChecker, canRevert, activeFinanceChecker, escalationRevert]); // eslint-disable-line
 
   const recordReimbursementPayment = useCallback((id, payment) => {
     const ts = reimbTs();
@@ -2994,7 +3011,7 @@ export default function App({ userEmail, userName: accountName, onSignOut, userR
     const overIds = new Set(due.filter((d) => d.daysLeft < 0).map((d) => d.id));
     add("Overdue Liquidations", visibleDisbursements.filter((d) => overIds.has(d.id)), "liquidation",
       overIds.size ? "Liquidate now to avoid salary deduction" : "None overdue", "#c0392b", { warn: overIds.size > 0 });
-    const closed = [REIMB_STATUS.DRAFT, REIMB_STATUS.COMPLETED, REIMB_STATUS.PAID, REIMB_STATUS.REJECTED];
+    const closed = [REIMB_STATUS.DRAFT, REIMB_STATUS.COMPLETED, REIMB_STATUS.PAID];
     const reimbs = visibleReimbursements.filter((r) => (mine(r.employee) || mine(r.createdBy)) && !closed.includes(r.status));
     add("Reimbursements", reimbs, "reimbursement", <>{pesoB(sumAmt(reimbs, (r) => reimbTotal(r)))} in progress</>, "#3f9c8f",
       { openAs: () => navigate("reimbursement") });
