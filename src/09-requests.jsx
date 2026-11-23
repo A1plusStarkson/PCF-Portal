@@ -34,7 +34,18 @@ function RequestFormModal({ onClose, onSave, request, plantOptions, allRequestNo
   /* Request No. is issued by the database and locked for every user. A NEW
      request previews the next number (useNextSeriesNo); it is only issued on
      save, and addRequest says so if someone else took it in the meantime. */
-  const valid = form.employee.trim() && !!form.branchCode && validPurpose && Number(form.amount) > 0 && form.approver.trim();
+  /* Required (owner's instruction, Nov 2026): Employee Name, Approver, Plant /
+     Branch, Department, Purpose and Amount — highlighted yellow; Detailed
+     Purpose stays optional. Submit stays disabled until all are filled. */
+  const missing = [
+    !form.employee.trim() && "Employee Name",
+    !form.approver.trim() && "Approver",
+    !form.branchCode && "Plant / Branch",
+    !form.department && "Department",
+    !validPurpose && (isOthers && form.purpose ? "Justification for \"Others\"" : "Purpose"),
+    !(Number(form.amount) > 0) && "Amount",
+  ].filter(Boolean);
+  const valid = missing.length === 0;
   const assignedLabel = `Auto-generated on submit (${requestNoPrefix(form.branchCode)}…)`;
   const previewNo = useNextSeriesNo(requestNoPrefix(form.branchCode), allRequestNos, !isEdit);
 
@@ -60,18 +71,18 @@ function RequestFormModal({ onClose, onSave, request, plantOptions, allRequestNo
             </div>
           </div>
           <div className="pcp-field-row">
-            <div className="pcp-field">
-              <label>Employee</label>
-              <input className="pcp-input" placeholder="Full name" value={form.employee} onChange={(e) => set("employee", e.target.value)} />
+            <div className="pcp-field pcp-req">
+              <label>Employee Name</label>
+              <input className="pcp-input" placeholder="Employee Name" value={form.employee} onChange={(e) => set("employee", e.target.value)} />
             </div>
-            <div className="pcp-field">
+            <div className="pcp-field pcp-req">
               <label>Approver</label>
               <input className="pcp-input" placeholder="Approver name" value={form.approver} onChange={(e) => set("approver", e.target.value)} />
             </div>
           </div>
           <div className="pcp-field-row">
-            <div className="pcp-field">
-              <label>Plant / Branch <span style={{ color: "var(--danger)" }}>*</span></label>
+            <div className="pcp-field pcp-req">
+              <label>Plant / Branch</label>
               <SearchSelect
                 value={form.branchCode}
                 onChange={(v) => set("branchCode", v)}
@@ -82,7 +93,7 @@ function RequestFormModal({ onClose, onSave, request, plantOptions, allRequestNo
                 invalid={!form.branchCode}
               />
             </div>
-            <div className="pcp-field">
+            <div className="pcp-field pcp-req">
               <label>Department</label>
               <SearchSelect
                 value={form.department}
@@ -93,7 +104,7 @@ function RequestFormModal({ onClose, onSave, request, plantOptions, allRequestNo
               />
             </div>
           </div>
-          <div className="pcp-field">
+          <div className="pcp-field pcp-req">
             <label>Purpose</label>
             <SearchSelect
               value={form.purpose}
@@ -132,14 +143,17 @@ function RequestFormModal({ onClose, onSave, request, plantOptions, allRequestNo
               />
             </div>
           )}
-          <div className="pcp-field">
+          <div className="pcp-field pcp-req">
             <label>Amount Requested (₱)</label>
             <input type="number" min="0" step="0.01" className="pcp-input" placeholder="0.00" value={form.amount} onChange={(e) => set("amount", e.target.value)} />
           </div>
         </div>
         <div className="pcp-modal-foot">
+          {!valid && (
+            <span style={{ fontSize: 11.5, color: "var(--danger)", marginRight: "auto" }}>Required: {missing.join(", ")}</span>
+          )}
           <button className="pcp-btn" onClick={onClose}>Cancel</button>
-          <button className="pcp-btn pcp-btn-primary" disabled={!valid} onClick={() => onSave({ ...form, previewNo })}>{isEdit ? "Save Changes" : "Submit Request"}</button>
+          <button className="pcp-btn pcp-btn-primary" disabled={!valid} title={valid ? "" : `Fill in the yellow fields first: ${missing.join(", ")}`} onClick={() => onSave({ ...form, previewNo })}>{isEdit ? "Save Changes" : "Submit Request"}</button>
         </div>
         <ModalResizeGrip />
       </div>

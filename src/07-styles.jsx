@@ -247,6 +247,13 @@ const CSS = `
   .pcp-input:focus, .pcp-select:focus, textarea.pcp-input:focus { outline: none; border-color: var(--brand); box-shadow: 0 0 0 3px rgba(37,78,88,0.15); }
   .pcp-field { margin-bottom: 12px; }
   .pcp-field label { display: block; font-size: 11.5px; font-weight: 600; color: var(--text); margin-bottom: 5px; }
+  /* Required fields, highlighted yellow (owner's instruction, Nov 2026) — the
+     Petty Cash Request and Reimbursement forms look and behave alike. */
+  .pcp-req > label::after { content: " *"; color: var(--danger); }
+  .pcp-req .pcp-input, .pcp-req .pcp-select { background: #fff8d6 !important; border-color: #e8b53a !important; color: #1f2a2e !important; }
+  .pcp-req .pcp-input::placeholder { color: #8a8f93; }
+  .pcp-req .pcp-select.placeholder { color: #8a8f93 !important; }
+  .pcp-req-missing .pcp-input, .pcp-req-missing .pcp-select { border-color: var(--danger) !important; }
   .pcp-field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
   /* Filter area highlight — every module's search / filter bar
      (owner's instruction, Oct 2026). A ring rather than a border, so a bar

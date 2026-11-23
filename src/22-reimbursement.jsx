@@ -741,7 +741,9 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
           varianceException: reimb.varianceException || null,
         }
       : {
-          employee: currentUser || "", department: SUBACCOUNTS[1].code, branchCode: defaultBranch,
+          /* Blank by default (owner's instruction, Nov 2026): the actual employee's
+             full name is typed, never the account name ("PCF REQUESTOR"). */
+          employee: "", department: SUBACCOUNTS[1].code, branchCode: defaultBranch,
           purpose: "", detailedPurpose: "", requestDate: todayISO(), remarks: "",
           lines: [emptyReimbLine(autoCat)], attachments: [],
           needsPO: false, needsProof: false, hasPersonal: false,
@@ -852,7 +854,15 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
     [normalizedForm, allReimbursements, reimb]
   );
   const total = reimbTotal(normalizedForm);
-  const canSubmit = compliance.level !== "FAILED" && form.certify;
+  /* Required Expense Info fields, highlighted yellow (owner's instruction,
+     Nov 2026), as on the Petty Cash Request. Drafts may still be saved. */
+  const missingInfo = [
+    !String(form.employee || "").trim() && "Employee Name",
+    !form.branchCode && "Company / Plant",
+    !form.department && "Department Charged",
+    !form.purpose && "Purpose",
+  ].filter(Boolean);
+  const canSubmit = compliance.level !== "FAILED" && form.certify && missingInfo.length === 0;
 
   /* The next number, previewed (useNextSeriesNo); issued only on save. */
   const previewNo = useNextSeriesNo(reimbNoPrefix(form.branchCode), (allReimbursements || []).map((r) => r.reimbNo), !isEdit);
@@ -914,11 +924,11 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                 </div>
               </div>
               <div className="pcp-field-row">
-                <div className="pcp-field">
+                <div className="pcp-field pcp-req">
                   <label>Employee Name</label>
-                  <input className="pcp-input" placeholder="Full name" value={form.employee} onChange={(e) => set("employee", e.target.value)} />
+                  <input className="pcp-input" placeholder="Employee Name" value={form.employee} onChange={(e) => set("employee", e.target.value)} />
                 </div>
-                <div className="pcp-field">
+                <div className="pcp-field pcp-req">
                   <label>Company / Plant</label>
                   <SearchSelect
                     value={form.branchCode} onChange={(v) => set("branchCode", v)}
@@ -934,7 +944,7 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                 </div>
               </div>
               <div className="pcp-field-row">
-                <div className="pcp-field">
+                <div className="pcp-field pcp-req">
                   <label>Department Charged</label>
                   <SearchSelect
                     value={form.department} onChange={(v) => set("department", v)}
@@ -948,8 +958,8 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
                   <input className="pcp-input" value={companyOfBranch(form.branchCode)} disabled />
                 </div>
               </div>
-              <div className="pcp-field">
-                <label>Purpose <span style={{ color: "var(--danger)" }}>*</span></label>
+              <div className="pcp-field pcp-req">
+                <label>Purpose</label>
                 <PurposeSelect value={form.purpose} onChange={(v) => set("purpose", v)} />
                 <div style={{ fontSize: 10.5, color: "var(--text-mut)", marginTop: 4 }}>
                   Select the approved expense classification. This does not, by itself, make an expense reimbursable — the usual receipts, approvals and supporting documents still apply.
@@ -1327,11 +1337,12 @@ function ReimbursementFormModal({ onClose, onSaveDraft, onSubmit, onSaveOverride
             </div>
           ) : (
           <div style={{ display: "flex", gap: 8 }}>
+            {missingInfo.length > 0 && <span style={{ fontSize: 11.5, color: "var(--danger)", alignSelf: "center" }}>Required: {missingInfo.join(", ")}</span>}
             <button className="pcp-btn" onClick={() => onSaveDraft(payload())}>Save Draft</button>
             <button
               className="pcp-btn pcp-btn-primary"
               disabled={!canSubmit}
-              title={!form.certify ? "Confirm the certification on the Submit step" : compliance.level === "FAILED" ? "Resolve policy failures before submitting" : ""}
+              title={missingInfo.length ? `Fill in the yellow fields on Expense Info first: ${missingInfo.join(", ")}` : !form.certify ? "Confirm the certification on the Submit step" : compliance.level === "FAILED" ? "Resolve policy failures before submitting" : ""}
               onClick={() => onSubmit(payload())}
             >
               {isEdit && (reimb.status === REIMB_STATUS.RETURNED || reimb.status === REIMB_STATUS.FOR_SUBMISSION || reimb.status === REIMB_STATUS.REJECTED) ? "Resubmit Request" : "Submit Request"}
