@@ -25,7 +25,7 @@ function replenishmentReadyItems(disbursements, liquidations, reimbursements, re
     return {
       kind: "liq", id: x.liq.id, ref: x.disb.voucherNo, employee: x.disb.employee, branchCode: x.disb.branchCode,
       checkedBy: custodianCheckerLabel(rv), checkedAt: rv.checkedAt, finalBy: rv.finalBy, finalAt: rv.finalAt, amount: x.amount,
-      date: x.disb.date || "",
+      date: x.disb.date || "", batchNo: rv.batchNo ? normalizeBatchNo(rv.batchNo) : "",
     };
   });
   const reimbs = reimbursementsReadyForReplenishment(reimbursements, replenishments, exceptReplenishmentId).map((x) => {
@@ -33,7 +33,7 @@ function replenishmentReadyItems(disbursements, liquidations, reimbursements, re
     return {
       kind: "reimb", id: x.reimb.id, ref: x.reimb.reimbNo, employee: x.reimb.employee, branchCode: x.reimb.branchCode,
       checkedBy: custodianCheckerLabel(rv), checkedAt: rv.checkedAt, finalBy: rv.finalBy, finalAt: rv.finalAt, amount: x.amount,
-      date: x.reimb.requestDate || "",
+      date: x.reimb.requestDate || "", batchNo: rv.batchNo ? normalizeBatchNo(rv.batchNo) : "",
     };
   });
   return liqs.concat(reimbs);
@@ -46,7 +46,7 @@ function replenishmentReadyItems(disbursements, liquidations, reimbursements, re
 function readyReplenishmentDoc(readyByPlant, funds, plantTitle, generatedBy, scopeNote) {
   const col = (key, label, opt = {}) => ({ key, label, align: opt.align || (opt.money ? "right" : "left"), money: !!opt.money, width: opt.width });
   const columns = [
-    col("kind", "Type"), col("ref", "Voucher / Reimb No."), col("date", "Txn Date"),
+    col("kind", "Type"), col("ref", "Voucher / Reimb No."), col("batchNo", "Batch No."), col("date", "Txn Date"),
     col("employee", "Employee"), col("branch", "Branch"),
     col("checked", "Custodian Approved", { width: "17%" }), col("final", "Final Approval", { width: "17%" }),
     col("amount", "Approved Amount", { money: true }),
@@ -61,7 +61,7 @@ function readyReplenishmentDoc(readyByPlant, funds, plantTitle, generatedBy, sco
     rows.push({ _group: true, kind: `${plantLabel(plantCode)} (${plantCode}) — ${companyOfBranch(plantCode)}${fund && fund.custodian ? " · Custodian: " + fund.custodian : ""}` });
     items.forEach((x) => {
       count++;
-      rows.push({ kind: readyKindLabel(x), ref: x.ref, date: x.date ? fmtDate(x.date) : "—",
+      rows.push({ kind: readyKindLabel(x), ref: x.ref, batchNo: x.batchNo || "—", date: x.date ? fmtDate(x.date) : "—",
         employee: x.employee, branch: plantLabel(x.branchCode) || x.branchCode,
         checked: stamp(x.checkedBy, x.checkedAt), final: stamp(x.finalBy, x.finalAt), amount: x.amount });
     });
@@ -649,7 +649,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
   const [picked, setPicked] = useState(() => new Set());
   const rq = readySearch.trim().toLowerCase();
   const shown = ready.filter((x) => !rq
-    || [x.ref, x.employee, plantLabel(x.branchCode), x.checkedBy, x.finalBy].some((v) => String(v || "").toLowerCase().includes(rq)));
+    || [x.ref, x.batchNo, x.employee, plantLabel(x.branchCode), x.checkedBy, x.finalBy].some((v) => String(v || "").toLowerCase().includes(rq)));
   const pickedShown = shown.filter((x) => picked.has(readyKey(x)));
   const sumOf = (arr) => round2(arr.reduce((s, x) => s + x.amount, 0));
   const togglePick = (keys, on) => setPicked((p) => {
@@ -691,26 +691,31 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
   const isOpenRepl = (r) => r.status !== "Completed" && r.status !== "Reverted";
   const totalPending = replenishments.filter(isOpenRepl).reduce((s, r) => s + (Number(r.amount) || 0), 0);
 
+  const details = useMemo(() => new Map(replenishments.map((r) => [r.id, replenishmentDetail(r, disbursements, liquidations, reimbursements)])),
+  [replenishments, disbursements, liquidations, reimbursements]);
+  /* Batch Number(s) of the transactions this replenishment claimed. */
+  const batchText = (r) => { const d = details.get(r.id); return d && d.batches.length ? d.batches.join(", ") : ""; };
   const replPool = replenishments.filter((r) => {
       if (plant !== "ALL" && r.branchCode !== plant) return false;
       if (statusFilter !== "All" && r.status !== statusFilter) return false;
       if (search) {
         const q = search.toLowerCase();
-        if (![r.replenishmentNo, r.preparedBy, r.acumaticaPoNo, r.acumaticaApvNo].some((v) => String(v || "").toLowerCase().includes(q))) return false;
+        if (![r.replenishmentNo, batchText(r), r.preparedBy, r.acumaticaPoNo, r.acumaticaApvNo].some((v) => String(v || "").toLowerCase().includes(q))) return false;
       }
       return true;
     });
   /* Final approval (who / date and time) per replenishment (replFinalApproval). */
   const approvals = useMemo(() => new Map(replenishments.map((r) => [r.id,
-    r.status === "Reverted" ? null : replFinalApproval(replenishmentDetail(r, disbursements, liquidations, reimbursements))])),
-  [replenishments, disbursements, liquidations, reimbursements]);
+    r.status === "Reverted" ? null : replFinalApproval(details.get(r.id))])),
+  [replenishments, details]);
   const approvalOf = (r) => approvals.get(r.id) || null;
   const approvalText = (r) => { const a = approvalOf(r); return a ? `${a.by} · ${fmtApprovalStamp(a.at)}` : "—"; };
-  const sortFields = { ...REPLENISH_SORT_FIELDS, approval: (r) => { const a = approvalOf(r); return a ? String(a.at) : ""; } };
+  const sortFields = { ...REPLENISH_SORT_FIELDS, batchNo: (r) => batchText(r), approval: (r) => { const a = approvalOf(r); return a ? String(a.at) : ""; } };
   /* Column header filters: the text each cell shows. */
   const cf = useTableColumnFilters(replPool, {
     approval: (r) => cfText(approvalText(r)),
     replenishmentNo: (r) => cfText(r.replenishmentNo),
+    batchNo: (r) => cfText(batchText(r)),
     date: (r) => (r.date ? fmtDate(r.date) : "—"),
     branchCode: (r) => cfText(plantLabel(r.branchCode)),
     amount: (r) => peso(r.amount),
@@ -792,7 +797,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
               <div className="pcp-filterbar" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", margin: "10px 0" }}>
                 <div style={{ position: "relative", flex: 1, minWidth: 200, maxWidth: 320 }}>
                   <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
-                  <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search voucher / reimb no., employee, approver…"
+                  <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search voucher / reimb no., batch no., employee, approver…"
                     value={readySearch} onChange={(e) => setReadySearch(e.target.value)} />
                 </div>
                 <button className="pcp-btn pcp-btn-sm" disabled={!shown.length}
@@ -840,7 +845,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                   <table className="pcp-table">
                     <thead>
                       <tr>
-                        <th style={{ width: 30 }}></th><th>Type</th><th>Voucher / Reimb No.</th><th>Txn Date</th>
+                        <th style={{ width: 30 }}></th><th>Type</th><th>Voucher / Reimb No.</th><th>Batch Number</th><th>Txn Date</th>
                         <th>Employee</th><th>Branch</th><th>Custodian Approved</th><th>Approved by Grace Gan (Date &amp; Time)</th>
                         <th style={{ textAlign: "right" }}>Approved Amount</th>
                         {canManage && onRevertReady && <th></th>}
@@ -857,6 +862,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                             </td>
                             <td><span className={"pcp-badge " + (x.kind === "reimb" ? "pcp-badge-blue" : "pcp-badge-gray")}>{readyKindLabel(x)}</span></td>
                             <td><strong>{x.ref}</strong></td>
+                            <td style={{ whiteSpace: "nowrap", fontWeight: 700 }}>{x.batchNo || "—"}</td>
                             <td>{x.date ? fmtDate(x.date) : "—"}</td>
                             <td>{x.employee}</td>
                             <td>{plantLabel(x.branchCode)}</td>
@@ -918,7 +924,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
           <div className="pcp-filterbar" style={{ padding: "14px 18px", display: "flex", gap: 10, alignItems: "center", borderBottom: "1px solid var(--line)" }}>
             <div style={{ position: "relative", flex: 1, maxWidth: 280 }}>
               <Search size={14} style={{ position: "absolute", left: 9, top: 9, color: "#8fa397" }} />
-              <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search no., preparer, PO # or APV #" value={search} onChange={(e) => setSearch(e.target.value)} />
+              <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search no., batch no., preparer, PO # or APV #" value={search} onChange={(e) => setSearch(e.target.value)} />
             </div>
             <select className="pcp-select" style={{ width: 170 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               {["All", ...REPLENISH_STATUSES, "Reverted"].map((s) => <option key={s}>{s}</option>)}
@@ -938,6 +944,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                     </th>
                   )}
                   <SortTh field="replenishmentNo" sort={sort} cf={cf}>Replenishment No.</SortTh>
+                  <SortTh field="batchNo" sort={sort} cf={cf}>Batch Number</SortTh>
                   <SortTh field="date" sort={sort} cf={cf}>Date</SortTh>
                   <SortTh field="branchCode" sort={sort} cf={cf}>Fund / Plant</SortTh>
                   <SortTh field="amount" sort={sort} cf={cf}>Amount</SortTh>
@@ -969,6 +976,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                         : r.replenishmentNo}
                       <PrevNo rec={r} />
                     </td>
+                    <td style={{ fontWeight: 700, maxWidth: 180, whiteSpace: "normal" }}>{batchText(r) || "—"}</td>
                     <td>{fmtDate(r.date)}</td>
                     <td>{plantLabel(r.branchCode)}</td>
                     <td className="pcp-num">{pesoB(r.amount)}</td>
@@ -1035,7 +1043,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                       </div>
                     </td>
                   </tr>
-                )) : <tr><td colSpan={onExportAcumatica ? 11 : 10} className="pcp-empty">No replenishment records match your filters</td></tr>}
+                )) : <tr><td colSpan={onExportAcumatica ? 12 : 11} className="pcp-empty">No replenishment records match your filters</td></tr>}
               </tbody>
             </table>
           </StickyHScroll>
