@@ -210,6 +210,7 @@ function AccountingModuleTab({
   const [dateTo, setDateTo] = useState("");
   const [status, setStatus] = useState(ACCT_ALL_STATUSES);
   const [aging, setAging] = useState(ACCT_ALL_AGING);
+  const [batch, setBatch] = useState("ALL");
   const [selected, setSelected] = useState([]);
   const [openRow, setOpenRow] = useState(null);
   /* The reimbursement open in the edit form. */
@@ -228,11 +229,14 @@ function AccountingModuleTab({
   const rowPlantLabel = (r) => plantLabel(plantOfBranch(r.plantCode));
   const companyOptions = [...new Set(allRows.map((r) => r.company).filter(Boolean))].sort();
   const statusOptions = [...new Set(approvedAll.map((r) => r.status))].sort();
+  const batchOptions = [...new Set(allRows.filter(inPlant).map((r) => r.batchNo).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
   const s = search.trim().toLowerCase();
   const baseRows = allRows.filter((r) => inPlant(r)
     && (company === "ALL" || r.company === company)
     && (pendingMode || status === ACCT_ALL_STATUSES || r.status === status)
     && (!pendingMode || aging === ACCT_ALL_AGING || r.aging.key === aging)
+    && (batch === "ALL" || r.batchNo === batch)
     && (!s || [r.txnNo, r.requestor, r.particulars, r.detailedPurpose, r.custodian, r.batchNo, r.company, plantLabel(r.plantCode), rowPlantLabel(r)]
       .some((f) => String(f || "").toLowerCase().includes(s)))
     && (!dateFrom || r.txnDate >= dateFrom)
@@ -267,9 +271,9 @@ function AccountingModuleTab({
     status: (r) => r.status,
   });
   const filtersOn = plant !== "ALL" || kind !== "all" || company !== "ALL" || !!s || !!dateFrom || !!dateTo
-    || status !== ACCT_ALL_STATUSES || aging !== ACCT_ALL_AGING || cf.active;
+    || status !== ACCT_ALL_STATUSES || aging !== ACCT_ALL_AGING || batch !== "ALL" || cf.active;
   const clearFilters = () => {
-    setPlant("ALL"); setKind("all"); setCompany("ALL"); setSearch(""); setDateFrom(""); setDateTo("");
+    setPlant("ALL"); setKind("all"); setCompany("ALL"); setSearch(""); setDateFrom(""); setDateTo(""); setBatch("ALL");
     setStatus(ACCT_ALL_STATUSES); setAging(ACCT_ALL_AGING); cf.clear();
   };
 
@@ -288,6 +292,7 @@ function AccountingModuleTab({
   ].concat(company !== "ALL" ? [company] : [])
     .concat(!pendingMode && status !== ACCT_ALL_STATUSES ? [status] : [])
     .concat(pendingMode && aging !== ACCT_ALL_AGING ? [(ACCT_AGING.find((b) => b.key === aging) || {}).label] : [])
+    .concat(batch !== "ALL" ? [`batch ${batch}`] : [])
     .concat(dateFrom || dateTo ? [`transaction date ${dateFrom ? fmtDate(dateFrom) : "…"} to ${dateTo ? fmtDate(dateTo) : "…"}`] : [])
     .concat(s ? [`search "${search.trim()}"`] : []).join(" · ");
 
@@ -469,6 +474,11 @@ function AccountingModuleTab({
           <input type="date" className="pcp-input" style={{ width: 140 }} value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} title="From" />
           <span style={{ fontSize: 11.5, color: "var(--text-mut)" }}>to</span>
           <input type="date" className="pcp-input" style={{ width: 140 }} value={dateTo} onChange={(e) => setDateTo(e.target.value)} title="To" />
+          <span className="pcp-filter-label">Batch Number</span>
+          <select className="pcp-select" style={{ width: 160 }} value={batch} onChange={(e) => setBatch(e.target.value)}>
+            <option value="ALL">All batches</option>
+            {batchOptions.map((b) => <option key={b} value={b}>{b}</option>)}
+          </select>
           {filtersOn && <button className="pcp-btn pcp-btn-sm" onClick={clearFilters}><X size={12} /> Clear</button>}
           <div style={{ marginLeft: "auto", display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button className="pcp-btn pcp-btn-sm" onClick={toggleAll} disabled={!rows.length}>

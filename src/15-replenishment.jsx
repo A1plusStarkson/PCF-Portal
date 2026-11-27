@@ -646,10 +646,13 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
      Ticked items drive Replenish, Print and Excel; with nothing ticked, those
      act on everything shown. */
   const [readySearch, setReadySearch] = useState("");
+  const [readyBatch, setReadyBatch] = useState("ALL");
   const [picked, setPicked] = useState(() => new Set());
   const rq = readySearch.trim().toLowerCase();
-  const shown = ready.filter((x) => !rq
-    || [x.ref, x.batchNo, x.employee, plantLabel(x.branchCode), x.checkedBy, x.finalBy].some((v) => String(v || "").toLowerCase().includes(rq)));
+  const byBatchNo = (a, b) => a.localeCompare(b, undefined, { numeric: true });
+  const readyBatchOptions = [...new Set(ready.map((x) => x.batchNo).filter(Boolean))].sort(byBatchNo);
+  const shown = ready.filter((x) => (readyBatch === "ALL" || x.batchNo === readyBatch) && (!rq
+    || [x.ref, x.batchNo, x.employee, plantLabel(x.branchCode), x.checkedBy, x.finalBy].some((v) => String(v || "").toLowerCase().includes(rq))));
   const pickedShown = shown.filter((x) => picked.has(readyKey(x)));
   const sumOf = (arr) => round2(arr.reduce((s, x) => s + x.amount, 0));
   const togglePick = (keys, on) => setPicked((p) => {
@@ -674,6 +677,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
   const exportScope = pickedShown.length ? pickedShown : shown;
   const exportNote = [
     pickedShown.length ? `${pickedShown.length} selected item(s)` : "",
+    readyBatch !== "ALL" ? `Batch ${readyBatch}` : "",
     rq ? `Search "${readySearch.trim()}"` : "",
   ].filter(Boolean).join(" · ");
   const exportDoc = () => readyReplenishmentDoc(groupByPlant(exportScope), funds, plantTitle, generatedBy, exportNote);
@@ -695,8 +699,14 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
   [replenishments, disbursements, liquidations, reimbursements]);
   /* Batch Number(s) of the transactions this replenishment claimed. */
   const batchText = (r) => { const d = details.get(r.id); return d && d.batches.length ? d.batches.join(", ") : ""; };
+  const [replBatch, setReplBatch] = useState("ALL");
+  const replBatchOptions = [...new Set([].concat(...replenishments
+    .filter((r) => plant === "ALL" || r.branchCode === plant)
+    .map((r) => (details.get(r.id) || { batches: [] }).batches)))].sort(byBatchNo);
   const replPool = replenishments.filter((r) => {
       if (plant !== "ALL" && r.branchCode !== plant) return false;
+      /* A replenishment can cover several batches: it matches if any is the one picked. */
+      if (replBatch !== "ALL" && !(details.get(r.id) || { batches: [] }).batches.includes(replBatch)) return false;
       if (statusFilter !== "All" && r.status !== statusFilter) return false;
       if (search) {
         const q = search.toLowerCase();
@@ -800,6 +810,11 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                   <input className="pcp-input" style={{ paddingLeft: 28 }} placeholder="Search voucher / reimb no., batch no., employee, approver…"
                     value={readySearch} onChange={(e) => setReadySearch(e.target.value)} />
                 </div>
+                <span className="pcp-filter-label">Batch Number</span>
+                <select className="pcp-select" style={{ width: 160 }} value={readyBatch} onChange={(e) => setReadyBatch(e.target.value)}>
+                  <option value="ALL">All batches</option>
+                  {readyBatchOptions.map((b) => <option key={b} value={b}>{b}</option>)}
+                </select>
                 <button className="pcp-btn pcp-btn-sm" disabled={!shown.length}
                   onClick={() => togglePick(shown.map(readyKey), !allShownPicked)}>
                   <Check size={12} /> {allShownPicked ? "Unselect all shown" : `Select all shown (${shown.length})`}
@@ -928,6 +943,11 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
             </div>
             <select className="pcp-select" style={{ width: 170 }} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               {["All", ...REPLENISH_STATUSES, "Reverted"].map((s) => <option key={s}>{s}</option>)}
+            </select>
+            <span className="pcp-filter-label">Batch Number</span>
+            <select className="pcp-select" style={{ width: 160 }} value={replBatch} onChange={(e) => setReplBatch(e.target.value)}>
+              <option value="ALL">All batches</option>
+              {replBatchOptions.map((b) => <option key={b} value={b}>{b}</option>)}
             </select>
             <ColFiltersClear cf={cf} />
             <div style={{ marginLeft: "auto", fontSize: 12, color: "var(--text-mut)" }}>{filtered.length} of {replenishments.length} records</div>
