@@ -720,12 +720,11 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
   [replenishments, details]);
   const approvalOf = (r) => approvals.get(r.id) || null;
   const approvalText = (r) => { const a = approvalOf(r); return a ? `${a.by} · ${fmtApprovalStamp(a.at)}` : "—"; };
-  const sortFields = { ...REPLENISH_SORT_FIELDS, batchNo: (r) => batchText(r), approval: (r) => { const a = approvalOf(r); return a ? String(a.at) : ""; } };
+  const sortFields = { ...REPLENISH_SORT_FIELDS, approval: (r) => { const a = approvalOf(r); return a ? String(a.at) : ""; } };
   /* Column header filters: the text each cell shows. */
   const cf = useTableColumnFilters(replPool, {
     approval: (r) => cfText(approvalText(r)),
     replenishmentNo: (r) => cfText(r.replenishmentNo),
-    batchNo: (r) => cfText(batchText(r)),
     date: (r) => (r.date ? fmtDate(r.date) : "—"),
     branchCode: (r) => cfText(plantLabel(r.branchCode)),
     amount: (r) => peso(r.amount),
@@ -860,7 +859,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                   <table className="pcp-table">
                     <thead>
                       <tr>
-                        <th style={{ width: 30 }}></th><th>Type</th><th>Voucher / Reimb No.</th><th>Batch Number</th><th>Txn Date</th>
+                        <th style={{ width: 30 }}></th><th>Type</th><th>Voucher / Reimb No.</th><th>Txn Date</th>
                         <th>Employee</th><th>Branch</th><th>Custodian Approved</th><th>Approved by Grace Gan (Date &amp; Time)</th>
                         <th style={{ textAlign: "right" }}>Approved Amount</th>
                         {canManage && onRevertReady && <th></th>}
@@ -876,9 +875,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                               <input type="checkbox" checked={on} onChange={() => togglePick([k], !on)} />
                             </td>
                             <td><span className={"pcp-badge " + (x.kind === "reimb" ? "pcp-badge-blue" : "pcp-badge-gray")}>{readyKindLabel(x)}</span></td>
-                            <td><strong>{x.ref}</strong></td>
-                            <td style={{ whiteSpace: "nowrap", fontWeight: 700 }}>{x.batchNo || "—"}</td>
-                            <td>{x.date ? fmtDate(x.date) : "—"}</td>
+                            <td><strong>{x.ref}</strong></td>                            <td>{x.date ? fmtDate(x.date) : "—"}</td>
                             <td>{x.employee}</td>
                             <td>{plantLabel(x.branchCode)}</td>
                             <td>{x.checkedBy} · {fmtDate(String(x.checkedAt || "").slice(0, 10))}</td>
@@ -963,9 +960,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                         onChange={(e) => setPickedRepl(e.target.checked ? new Set(exportable.map((r) => r.id)) : new Set())} />
                     </th>
                   )}
-                  <SortTh field="replenishmentNo" sort={sort} cf={cf}>Replenishment No.</SortTh>
-                  <SortTh field="batchNo" sort={sort} cf={cf}>Batch Number</SortTh>
-                  <SortTh field="date" sort={sort} cf={cf}>Date</SortTh>
+                  <SortTh field="replenishmentNo" sort={sort} cf={cf}>Replenishment No.</SortTh>                  <SortTh field="date" sort={sort} cf={cf}>Date</SortTh>
                   <SortTh field="branchCode" sort={sort} cf={cf}>Fund / Plant</SortTh>
                   <SortTh field="amount" sort={sort} cf={cf}>Amount</SortTh>
                   <SortTh field="preparedBy" sort={sort} cf={cf}>Prepared By</SortTh>
@@ -995,9 +990,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                             onClick={(e) => { e.stopPropagation(); setViewing(r); }}>{r.replenishmentNo}</button>
                         : r.replenishmentNo}
                       <PrevNo rec={r} />
-                    </td>
-                    <td style={{ fontWeight: 700, maxWidth: 180, whiteSpace: "normal" }}>{batchText(r) || "—"}</td>
-                    <td>{fmtDate(r.date)}</td>
+                    </td>                    <td>{fmtDate(r.date)}</td>
                     <td>{plantLabel(r.branchCode)}</td>
                     <td className="pcp-num">{pesoB(r.amount)}</td>
                     <td>{r.preparedBy || "—"}</td>
@@ -1063,7 +1056,7 @@ function ReplenishmentTab({ replenishments, funds, disbursements, liquidations, 
                       </div>
                     </td>
                   </tr>
-                )) : <tr><td colSpan={onExportAcumatica ? 12 : 11} className="pcp-empty">No replenishment records match your filters</td></tr>}
+                )) : <tr><td colSpan={onExportAcumatica ? 11 : 10} className="pcp-empty">No replenishment records match your filters</td></tr>}
               </tbody>
             </table>
           </StickyHScroll>

@@ -252,7 +252,6 @@ function AccountingModuleTab({
     txnDate: (r) => (r.txnDate ? fmtDate(r.txnDate) : "—"),
     custodianAt: (r) => cfText(fmtAcctModStamp(r.custodianAt)),
     acctAt: (r) => cfText(fmtAcctModStamp(r.acctAt)),
-    batchNo: (r) => cfText(r.batchNo),
     aging: (r) => r.aging.short,
     status: (r) => cfText(r.status),
   });
@@ -266,7 +265,6 @@ function AccountingModuleTab({
     txnDate: (r) => r.txnDate,
     custodianAt: (r) => r.custodianAt,
     acctAt: (r) => r.acctAt,
-    batchNo: (r) => r.batchNo,
     aging: (r) => r.days,
     status: (r) => r.status,
   });
@@ -516,10 +514,7 @@ function AccountingModuleTab({
                   <SortTh field="custodianAt" sort={sort} cf={cf}>Custodian Approval</SortTh>
                   {pendingMode
                     ? <SortTh field="aging" sort={sort} cf={cf}>Pending Aging</SortTh>
-                    : <>
-                      <SortTh field="acctAt" sort={sort} cf={cf}>Accounting Approval</SortTh>
-                      <SortTh field="batchNo" sort={sort} cf={cf}>Batch Number</SortTh>
-                    </>}
+                    : <SortTh field="acctAt" sort={sort} cf={cf}>Accounting Approval</SortTh>}
                   <SortTh field="status" sort={sort} cf={cf}>Status</SortTh>
                   <th></th>
                 </tr>
@@ -535,7 +530,7 @@ function AccountingModuleTab({
                     </td>
                     <td>
                       <strong>{r.txnNo || "—"}</strong>
-                      {pendingMode && r.batchNo && <div style={mut}>{r.batchNo}</div>}
+                      {r.batchNo && <div style={mut}>{r.batchNo}</div>}
                       {r.escRevert && <div><span className="pcp-badge pcp-badge-red" style={{ whiteSpace: "nowrap" }} title={r.escRevert.reason || ""}>{r.escRevert.rejected ? "Rejected by Grace Gan" : `Reverted to ${r.escRevert.to === "ACCOUNTING" ? "Accounting" : "Custodian"}`}</span></div>}
                     </td>
                     <td>
@@ -567,9 +562,7 @@ Detailed Purpose: ${r.detailedPurpose}` : r.particulars}>{r.particulars}</div>}
                         )}
                         {r.acctRemarks && <div style={mut} title={r.acctRemarks}>"{r.acctRemarks}"</div>}
                       </td>
-                    )}
-                    {!pendingMode && <td style={{ whiteSpace: "nowrap", fontWeight: 700 }}>{r.batchNo || "—"}</td>}
-                    <td><span className={"pcp-badge pcp-badge-" + (ACCT_STATUS_BADGE[r.status] || "gray")} style={{ whiteSpace: "nowrap" }}>{r.status}</span></td>
+                    )}                    <td><span className={"pcp-badge pcp-badge-" + (ACCT_STATUS_BADGE[r.status] || "gray")} style={{ whiteSpace: "nowrap" }}>{r.status}</span></td>
                     <td>
                       <button className="pcp-btn pcp-btn-sm pcp-btn-primary" onClick={(e) => { e.stopPropagation(); open(r); }}>
                         <Eye size={12} /> {pendingMode && canAct ? "Review" : "Open"}
@@ -577,7 +570,7 @@ Detailed Purpose: ${r.detailedPurpose}` : r.particulars}>{r.particulars}</div>}
                     </td>
                   </tr>
                 )) : (
-                  <tr><td colSpan={pendingMode ? 12 : 13} className="pcp-empty">
+                  <tr><td colSpan={12} className="pcp-empty">
                     {allRows.length ? "No transaction matches these filters"
                       : pendingMode ? "Nothing is waiting for Accounting approval" : "Accounting has not approved any transaction yet"}
                   </td></tr>
